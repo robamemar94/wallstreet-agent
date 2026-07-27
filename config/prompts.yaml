@@ -1,0 +1,48 @@
+summary_instruction: |
+
+
+  IMPORTANTE: DEBES COMENZAR TU RESPUESTA EXACTAMENTE CON LA SIGUIENTE ESTRUCTURA XML (Cópiala tal cual al inicio de tu mensaje, es un requerimiento técnico del sistema):
+
+  <resumen>
+    <score>[Puntuación numérica del 0 al 10, ej: 8.5]</score>
+    <rejection>[SOLO si hay una línea roja o motivo de descarte, escribe aquí el motivo brevemente. Si no hay motivo de descarte, deja este campo vacío o no lo incluyas]</rejection>
+    <pros>
+      <item>[Punto fuerte 1]</item>
+      <item>[Punto fuerte 2]</item>
+      <item>[Puedes añadir todos los que consideres necesarios]</item>
+    </pros>
+    <cons>
+      <item>[Punto débil 1]</item>
+      <item>[Punto débil 2]</item>
+      <item>[Puedes añadir todos los que consideres necesarios]</item>
+    </cons>
+  </resumen>
+  A continuación de esto, escribe tu informe detallado de forma concisa, clara y perfectamente estructurada para que el Director de Inversiones pueda integrarla fácilmente en su veredicto global y calcular la Nota General.
+
+valuation_summary_instruction: |
+
+
+  IMPORTANTE: DEBES COMENZAR TU RESPUESTA EXACTAMENTE CON LA SIGUIENTE ESTRUCTURA XML (Cópiala tal cual al inicio de tu mensaje):
+
+  <resumen>
+    <signal>[Escribe SOLO la señal: STRONG BUY, BUY, HOLD, SELL, o STRONG SELL]</signal>
+    <target_price>[Escribe el Precio de Entrada / Strike Price estimado, ej: $120.50]</target_price>
+  </resumen>
+  A continuación de esto, escribe tu informe de valoración detallado.
+
+technical_summary_instruction: |
+
+
+  IMPORTANTE: DEBES COMENZAR TU RESPUESTA EXACTAMENTE CON LA SIGUIENTE ESTRUCTURA XML (Cópiala tal cual al inicio de tu mensaje):
+
+  <resumen>
+    <signal>[Escribe SOLO la señal de veredicto: COMPRAR YA, ESPERAR Y OBSERVAR, o DESCARTAR]</signal>
+    <entry_price_range>[Escribe el Rango de Precio de Entrada Ideal, ej: $115.00 - $125.50]</entry_price_range>
+    <support_levels>
+      <level>[Primer nivel de soporte clave, ej: $105.00]</level>
+      <level>[Segundo nivel de soporte clave, ej: $90.00]</level>
+    </support_levels>
+    <confidence>[Escribe tu nivel de confianza en esta señal: ALTA, MEDIA, o BAJA]</confidence>
+  </resumen>
+
+  A continuación de esto, escribe tu informe de análisis técnico detallado siguiendo la estructura definida en tu tarea (Matriz de Decisión y Veredicto Final primero, luego Diagnóstico del Dip, Escenario Técnico y Flujo de Volumen, y Justificación/Plan de Acumulación). Basa cada afirmación exclusivamente en los datos devueltos por la herramienta `get_technical_analysis_data`.

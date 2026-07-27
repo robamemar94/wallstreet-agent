@@ -1,0 +1,1202 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    /* Estilos ultra-compactos y profesionales para Portfolio Ideal */
+    .group-card {
+        margin-bottom: 1.5rem;
+        background-color: var(--fin-card-bg) !important;
+        border: 1px solid var(--fin-border) !important;
+        border-radius: 4px;
+        box-shadow: none !important;
+    }
+    .group-card-header {
+        padding: 6px 12px;
+        background-color: #151821 !important;
+        border-bottom: 1px solid var(--fin-border) !important;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .group-card-header h5 {
+        font-size: 0.82rem !important;
+        font-weight: 700 !important;
+        color: var(--text-primary) !important;
+        margin-bottom: 0 !important;
+    }
+    .group-card-body {
+        padding: 10px;
+    }
+    .table-ideal {
+        font-size: 0.74rem !important;
+    }
+    .table-ideal th {
+        background-color: #151821 !important;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.65rem !important;
+        letter-spacing: 0.05em;
+        color: var(--text-secondary) !important;
+        border-bottom: 1px solid var(--fin-border) !important;
+        padding: 4px 8px !important;
+    }
+    .table-ideal td {
+        padding: 4px 8px !important;
+        height: 32px !important;
+        border-bottom: 1px solid var(--fin-border) !important;
+        color: var(--text-primary) !important;
+    }
+    .table-responsive {
+        box-shadow: none !important;
+        border: 1px solid var(--fin-border) !important;
+        border-radius: 4px !important;
+        background-color: var(--fin-card-bg) !important;
+    }
+    .candidate-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        background-color: rgba(255, 255, 255, 0.015) !important;
+        border: 1px solid var(--fin-border) !important;
+        padding: 2px 6px;
+        margin: 2px;
+        border-radius: 4px;
+        font-size: 0.72rem !important;
+        color: var(--text-primary) !important;
+        box-shadow: none !important;
+        transition: border-color 0.1s, transform 0.1s;
+        cursor: grab;
+    }
+    .candidate-badge:hover {
+        border-color: var(--fin-green) !important;
+        color: var(--fin-green) !important;
+    }
+    .candidate-badge:active {
+        cursor: grabbing;
+    }
+    .candidate-badge a {
+        text-decoration: none;
+        color: inherit;
+    }
+    .valuation-status-cheap {
+        color: var(--fin-green) !important;
+        font-weight: 700;
+    }
+    .valuation-status-expensive {
+        color: var(--fin-red) !important;
+        font-weight: 700;
+    }
+        box-shadow: 0 1px 2px rgba(0,0,0,0.01);
+        transition: border-color 0.1s, transform 0.1s;
+        cursor: grab;
+    }
+    .candidate-badge:hover {
+        border-color: #0d6efd;
+    }
+    .candidate-badge:active {
+        cursor: grabbing;
+    }
+    .candidate-badge a {
+        text-decoration: none;
+        color: inherit;
+    }
+    .valuation-status-cheap {
+        color: #198754;
+        font-weight: 700;
+    }
+    .valuation-status-expensive {
+        color: #dc3545;
+        font-weight: 700;
+    }
+    .drag-over-cell {
+        background-color: rgba(13, 110, 253, 0.04) !important;
+        border: 2px dashed #0d6efd !important;
+    }
+    .edit-mode-only {
+        display: none;
+    }
+    body.edit-mode .edit-mode-only {
+        display: block !important;
+    }
+    body.edit-mode tr.edit-mode-only {
+        display: table-row !important;
+    }
+    body.edit-mode th.edit-mode-only, body.edit-mode td.edit-mode-only {
+        display: table-cell !important;
+    }
+    body.edit-mode .visual-mode-only {
+        display: none !important;
+    }
+    .autocomplete-wrapper {
+        position: relative;
+    }
+    .autocomplete-list {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        z-index: 1050;
+        background-color: var(--bs-body-bg);
+        border: 1px solid var(--bs-border-color);
+        border-radius: 4px;
+        max-height: 220px;
+        overflow-y: auto;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        display: none;
+    }
+    .autocomplete-item {
+        padding: 10px 14px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: background-color 0.15s;
+    }
+    .autocomplete-item:hover {
+        background-color: rgba(13, 110, 253, 0.08);
+    }
+    .info-icon {
+        cursor: pointer;
+        color: #0d6efd;
+        font-size: 0.90rem;
+        transition: color 0.1s;
+    }
+    .info-icon:hover {
+        color: #0a58ca;
+    }
+    .star-icon {
+        cursor: pointer;
+        transition: color 0.1s, transform 0.1s;
+    }
+    .star-icon:hover {
+        transform: scale(1.15);
+    }
+    .badge-remove-btn {
+        color: #dc3545;
+        font-weight: 700;
+        cursor: pointer;
+        font-size: 0.9rem;
+        margin-left: 3px;
+        transition: color 0.1s, transform 0.1s;
+        line-height: 1;
+        display: inline-block;
+    }
+    .badge-remove-btn:hover {
+        color: #a82230;
+        transform: scale(1.2);
+    }
+</style>
+
+<div class="container-fluid py-2">
+    <!-- Cabecera Principal Compacta -->
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
+        <div>
+            <h4 class="fw-bold text-primary mb-1 d-flex align-items-center gap-2">
+                <span><i class="bi bi-bullseye"></i> Portfolio Ideal</span>
+                <span class="badge bg-primary text-white border font-monospace px-2.5 py-1 rounded" style="font-size: 0.7rem; font-weight: normal;" id="globalPositionsBadge">
+                    0 posiciones estratégicas planeadas
+                </span>
+            </h4>
+            <p class="text-muted mb-0 small" style="font-size: 0.75rem;">Asignación estratégica matricial compacta y control de candidatos valorados frente a su PER Justo.</p>
+        </div>
+        <div>
+            <button id="toggleEditBtn" class="btn btn-outline-secondary btn-sm px-3" onclick="toggleEditMode()">
+                <i class="bi bi-pencil-square me-1"></i> <span id="btnModeText">Editar Estructura</span>
+            </button>
+            <button id="savePortfolioBtn" class="btn btn-primary btn-sm d-none px-4 ms-2" onclick="saveIdealPortfolio()">
+                <i class="bi bi-save me-1"></i> Guardar Cambios
+            </button>
+        </div>
+    </div>
+
+    <!-- Asistente de Asignación IA (Siempre visible en modo visualización) -->
+    <div class="card mb-4 border border-primary-subtle bg-primary bg-opacity-10 shadow-sm visual-mode-only">
+        <div class="card-body p-3">
+            <div class="row align-items-center g-3">
+                <div class="col-md-auto">
+                    <h6 class="fw-bold mb-0 text-primary"><i class="bi bi-robot me-1"></i> Asistente de Asignación IA:</h6>
+                    <small class="text-muted" style="font-size:0.75rem;">¿No sabes dónde ubicar un activo? Deja que la IA analice su modelo de negocio y sugiera el cajón ideal.</small>
+                </div>
+                <div class="col-md-3">
+                    <div class="autocomplete-wrapper" id="aiMatcherAutocomplete">
+                        <input type="text" id="aiMatcherInput" class="form-control form-control-sm" placeholder="🔍 Escribe un ticker analizado..." autocomplete="off">
+                        <div class="autocomplete-list shadow border rounded"></div>
+                    </div>
+                </div>
+                <div class="col-md-auto">
+                    <button class="btn btn-primary btn-sm fw-bold px-3" id="aiSuggestBtn" onclick="getAISuggestion()">
+                        Sugerir Cajón
+                    </button>
+                </div>
+                <div class="col-md" id="aiSuggestionResult" style="display:none;">
+                    <!-- Dinámico -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gestión de Grupos (Solo Modo Edición) -->
+    <div class="edit-mode-only mb-4 p-3 bg-light rounded border">
+        <h6 class="fw-bold mb-2 small"><i class="bi bi-folder-plus me-1 text-primary"></i>Añadir Nuevo Grupo de Inversión</h6>
+        <div class="row g-2">
+            <div class="col-md-5">
+                <input type="text" id="newGroupNameInput" class="form-control form-control-sm" placeholder="ej. CORE & DEFENSIVO, GROWTH, SATÉLITE...">
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-success btn-sm w-100 fw-bold" onclick="addGroup()">
+                    Crear Grupo
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor Principal de Grupos Todo Seguido -->
+    <div id="portfolioGroupsContainer">
+        <!-- Los grupos y sus respectivas tablas se renderizan aquí dinámicamente -->
+    </div>
+</div>
+
+<!-- Modal para Configurar Categoría de forma limpia -->
+<div class="modal fade" id="editCategoryModal" tabindex="-1" aria-labelledby="editCategoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow">
+            <div class="modal-header py-2 px-3">
+                <h6 class="modal-title fw-bold" id="editCategoryModalLabel"><i class="bi bi-gear-fill text-primary me-2"></i>Configurar Cajón</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="mb-3">
+                    <label class="form-label text-muted small fw-bold mb-1">Nombre</label>
+                    <input type="text" id="modalCatName" class="form-control form-control-sm">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small fw-bold mb-1">Posiciones (Slots)</label>
+                    <input type="number" id="modalCatPositions" class="form-control form-control-sm" min="1" style="width: 100px;">
+                </div>
+                <div>
+                    <label class="form-label text-muted small fw-bold mb-1">Funcionamiento en Cartera (Tesis de Inversión)</label>
+                    <textarea id="modalCatRole" class="form-control form-control-sm" rows="4" style="font-size:0.8rem;" placeholder="Explica brevemente el rol de este cajón en tu estrategia..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer py-2 px-3">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary btn-sm fw-bold shadow-sm" onclick="saveCategoryModalChanges()">Aplicar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let idealData = { groups: [] };
+    let isEditMode = false;
+    let activeEditCoords = { gIdx: -1, cIdx: -1 };
+    let catEditModal = null;
+
+    async function loadIdealPortfolio() {
+        try {
+            const res = await fetch('/api/portfolio/ideal');
+            idealData = await res.json();
+            renderGroups();
+        } catch (e) {
+            console.error(e);
+            showToast("Error", "No se pudo cargar el portfolio ideal", "error");
+        }
+    }
+
+    function toggleEditMode() {
+        isEditMode = !isEditMode;
+        const btn = document.getElementById('toggleEditBtn');
+        const saveBtn = document.getElementById('savePortfolioBtn');
+        const btnText = document.getElementById('btnModeText');
+
+        if (isEditMode) {
+            document.body.classList.add('edit-mode');
+            btn.className = 'btn btn-outline-danger btn-sm px-3';
+            btnText.innerText = 'Cancelar Edición';
+            saveBtn.classList.remove('d-none');
+        } else {
+            document.body.classList.remove('edit-mode');
+            btn.className = 'btn btn-outline-secondary btn-sm px-3';
+            btnText.innerText = 'Editar Estructura';
+            saveBtn.classList.add('d-none');
+            loadIdealPortfolio(); // Revertir cambios locales
+        }
+        renderGroups();
+    }
+
+    function renderGroups() {
+        const container = document.getElementById('portfolioGroupsContainer');
+        container.innerHTML = '';
+
+        if (!idealData.groups || idealData.groups.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-5 text-muted border rounded bg-light">
+                    <i class="bi bi-inbox fs-2 mb-2 d-block text-secondary"></i>
+                    <p class="fst-italic mb-2 small">No hay grupos de inversión creados aún.</p>
+                    <button class="btn btn-primary btn-sm fw-bold" onclick="toggleEditMode()">
+                        <i class="bi bi-plus-circle me-1"></i> Empezar a Diseñar
+                    </button>
+                </div>
+            `;
+            return;
+        }
+
+        let globalTotalPositions = 0;
+
+        idealData.groups.forEach((group, gIdx) => {
+            const totalPositions = group.total_positions || 0;
+            globalTotalPositions += totalPositions;
+
+            // Asegurar propiedad de peso objetivo por defecto
+            if (group.target_weight_pct === undefined) group.target_weight_pct = 25;
+
+            // Crear Tarjeta de Grupo Independiente (Todo Seguido / Full Width)
+            const groupCard = document.createElement('div');
+            groupCard.className = 'group-card';
+
+            // Cabecera de la Tarjeta (Muestra posiciones totales y pesos del grupo en la cartera real)
+            let headerHtml = `
+                <div class="group-card-header">
+                    <h6 class="fw-bold text-dark m-0 d-flex align-items-center gap-2" style="font-size:0.9rem;">
+                        <i class="bi bi-layers-half text-primary"></i>
+                        <span>${group.name}</span>
+                        <span class="badge bg-secondary-subtle text-secondary border ms-2" style="font-size:0.7rem;">${totalPositions} ${totalPositions === 1 ? 'posición' : 'posiciones'}</span>
+                        <span class="badge bg-primary-subtle text-primary border ms-2" style="font-size:0.7rem;" title="Porcentaje del valor real actual de tu cartera que corresponde a este grupo">Real: ${group.real_weight_pct || 0}% vs Objetivo: ${group.target_weight_pct || 0}%</span>
+                    </h6>
+                    <div class="progress visual-mode-only ms-3" style="height: 6px; width: 120px;" title="Asignación Real de Capital: ${group.real_weight_pct || 0}%">
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: ${group.real_weight_pct || 0}%;" aria-valuenow="${group.real_weight_pct || 0}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+            `;
+
+            if (isEditMode) {
+                headerHtml = `
+                    <div class="group-card-header">
+                        <div class="d-flex align-items-center gap-2" style="width: 60%;">
+                            <i class="bi bi-layers-half text-primary"></i>
+                            <input type="text" class="form-control form-control-sm fw-bold border-primary-subtle py-0" style="font-size:0.85rem;" value="${group.name}" onchange="updateGroupName(${gIdx}, this.value)">
+                            <span class="text-muted small ms-1" style="font-size:0.75rem; white-space:nowrap;">Peso Obj %:</span>
+                            <input type="number" class="form-control form-control-sm border-primary-subtle py-0" style="width: 70px; font-size:0.8rem;" value="${group.target_weight_pct || 0}" min="0" max="100" onchange="updateGroupTargetWeight(${gIdx}, this.value)">
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-success btn-xs py-0.5 px-3 fw-bold btn-sm" style="font-size:0.7rem;" onclick="addCategory(${gIdx})">
+                                + Añadir Categoría
+                            </button>
+                            <button class="btn btn-outline-danger btn-xs py-0.5 px-3 btn-sm" style="font-size:0.7rem;" onclick="deleteGroup(${gIdx})">
+                                <i class="bi bi-trash"></i> Eliminar Grupo
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Cuerpo de la Tarjeta (Tabla de Categorías)
+            const cardBody = document.createElement('div');
+            cardBody.className = 'group-card-body';
+
+            const categories = group.categories || [];
+            let tableHtml = '';
+
+            if (categories.length === 0) {
+                tableHtml = `<p class="text-muted fst-italic text-center my-3 small">No hay categorías añadidas en este grupo estratégico.</p>`;
+            } else {
+                tableHtml = `
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle mb-0 table-ideal">
+                            <thead>
+                                <tr>
+                                    <th style="width: 380px;">Categoría</th>
+                                    <th style="width: 340px;" class="text-center">Candidato(s) Ideal(es)</th>
+                                    <th>Candidatos Alternativos & Valoración vs PER Justo</th>
+                                    <th style="width: 60px;" class="edit-mode-only text-center">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                categories.forEach((cat, cIdx) => {
+                    if (cat.ideal_tickers === undefined) cat.ideal_tickers = [];
+                    
+                    // Comprobar si hay oportunidades
+                    const candidatesEnriched = cat.candidates_enriched || [];
+                    const idealsEnriched = cat.ideals_enriched || [];
+                    const allEnriched = [...candidatesEnriched, ...idealsEnriched];
+                    const hasOpportunity = allEnriched.some(c => c.diff_pct !== null && c.diff_pct <= -10.0);
+
+                    // Columna Categoría + Posiciones + Icono de Info (Tooltip) + Alerta de Oportunidad
+                    let catCell = `
+                        <td class="ps-2 py-2" style="white-space: nowrap;">
+                            <div class="d-flex align-items-center gap-1">
+                                <span class="fw-bold text-dark" style="font-size:0.8rem;">${cat.name}</span>
+                                ${!isEditMode ? `
+                                    <i class="bi bi-info-circle info-icon" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-html="true" title="${cat.role_description ? cat.role_description.replace(/"/g, '&quot;') : 'Sin explicación de funcionamiento definida.'}"></i>
+                                    ${hasOpportunity ? `
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle ms-2 py-0.5 px-1.5" style="font-size:0.65rem; text-transform:uppercase;" title="¡Hay candidatos cotizando con un descuento del 10% o más de su PER Justo!"><i class="bi bi-lightning-charge-fill me-1"></i>Oportunidad 🟢</span>
+                                    ` : ''}
+                                ` : `
+                                    <i class="bi bi-pencil text-primary" style="cursor:pointer; font-size:0.8rem;" onclick="openCategoryEditModal(${gIdx}, ${cIdx})" title="Editar Detalles (Nombre, Posiciones, Tesis)"></i>
+                                `}
+                            </div>
+                            <div class="text-muted small mt-1">
+                                <span class="badge bg-light text-secondary border font-monospace py-0.5 px-1" style="font-size:0.65rem;">${cat.positions || 1} ${cat.positions === 1 ? 'posición' : 'posiciones'}</span>
+                            </div>
+                        </td>
+                    `;
+
+                    // Columna Candidato(s) Ideal(es) (Soporta DROP de candidatos)
+                    let idealCell = `
+                        <td class="py-1 text-center" 
+                            ondragover="handleDragOver(event)" 
+                            ondrop="handleDrop(event, ${gIdx}, ${cIdx}, 'ideal')"
+                            style="background-color: rgba(25, 135, 84, 0.01); transition: background-color 0.15s;">
+                    `;
+                    
+                    if (isEditMode) {
+                        const starred = cat.ideal_tickers || [];
+                        if (starred.length === 0) {
+                            idealCell += `<span class="text-muted fst-italic" style="font-size:0.72rem;">Ninguno marcado ⭐</span>`;
+                        } else {
+                            idealCell += `<div class="d-flex flex-wrap gap-1 justify-content-center">`;
+                            starred.forEach(ticker => {
+                                idealCell += `
+                                    <span class="badge bg-warning text-dark border py-0.5 px-1.5 fw-bold font-monospace d-inline-flex align-items-center gap-1" style="font-size:0.68rem;">
+                                        ⭐ ${ticker}
+                                    </span>
+                                `;
+                            });
+                            idealCell += `</div>`;
+                        }
+                    } else {
+                        const enrichedIdeals = cat.ideals_enriched || [];
+                        if (enrichedIdeals.length === 0) {
+                            idealCell += `<span class="text-muted fst-italic" style="font-size:0.72rem;">No definido</span>`;
+                        } else {
+                            idealCell += `<div class="d-flex flex-wrap justify-content-center">`;
+                            enriched_html = enrichedIdeals.map(c => {
+                                let valHtml = '';
+                                if (c.current_pe && c.fair_pe) {
+                                    const cClass = c.diff_pct <= 0 ? 'valuation-status-cheap' : 'valuation-status-expensive';
+                                    const prefix = c.diff_pct > 0 ? '+' : '';
+                                    valHtml = `<span class="${cClass} ms-1" style="font-size:0.68rem;">${c.current_pe}x vs ${c.fair_pe}x (${prefix}${c.diff_pct}%)</span>`;
+                                }
+                                const borderStyle = c.is_in_real_portfolio 
+                                    ? 'border-color: #198754 !important; border-width: 1.2px; background-color: rgba(25, 135, 84, 0.03);' 
+                                    : 'border-color: #dc3545 !important; border-width: 1.2px; background-color: rgba(220, 53, 69, 0.03);';
+                                return `
+                                    <div class="candidate-badge d-inline-flex align-items-center" 
+                                         draggable="true" 
+                                         ondragstart="handleDragStart(event, ${gIdx}, ${cIdx}, '${c.ticker}')"
+                                         style="padding: 2px 6px; margin: 2px; ${borderStyle}" title="${c.name}">
+                                        <span class="fw-bold" style="font-size: 0.75rem;">
+                                            ⭐ <a href="/portfolio/ticker/${c.ticker}">${c.ticker}</a>
+                                        </span>
+                                        ${c.is_in_real_portfolio ? `<span class="text-success ms-1" style="font-size:0.65rem;" title="En Cartera Real">🟢</span>` : `<span class="text-danger ms-1" style="font-size:0.65rem;" title="Fuera">🔴</span>`}
+                                        ${valHtml}
+                                        <span class="badge-remove-btn" onclick="removeCandidateDirectly(${gIdx}, ${cIdx}, '${c.ticker}')" title="Eliminar de la categoría">&times;</span>
+                                    </div>
+                                `;
+                            }).join('');
+                            idealCell += enriched_html + `</div>`;
+                        }
+                    }
+                    idealCell += '</td>';
+
+                    // Columna Candidatos Alternativos & Valoración (Soporta DROP y Añadir en Caliente siempre)
+                    let candidatesHtml = `
+                        <div class="d-flex flex-wrap align-items-center" 
+                             style="min-height: 35px;" 
+                             ondragover="handleDragOver(event)" 
+                             ondrop="handleDrop(event, ${gIdx}, ${cIdx}, 'alternative')">
+                    `;
+                    
+                    if (isEditMode) {
+                        candidatesHtml += `
+                            <div class="mb-1 d-flex flex-wrap gap-1">
+                                ${(cat.candidates || []).map((ticker, tIdx) => {
+                                    const isStarred = (cat.ideal_tickers || []).includes(ticker);
+                                    const starIcon = isStarred ? 'bi-star-fill text-warning' : 'bi-star text-muted';
+                                    return `
+                                        <span class="badge bg-light text-dark border py-0.5 px-2 d-inline-flex align-items-center gap-2" style="font-size:0.7rem;">
+                                            <i class="bi ${starIcon} star-icon" onclick="toggleCandidateIdeal(${gIdx}, ${cIdx}, '${ticker}')" title="Marcar/Desmarcar como Candidato Ideal"></i>
+                                            <strong>${ticker}</strong>
+                                            <i class="bi bi-x-circle text-danger remove-btn" style="cursor:pointer;" onclick="deleteCandidate(${gIdx}, ${cIdx}, ${tIdx})"></i>
+                                        </span>
+                                    `;
+                                }).join('')}
+                            </div>
+                            <div class="edit-mode-only autocomplete-wrapper mt-1" style="max-width: 250px;">
+                                <input type="text" class="form-control form-control-sm py-0 px-2" style="font-size:0.7rem;" placeholder="🔍 Buscar y añadir candidato..." onfocus="setupAutocompleteInput(this, ${gIdx}, ${cIdx})" autocomplete="off">
+                                <div class="autocomplete-list shadow border rounded"></div>
+                            </div>
+                        `;
+                    } else {
+                        const enriched = cat.candidates_enriched || [];
+                        const alternatives = enriched.filter(c => !(cat.ideal_tickers || []).includes(c.ticker));
+                        
+                        alternatives.forEach(c => {
+                            let valHtml = '';
+                            if (c.current_pe && c.fair_pe) {
+                                const cClass = c.diff_pct <= 0 ? 'valuation-status-cheap' : 'valuation-status-expensive';
+                                const prefix = c.diff_pct > 0 ? '+' : '';
+                                valHtml = `<span class="${cClass} ms-1" style="font-size:0.68rem;">${c.current_pe}x vs ${c.fair_pe}x (${prefix}${c.diff_pct}%)</span>`;
+                            }
+
+                            candidatesHtml += `
+                                <div class="candidate-badge d-inline-flex align-items-center border" 
+                                     draggable="true" 
+                                     ondragstart="handleDragStart(event, ${gIdx}, ${cIdx}, '${c.ticker}')"
+                                     style="padding: 2px 6px; margin: 2px;" title="${c.name}">
+                                    <span class="fw-bold" style="font-size: 0.75rem;">
+                                        <a href="/portfolio/ticker/${c.ticker}">${c.ticker}</a>
+                                    </span>
+                                    ${c.is_in_real_portfolio ? `<span class="text-success ms-1" style="font-size:0.65rem;" title="En Cartera Real">🟢</span>` : `<span class="text-muted ms-1" style="font-size:0.65rem;" title="Fuera">⚪</span>`}
+                                    ${valHtml}
+                                    <span class="badge-remove-btn" onclick="removeCandidateDirectly(${gIdx}, ${cIdx}, '${c.ticker}')" title="Eliminar de la categoría">&times;</span>
+                                </div>
+                            `;
+                        });
+
+                        // 🔍 INPUT DE ADICIÓN EN CALIENTE (Siempre disponible en visualización)
+                        candidatesHtml += `
+                            <div class="autocomplete-wrapper d-inline-block align-middle ms-2" style="max-width: 140px;">
+                                <input type="text" class="form-control form-control-sm py-0 px-2" 
+                                       style="font-size:0.7rem; border-style: dashed; background: transparent; height:24px;" 
+                                       placeholder="+ Añadir..." onfocus="setupAutocompleteInput(this, ${gIdx}, ${cIdx})" autocomplete="off">
+                                <div class="autocomplete-list shadow border rounded"></div>
+                            </div>
+                        `;
+                        candidatesHtml += '</div>';
+                    }
+
+                    // Columna Acciones
+                    let actionsCell = '';
+                    if (isEditMode) {
+                        actionsCell = `
+                            <td class="text-center edit-mode-only">
+                                <button class="btn btn-outline-danger btn-sm py-1 px-2" onclick="deleteCategory(${gIdx}, ${cIdx})" title="Eliminar Categoría">
+                                    <i class="bi bi-trash-fill"></i>
+                                </button>
+                            </td>
+                        `;
+                    }
+
+                    tableHtml += `
+                        <tr>
+                            ${catCell}
+                            ${idealCell}
+                            <td>${candidatesHtml}</td>
+                            ${actionsCell}
+                        </tr>
+                    `;
+                });
+
+                tableHtml += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            cardBody.innerHTML = tableHtml;
+            groupCard.innerHTML = headerHtml;
+            groupCard.appendChild(cardBody);
+            container.appendChild(groupCard);
+        });
+
+        // Actualizar el contador de posiciones globales en la cabecera
+        const globalBadge = document.getElementById('globalPositionsBadge');
+        if (globalBadge) {
+            globalBadge.innerText = `${globalTotalPositions} ${globalTotalPositions === 1 ? 'posición estratégica planeada' : 'posiciones estratégicas planeadas'}`;
+        }
+
+        // Inicializar Tooltips de Bootstrap 5 en caliente
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+            new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    }
+
+    // --- HTML5 Drag & Drop Handlers (Interacción de Élite) ---
+    function handleDragStart(event, gIdx, cIdx, ticker) {
+        event.dataTransfer.setData("ticker", ticker);
+        event.dataTransfer.setData("gIdx", gIdx);
+        event.dataTransfer.setData("cIdx", cIdx);
+    }
+
+    function handleDragOver(event) {
+        event.preventDefault(); // Permitir el Drop
+        const cell = event.target.closest('td');
+        if (cell && !cell.classList.contains('drag-over-cell')) {
+            cell.classList.add('drag-over-cell');
+        }
+    }
+
+    // Eliminar borde de drop cuando salimos de la celda
+    document.body.addEventListener('dragleave', (e) => {
+        const cell = e.target.closest('td');
+        if (cell && cell.classList.contains('drag-over-cell')) {
+            cell.classList.remove('drag-over-cell');
+        }
+    }, true);
+
+    function handleDrop(event, targetGIdx, targetCIdx, targetType) {
+        event.preventDefault();
+        
+        // Quitar estilos de arrastre
+        const cell = event.target.closest('td');
+        if (cell) cell.classList.remove('drag-over-cell');
+
+        const ticker = event.dataTransfer.getData("ticker");
+        const sourceGIdx = parseInt(event.dataTransfer.getData("gIdx"));
+        const sourceCIdx = parseInt(event.dataTransfer.getData("cIdx"));
+
+        // Impedir arrastre entre categorías diferentes para evitar confusiones
+        if (sourceGIdx === targetGIdx && sourceCIdx === targetCIdx) {
+            const cat = idealData.groups[targetGIdx]?.categories[targetCIdx];
+            if (cat) {
+                if (cat.ideal_tickers === undefined) cat.ideal_tickers = [];
+                const index = cat.ideal_tickers.indexOf(ticker);
+
+                if (targetType === 'ideal' && index === -1) {
+                    // Mover a ideales respetando el cupo de posiciones
+                    const maxPositions = cat.positions || 1;
+                    if (cat.ideal_tickers.length >= maxPositions) {
+                        if (maxPositions === 1) {
+                            cat.ideal_tickers = [ticker];
+                        } else {
+                            showToast("Límite Alcanzado", `No puedes tener más de ${maxPositions} candidatos ideales en este cajón.`, "warning");
+                            return;
+                        }
+                    } else {
+                        cat.ideal_tickers.push(ticker);
+                    }
+                    showToast("Movido", `Candidato ${ticker} marcado como Ideal ⭐`, "success");
+                    saveIdealPortfolioSilent(); // Auto-guardado asíncrono silencioso
+                } else if (targetType === 'alternative' && index > -1) {
+                    // Mover de vuelta a alternativas (quitar estrella)
+                    cat.ideal_tickers.splice(index, 1);
+                    showToast("Movido", `Candidato ${ticker} desmarcado de ideales.`, "info");
+                    saveIdealPortfolioSilent(); // Auto-guardado asíncrono silencioso
+                }
+            }
+        }
+    }
+
+    // Eliminación directa de candidato en modo visualización con auto-guardado
+    function removeCandidateDirectly(gIdx, cIdx, ticker) {
+        if (confirm(`¿Estás seguro de que quieres eliminar al candidato ${ticker} de este cajón de inversión?`)) {
+            const cat = idealData.groups[gIdx]?.categories[cIdx];
+            if (cat) {
+                // 1. Eliminar de candidatos
+                if (cat.candidates) {
+                    const index = cat.candidates.indexOf(ticker);
+                    if (index > -1) cat.candidates.splice(index, 1);
+                }
+                // 2. Eliminar de ideales
+                if (cat.ideal_tickers) {
+                    const index = cat.ideal_tickers.indexOf(ticker);
+                    if (index > -1) cat.ideal_tickers.splice(index, 1);
+                }
+                
+                showToast("Eliminado", `Candidato ${ticker} eliminado correctamente de la categoría.`, "info");
+                saveIdealPortfolioSilent(); // Auto-guardado silencioso
+            }
+        }
+    }
+
+    // Modal de Edición de Categorías (Configuración Completa)
+    function openCategoryEditModal(gIdx, cIdx) {
+        const cat = idealData.groups[gIdx]?.categories[cIdx];
+        if (!cat) return;
+
+        activeEditCoords = { gIdx, cIdx };
+        document.getElementById('modalCatName').value = cat.name;
+        document.getElementById('modalCatPositions').value = cat.positions || 1;
+        document.getElementById('modalCatRole').value = cat.role_description || '';
+
+        if (!catEditModal) {
+            catEditModal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
+        }
+        catEditModal.show();
+    }
+
+    function saveCategoryModalChanges() {
+        const { gIdx, cIdx } = activeEditCoords;
+        const cat = idealData.groups[gIdx]?.categories[cIdx];
+        if (!cat) return;
+
+        cat.name = document.getElementById('modalCatName').value.trim();
+        const pVal = parseInt(document.getElementById('modalCatPositions').value);
+        cat.positions = isNaN(pVal) || pVal < 1 ? 1 : pVal;
+        cat.role_description = document.getElementById('modalCatRole').value.trim();
+
+        // Validar límite de candidatos ideales estrellados vs número de posiciones
+        if (cat.ideal_tickers && cat.ideal_tickers.length > cat.positions) {
+            cat.ideal_tickers = cat.ideal_tickers.slice(0, cat.positions);
+            showToast("Cuota de Ideales Ajustada", "Se han recortado los candidatos ideales seleccionados para cumplir con el límite de posiciones de la categoría.", "info");
+        }
+
+        if (catEditModal) catEditModal.hide();
+        renderGroups();
+        showToast("Actualizado", "Detalles del cajón actualizados temporalmente.", "success");
+    }
+
+    // Funciones del Modelo de Datos (Grupos)
+    function addGroup() {
+        const input = document.getElementById('newGroupNameInput');
+        const name = input.value.trim();
+        if (!name) return;
+
+        const id = 'gr_' + name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '_' + Date.now();
+        idealData.groups.push({
+            id: id,
+            name: name,
+            target_weight_pct: 25, // Por defecto 25% peso objetivo
+            categories: []
+        });
+
+        input.value = '';
+        renderGroups();
+        showToast("Grupo Creado", `Grupo "${name}" creado. Haz clic en "+ Añadir Categoría" para empezar a estructurarlo.`, "success");
+    }
+
+    function updateGroupName(gIdx, name) {
+        if (idealData.groups[gIdx]) {
+            idealData.groups[gIdx].name = name.trim();
+        }
+    }
+
+    function updateGroupTargetWeight(gIdx, val) {
+        if (idealData.groups[gIdx]) {
+            let num = parseInt(val);
+            idealData.groups[gIdx].target_weight_pct = isNaN(num) || num < 0 ? 0 : (num > 100 ? 100 : num);
+        }
+    }
+
+    // Borrar grupo completo
+    function deleteGroup(gIdx) {
+        if (confirm(`¿Estás seguro de que quieres eliminar el grupo "${idealData.groups[gIdx].name}" y todas sus categorías?`)) {
+            idealData.groups.splice(gIdx, 1);
+            renderGroups();
+        }
+    }
+
+    // Funciones del Modelo de Datos (Categorías)
+    function addCategory(gIdx) {
+        const group = idealData.groups[gIdx];
+        if (!group) return;
+
+        const id = 'cat_' + Date.now();
+        group.categories.push({
+            id: id,
+            name: "Nueva Categoría",
+            role_description: "",
+            ideal_tickers: [],
+            positions: 3, // Por defecto 3 posiciones
+            candidates: []
+        });
+
+        renderGroups();
+    }
+
+    function updateCategoryName(gIdx, cIdx, name) {
+        const cat = idealData.groups[gIdx]?.categories[cIdx];
+        if (cat) cat.name = name.trim();
+    }
+
+    function updateCategoryRole(gIdx, cIdx, role) {
+        const cat = idealData.groups[gIdx]?.categories[cIdx];
+        if (cat) cat.role_description = role.trim();
+    }
+
+    function updateCategoryPositions(gIdx, cIdx, val) {
+        const cat = idealData.groups[gIdx]?.categories[cIdx];
+        if (cat) {
+            let num = parseInt(val);
+            cat.positions = isNaN(num) || num < 1 ? 1 : num;
+        }
+    }
+
+    // Toggle de Estrella ⭐ (Marcar/Desmarcar Candidato como Ideal)
+    function toggleCandidateIdeal(gIdx, cIdx, ticker) {
+        const cat = idealData.groups[gIdx]?.categories[cIdx];
+        if (!cat) return;
+
+        if (cat.ideal_tickers === undefined) cat.ideal_tickers = [];
+        
+        const index = cat.ideal_tickers.indexOf(ticker);
+        if (index > -1) {
+            cat.ideal_tickers.splice(index, 1);
+            showToast("Estrella Quitada", `Candidato ${ticker} desmarcado de ideales.`, "info");
+        } else {
+            const maxPositions = cat.positions || 1;
+            
+            if (cat.ideal_tickers.length >= maxPositions) {
+                if (maxPositions === 1) {
+                    cat.ideal_tickers = [ticker];
+                    showToast("Candidato Ideal Reemplazado", `${ticker} es ahora el candidato ideal único.`, "success");
+                } else {
+                    showToast("Aviso", `No puedes marcar más de ${maxPositions} candidatos ideales para esta categoría (definido en posiciones/slots).`, "warning");
+                    return;
+                }
+            } else {
+                cat.ideal_tickers.push(ticker);
+                showToast("Estrella Marcada", `Candidato ${ticker} marcado como Ideal ⭐`, "success");
+            }
+        }
+        renderGroups();
+    }
+
+    function deleteCategory(gIdx, cIdx) {
+        if (confirm("¿Estás seguro de que quieres eliminar esta categoría?")) {
+            idealData.groups[gIdx].categories.splice(cIdx, 1);
+            renderGroups();
+        }
+    }
+
+    // Funciones del Modelo de Datos (Candidatos)
+    function deleteCandidate(gIdx, cIdx, tIdx) {
+        const cat = idealData.groups[gIdx]?.categories[cIdx];
+        if (cat) {
+            const removed = cat.candidates.splice(tIdx, 1)[0];
+            if (cat.ideal_tickers) {
+                const index = cat.ideal_tickers.indexOf(removed);
+                if (index > -1) cat.ideal_tickers.splice(index, 1);
+            }
+            renderGroups();
+        }
+    }
+
+    // Autocompletado dinámico de candidatos con inserción directa
+    let activeWrapper = null;
+    
+    function setupAutocompleteInput(input, gIdx, cIdx) {
+        const wrapper = input.closest('.autocomplete-wrapper');
+        activeWrapper = wrapper;
+        const list = wrapper.querySelector('.autocomplete-list');
+        
+        const updateView = () => {
+            const text = input.value.toLowerCase().trim();
+            if (!text) {
+                list.style.display = 'none';
+                return;
+            }
+
+            const matches = analyzedCompanies.filter(c => 
+                c.ticker.toLowerCase().includes(text) || 
+                c.name.toLowerCase().includes(text)
+            ).slice(0, 5);
+
+            if (matches.length > 0) {
+                let html = "";
+                matches.forEach(m => {
+                    html += `
+                        <div class="autocomplete-item py-2 px-3 border-bottom" data-ticker="${m.ticker}">
+                            <span class="fw-bold text-primary">${m.ticker}</span> — <span class="text-muted small">${m.name}</span>
+                        </div>
+                    `;
+                });
+                list.innerHTML = html;
+                list.style.display = 'block';
+            } else {
+                list.innerHTML = `
+                    <div class="p-2 text-muted small text-center border-bottom">
+                        <em>No analizada (pulsa Enter para añadir temporalmente)</em>
+                    </div>
+                `;
+                list.style.display = 'block';
+            }
+        };
+
+        input.oninput = updateView;
+        input.onfocus = updateView;
+
+        // Click en sugerencia -> Añade directamente
+        list.onmousedown = (e) => {
+            const item = e.target.closest('.autocomplete-item');
+            if (item) {
+                const ticker = item.getAttribute('data-ticker');
+                addCandidateDirectly(ticker, gIdx, cIdx);
+                input.value = '';
+                list.style.display = 'none';
+            }
+        };
+
+        // Soporte para añadir pulsando Enter
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const ticker = input.value.trim().toUpperCase();
+                if (ticker) {
+                    addCandidateDirectly(ticker, gIdx, cIdx);
+                    input.value = '';
+                    list.style.display = 'none';
+                }
+            }
+        };
+    }
+
+    function addCandidateDirectly(ticker, gIdx, cIdx) {
+        const cat = idealData.groups[gIdx]?.categories[cIdx];
+        if (cat) {
+            if (!cat.candidates) cat.candidates = [];
+            ticker = ticker.toUpperCase().trim();
+            if (!ticker) return;
+
+            // Validar duplicado
+            if (cat.candidates.includes(ticker)) {
+                showToast("Aviso", `El candidato ${ticker} ya está en la lista de esta categoría.`, "info");
+                return;
+            }
+
+            cat.candidates.push(ticker);
+            
+            // Si añadimos desde Visual Mode, guardamos silenciosamente para excelente UX
+            if (!isEditMode) {
+                saveIdealPortfolioSilent();
+            } else {
+                renderGroups();
+                showToast("Añadido", `Candidato ${ticker} añadido con éxito.`, "success");
+            }
+        }
+    }
+
+    // Cerrar autocomplete al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        document.querySelectorAll('.autocomplete-list').forEach(list => {
+            const wrapper = list.closest('.autocomplete-wrapper');
+            if (wrapper && !wrapper.contains(e.target)) {
+                list.style.display = 'none';
+            }
+        });
+    });
+
+    // Guardar cambios en el Backend (Silencioso para Drag & Drop / Visual Add / Drag Delete)
+    async function saveIdealPortfolioSilent() {
+        const cleanPayload = {
+            groups: idealData.groups.map(group => ({
+                id: group.id,
+                name: group.name,
+                target_weight_pct: parseFloat(group.target_weight_pct) || 0,
+                categories: (group.categories || []).map(cat => ({
+                    id: cat.id,
+                    name: cat.name,
+                    role_description: cat.role_description,
+                    ideal_tickers: cat.ideal_tickers || [],
+                    positions: parseInt(cat.positions) || 1,
+                    candidates: cat.candidates || []
+                }))
+            }))
+        };
+
+        try {
+            const res = await fetch('/api/portfolio/ideal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cleanPayload)
+            });
+            if (res.ok) {
+                // Recargar datos enriquecidos en background y renderizar de forma imperceptible
+                const loadRes = await fetch('/api/portfolio/ideal');
+                idealData = await loadRes.json();
+                renderGroups();
+            }
+        } catch (e) {
+            console.error("Error en auto-guardado silencioso:", e);
+        }
+    }
+
+    // Guardar cambios en el Backend (Explícito desde botón de Guardar)
+    async function saveIdealPortfolio() {
+        const cleanPayload = {
+            groups: idealData.groups.map(group => ({
+                id: group.id,
+                name: group.name,
+                target_weight_pct: parseFloat(group.target_weight_pct) || 0,
+                categories: (group.categories || []).map(cat => ({
+                    id: cat.id,
+                    name: cat.name,
+                    role_description: cat.role_description,
+                    ideal_tickers: cat.ideal_tickers || [], // Guardamos lista de ideales múltiples
+                    positions: parseInt(cat.positions) || 1, // Guardamos posiciones
+                    candidates: cat.candidates || []
+                }))
+            }))
+        };
+
+        try {
+            const res = await fetch('/api/portfolio/ideal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(cleanPayload)
+            });
+            if (res.ok) {
+                showToast("Guardado", "Estructura de Portfolio Ideal guardada con éxito", "success");
+                isEditMode = false;
+                document.body.classList.remove('edit-mode');
+                document.getElementById('toggleEditBtn').className = 'btn btn-outline-secondary btn-sm px-3';
+                document.getElementById('btnModeText').innerText = 'Editar Estructura';
+                document.getElementById('savePortfolioBtn').classList.add('d-none');
+                loadIdealPortfolio(); // Recargar para obtener el estado enriquecido en tiempo real
+            } else {
+                throw new Error("Respuesta de servidor inválida");
+            }
+        } catch (e) {
+            console.error(e);
+            showToast("Error", "No se pudo guardar la estructura del portfolio ideal", "error");
+        }
+    }
+
+    // --- Autocompletado y Sugerencias de Asignación IA (Asistente de Cabecera) ---
+    function setupAISuggestAutocomplete(input) {
+        const wrapper = input.closest('.autocomplete-wrapper');
+        const list = wrapper.querySelector('.autocomplete-list');
+        
+        const updateView = () => {
+            const text = input.value.toLowerCase().trim();
+            if (!text) {
+                list.style.display = 'none';
+                return;
+            }
+
+            const matches = analyzedCompanies.filter(c => 
+                c.ticker.toLowerCase().includes(text) || 
+                c.name.toLowerCase().includes(text)
+            ).slice(0, 5);
+
+            if (matches.length > 0) {
+                let html = "";
+                matches.forEach(m => {
+                    html += `
+                        <div class="autocomplete-item py-2 px-3 border-bottom" data-ticker="${m.ticker}">
+                            <span class="fw-bold text-primary">${m.ticker}</span> — <span class="text-muted small">${m.name}</span>
+                        </div>
+                    `;
+                });
+                list.innerHTML = html;
+                list.style.display = 'block';
+            } else {
+                list.innerHTML = `<div class="p-2 text-muted small text-center border-bottom">No analizado</div>`;
+                list.style.display = 'block';
+            }
+        };
+
+        input.oninput = updateView;
+        input.onfocus = updateView;
+
+        list.onmousedown = (e) => {
+            const item = e.target.closest('.autocomplete-item');
+            if (item) {
+                input.value = item.getAttribute('data-ticker');
+                list.style.display = 'none';
+            }
+        };
+    }
+
+    async function getAISuggestion() {
+        const input = document.getElementById('aiMatcherInput');
+        const ticker = input.value.trim().toUpperCase();
+        if (!ticker) {
+            showToast("Aviso", "Por favor, escribe primero un ticker analizado.", "warning");
+            return;
+        }
+
+        const btn = document.getElementById('aiSuggestBtn');
+        const resultDiv = document.getElementById('aiSuggestionResult');
+
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Analizando...`;
+        
+        try {
+            const res = await fetch(`/api/portfolio/suggest_category/${ticker}`);
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.detail || "Error en el análisis");
+            }
+            const data = await res.json();
+            
+            // Buscar si ya está en alguna categoría para evitar duplicar
+            let alreadyExists = false;
+            let currentCategoryName = "";
+            
+            idealData.groups.forEach(group => {
+                (group.categories || []).forEach(cat => {
+                    if ((cat.candidates || []).includes(ticker)) {
+                        alreadyExists = true;
+                        currentCategoryName = cat.name;
+                    }
+                });
+            });
+
+            let actionButtonHtml = "";
+            if (alreadyExists) {
+                actionButtonHtml = `<span class="badge bg-success-subtle text-success py-1 px-2 border ms-2">Ya asignado a: ${currentCategoryName} 🟢</span>`;
+            } else {
+                actionButtonHtml = `
+                    <button class="btn btn-success btn-sm fw-bold px-3 py-1 ms-2" onclick="addCandidateDirectlyAndSave('${ticker}', '${data.category_id}')">
+                        <i class="bi bi-plus-circle me-1"></i> Añadir a: ${data.category_name}
+                    </button>
+                `;
+            }
+
+            resultDiv.innerHTML = `
+                <div class="border rounded p-2 bg-white d-flex align-items-center justify-content-between">
+                    <div style="font-size:0.8rem; text-align:left; padding-right:15px; width:70%; white-space: normal;">
+                        <strong>Sugerencia IA:</strong> Enviar a <strong class="text-primary">${data.category_name}</strong>.
+                        <br><span class="text-muted italic" style="font-size:0.75rem;">"${data.justification}"</span>
+                    </div>
+                    <div class="text-end">
+                        ${actionButtonHtml}
+                        <button class="btn btn-link btn-xs text-muted" onclick="clearAISuggestion()"><i class="bi bi-x-circle"></i></button>
+                    </div>
+                </div>
+            `;
+            resultDiv.style.display = 'block';
+        } catch (e) {
+            console.error(e);
+            showToast("Error", e.message || "No se pudo obtener la sugerencia de la IA", "error");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = `Sugerir Cajón`;
+        }
+    }
+
+    function clearAISuggestion() {
+        document.getElementById('aiMatcherInput').value = '';
+        const resultDiv = document.getElementById('aiSuggestionResult');
+        resultDiv.style.display = 'none';
+        resultDiv.innerHTML = '';
+    }
+
+    function addCandidateDirectlyAndSave(ticker, categoryId) {
+        let found = false;
+        idealData.groups.forEach(group => {
+            (group.categories || []).forEach(cat => {
+                if (cat.id === categoryId) {
+                    if (!cat.candidates) cat.candidates = [];
+                    if (!cat.candidates.includes(ticker)) {
+                        cat.candidates.push(ticker);
+                    }
+                    found = true;
+                }
+            });
+        });
+
+        if (found) {
+            saveIdealPortfolioSilent();
+            clearAISuggestion();
+            showToast("Asignado con Éxito", `${ticker} ha sido añadido a tu Portfolio Ideal mediante Inteligencia Artificial.`, "success");
+        } else {
+            showToast("Error", "No se encontró la categoría sugerida en la base de datos.", "error");
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        loadIdealPortfolio();
+        setTimeout(() => {
+            const aiInput = document.getElementById('aiMatcherInput');
+            if (aiInput) {
+                setupAISuggestAutocomplete(aiInput);
+            }
+        }, 1000); // Esperar a que cargue analyzedCompanies globalmente
+    });
+</script>
+{% endblock %}

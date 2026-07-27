@@ -1,0 +1,122 @@
+[
+    {
+        "ticker": "META",
+        "shares": 10.0,
+        "average_price": 572.649,
+        "total_cost": 5726.49,
+        "realized_pnl": 122.0,
+        "total_shares_bought": 11.0,
+        "total_shares_sold": 1.0,
+        "total_sell_revenue": 322.0,
+        "currency_code": "USD",
+        "dividends_collected": 8.925
+    },
+    {
+        "ticker": "GOOGL",
+        "shares": 6.0,
+        "average_price": 168.60916666666665,
+        "total_cost": 1011.655,
+        "realized_pnl": 0.0,
+        "total_shares_bought": 6.0,
+        "total_shares_sold": 0.0,
+        "total_sell_revenue": 0.0,
+        "currency_code": "USD",
+        "dividends_collected": 6.93
+    },
+    {
+        "ticker": "NVDA",
+        "shares": 23.0,
+        "average_price": 182.63739130434783,
+        "total_cost": 4200.66,
+        "realized_pnl": 194.0,
+        "total_shares_bought": 27.0,
+        "total_shares_sold": 4.0,
+        "total_sell_revenue": 698.0,
+        "currency_code": "USD",
+        "dividends_collected": 5.75
+    },
+    {
+        "ticker": "IREN",
+        "shares": 50.0,
+        "average_price": 35.314,
+        "total_cost": 1765.7,
+        "realized_pnl": 0.0,
+        "total_shares_bought": 50.0,
+        "total_shares_sold": 0.0,
+        "total_sell_revenue": 0.0,
+        "currency_code": "USD",
+        "dividends_collected": 0
+    },
+    {
+        "ticker": "SBET",
+        "shares": 24.0,
+        "average_price": 19.7,
+        "total_cost": 472.79999999999995,
+        "realized_pnl": 0.0,
+        "total_shares_bought": 24.0,
+        "total_shares_sold": 0.0,
+        "total_sell_revenue": 0.0,
+        "currency_code": "USD",
+        "dividends_collected": 0
+    },
+    {
+        "ticker": "MELI",
+        "shares": 3.0,
+        "average_price": 1910.0,
+        "total_cost": 5730.0,
+        "realized_pnl": 0.0,
+        "total_shares_bought": 3.0,
+        "total_shares_sold": 0.0,
+        "total_sell_revenue": 0.0,
+        "currency_code": "USD",
+        "dividends_collected": 0
+    },
+    {
+        "ticker": "UBER",
+        "shares": 59.0,
+        "average_price": 84.62,
+        "total_cost": 4992.58,
+        "realized_pnl": 0.0,
+        "total_shares_bought": 59.0,
+        "total_shares_sold": 0.0,
+        "total_sell_revenue": 0.0,
+        "currency_code": "USD",
+        "dividends_collected": 0
+    },
+    {
+        "ticker": "EVO.ST",
+        "shares": 68.0,
+        "average_price": 624.3529411764706,
+        "total_cost": 42456.0,
+        "realized_pnl": 0.0,
+        "total_shares_bought": 68.0,
+        "total_shares_sold": 0.0,
+        "total_sell_revenue": 0.0,
+        "currency_code": "SEK",
+        "dividends_collected": 0
+    },
+    {
+        "ticker": "MSFT",
+        "shares": 14.0,
+        "average_price": 396.55285714285714,
+        "total_cost": 5551.74,
+        "realized_pnl": 0.0,
+        "total_shares_bought": 14.0,
+        "total_shares_sold": 0.0,
+        "total_sell_revenue": 0.0,
+        "currency_code": "USD",
+        "dividends_collected": 20.93
+    },
+    {
+        "ticker": "BKNG",
+        "shares": 25.0,
+        "average_price": 156.8,
+        "total_cost": 3920.0,
+        "realized_pnl": 0.0,
+        "total_shares_bought": 25.0,
+        "total_shares_sold": 0.0,
+        "total_sell_revenue": 0.0,
+        "currency_code": "USD",
+        "dividends_collected": 10.92
+    }
+]

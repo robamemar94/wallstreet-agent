@@ -1,0 +1,885 @@
+{% extends "base.html" %}
+{% block title %}Alpha-Flow · Base de Datos{% endblock %}
+{% block content %}
+<style>
+    /* Estilos ultra-compactos y profesionales para la Base de Datos */
+    .table-modern {
+        font-size: 0.74rem !important;
+    }
+    .table-modern thead th {
+        font-size: 0.65rem !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        padding: 4px 8px !important;
+        background-color: #151821 !important;
+        color: var(--text-secondary) !important;
+        border-bottom: 1px solid var(--fin-border) !important;
+    }
+    .table-modern tbody td {
+        padding: 4px 8px !important;
+        height: 32px !important;
+        border-bottom: 1px solid var(--fin-border) !important;
+    }
+    .table-responsive {
+        box-shadow: none !important;
+        border: 1px solid var(--fin-border) !important;
+        border-radius: 4px !important;
+        background-color: var(--fin-card-bg) !important;
+    }
+    .table-modern a {
+        color: var(--text-primary) !important;
+        font-weight: 700 !important;
+    }
+    .table-modern a:hover {
+        color: var(--fin-green) !important;
+    }
+    /* Estilo de los inputs colapsables y selectores */
+    #filtersCollapse .card {
+        border-radius: 4px !important;
+        border: 1px solid var(--fin-border) !important;
+        background-color: var(--fin-card-bg) !important;
+    }
+    #filtersCollapse .bg-light {
+        background-color: var(--fin-card-bg) !important;
+        color: var(--text-primary) !important;
+    }
+    
+    /* Configuración para el tema oscuro de select/dropdowns */
+    [data-bs-theme="dark"] .form-select-sm, 
+    [data-bs-theme="dark"] .form-control-sm {
+        font-size: 0.72rem !important;
+        padding: 2px 24px 2px 8px !important; /* more padding-right for dropdown arrow */
+        background-color: var(--fin-card-bg) !important;
+        border: 1px solid var(--fin-border) !important;
+        color: var(--text-primary) !important;
+    }
+    [data-bs-theme="dark"] .form-select-sm option,
+    [data-bs-theme="dark"] .dropdown-menu-form {
+        background-color: var(--fin-card-bg) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--fin-border) !important;
+    }
+    [data-bs-theme="dark"] .dropdown-item {
+        color: var(--text-primary) !important;
+    }
+    [data-bs-theme="dark"] .dropdown-item:hover {
+        background-color: #1c1e29 !important;
+    }
+
+    /* Configuración para el tema claro de select/dropdowns */
+    [data-bs-theme="light"] .form-select-sm,
+    [data-bs-theme="light"] .form-control-sm,
+    html:not([data-bs-theme="dark"]) .form-select-sm,
+    html:not([data-bs-theme="dark"]) .form-control-sm {
+        font-size: 0.72rem !important;
+        padding: 2px 24px 2px 8px !important;
+        background-color: #ffffff !important;
+        border: 1px solid #dee2e6 !important;
+        color: #212529 !important;
+    }
+    [data-bs-theme="light"] .form-select-sm option,
+    [data-bs-theme="light"] .dropdown-menu-form,
+    html:not([data-bs-theme="dark"]) .form-select-sm option,
+    html:not([data-bs-theme="dark"]) .dropdown-menu-form {
+        background-color: #ffffff !important;
+        color: #212529 !important;
+        border: 1px solid #dee2e6 !important;
+    }
+    [data-bs-theme="light"] .dropdown-item,
+    html:not([data-bs-theme="dark"]) .dropdown-item {
+        color: #212529 !important;
+    }
+    [data-bs-theme="light"] .dropdown-item:hover,
+    html:not([data-bs-theme="dark"]) .dropdown-item:hover {
+        background-color: #f8f9fa !important;
+    }
+
+    /* Padding-right fix for form-control-sm (no arrow) */
+    [data-bs-theme="dark"] input.form-control-sm {
+        padding: 2px 4px !important;
+    }
+    [data-bs-theme="light"] input.form-control-sm,
+    html:not([data-bs-theme="dark"]) input.form-control-sm {
+        padding: 2px 4px !important;
+    }
+
+    /* Estilos extras para las opciones de checkboxes en dropdowns */
+    .dropdown-menu-form {
+        min-width: 180px;
+    }
+    .form-check-label {
+        font-size: 0.72rem !important;
+        cursor: pointer;
+    }
+    .form-check-input {
+        cursor: pointer;
+    }
+    h2, h3, h4, h5, h6 {
+        color: var(--text-primary) !important;
+    }
+</style>
+
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h4 class="fw-bold mb-0 text-white" style="font-size: 1.25rem;">Base de Datos de Análisis</h4>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse" aria-expanded="false" aria-controls="filtersCollapse">
+                    <i class="bi bi-funnel"></i> Filtros Avanzados
+                </button>
+                <button class="btn btn-sm btn-outline-success" onclick="exportActiveTable()" title="Exportar a CSV">📊 Exportar</button>
+            </div>
+        </div>
+
+        <!-- Filtros Colapsables -->
+        <div class="collapse mb-4" id="filtersCollapse">
+            <div class="card shadow-sm border-0">
+                <div class="card-body bg-light rounded">
+                    <div class="row g-3">
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold">Estado Manual</label>
+                            <div class="dropdown filter-dropdown" id="dropdown-status">
+                                <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-status">
+                                    Cualquiera
+                                </button>
+                                <ul class="dropdown-menu p-2 dropdown-menu-form shadow" style="max-height: 250px; overflow-y: auto;">
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="ALL" id="status-ALL" checked onchange="handleSelectAll('status')">
+                                            <label class="form-check-label w-100" for="status-ALL">Cualquiera</label>
+                                        </div>
+                                    </li>
+                                    <li><hr class="dropdown-divider my-1"></li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="ACCEPTED" id="status-ACCEPTED" onchange="handleItemSelect('status')">
+                                            <label class="form-check-label w-100" for="status-ACCEPTED">✅ Aceptadas</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="PENDING" id="status-PENDING" onchange="handleItemSelect('status')">
+                                            <label class="form-check-label w-100" for="status-PENDING">⏳ Pendientes</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="STANDBY" id="status-STANDBY" onchange="handleItemSelect('status')">
+                                            <label class="form-check-label w-100" for="status-STANDBY">🤔 Dudas</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="REJECTED" id="status-REJECTED" onchange="handleItemSelect('status')">
+                                            <label class="form-check-label w-100" for="status-REJECTED">❌ Descartadas</label>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold">Valoración</label>
+                            <div class="dropdown filter-dropdown" id="dropdown-valuation">
+                                <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-valuation">
+                                    Todas
+                                </button>
+                                <ul class="dropdown-menu p-2 dropdown-menu-form shadow" style="max-height: 250px; overflow-y: auto;">
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="ALL" id="valuation-ALL" checked onchange="handleSelectAll('valuation')">
+                                            <label class="form-check-label w-100" for="valuation-ALL">Todas</label>
+                                        </div>
+                                    </li>
+                                    <li><hr class="dropdown-divider my-1"></li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="GANGA" id="valuation-GANGA" onchange="handleItemSelect('valuation')">
+                                            <label class="form-check-label w-100" for="valuation-GANGA">🔥 Ganga</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="BARATA" id="valuation-BARATA" onchange="handleItemSelect('valuation')">
+                                            <label class="form-check-label w-100" for="valuation-BARATA">✅ Barata</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="PRECIO JUSTO" id="valuation-JUSTO" onchange="handleItemSelect('valuation')">
+                                            <label class="form-check-label w-100" for="valuation-JUSTO">⚖️ Precio Justo</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="CARA" id="valuation-CARA" onchange="handleItemSelect('valuation')">
+                                            <label class="form-check-label w-100" for="valuation-CARA">⚠️ Cara</label>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="BURBUJA" id="valuation-BURBUJA" onchange="handleItemSelect('valuation')">
+                                            <label class="form-check-label w-100" for="valuation-BURBUJA">🚨 Burbuja</label>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold">Región</label>
+                            <div class="dropdown filter-dropdown" id="dropdown-region">
+                                <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-region">
+                                    Todas
+                                </button>
+                                <ul class="dropdown-menu p-2 dropdown-menu-form shadow" style="max-height: 250px; overflow-y: auto;">
+                                    <li class="px-2 pb-2 pt-1 border-bottom mb-2 sticky-top bg-white" onclick="event.stopPropagation();">
+                                        <input type="text" class="form-control form-control-sm" placeholder="Buscar..." onkeyup="filterDropdownItems(this)" onkeydown="event.stopPropagation();" onclick="event.stopPropagation();">
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="ALL" id="region-ALL" checked onchange="handleSelectAll('region')">
+                                            <label class="form-check-label w-100" for="region-ALL">Todas</label>
+                                        </div>
+                                    </li>
+                                    <li><hr class="dropdown-divider my-1"></li>
+                                    {% for r in regions %}
+                                    <li class="dropdown-item-li">
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="{{ r }}" id="region-{{ loop.index }}" onchange="handleItemSelect('region')">
+                                            <label class="form-check-label w-100" for="region-{{ loop.index }}">{{ r }}</label>
+                                        </div>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold">Sector</label>
+                            <div class="dropdown filter-dropdown" id="dropdown-sector">
+                                <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-sector">
+                                    Todos
+                                </button>
+                                <ul class="dropdown-menu p-2 dropdown-menu-form shadow" style="max-height: 250px; overflow-y: auto;">
+                                    <li class="px-2 pb-2 pt-1 border-bottom mb-2 sticky-top bg-white" onclick="event.stopPropagation();">
+                                        <input type="text" class="form-control form-control-sm" placeholder="Buscar..." onkeyup="filterDropdownItems(this)" onkeydown="event.stopPropagation();" onclick="event.stopPropagation();">
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="ALL" id="sector-ALL" checked onchange="handleSelectAll('sector')">
+                                            <label class="form-check-label w-100" for="sector-ALL">Todos</label>
+                                        </div>
+                                    </li>
+                                    <li><hr class="dropdown-divider my-1"></li>
+                                    {% for s in sectores %}
+                                    <li class="dropdown-item-li">
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="{{ s }}" id="sector-{{ loop.index }}" onchange="handleItemSelect('sector')">
+                                            <label class="form-check-label w-100" for="sector-{{ loop.index }}">{{ s }}</label>
+                                        </div>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold">Subsector</label>
+                            <div class="dropdown filter-dropdown" id="dropdown-subsector">
+                                <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-subsector">
+                                    Todos
+                                </button>
+                                <ul class="dropdown-menu p-2 dropdown-menu-form shadow" style="max-height: 250px; overflow-y: auto;">
+                                    <li class="px-2 pb-2 pt-1 border-bottom mb-2 sticky-top bg-white" onclick="event.stopPropagation();">
+                                        <input type="text" class="form-control form-control-sm" placeholder="Buscar..." onkeyup="filterDropdownItems(this)" onkeydown="event.stopPropagation();" onclick="event.stopPropagation();">
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="ALL" id="subsector-ALL" checked onchange="handleSelectAll('subsector')">
+                                            <label class="form-check-label w-100" for="subsector-ALL">Todos</label>
+                                        </div>
+                                    </li>
+                                    <li><hr class="dropdown-divider my-1"></li>
+                                    {% for ss in subsectores %}
+                                    <li class="dropdown-item-li">
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="{{ ss }}" id="subsector-{{ loop.index }}" onchange="handleItemSelect('subsector')">
+                                            <label class="form-check-label w-100" for="subsector-{{ loop.index }}">{{ ss }}</label>
+                                        </div>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold">País</label>
+                            <div class="dropdown filter-dropdown" id="dropdown-country">
+                                <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-country">
+                                    Todos
+                                </button>
+                                <ul class="dropdown-menu p-2 dropdown-menu-form shadow" style="max-height: 250px; overflow-y: auto;">
+                                    <li class="px-2 pb-2 pt-1 border-bottom mb-2 sticky-top bg-white" onclick="event.stopPropagation();">
+                                        <input type="text" class="form-control form-control-sm" placeholder="Buscar..." onkeyup="filterDropdownItems(this)" onkeydown="event.stopPropagation();" onclick="event.stopPropagation();">
+                                    </li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="ALL" id="country-ALL" checked onchange="handleSelectAll('country')">
+                                            <label class="form-check-label w-100" for="country-ALL">Todos</label>
+                                        </div>
+                                    </li>
+                                    <li><hr class="dropdown-divider my-1"></li>
+                                    {% for c in countries %}
+                                    <li class="dropdown-item-li">
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="{{ c }}" id="country-{{ loop.index }}" onchange="handleItemSelect('country')">
+                                            <label class="form-check-label w-100" for="country-{{ loop.index }}">{{ c }}</label>
+                                        </div>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold">Nota Mínima (0-10)</label>
+                            <input type="number" class="form-control form-control-sm filter-input" id="filter-score" placeholder="Ej: 7.5" min="0" max="10" step="0.5">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs Header -->
+        <div class="d-flex justify-content-between align-items-end mb-3">
+            <ul class="nav nav-tabs border-bottom-0" id="dbTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active fw-bold text-dark" id="all-tab" data-bs-toggle="tab" data-bs-target="#tab-all" type="button" role="tab">🌐 Todas</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold text-warning" id="fav-tab" data-bs-toggle="tab" data-bs-target="#tab-fav" type="button" role="tab">⭐ Favoritos</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold text-primary" id="portfolio-tab" data-bs-toggle="tab" data-bs-target="#tab-portfolio" type="button" role="tab">💼 Mi Cartera</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold text-success" id="accepted-tab" data-bs-toggle="tab" data-bs-target="#tab-accepted" type="button" role="tab">✅ Seguimiento</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold text-secondary" id="pending-tab" data-bs-toggle="tab" data-bs-target="#tab-pending" type="button" role="tab">⏳ Pendientes</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold text-warning" id="standby-tab" data-bs-toggle="tab" data-bs-target="#tab-standby" type="button" role="tab">🤔 Dudas</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold text-danger" id="rejected-tab" data-bs-toggle="tab" data-bs-target="#tab-rejected" type="button" role="tab">❌ Descartadas</button>
+                </li>
+            </ul>
+            <div class="d-flex align-items-center gap-2 pb-1">
+                <div style="width: 250px;" class="suggestions-container">
+                    <div class="input-group input-group-sm shadow-sm">
+                        <span class="input-group-text bg-white border-end-0">🔍</span>
+                        <input type="text" class="form-control border-start-0 filter-input" id="filter-search" placeholder="Filtro rápido..." autocomplete="off">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white border rounded shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-modern align-middle mb-0" id="dbTable" style="table-layout: fixed; width: 100%;">
+                    <thead>
+                        <tr style="cursor: pointer;">
+                            <th class="ps-4" style="width: 10%;" onclick="sortRows(0)">Ticker</th>
+                            <th style="width: 15%;" onclick="sortRows(1)">Nombre</th>
+                            <th style="width: 8%;" onclick="sortRows(2)">País</th>
+                            <th style="width: 12%;" onclick="sortRows(3)">Sector</th>
+                            <th style="width: 12%;" onclick="sortRows(4)">Subsector</th>
+                            <th class="text-center" style="width: 8%;" onclick="sortRows(5)">Precio</th>
+                            <th class="text-center" style="width: 9%;" onclick="sortRows(6)">Variación</th>
+                            <th class="text-center" style="width: 8%;" onclick="sortRows(7)">Normas Calidad</th>
+                            <th class="text-center" style="width: 8%;" onclick="sortRows(8)">Veredicto</th>
+                            <th class="text-center" style="width: 8%;" onclick="sortRows(9)">Media</th>
+                            <th class="text-center" style="width: 8%;" onclick="sortRows(10)">Valuación</th>
+                            <th class="text-center actions-column" style="width: 15%; display: none;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dbBody">
+                        {% for t in tickers %}
+                        {% set verdict_raw = t.get('scores', {}).get('verdict', '-') %}
+                        {% set v_score = verdict_raw.split('/')[0]|trim if verdict_raw and verdict_raw != '-' and verdict_raw != 'N/A' and verdict_raw != '' else '-' %}
+                        <tr class="ticker-row" 
+                            data-status="{{ t.status }}" 
+                            data-is-favorite="{{ 'true' if t.is_favorite else 'false' }}"
+                            data-is-portfolio="{{ 'true' if t.is_portfolio else 'false' }}"
+                            data-country="{{ t.country }}"
+                            data-region="{{ t.region }}"
+                            data-sector="{{ t.sector }}"
+                            data-subsector="{{ t.subsector }}"
+                            data-valuation="{{ t.valuation.status }}"
+                            data-score-rules="{{ t.get('rules_score', '-') if t.get('rules_score', '-') != '-' else '0' }}"
+                            data-score-general="{{ v_score if v_score != '-' else '0' }}"
+                            onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;">
+                            <td class="ps-4" data-sort-value="{{ clean_ticker(t.name) }}">
+                                <div class="ticker-info">
+                                    <span class="me-2 favorite-star" onclick="event.stopPropagation(); toggleFavorite('{{ t.name }}', this)">
+                                        <i class="bi {{ 'bi-star-fill text-warning' if t.is_favorite else 'bi-star text-muted' }}"></i>
+                                    </span>
+                                    <span class="fw-bold ticker-name">{{ clean_ticker(t.name) }}</span>
+                                </div>
+                            </td>
+                            <td class="align-middle fw-semibold text-truncate" style="max-width: 200px;" data-sort-value="{{ t.company_name }}">
+                                <span class="company-name text-truncate" style="max-width: 200px; display: inline-block;">{{ t.company_name }}</span>
+                            </td>
+                            <td class="text-muted align-middle text-truncate" style="max-width: 100px;" data-sort-value="{{ t.country }}">{{ t.country }}</td>
+                            <td class="text-muted align-middle text-truncate" style="max-width: 180px;" data-sort-value="{{ t.sector }}">{{ t.sector }}</td>
+                            <td class="text-muted align-middle text-truncate" style="max-width: 180px;" data-sort-value="{{ t.subsector }}">{{ t.subsector }}</td>
+                            <td class="text-center align-middle fw-bold num-font" data-sort-value="{{ t.market_data.price }}">
+                                {{ format_euro(t.market_data.price, 2) }} {{ t.currency_symbol }}
+                            </td>
+                            <td class="text-center align-middle" data-sort-value="{{ t.market_data.pct }}">
+                                <span class="small fw-bold num-font {% if t.market_data.change > 0 %}text-success{% elif t.market_data.change < 0 %}text-danger{% else %}text-muted{% endif %}">
+                                    {% if t.market_data.change > 0 %}+{% endif %}{{ format_euro(t.market_data.change, 2) }}
+                                    ({% if t.market_data.pct > 0 %}+{% endif %}{{ format_euro(t.market_data.pct, 2) }}%)
+                                </span>
+                            </td>
+                            {% set r_score = t.get('rules_score', '-') %}
+                            <td class="text-center fw-bold align-middle num-font {% if r_score != '-' %}{% if r_score|float >= 8.0 %}text-success{% elif r_score|float <= 5.0 %}text-danger{% else %}text-warning{% endif %}{% else %}text-muted{% endif %}" data-sort-value="{{ r_score }}">
+                                {{ r_score }}
+                            </td>
+                            {% set tooltip_title = t.get('score_tooltip', 'Sin notas registradas') %}
+                            <td class="text-center fw-bold align-middle num-font {% if v_score != '-' %}{% if v_score|float >= 8.0 %}text-success{% elif v_score|float <= 5.0 %}text-danger{% else %}text-warning{% endif %}{% else %}text-muted{% endif %}"
+                                title="{{ tooltip_title }}" style="cursor: help;" data-sort-value="{{ v_score }}">
+                                <span>{{ v_score }}</span>
+                                {% if v_score != '-' %}
+                                <i class="bi bi-info-circle text-muted ms-1" style="font-size: 0.75rem;"></i>
+                                {% endif %}
+                            </td>
+                            {# Calcular la nota media de calidad (Normas + Veredicto) #}
+                            {% set has_v = (v_score != '-') %}
+                            {% set has_r = (r_score != '-') %}
+                            {% if has_v and has_r %}
+                                {% set media_val = (v_score|float + r_score|float) / 2.0 %}
+                                {% set media_str = "%.2f"|format(media_val) %}
+                            {% elif has_v %}
+                                {% set media_val = v_score|float %}
+                                {% set media_str = "%.2f"|format(media_val) %}
+                            {% elif has_r %}
+                                {% set media_val = r_score|float %}
+                                {% set media_str = "%.2f"|format(media_val) %}
+                            {% else %}
+                                {% set media_val = -1.0 %}
+                                {% set media_str = "-" %}
+                            {% endif %}
+                            {% if media_str != '-' %}
+                            <td class="text-center fw-bold align-middle num-font {% if media_val >= 8.0 %}text-success{% elif media_val <= 5.0 %}text-danger{% else %}text-warning{% endif %}" data-sort-value="{{ media_val }}">
+                                {{ media_str }}
+                            </td>
+                            {% else %}
+                            <td class="text-center fw-bold align-middle text-muted num-font" data-sort-value="-">
+                                -
+                            </td>
+                            {% endif %}
+                            <td class="text-center align-middle" data-sort-value="{{ t.valuation.ratio }}">
+                                <div class="d-flex flex-column align-items-center">
+                                    {% if t.valuation.status == 'Ganga' %}
+                                    <span class="badge bg-success bg-opacity-75 mb-1" style="font-size: 0.7rem;">🔥 GANGA</span>
+                                    {% elif t.valuation.status == 'Barato' %}
+                                    <span class="badge bg-success mb-1" style="font-size: 0.7rem;">✅ BARATO</span>
+                                    {% elif t.valuation.status == 'Precio Justo' %}
+                                    <span class="badge bg-secondary mb-1" style="font-size: 0.7rem;">⚖️ PRECIO JUSTO</span>
+                                    {% elif t.valuation.status == 'Caro' %}
+                                    <span class="badge bg-warning text-dark mb-1" style="font-size: 0.7rem;">⚠️ CARO</span>
+                                    {% elif t.valuation.status == 'Burbuja' %}
+                                    <span class="badge bg-danger mb-1" style="font-size: 0.7rem;">🚨 BURBUJA</span>
+                                    {% else %}
+                                    <span class="badge bg-light text-muted border mb-1" style="font-size: 0.7rem;">PENDIENTE</span>
+                                    {% endif %}
+                                    
+                                    {% if t.valuation.market != '-' %}
+                                    <small class="text-muted" style="font-size: 0.65rem;">
+                                        PER: {{ format_euro(t.valuation.market|float, 1) }} / {{ format_euro(t.valuation.fair|float, 1) }}
+                                    </small>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="text-center actions-column" style="display: none;" onclick="event.stopPropagation();">
+                                {% if t.status == 'PENDING' %}
+                                <div class="d-flex justify-content-center gap-1">
+                                    <button class="btn btn-xs btn-outline-success py-0 px-2 fw-semibold" style="font-size: 0.68rem;" onclick="updateTickerStatus('{{ t.name }}', 'ACCEPTED', this)" title="Mover a Seguimiento">✅ Aceptar</button>
+                                    <button class="btn btn-xs btn-outline-warning py-0 px-2 fw-semibold text-dark" style="font-size: 0.68rem;" onclick="updateTickerStatus('{{ t.name }}', 'STANDBY', this)" title="Mover a Dudas">🤔 Dudas</button>
+                                    <button class="btn btn-xs btn-outline-danger py-0 px-2 fw-semibold" style="font-size: 0.68rem;" onclick="updateTickerStatus('{{ t.name }}', 'REJECTED', this)" title="Descartar">❌ Descartar</button>
+                                </div>
+                                {% else %}
+                                <div class="d-flex justify-content-center gap-1">
+                                    <select class="form-select form-select-sm py-0 px-1 text-muted border-0 bg-light" style="width: auto; font-size: 0.75rem; cursor: pointer;" onchange="updateTickerStatus('{{ t.name }}', this.value, this)">
+                                        <option value="PENDING" {% if t.status == 'PENDING' %}selected{% endif %}>⏳ Pendiente</option>
+                                        <option value="ACCEPTED" {% if t.status == 'ACCEPTED' %}selected{% endif %}>✅ Seguimiento</option>
+                                        <option value="STANDBY" {% if t.status == 'STANDBY' %}selected{% endif %}>🤔 Dudas</option>
+                                        <option value="REJECTED" {% if t.status == 'REJECTED' %}selected{% endif %}>❌ Descartada</option>
+                                    </select>
+                                    <button class="btn btn-sm btn-outline-danger py-0 px-1 border-0" onclick="deleteTicker('{{ t.name }}', this)" title="Eliminar activo de la lista">🗑️</button>
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div id="paginationContainer" class="d-flex justify-content-center mt-3"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let itemsPerPage = 10;
+    let currentPage = 1;
+    let currentSort = { col: null, asc: true };
+
+    function filterDropdownItems(input) {
+        const filterVal = input.value.toLowerCase();
+        const dropdownMenu = input.closest('.dropdown-menu');
+        const items = dropdownMenu.querySelectorAll('.dropdown-item-li');
+        
+        items.forEach(item => {
+            const label = item.querySelector('label');
+            if (label) {
+                const text = label.textContent.toLowerCase();
+                if (text.includes(filterVal)) {
+                    item.style.setProperty('display', '', 'important');
+                } else {
+                    item.style.setProperty('display', 'none', 'important');
+                }
+            }
+        });
+    }
+
+    function handleSelectAll(filterPrefix) {
+        const container = document.getElementById(`dropdown-${filterPrefix}`);
+        const allCheckbox = container.querySelector(`input[value="ALL"]`);
+        const otherCheckboxes = container.querySelectorAll(`input:not([value="ALL"])`);
+        
+        if (allCheckbox.checked) {
+            otherCheckboxes.forEach(cb => cb.checked = false);
+        } else {
+            const checkedCount = Array.from(otherCheckboxes).filter(cb => cb.checked).length;
+            if (checkedCount === 0) {
+                allCheckbox.checked = true;
+            }
+        }
+        updateDropdownLabel(filterPrefix);
+        applyFilters();
+    }
+
+    function handleItemSelect(filterPrefix) {
+        const container = document.getElementById(`dropdown-${filterPrefix}`);
+        const allCheckbox = container.querySelector(`input[value="ALL"]`);
+        const otherCheckboxes = container.querySelectorAll(`input:not([value="ALL"])`);
+        
+        const checkedCount = Array.from(otherCheckboxes).filter(cb => cb.checked).length;
+        if (checkedCount > 0) {
+            allCheckbox.checked = false;
+        } else {
+            allCheckbox.checked = true;
+        }
+        updateDropdownLabel(filterPrefix);
+        applyFilters();
+    }
+
+    function updateDropdownLabel(filterPrefix) {
+        const container = document.getElementById(`dropdown-${filterPrefix}`);
+        const btn = document.getElementById(`btn-filter-${filterPrefix}`);
+        const otherCheckboxes = container.querySelectorAll(`input:not([value="ALL"])`);
+        const checkedItems = Array.from(otherCheckboxes).filter(cb => cb.checked);
+        
+        if (checkedItems.length === 0) {
+            const allLabel = container.querySelector(`input[value="ALL"]`).nextElementSibling.textContent.trim();
+            btn.textContent = allLabel;
+        } else if (checkedItems.length === 1) {
+            btn.textContent = checkedItems[0].nextElementSibling.textContent.trim();
+        } else {
+            let labelName = "";
+            if (filterPrefix === 'status') labelName = 'Estados';
+            else if (filterPrefix === 'valuation') labelName = 'Valoraciones';
+            else if (filterPrefix === 'region') labelName = 'Regiones';
+            else if (filterPrefix === 'sector') labelName = 'Sectores';
+            else if (filterPrefix === 'subsector') labelName = 'Subsectores';
+            else if (filterPrefix === 'country') labelName = 'Países';
+            btn.textContent = `${labelName} (${checkedItems.length})`;
+        }
+    }
+
+    function getSelectedValues(filterPrefix) {
+        const container = document.getElementById(`dropdown-${filterPrefix}`);
+        if (!container) return ["ALL"];
+        const allCheckbox = container.querySelector(`input[value="ALL"]`);
+        if (allCheckbox && allCheckbox.checked) return ["ALL"];
+        
+        const otherCheckboxes = container.querySelectorAll(`input:not([value="ALL"])`);
+        const checked = Array.from(otherCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
+        return checked.length > 0 ? checked : ["ALL"];
+    }
+
+    function applyFilters(resetPage = true) {
+        const search = document.getElementById("filter-search").value.toLowerCase();
+        
+        // Get active tab status
+        const activeTab = document.querySelector('#dbTabs .nav-link.active').id;
+        
+        let tabFilter = "ALL";
+        if (activeTab === 'fav-tab') tabFilter = "FAVORITES";
+        else if (activeTab === 'portfolio-tab') tabFilter = "PORTFOLIO";
+        else if (activeTab === 'accepted-tab') tabFilter = "ACCEPTED";
+        else if (activeTab === 'pending-tab') tabFilter = "PENDING";
+        else if (activeTab === 'standby-tab') tabFilter = "STANDBY";
+        else if (activeTab === 'rejected-tab') tabFilter = "REJECTED";
+
+        // Mostrar u ocultar dinámicamente la columna de Acciones según la pestaña activa (solo visible en Pendientes)
+        const actionsCols = document.querySelectorAll('.actions-column');
+        const showActions = (activeTab === 'pending-tab');
+        actionsCols.forEach(col => {
+            col.style.setProperty('display', showActions ? '' : 'none', 'important');
+        });
+
+        const selectedStatuses = getSelectedValues("status");
+        const selectedValuations = getSelectedValues("valuation");
+        const selectedRegions = getSelectedValues("region");
+        const selectedSectors = getSelectedValues("sector");
+        const selectedSubsectors = getSelectedValues("subsector");
+        const selectedCountries = getSelectedValues("country");
+        const minScore = parseFloat(document.getElementById("filter-score").value) || 0;
+
+        const rows = document.querySelectorAll("#dbBody tr.ticker-row");
+        rows.forEach(row => {
+            let match = true;
+            const rowStatus = row.getAttribute("data-status");
+            const isFav = row.getAttribute("data-is-favorite") === "true";
+            
+            // 1. Tab Filtering (High priority)
+            const isPort = row.getAttribute("data-is-portfolio") === "true";
+            if (tabFilter === "FAVORITES") {
+                if (!isFav || isPort) match = false;
+            } else if (tabFilter === "PORTFOLIO") {
+                if (!isPort) match = false;
+            } else if (tabFilter === "ALL") {
+                if (rowStatus === "REJECTED") match = false; // Exclude rejected from 'All'
+            } else {
+                if (rowStatus !== tabFilter || isPort) match = false;
+            }
+            
+            // 2. Manual Filters
+            if (match && !selectedStatuses.includes("ALL") && !selectedStatuses.includes(rowStatus)) match = false;
+            if (match && search && !row.cells[0].textContent.toLowerCase().includes(search) && !row.cells[1].textContent.toLowerCase().includes(search)) match = false;
+            if (match && !selectedValuations.includes("ALL") && !selectedValuations.includes(row.getAttribute("data-valuation"))) match = false;
+            if (match && !selectedRegions.includes("ALL") && !selectedRegions.includes(row.getAttribute("data-region"))) match = false;
+            if (match && !selectedSectors.includes("ALL") && !selectedSectors.includes(row.getAttribute("data-sector"))) match = false;
+            if (match && !selectedSubsectors.includes("ALL") && !selectedSubsectors.includes(row.getAttribute("data-subsector"))) match = false;
+            if (match && !selectedCountries.includes("ALL") && !selectedCountries.includes(row.getAttribute("data-country"))) match = false;
+            
+            if (match && parseFloat(row.getAttribute("data-score-general") || 0) < minScore) match = false;
+
+            row.setAttribute("data-filtered", match ? "true" : "false");
+        });
+
+        if (resetPage === true || resetPage instanceof Event) {
+            currentPage = 1;
+        } else {
+            const filteredRows = Array.from(rows).filter(r => r.getAttribute("data-filtered") === "true");
+            const totalPages = Math.ceil(filteredRows.length / itemsPerPage);
+            if (currentPage > totalPages) {
+                currentPage = Math.max(1, totalPages);
+            }
+        }
+        renderTable();
+    }
+
+    function renderTable() {
+        const rows = Array.from(document.querySelectorAll("#dbBody tr.ticker-row"));
+        const filteredRows = rows.filter(r => r.getAttribute("data-filtered") === "true");
+        
+        rows.forEach(r => r.style.display = "none");
+        
+        const start = (currentPage - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+        filteredRows.slice(start, end).forEach(r => r.style.display = "");
+        
+        renderPagination(filteredRows.length);
+    }
+
+    function renderPagination(total) {
+        const container = document.getElementById("paginationContainer");
+        const totalPages = Math.ceil(total / itemsPerPage);
+        if (totalPages <= 1) { container.innerHTML = ""; return; }
+        
+        let html = `<nav><ul class="pagination pagination-sm mb-0">`;
+        html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Ant.</a></li>`;
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+                html += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#" onclick="changePage(${i})">${i}</a></li>`;
+            } else if (i === currentPage - 2 || i === currentPage + 2) {
+                html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            }
+        }
+        html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}"><a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Sig.</a></li></ul></nav>`;
+        container.innerHTML = html;
+    }
+
+    function changePage(p) { currentPage = p; renderTable(); return false; }
+
+    function sortRows(col) {
+        const table = document.getElementById("dbTable");
+        const tbody = document.getElementById("dbBody");
+        const headers = table.querySelectorAll("thead th");
+        const rows = Array.from(tbody.querySelectorAll("tr.ticker-row"));
+        
+        if (currentSort.col === col) currentSort.asc = !currentSort.asc;
+        else { currentSort.col = col; currentSort.asc = true; }
+
+        // Remove existing arrows and highlight from all headers
+        headers.forEach(th => {
+            const arrow = th.querySelector('.sort-arrow');
+            if (arrow) arrow.remove();
+            th.classList.remove('bg-secondary', 'bg-opacity-10', 'text-primary');
+        });
+
+        // Add arrow to current header
+        const currentHeader = headers[col];
+        currentHeader.classList.add('text-primary');
+        const span = document.createElement('span');
+        span.className = 'sort-arrow ms-1 small';
+        span.innerHTML = currentSort.asc ? '<i class="bi bi-caret-up-fill"></i>' : '<i class="bi bi-caret-down-fill"></i>';
+        currentHeader.appendChild(span);
+        
+        rows.sort((a, b) => {
+            const cellA = a.cells[col];
+            const cellB = b.cells[col];
+            
+            const sa = cellA.getAttribute('data-sort-value');
+            const sb = cellB.getAttribute('data-sort-value');
+            
+            let va = sa !== null ? sa.trim() : cellA.textContent.trim();
+            let vb = sb !== null ? sb.trim() : cellB.textContent.trim();
+            
+            // Check if values are null/empty placeholders to put them at the end of sorting list
+            const isValNull = (v) => {
+                if (v === null || v === undefined) return true;
+                const clean = v.trim().toLowerCase();
+                return clean === "" || clean === "-" || clean === "n/a" || clean === "nan" || clean === "sin notas registradas";
+            };
+
+            const nullA = isValNull(va);
+            const nullB = isValNull(vb);
+
+            if (nullA && nullB) return 0;
+            if (nullA) return 1;  // null goes to the end
+            if (nullB) return -1; // null goes to the end
+            
+            // Clean up common formatted symbols like currency, %, or /10
+            const cleanA = va.replace(/[^\d.-]/g, '');
+            const cleanB = vb.replace(/[^\d.-]/g, '');
+            
+            const isNumA = cleanA !== '' && !isNaN(parseFloat(cleanA));
+            const isNumB = cleanB !== '' && !isNaN(parseFloat(cleanB));
+            
+            if (isNumA || isNumB) {
+                let numA = isNumA ? parseFloat(cleanA) : 0;
+                let numB = isNumB ? parseFloat(cleanB) : 0;
+                return currentSort.asc ? numA - numB : numB - numA;
+            } else {
+                return currentSort.asc ? va.localeCompare(vb, 'es', {numeric: true}) : vb.localeCompare(va, 'es', {numeric: true});
+            }
+        });
+        rows.forEach(r => tbody.appendChild(r));
+        renderTable();
+    }
+
+    async function updateTickerStatus(ticker, status, buttonElement) {
+        const res = await fetch(`/api/status/${ticker}`, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify({ status }) 
+        });
+        if (res.ok) {
+            const row = buttonElement.closest('tr');
+            if (row) {
+                row.setAttribute('data-status', status);
+                
+                // Actualizar la celda de acciones para reflejar el nuevo estado con el dropdown select
+                const actionsCell = row.querySelector('.actions-column');
+                if (actionsCell) {
+                    actionsCell.innerHTML = `
+                        <div class="d-flex justify-content-center gap-1">
+                            <select class="form-select form-select-sm py-0 px-1 text-muted border-0 bg-light" style="width: auto; font-size: 0.75rem; cursor: pointer;" onchange="updateTickerStatus('${ticker}', this.value, this)">
+                                <option value="PENDING" ${status === 'PENDING' ? 'selected' : ''}>⏳ Pendiente</option>
+                                <option value="ACCEPTED" ${status === 'ACCEPTED' ? 'selected' : ''}>✅ Seguimiento</option>
+                                <option value="STANDBY" ${status === 'STANDBY' ? 'selected' : ''}>🤔 Dudas</option>
+                                <option value="REJECTED" ${status === 'REJECTED' ? 'selected' : ''}>❌ Descartada</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline-danger py-0 px-1 border-0" onclick="deleteTicker('${ticker}', this)" title="Eliminar activo de la lista">🗑️</button>
+                        </div>
+                    `;
+                }
+                
+                // Aplicar filtros y volver a renderizar la tabla inmediatamente en memoria sin recargar la página
+                applyFilters(false);
+            }
+        } else {
+            alert("Error al actualizar el estado del activo.");
+        }
+    }
+
+    async function deleteTicker(ticker, buttonElement) {
+        if (confirm(`¿Eliminar ${ticker}?`)) {
+            const res = await fetch(`/api/ticker/${ticker}`, { method: 'DELETE' });
+            if (res.ok) {
+                const row = buttonElement.closest('tr');
+                if (row) {
+                    row.remove();
+                    applyFilters(false);
+                }
+            } else {
+                alert("Error al eliminar el activo.");
+            }
+        }
+    }
+
+    async function toggleFavorite(ticker, element) {
+        try {
+            const res = await fetch(`/api/favorite/${ticker}/toggle`, { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                const icon = element.querySelector('i');
+                const row = element.closest('tr');
+                if (data.is_favorite) {
+                    icon.classList.remove('bi-star', 'text-muted');
+                    icon.classList.add('bi-star-fill', 'text-warning');
+                    if (row) row.setAttribute('data-is-favorite', 'true');
+                } else {
+                    icon.classList.remove('bi-star-fill', 'text-warning');
+                    icon.classList.add('bi-star', 'text-muted');
+                    if (row) row.setAttribute('data-is-favorite', 'false');
+                }
+                // If we are in the Favorites tab, re-apply filters to hide the item if unchecked
+                const activeTab = document.querySelector('#dbTabs .nav-link.active').id;
+                if (activeTab === 'fav-tab') applyFilters(false);
+            }
+        } catch (e) { console.error("Error toggling favorite", e); }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // Prevent dropdown from closing on click inside for forms
+        document.querySelectorAll('.dropdown-menu-form').forEach(el => {
+            el.addEventListener('click', e => {
+                e.stopPropagation();
+            });
+        });
+
+        document.querySelectorAll('#dbTabs button').forEach(tab => {
+            tab.addEventListener('shown.bs.tab', applyFilters);
+        });
+        document.querySelectorAll(".filter-input").forEach(el => el.addEventListener("input", applyFilters));
+        applyFilters();
+        
+        // Ordenar inicialmente por nota media de forma descendente (de mayor a menor)
+        currentSort = { col: 9, asc: true };
+        sortRows(9);
+    });
+</script>
+{% endblock %}

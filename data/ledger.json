@@ -1,0 +1,1131 @@
+{
+    "META": [
+        {
+            "date": "2022-03-16",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 200.0,
+            "total": 200.0
+        },
+        {
+            "date": "2023-08-01",
+            "type": "SELL",
+            "shares": 1.0,
+            "price": 322.0,
+            "total": 322.0
+        },
+        {
+            "date": "2026-03-15",
+            "type": "BUY",
+            "shares": 7.0,
+            "price": 560.0,
+            "total": 3920.0
+        },
+        {
+            "date": "2026-03-16",
+            "type": "DIVIDEND",
+            "shares": 7.0,
+            "price": 0.525,
+            "total": 3.6750000000000003
+        },
+        {
+            "date": "2026-04-30",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 603.5,
+            "total": 603.5
+        },
+        {
+            "date": "2026-05-12",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 592.99,
+            "total": 592.99
+        },
+        {
+            "date": "2026-06-01",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 610.0,
+            "total": 610.0
+        },
+        {
+            "date": "2026-06-15",
+            "type": "DIVIDEND",
+            "shares": 10.0,
+            "price": 0.525,
+            "total": 5.25
+        }
+    ],
+    "ITX.MC": [
+        {
+            "date": "2022-03-16",
+            "type": "BUY",
+            "shares": 5.0,
+            "price": 22.0,
+            "total": 110.0
+        },
+        {
+            "date": "2022-03-17",
+            "type": "SELL",
+            "shares": 5.0,
+            "price": 21.01,
+            "total": 105.05000000000001
+        }
+    ],
+    "IGLN.L": [
+        {
+            "date": "2022-04-01",
+            "type": "BUY",
+            "shares": 4.0,
+            "price": 34.0,
+            "total": 136.0
+        },
+        {
+            "date": "2022-08-17",
+            "type": "SELL",
+            "shares": 4.0,
+            "price": 34.0,
+            "total": 136.0
+        }
+    ],
+    "GOOGL": [
+        {
+            "date": "2022-08-23",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 114.0,
+            "total": 114.0
+        },
+        {
+            "date": "2024-06-10",
+            "type": "DIVIDEND",
+            "shares": 1.0,
+            "price": 0.2,
+            "total": 0.2
+        },
+        {
+            "date": "2024-09-09",
+            "type": "DIVIDEND",
+            "shares": 1.0,
+            "price": 0.2,
+            "total": 0.2
+        },
+        {
+            "date": "2024-10-22",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 164.5,
+            "total": 164.5
+        },
+        {
+            "date": "2024-12-09",
+            "type": "DIVIDEND",
+            "shares": 2.0,
+            "price": 0.2,
+            "total": 0.4
+        },
+        {
+            "date": "2025-03-10",
+            "type": "DIVIDEND",
+            "shares": 2.0,
+            "price": 0.2,
+            "total": 0.4
+        },
+        {
+            "date": "2025-03-26",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 167.7,
+            "total": 167.7
+        },
+        {
+            "date": "2025-06-09",
+            "type": "DIVIDEND",
+            "shares": 3.0,
+            "price": 0.21,
+            "total": 0.63
+        },
+        {
+            "date": "2025-07-21",
+            "type": "BUY",
+            "shares": 3.0,
+            "price": 188.485,
+            "total": 565.455
+        },
+        {
+            "date": "2025-09-08",
+            "type": "DIVIDEND",
+            "shares": 6.0,
+            "price": 0.21,
+            "total": 1.26
+        },
+        {
+            "date": "2025-12-08",
+            "type": "DIVIDEND",
+            "shares": 6.0,
+            "price": 0.21,
+            "total": 1.26
+        },
+        {
+            "date": "2026-03-09",
+            "type": "DIVIDEND",
+            "shares": 6.0,
+            "price": 0.21,
+            "total": 1.26
+        },
+        {
+            "date": "2026-06-08",
+            "type": "DIVIDEND",
+            "shares": 6.0,
+            "price": 0.22,
+            "total": 1.32
+        }
+    ],
+    "BABA": [
+        {
+            "date": "2023-09-12",
+            "type": "BUY",
+            "shares": 2.0,
+            "price": 89.3,
+            "total": 178.6
+        },
+        {
+            "date": "2023-12-20",
+            "type": "DIVIDEND",
+            "shares": 2.0,
+            "price": 1.0,
+            "total": 2.0
+        },
+        {
+            "date": "2024-06-13",
+            "type": "DIVIDEND",
+            "shares": 2.0,
+            "price": 1.66,
+            "total": 3.32
+        },
+        {
+            "date": "2025-06-12",
+            "type": "DIVIDEND",
+            "shares": 2.0,
+            "price": 2.0,
+            "total": 4.0
+        },
+        {
+            "date": "2025-08-07",
+            "type": "SELL",
+            "shares": 2.0,
+            "price": 121.6,
+            "total": 243.2
+        }
+    ],
+    "VID.MC": [
+        {
+            "date": "2023-10-25",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 70.3,
+            "total": 70.3
+        },
+        {
+            "date": "2023-10-25",
+            "type": "BUY",
+            "shares": 2.0,
+            "price": 70.3,
+            "total": 140.6
+        },
+        {
+            "date": "2024-02-12",
+            "type": "DIVIDEND",
+            "shares": 3.0,
+            "price": 0.923356,
+            "total": 2.7700679999999998
+        },
+        {
+            "date": "2024-06-20",
+            "type": "SELL",
+            "shares": 1.0,
+            "price": 109.8,
+            "total": 109.8
+        },
+        {
+            "date": "2024-06-20",
+            "type": "SELL",
+            "shares": 2.0,
+            "price": 109.8,
+            "total": 219.6
+        },
+        {
+            "date": "2024-09-02",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 97.0,
+            "total": 97.0
+        },
+        {
+            "date": "2024-09-02",
+            "type": "BUY",
+            "shares": 2.0,
+            "price": 97.0,
+            "total": 194.0
+        },
+        {
+            "date": "2024-11-07",
+            "type": "SELL",
+            "shares": 1.0,
+            "price": 102.0,
+            "total": 102.0
+        },
+        {
+            "date": "2024-11-07",
+            "type": "SELL",
+            "shares": 2.0,
+            "price": 102.0,
+            "total": 204.0
+        },
+        {
+            "date": "2024-11-11",
+            "type": "SPLIT",
+            "shares": 1.05,
+            "price": 0.0,
+            "total": 0.0
+        },
+        {
+            "date": "2025-10-29",
+            "type": "SPLIT",
+            "shares": 1.05,
+            "price": 0.0,
+            "total": 0.0
+        }
+    ],
+    "VIS.MC": [
+        {
+            "date": "2024-01-12",
+            "type": "BUY",
+            "shares": 2.0,
+            "price": 53.5,
+            "total": 107.0
+        },
+        {
+            "date": "2024-01-12",
+            "type": "BUY",
+            "shares": 2.0,
+            "price": 53.5,
+            "total": 107.0
+        },
+        {
+            "date": "2024-05-27",
+            "type": "DIVIDEND",
+            "shares": 4.0,
+            "price": 1.596,
+            "total": 6.384
+        },
+        {
+            "date": "2024-11-21",
+            "type": "DIVIDEND",
+            "shares": 4.0,
+            "price": 1.437,
+            "total": 5.748
+        },
+        {
+            "date": "2025-03-11",
+            "type": "SELL",
+            "shares": 2.0,
+            "price": 61.9,
+            "total": 123.8
+        },
+        {
+            "date": "2025-03-11",
+            "type": "SELL",
+            "shares": 2.0,
+            "price": 61.9,
+            "total": 123.8
+        },
+        {
+            "date": "2025-09-16",
+            "type": "BUY",
+            "shares": 11.0,
+            "price": 59.0,
+            "total": 649.0
+        },
+        {
+            "date": "2025-09-25",
+            "type": "SELL",
+            "shares": 11.0,
+            "price": 58.0,
+            "total": 638.0
+        }
+    ],
+    "KO": [
+        {
+            "date": "2024-04-10",
+            "type": "BUY",
+            "shares": 3.0,
+            "price": 58.85,
+            "total": 176.55
+        },
+        {
+            "date": "2024-06-14",
+            "type": "DIVIDEND",
+            "shares": 3.0,
+            "price": 0.485,
+            "total": 1.455
+        },
+        {
+            "date": "2024-09-13",
+            "type": "DIVIDEND",
+            "shares": 3.0,
+            "price": 0.485,
+            "total": 1.455
+        },
+        {
+            "date": "2024-11-29",
+            "type": "DIVIDEND",
+            "shares": 3.0,
+            "price": 0.485,
+            "total": 1.455
+        },
+        {
+            "date": "2025-03-14",
+            "type": "DIVIDEND",
+            "shares": 3.0,
+            "price": 0.51,
+            "total": 1.53
+        },
+        {
+            "date": "2025-03-21",
+            "type": "SELL",
+            "shares": 3.0,
+            "price": 68.7,
+            "total": 206.10000000000002
+        }
+    ],
+    "IAG.MC": [
+        {
+            "date": "2024-05-24",
+            "type": "BUY",
+            "shares": 24.0,
+            "price": 2.021,
+            "total": 48.504
+        },
+        {
+            "date": "2024-05-24",
+            "type": "BUY",
+            "shares": 46.0,
+            "price": 2.021,
+            "total": 92.966
+        },
+        {
+            "date": "2024-09-04",
+            "type": "DIVIDEND",
+            "shares": 70.0,
+            "price": 0.03,
+            "total": 2.1
+        },
+        {
+            "date": "2024-11-04",
+            "type": "SELL",
+            "shares": 33.0,
+            "price": 2.54,
+            "total": 83.82000000000001
+        },
+        {
+            "date": "2024-11-04",
+            "type": "SELL",
+            "shares": 37.0,
+            "price": 2.54,
+            "total": 93.98
+        },
+        {
+            "date": "2025-04-25",
+            "type": "BUY",
+            "shares": 79.0,
+            "price": 3.1,
+            "total": 244.9
+        },
+        {
+            "date": "2025-04-25",
+            "type": "BUY",
+            "shares": 79.0,
+            "price": 3.1,
+            "total": 244.9
+        },
+        {
+            "date": "2025-06-25",
+            "type": "DIVIDEND",
+            "shares": 158.0,
+            "price": 0.06,
+            "total": 9.48
+        },
+        {
+            "date": "2025-07-01",
+            "type": "SELL",
+            "shares": 158.0,
+            "price": 4.001,
+            "total": 632.158
+        }
+    ],
+    "MVC.MC": [
+        {
+            "date": "2024-05-24",
+            "type": "BUY",
+            "shares": 9.0,
+            "price": 8.65,
+            "total": 77.85000000000001
+        },
+        {
+            "date": "2024-05-24",
+            "type": "BUY",
+            "shares": 11.0,
+            "price": 8.65,
+            "total": 95.15
+        },
+        {
+            "date": "2024-11-20",
+            "type": "SELL",
+            "shares": 20.0,
+            "price": 8.75,
+            "total": 175.0
+        }
+    ],
+    "HIMS": [
+        {
+            "date": "2024-11-15",
+            "type": "BUY",
+            "shares": 15.0,
+            "price": 20.05,
+            "total": 300.75
+        },
+        {
+            "date": "2025-11-04",
+            "type": "BUY",
+            "shares": 13.0,
+            "price": 46.0,
+            "total": 598.0
+        },
+        {
+            "date": "2026-05-12",
+            "type": "SELL",
+            "shares": 28.0,
+            "price": 25.51,
+            "total": 714.2800000000001
+        }
+    ],
+    "NKE": [
+        {
+            "date": "2024-11-19",
+            "type": "BUY",
+            "shares": 5.0,
+            "price": 73.8,
+            "total": 369.0
+        },
+        {
+            "date": "2024-12-02",
+            "type": "DIVIDEND",
+            "shares": 5.0,
+            "price": 0.4,
+            "total": 2.0
+        },
+        {
+            "date": "2025-03-03",
+            "type": "DIVIDEND",
+            "shares": 5.0,
+            "price": 0.4,
+            "total": 2.0
+        },
+        {
+            "date": "2025-03-21",
+            "type": "SELL",
+            "shares": 5.0,
+            "price": 66.8,
+            "total": 334.0
+        }
+    ],
+    "NVDA": [
+        {
+            "date": "2025-02-27",
+            "type": "BUY",
+            "shares": 4.0,
+            "price": 126.0,
+            "total": 504.0
+        },
+        {
+            "date": "2025-03-12",
+            "type": "DIVIDEND",
+            "shares": 4.0,
+            "price": 0.01,
+            "total": 0.04
+        },
+        {
+            "date": "2025-06-11",
+            "type": "DIVIDEND",
+            "shares": 4.0,
+            "price": 0.01,
+            "total": 0.04
+        },
+        {
+            "date": "2025-08-29",
+            "type": "SELL",
+            "shares": 4.0,
+            "price": 174.5,
+            "total": 698.0
+        },
+        {
+            "date": "2025-12-19",
+            "type": "BUY",
+            "shares": 17.0,
+            "price": 178.5,
+            "total": 3034.5
+        },
+        {
+            "date": "2026-03-11",
+            "type": "DIVIDEND",
+            "shares": 17.0,
+            "price": 0.01,
+            "total": 0.17
+        },
+        {
+            "date": "2026-03-20",
+            "type": "BUY",
+            "shares": 3.0,
+            "price": 178.08,
+            "total": 534.24
+        },
+        {
+            "date": "2026-06-04",
+            "type": "BUY",
+            "shares": 2.0,
+            "price": 213.21,
+            "total": 426.42
+        },
+        {
+            "date": "2026-06-04",
+            "type": "DIVIDEND",
+            "shares": 22.0,
+            "price": 0.25,
+            "total": 5.5
+        },
+        {
+            "date": "2026-06-09",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 205.5,
+            "total": 205.5
+        }
+    ],
+    "ASTS": [
+        {
+            "date": "2025-03-21",
+            "type": "BUY",
+            "shares": 16.0,
+            "price": 25.22,
+            "total": 403.52
+        },
+        {
+            "date": "2025-09-08",
+            "type": "SELL",
+            "shares": 16.0,
+            "price": 40.03,
+            "total": 640.48
+        }
+    ],
+    "RKLB": [
+        {
+            "date": "2025-03-21",
+            "type": "BUY",
+            "shares": 22.0,
+            "price": 18.5,
+            "total": 407.0
+        },
+        {
+            "date": "2025-05-27",
+            "type": "BUY",
+            "shares": 22.0,
+            "price": 25.42,
+            "total": 559.24
+        },
+        {
+            "date": "2025-05-27",
+            "type": "SELL",
+            "shares": 22.0,
+            "price": 25.42,
+            "total": 559.24
+        },
+        {
+            "date": "2025-07-17",
+            "type": "SELL",
+            "shares": 3.0,
+            "price": 52.53,
+            "total": 157.59
+        },
+        {
+            "date": "2025-07-17",
+            "type": "SELL",
+            "shares": 1.0,
+            "price": 52.53,
+            "total": 52.53
+        },
+        {
+            "date": "2025-10-09",
+            "type": "SELL",
+            "shares": 4.0,
+            "price": 67.0,
+            "total": 268.0
+        },
+        {
+            "date": "2025-12-18",
+            "type": "SELL",
+            "shares": 14.0,
+            "price": 58.0,
+            "total": 812.0
+        }
+    ],
+    "MC.PA": [
+        {
+            "date": "2025-03-31",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 570.0,
+            "total": 570.0
+        },
+        {
+            "date": "2025-04-15",
+            "type": "SELL",
+            "shares": 1.0,
+            "price": 490.3,
+            "total": 490.3
+        }
+    ],
+    "ELE.MC": [
+        {
+            "date": "2025-04-02",
+            "type": "BUY",
+            "shares": 11.0,
+            "price": 24.74,
+            "total": 272.14
+        },
+        {
+            "date": "2025-04-02",
+            "type": "BUY",
+            "shares": 11.0,
+            "price": 24.74,
+            "total": 272.14
+        },
+        {
+            "date": "2025-06-26",
+            "type": "DIVIDEND",
+            "shares": 22.0,
+            "price": 0.8177,
+            "total": 17.9894
+        },
+        {
+            "date": "2025-07-21",
+            "type": "SELL",
+            "shares": 11.0,
+            "price": 25.99,
+            "total": 285.89
+        },
+        {
+            "date": "2025-07-21",
+            "type": "SELL",
+            "shares": 11.0,
+            "price": 25.99,
+            "total": 285.89
+        }
+    ],
+    "QFIN": [
+        {
+            "date": "2025-07-17",
+            "type": "BUY",
+            "shares": 20.0,
+            "price": 41.9,
+            "total": 838.0
+        },
+        {
+            "date": "2025-09-08",
+            "type": "DIVIDEND",
+            "shares": 20.0,
+            "price": 0.76,
+            "total": 15.2
+        },
+        {
+            "date": "2026-03-19",
+            "type": "SELL",
+            "shares": 20.0,
+            "price": 13.0,
+            "total": 260.0
+        }
+    ],
+    "OPEN": [
+        {
+            "date": "2025-07-21",
+            "type": "BUY",
+            "shares": 75.0,
+            "price": 3.725,
+            "total": 279.375
+        },
+        {
+            "date": "2025-07-21",
+            "type": "SELL",
+            "shares": 100.0,
+            "price": 3.69,
+            "total": 369.0
+        },
+        {
+            "date": "2025-07-21",
+            "type": "BUY",
+            "shares": 100.0,
+            "price": 2.77,
+            "total": 277.0
+        },
+        {
+            "date": "2025-07-22",
+            "type": "BUY",
+            "shares": 100.0,
+            "price": 3.26,
+            "total": 326.0
+        },
+        {
+            "date": "2025-07-22",
+            "type": "SELL",
+            "shares": 75.0,
+            "price": 2.91,
+            "total": 218.25
+        },
+        {
+            "date": "2025-07-23",
+            "type": "SELL",
+            "shares": 75.0,
+            "price": 2.15,
+            "total": 161.25
+        },
+        {
+            "date": "2025-08-07",
+            "type": "SELL",
+            "shares": 25.0,
+            "price": 1.86,
+            "total": 46.5
+        },
+        {
+            "date": "2025-08-26",
+            "type": "BUY",
+            "shares": 142.0,
+            "price": 4.865,
+            "total": 690.83
+        },
+        {
+            "date": "2025-11-07",
+            "type": "SELL",
+            "shares": 42.0,
+            "price": 5.795,
+            "total": 243.39
+        },
+        {
+            "date": "2025-11-07",
+            "type": "SELL",
+            "shares": 100.0,
+            "price": 5.795,
+            "total": 579.5
+        },
+        {
+            "date": "2025-11-07",
+            "type": "SELL",
+            "shares": 25.0,
+            "price": 5.795,
+            "total": 144.875
+        }
+    ],
+    "NVO": [
+        {
+            "date": "2025-08-08",
+            "type": "BUY",
+            "shares": 23.0,
+            "price": 50.7,
+            "total": 1166.1000000000001
+        },
+        {
+            "date": "2025-08-18",
+            "type": "DIVIDEND",
+            "shares": 23.0,
+            "price": 0.584,
+            "total": 13.431999999999999
+        },
+        {
+            "date": "2025-10-21",
+            "type": "BUY",
+            "shares": 10.0,
+            "price": 54.6,
+            "total": 546.0
+        },
+        {
+            "date": "2026-02-04",
+            "type": "SELL",
+            "shares": 33.0,
+            "price": 48.0,
+            "total": 1584.0
+        }
+    ],
+    "UNH": [
+        {
+            "date": "2025-08-21",
+            "type": "BUY",
+            "shares": 4.0,
+            "price": 300.0,
+            "total": 1200.0
+        },
+        {
+            "date": "2025-09-15",
+            "type": "DIVIDEND",
+            "shares": 4.0,
+            "price": 2.21,
+            "total": 8.84
+        },
+        {
+            "date": "2025-12-08",
+            "type": "DIVIDEND",
+            "shares": 4.0,
+            "price": 2.21,
+            "total": 8.84
+        },
+        {
+            "date": "2025-12-19",
+            "type": "SELL",
+            "shares": 2.0,
+            "price": 332.01,
+            "total": 664.02
+        },
+        {
+            "date": "2025-12-19",
+            "type": "SELL",
+            "shares": 2.0,
+            "price": 332.02,
+            "total": 664.04
+        }
+    ],
+    "IREN": [
+        {
+            "date": "2025-08-27",
+            "type": "BUY",
+            "shares": 20.0,
+            "price": 22.35,
+            "total": 447.0
+        },
+        {
+            "date": "2025-09-10",
+            "type": "BUY",
+            "shares": 17.0,
+            "price": 32.0,
+            "total": 544.0
+        },
+        {
+            "date": "2025-10-16",
+            "type": "BUY",
+            "shares": 10.0,
+            "price": 62.47,
+            "total": 624.7
+        },
+        {
+            "date": "2025-11-13",
+            "type": "BUY",
+            "shares": 3.0,
+            "price": 50.0,
+            "total": 150.0
+        }
+    ],
+    "SBET": [
+        {
+            "date": "2025-08-27",
+            "type": "BUY",
+            "shares": 24.0,
+            "price": 19.7,
+            "total": 472.79999999999995
+        }
+    ],
+    "CIFR": [
+        {
+            "date": "2025-09-25",
+            "type": "BUY",
+            "shares": 60.0,
+            "price": 13.0,
+            "total": 780.0
+        },
+        {
+            "date": "2025-10-16",
+            "type": "BUY",
+            "shares": 20.0,
+            "price": 19.1,
+            "total": 382.0
+        },
+        {
+            "date": "2026-05-27",
+            "type": "SELL",
+            "shares": 80.0,
+            "price": 25.4,
+            "total": 2032.0
+        }
+    ],
+    "MELI": [
+        {
+            "date": "2025-10-08",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 2152.0,
+            "total": 2152.0
+        },
+        {
+            "date": "2025-12-16",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 1933.0,
+            "total": 1933.0
+        },
+        {
+            "date": "2026-06-03",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 1645.0,
+            "total": 1645.0
+        }
+    ],
+    "UBER": [
+        {
+            "date": "2025-10-13",
+            "type": "BUY",
+            "shares": 9.0,
+            "price": 94.0,
+            "total": 846.0
+        },
+        {
+            "date": "2025-10-16",
+            "type": "BUY",
+            "shares": 10.0,
+            "price": 92.485,
+            "total": 924.85
+        },
+        {
+            "date": "2025-11-04",
+            "type": "BUY",
+            "shares": 14.0,
+            "price": 92.89,
+            "total": 1300.46
+        },
+        {
+            "date": "2025-11-20",
+            "type": "BUY",
+            "shares": 7.0,
+            "price": 83.88,
+            "total": 587.16
+        },
+        {
+            "date": "2026-02-13",
+            "type": "BUY",
+            "shares": 9.0,
+            "price": 70.35,
+            "total": 633.15
+        },
+        {
+            "date": "2026-06-03",
+            "type": "BUY",
+            "shares": 6.0,
+            "price": 70.7,
+            "total": 424.20000000000005
+        },
+        {
+            "date": "2026-06-10",
+            "type": "BUY",
+            "shares": 4.0,
+            "price": 69.19,
+            "total": 276.76
+        }
+    ],
+    "EVO.ST": [
+        {
+            "date": "2025-12-29",
+            "type": "BUY",
+            "shares": 60.0,
+            "price": 627.6,
+            "total": 37656.0
+        },
+        {
+            "date": "2026-03-12",
+            "type": "BUY",
+            "shares": 8.0,
+            "price": 600.0,
+            "total": 4800.0
+        }
+    ],
+    "MSFT": [
+        {
+            "date": "2026-02-12",
+            "type": "BUY",
+            "shares": 11.0,
+            "price": 398.34,
+            "total": 4381.74
+        },
+        {
+            "date": "2026-02-19",
+            "type": "DIVIDEND",
+            "shares": 11.0,
+            "price": 0.91,
+            "total": 10.01
+        },
+        {
+            "date": "2026-04-30",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 402.0,
+            "total": 402.0
+        },
+        {
+            "date": "2026-05-21",
+            "type": "DIVIDEND",
+            "shares": 12.0,
+            "price": 0.91,
+            "total": 10.92
+        },
+        {
+            "date": "2026-06-16",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 394.0,
+            "total": 394.0
+        },
+        {
+            "date": "2026-06-24",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 374.0,
+            "total": 374.0
+        }
+    ],
+    "BKNG": [
+        {
+            "date": "2026-02-12",
+            "type": "BUY",
+            "shares": 1.0,
+            "price": 3920.0,
+            "total": 3920.0
+        },
+        {
+            "date": "2026-03-06",
+            "type": "DIVIDEND",
+            "shares": 1.0,
+            "price": 0.42,
+            "total": 0.42
+        },
+        {
+            "date": "2026-04-06",
+            "type": "SPLIT",
+            "shares": 25.0,
+            "price": 0.0,
+            "total": 0.0
+        },
+        {
+            "date": "2026-06-05",
+            "type": "DIVIDEND",
+            "shares": 25.0,
+            "price": 0.42,
+            "total": 10.5
+        }
+    ]
+}

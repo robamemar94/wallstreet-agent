@@ -1,0 +1,829 @@
+analyze_income_task:
+  description: |
+    REGLA DE PRIORIDAD ABSOLUTA (CRÍTICA): La variable {raw_data_input} contiene los estados financieros ingresados manualmente por el usuario. Es tu fuente de verdad absoluta. ¡No busques datos financieros en internet si {raw_data_input} contiene números o tablas! Úsalos directamente y basa todo tu análisis en ellos. Solo utiliza herramientas de búsqueda externa para investigar el contexto cualitativo detrás de caídas o baches sectoriales, o si {raw_data_input} estuviera completamente vacío.
+    
+    Audita la Cuenta de Resultados de {target_name} basada en {raw_data_input}.
+    Evalúa de forma autónoma los números de ventas y márgenes para encontrar fortalezas, anomalías y banderas rojas.
+    REGLA DE VERIFICACIÓN DE LÍNEAS ROJAS (CRÍTICA):
+    Cuando detectes una anomalía o posible bandera roja, debes investigar activamente usando búsquedas en internet para determinar de forma equilibrada y rigurosa si se trata de un riesgo estructural real o si es un bache coyuntural plenamente justificado. No seas laxo ni justifiques sin pruebas rigurosas, pero tampoco califiques de línea roja letal algo que el contexto de la empresa o sector justifica plenamente.
+  expected_output: |
+    ### 📊 ANÁLISIS DE RESULTADOS (P&L)
+    **Nota de Resultados:** X.X / 10
+
+    **Puntos Fuertes (Resultados):**
+    - [Punto fuerte 1]
+    - [Punto fuerte 2]
+
+    **Puntos Débiles y Riesgos (Resultados):**
+    - [Punto débil o riesgo 1]
+    - [Punto débil o riesgo 2]
+
+    **Análisis Detallado:**
+    [Análisis conciso de ingresos y márgenes, justificando la nota asignada]
+
+analyze_balance_task:
+  description: |
+    REGLA DE PRIORIDAD ABSOLUTA (CRÍTICA): La variable {raw_data_input} contiene los estados financieros ingresados manualmente por el usuario. Es tu fuente de verdad absoluta. ¡No busques datos financieros en internet si {raw_data_input} contiene números o tablas! Úsalos directamente y basa todo tu análisis en ellos. Solo utiliza herramientas de búsqueda externa para investigar el contexto cualitativo detrás de pasivos o deudas dudosas, o si {raw_data_input} estuviera completamente vacío.
+    
+    Audita el Balance de {target_name} basado en {raw_data_input}.
+    Evalúa de forma autónoma la solidez del balance y estructura de deuda para identificar fortalezas, riesgos y banderas rojas.
+    REGLA DE VERIFICACIÓN DE LÍNEAS ROJAS (CRÍTICA):
+    Cuando detectes una anomalía o posible bandera roja, debes investigar activamente usando búsquedas en internet para determinar de forma equilibrada y rigurosa si se trata de un riesgo estructural real o si es un bache coyuntural plenamente justificado. No seas laxo ni justifiques sin pruebas rigurosas, pero tampoco califiques de línea roja letal algo que el contexto de la empresa o sector justifica plenamente.
+  expected_output: |
+    ### ⚖️ ANÁLISIS DEL BALANCE
+    **Nota de Balance:** X.X / 10
+
+    **Puntos Fuertes (Balance):**
+    - [Punto fuerte 1]
+    - [Punto fuerte 2]
+
+    **Puntos Débiles y Riesgos (Balance):**
+    - [Punto débil o riesgo 1]
+    - [Punto débil o riesgo 2]
+
+    **Análisis Detallado:**
+    [Análisis conciso de solvencia y deuda, justificando la nota asignada]
+
+analyze_cashflow_task:
+  description: |
+    REGLA DE PRIORIDAD ABSOLUTA (CRÍTICA): La variable {raw_data_input} contiene los estados financieros ingresados manualmente por el usuario. Es tu fuente de verdad absoluta. ¡No busques datos financieros en internet si {raw_data_input} contiene números o tablas! Úsalos directamente y basa todo tu análisis en ellos. Solo utiliza herramientas de búsqueda externa para investigar el contexto cualitativo detrás de quema de caja transitoria, o si {raw_data_input} estuviera completamente vacío.
+    
+    Audita el Flujo de Caja de {target_name} basado en {raw_data_input}.
+    Evalúa de forma autónoma la generación de caja real para encontrar fortalezas, riesgos y banderas rojas (FCF, Capex, SBC). Recuerda que la SBC (compensación basada en acciones) solo debe penalizarse si representa un porcentaje excesivamente alto, tiene una tendencia muy creciente y descontrolada, o genera una dilución neta real significativa en las acciones totales en circulación; los niveles moderados, estables o compensados por recompras eficientes son una práctica estándar normal de compensación y no deben penalizar la nota de flujo de caja.
+    REGLA DE VERIFICACIÓN DE LÍNEAS ROJAS (CRÍTICA):
+    Cuando detectes una anomalía o posible bandera roja, debes investigar activamente usando búsquedas en internet para determinar de forma equilibrada y rigurosa si se trata de un riesgo estructural real o si es un bache coyuntural plenamente justificado. No seas laxo ni justifiques sin pruebas rigurosas, pero tampoco califiques de línea roja letal algo que el contexto de la empresa o sector justifica plenamente.
+  expected_output: |
+    ### 💸 ANÁLISIS DE FLUJO DE CAJA
+    **Nota de Flujo de Caja:** X.X / 10
+
+    **Puntos Fuertes (Flujo de Caja):**
+    - [Punto fuerte 1]
+    - [Punto fuerte 2]
+
+    **Puntos Débiles y Riesgos (Flujo de Caja):**
+    - [Punto débil o riesgo 1]
+    - [Punto débil o riesgo 2]
+
+    **Análisis Detallado:**
+    [Análisis conciso de flujo de caja, justificando la nota asignada]
+
+forensic_audit_task:
+  description: |
+    Sintetiza la auditoría de {target_name} en una visión conjunta y holística del negocio basándote en los informes individuales de los especialistas proporcionados a continuación.
+    1. Conecta los números para explicar el funcionamiento global del negocio: analiza de forma comprensiva cómo opera la empresa a través de la interacción de sus ventas, costes, balance y generación de caja, dando una visión unificada de su engranaje económico.
+    2. Identifica fortalezas y evalúa si las banderas rojas encontradas son baches puntuales (justificados) o debilidades estructurales reales (Líneas Rojas letales).
+    3. Emite un veredicto definitivo de invertibilidad: [APTO PARA ANÁLISIS / DESCARTE] y el Score de Auditoría (0-10).
+
+    INFORMES DE ESPECIALISTAS (CONTEXTO):
+    {audit_context}
+
+    {methodology}
+
+  expected_output: |
+    # 🕵️ AUDITORÍA FORENSE INTEGRAL — {target_name}
+    > Auditoría a fecha {current_date}
+
+    ## 📊 1. ANÁLISIS DE RESULTADOS (P&L)
+    [Resumen del especialista]
+
+    ## ⚖️ 2. ANÁLISIS DEL BALANCE
+    [Resumen del especialista]
+
+    ## 💸 3. ANÁLISIS DE FLUJO DE CAJA
+    [Resumen del especialista]
+
+    ---
+
+    ## 🌍 4. COMPRESIÓN DEL NEGOCIO, FORTALEZAS Y RIESGOS
+    - **Visión Conjunta y Funcionamiento Global:** [Análisis holístico de cómo funciona operativamente la empresa a través de la interacción de sus números contables]
+    - **Fortalezas Principales:** [Puntos fuertes clave]
+    - **Riesgos y Banderas Rojas:** [Riesgos detectados y si son baches puntuales/justificados o estructurales/críticos]
+    - **Veredicto Final de Invertibilidad:** [APTO PARA ANÁLISIS / DESCARTE]
+
+    ## ⭐ SCORE DE AUDITORÍA: X.X / 10
+    **Veredicto Forense:** [Breve justificación final de la viabilidad de la inversión]
+
+business_model_task:
+  description: |
+    Hoy es {current_date}. Analiza el modelo de negocio y monetización de {target_name}.
+
+    Sigue los pasos en orden estricto:
+    1. Paso 1 — Analiza cómo genera ingresos, distribución geográfica y de clientes usando search_internet de forma detallada.
+    2. Paso 2 — Determina la estructura de costes y el apalancamiento operativo.
+    3. Paso 3 — Detalla el mapa de riesgos comerciales y cómo los mitiga.
+
+    {methodology}
+
+  expected_output: |
+    ## 🗺️ 1. MODELO DE NEGOCIO Y MONETIZACIÓN
+    - **¿Cómo genera valor e ingresos?:** [Explicación detallada del modelo de monetización y distribución geográfica/segmentos]
+    - **Catalizadores de Crecimiento:** [Principales factores de aceleración del negocio en el mediano plazo]
+    - **Riesgos Comerciales:** [Detalle de riesgos como concentración de clientes, regulación, etc., y mitigación]
+
+moat_analyst_task:
+  description: |
+    Hoy es {current_date}. Analiza el Economic Moat y la ventaja competitiva de {target_name}.
+
+    Sigue los pasos en orden estricto:
+    1. Paso 0 — Lee de forma prioritaria el `{audit_context}`. Los números de márgenes y ROIC que contiene son tu verdad absoluta contable. No realices búsquedas financieras históricas duplicadas en internet.
+    2. Paso 1 — Evalúa las 5 fuentes de foso competitivo, asigando a cada una su score numérico (0 a 3).
+    3. Paso 2 — Compara con 2 o 3 competidores clave que busques con search_internet.
+    4. Paso 2.5 — Somete a la empresa al Test Nokia/Kodak de obsolescencia y riesgo disruptivo de forma rigurosa y no benevolente.
+    5. Paso 3 — Contrasta con la tesis real de mercado con search_bull_bear_thesis y simula un enfrentamiento de debate con simulate_bull_bear_debate.
+    6. Scoring final holístico de franquicia (0-10) y veto si corresponde.
+
+    CONTEXTO DE AUDITORÍA CRÍTICA (Paso 0):
+    {audit_context}
+
+    {methodology}
+
+  expected_output: |
+    # 💎 ANÁLISIS DE LA FRANQUICIA Y ECONOMIC MOAT — {target_name}
+    > Análisis a fecha {current_date}
+
+    [Inserta aquí la sección de MODELO DE NEGOCIO Y MONETIZACIÓN generada por el especialista de negocio si corre en el mismo Crew]
+
+    ## 🛡️ 2. FUENTES DEL ECONOMIC MOAT
+    | Tipo                | Score | Evidencia concreta          |
+    |---------------------|-------|-----------------------------|
+    | Activos Intangibles | X/3   |                             |
+    | Switching Costs     | X/3   |                             |
+    | Network Effects     | X/3   |                             |
+    | Cost Advantage      | X/3   |                             |
+    | Efficient Scale     | X/3   |                             |
+    | **SUBTOTAL**        | X/15  |                             |
+
+    ## 📊 2.5. TEST NOKIA/KODAK Y EVALUACIÓN DE RIESGO DISRUPTIVO MULTISECTORIAL
+    - **Riesgo Tecnológico, Automatización e IA (Software/Tech):** [Análisis objetivo de si la IA, código abierto, o software puede desintermediar o automatizar su propuesta de valor]
+    - **Riesgo de Cambios de Hábitos, Demografía o Salud (Consumo/Retail/Health):** [Evaluación de cambios en preferencias socioculturales, hábitos saludables o revoluciones médicas que vuelvan obsoleto su producto]
+    - **Riesgo de Moda y Pérdida de Relevancia (Fads vs. Icons):** [Análisis de si la marca es un icono cultural blindado o una tendencia/moda pasajera con alto riesgo de pérdida de relevancia]
+    - **Veredicto del Test Nokia/Kodak:** [Sin benevolencia pero con pragmatismo: ¿Es un foso duradero a 10 años, o hay riesgo real de obsolescencia? Explica tu razonamiento con rigurosidad]
+
+    ## 📊 3. BENCHMARKING DE COMPETIDORES Y PRICING POWER
+    - **Competidores Analizados:** [Nombres de los 2 o 3 competidores clave]
+    - **Comparativa de Márgenes:** [¿Son los márgenes brutos y operativos superiores a sus pares? Detalle de márgenes]
+    - **Comparativa de ROIC:** [¿Superior o inferior? Detalle]
+    - **Pricing Power Real:** [¿Muestran capacidad de subir precios sin perder volumen?]
+
+    ## ⚔️ 4. DEBATE EXTREMO BULL VS BEAR (TESIS DE MERCADO)
+    - **Bull Case (Caso Alcista):** [Tesis real con fuentes]
+    - **Bear Case (Caso Bajista):** [Tesis real con fuentes]
+    - **Simulación del Debate Extremo:** [Resumen de la confrontación Bull vs Bear y veredicto sobre el riesgo principal]
+    - **Conclusión del Analista (Juez):** [Tu veredicto sobre la incertidumbre y visibilidad a 10 años]
+
+    ---
+    [🛑 AVISO DE RECHAZO: Incluye este bloque aquí SOLO si la empresa suspende los vetos de viabilidad a largo plazo o es un "NO MOAT" in-invertible].
+
+    ## ⭐ PUNTUACIÓN DE FRANQUICIA: X.X / 10
+    **Moat Rating:** Wide Moat / Narrow Moat Stable / Narrow Moat Eroding / No Moat
+    **Justificación:** [Breve justificación de la nota de franquicia asignada]
+
+evaluate_management_task:
+  description: |
+    Hoy es {current_date}. Evalúa al equipo directivo y su alineación de intereses para {target_name}.
+
+    Sigue los pasos en orden estricto:
+    1. Paso 1 — Busca el Proxy DEF 14A con buscar_sec_filings para analizar la propiedad agregada del CEO y directiva.
+    2. Paso 2 — Audita la estructura de incentivos y bonus: qué métricas rigen su sueldo variable.
+    3. Paso 3 — Analiza noticias corporativas y la transcripción del último earnings call con buscar_transcripcion_earnings para evaluar franqueza y honestidad.
+
+    {methodology}
+
+  expected_output: |
+    ## 👔 1. ALINEACIÓN E INCENTIVOS (PROXY DEF 14A)
+    - **Skin in the Game (Propiedad del CEO):** [Porcentaje de acciones en propiedad de la directiva]
+    - **Estructura de Incentivos y Bonus:** [¿Están vinculados a métricas de creación de valor (ROIC/FCF por acción) o crecimiento de tamaño?]
+    - **Opinión sobre la Alineación:** [Breve veredicto sobre si están alineados con el accionista minoritario]
+    - **Integridad y Q&A:** [Grado de honestidad al responder analistas en el earnings call]
+
+capital_allocation_task:
+  description: |
+    Hoy es {current_date}. Evalúa la asignación histórica de capital (The Outsiders Test) para {target_name}.
+
+    Sigue los pasos en orden estricto:
+    1. Paso 0 — Lee de forma prioritaria el `{audit_context}`. Los números de recompras, SBC, dividendos y M&A que contiene son tu verdad absoluta contable. No realices búsquedas financieras históricas duplicadas en internet.
+    2. Paso 1 — Evalúa la política de recompras de acciones (oportunistas o mecánicas en máximos) y el impacto dilutivo neto del Stock-Based Compensation (SBC).
+    3. Paso 2 — Analiza de forma rigurosa la tasa de retorno incremental de capital (ROIC) y el historial de adquisiciones M&A de los últimos 10 años (calculando de forma explícita el ROIC total medio a 10 años, el ROIC tangible sin Goodwill, y la evolución del ROIIC a 10, 5 y 3 años para juzgar la trayectoria completa de la directiva, y no únicamente el corto plazo reciente).
+    4. Scoring final de asignación (0-10) y veto si corresponde.
+
+    CONTEXTO DE AUDITORÍA CRÍTICA (Paso 0):
+    {audit_context}
+
+    {methodology}
+
+  expected_output: |
+    # 👔 DIRECCIÓN Y ASIGNACIÓN DE CAPITAL (OUTSIDERS TEST) — {target_name}
+    > Análisis a fecha {current_date}
+
+    [Inserta aquí la sección de ALINEACIÓN E INCENTIVOS generada por el especialista de management si corre en el mismo Crew]
+
+    ## ⚙️ 2. DECISIONES DE ASIGNACIÓN DE CAPITAL (CAPITAL ALLOCATION)
+    - **Recompras de Acciones:** [¿Recompras oportunistas a múltiplos bajos o mecánicas para cubrir dilución?]
+    - **Dilución y SBC:** [¿SBC controlada o destructiva? Impacto neto en el número de acciones en circulación]
+    - **Retorno sobre Capital (ROIC):** [¿Genera valor la reinversión de capital en el negocio?]
+    - **Historial de M&A (Adquisiciones):** [¿Adquisiciones pequeñas y rentables o adquisiciones destructivas impulsadas por el ego?]
+
+    ---
+    [🛑 AVISO DE RECHAZO: Incluye este bloque aquí SOLO si has detectado destrucción sistemática de capital o graves problemas de integridad en la directiva].
+
+    ## ⭐ PUNTUACIÓN DE DIRECCIÓN Y CAPITAL: X.X / 10
+    **Perfil Directivo:** Outsider / Alineación Excelente / Aceptable / Gestión Frágil / Peligroso
+    **Justificación:** [Explicación de la nota asignada]
+
+investment_director_task:
+  description: |
+    Hoy es {current_date}. Como Director de Inversiones, asume un enfoque de síntesis definitiva, de alto nivel y riguroso pero dotado de un profundo sentido pragmático y sensatez. Tu tarea es analizar y englobar todas las conclusiones previas de los agentes de calidad para {target_name} para emitir un veredicto definitivo de calidad/invertibilidad y una Nota de Calidad unificada.
+
+    ORDEN DE EJECUCIÓN OBLIGATORIO:
+    1. Revisa los informes previos buscando banderas rojas o avisos de rechazo. Evalúa críticamente si el bache es de carácter temporal, puntual, reconocido y ya solucionado por la directiva, en cuyo caso aplica un castigo severo y restrictivo restando de forma drástica en el pilar afectado (ej: de -3.0 a -4.0 puntos), adviértelo en la tesis, pero NO decretes un descarte binario automático irracional si el resto de pilares (moat, balance, capital allocation Outsider, ROIC) son de una calidad excepcional (élite). Esto castigará fuertemente la nota general (quedando en un rango estricto de 5.5 a 6.5 para exigir un margen de seguridad colosal en valoración), pero la mantendrá en el radar de seguimiento. Reserva el descarte directo y las notas ≤ 4 únicamente para peligros estructurales continuos, falta de integridad flagrante, fraude o destrucción sistemática de capital que comprometa permanentemente la invertibilidad.
+    2. Realiza una síntesis crítica, equilibrada y holística de todo el conjunto.
+    3. Calcula y asigna la Nota de Calidad Global (Score Final) (0-10) ponderando:
+       - 35% Calidad de Franquicia y Moat ({franchise_context})
+       - 35% Dirección y Asignación de Capital ({mgmt_alloc_context})
+       - 30% Auditoría Financiera Forense Histórica ({audit_context})
+       - Sopesa también los resultados de la Auditoría de Normas de Calidad ({rules_context}) para restar puntos si incumple reglas inquebrantables.
+    4. Escribe la tesis cualitativa definitiva e indica el veredicto de Fase 1: [APTO PARA VALORACIÓN / DESCARTE DIRECTO].
+    5. Para finalizar el informe, utiliza la herramienta `get_company_events` con el ticker {ticker} para obtener el calendario de próximos eventos y añádelo en la sección correspondiente.
+
+    ANÁLISIS PREVIOS (toda la información de los agentes analistas está aquí):
+    {audit_context}
+    {franchise_context}
+    {mgmt_alloc_context}
+    {rules_context}
+
+    {methodology}
+
+  expected_output: |
+    # VEREDICTO DE INVERSIÓN (CALIDAD FASE 1) — {target_name}
+    > Síntesis a fecha {current_date}
+
+    ## 1. RESUMEN DE PILARES DE CALIDAD
+    | Pilar                                | Score | Perfil / Veredicto del Analista |
+    |--------------------------------------|-------|---------------------------------|
+    | 1. Calidad de Franquicia y Moat      | X/10  | [Ej: WIDE MOAT SÓLIDO]          |
+    | 2. Dirección y Asignación de Capital  | X/10  | [Ej: DIRECTIVA OUTSIDER]        |
+    | 3. Auditoría Financiera Forense      | X/10  | [Ej: EXCELENTE / SIN RIESGOS]   |
+    | 4. Normas de Calidad (Checklist)     | X/10  | [Ej: CUMPLE 9/11 NORMAS]        |
+
+    ## 2. EVALUACIÓN DE RIESGO ESTRUCTURAL Y VETOS
+    **Banderas Rojas Críticas y Avisos de Rechazo:**
+    > [Resume las peores banderas rojas encontradas por los analistas. Si hay alguna nota <= 4 o si algún informe contiene un "🛑 AVISO DE RECHAZO", indícalo claramente aquí y marca la empresa para descarte inmediato. Si todo está sano, indica "Ningún defecto estructural grave detectado".]
+
+    ## 3. MATRIZ MULTIFACTORIAL Y CALIDAD GLOBAL
+    - **Nota de Calidad Global (Score):** X.X / 10
+    - **Arquetipo de Inversión:** [Ej: 💎 COMPOUNDER / 🧠 COMPOUNDER "OUTSIDER" / 🏰 CASTILLO DORMIDO / etc.]
+    - **Justificación del Arquetipo:** [Explica brevemente por qué encaja en este perfil según el cruce específico de sus 3 notas].
+
+    ---
+    ## ⭐ SCORE FINAL (Fase 1): X.X / 10
+    ## 📋 VEREDICTO DE FILTRO (Paso 7): [APTO PARA VALORACIÓN / DESCARTE DIRECTO]
+
+    ## 4. SÍNTESIS Y VEREDICTO FINAL
+    > [Párrafo contundente resumiendo si la empresa tiene calidad excepcional para ser digna de nuestro capital, integrando foso, números y capitanes de forma lógica y sin eufemismos.]
+
+    ## 5. PRÓXIMOS EVENTOS Y CATALIZADORES
+    *   **Próxima Fecha de Resultados (Earnings):** [Fecha de la próxima presentación de resultados]
+    *   **Pago de Dividendos:** [Información sobre el próximo dividendo (fecha, cantidad), o "No aplica" si la empresa no paga dividendos]
+
+rules_auditor_task:
+  description: |
+    Hoy es {current_date}. Como Auditor de Normas de Calidad, debes evaluar de forma rigurosa, exigente pero siempre justa y razonable las Normas de Calidad de Inversión (Paso 0 y los 5 Pilares) para {target_name}.
+
+    ORDEN DE EJECUCIÓN OBLIGATORIO:
+    1. Utiliza el contexto financiero real disponible en `{audit_context}`. Analiza el historial completo disponible (la última década / últimos 10 años).
+    2. Realiza los cálculos matemáticos precisos para cada uno de los pilares utilizando los datos fundamentales (p.ej. Margen Bruto, FCF, CAGR de ingresos y FCF/Share a 3, 5 y 10 años, ROIC con/sin Goodwill, EBITDA, Deuda Económica, Quick ratio, ROIIC a 3, 5 y 10 años, recompras, SBC, etc.).
+    3. Para cada pilar, realiza el cálculo exacto de CAGR o medias y aplícalo de forma objetiva sobre los 10 años de historial. Si la empresa no cumple los mínimos, califícalo con un 0.0 de forma justa pero rigurosa.
+    4. El tono debe ser de escepticismo profesional equilibrado. Eres un auditor de calidad analítico que busca proteger el capital a largo plazo; por lo tanto, no seas complaciente ni laxo ante debilidades reales, pero sé razonable, constructivo y basado exclusivamente en hechos. No asumas riesgos catastróficos o paranoicos de disrupción sin justificación o indicios reales en los datos, pero tampoco ignores los riesgos obvios.
+    5. Para el bloque final XML de <resumen> exigido por las instrucciones del sistema:
+       - En <score> debes indicar la puntuación de calidad total obtenida (ej. 8.25/10).
+       - En <pros> (Pilares Destacados) debes listar en elementos <item> cada uno de los pilares que obtuvieron buena puntuación (ej: <item>Pilar 1: Foso Competitivo [Sólido, 2.0 p.]</item>).
+       - En <cons> (Pilares Débiles) debes listar en elementos <item> cada uno de los pilares con baja puntuación o riesgos (ej: <item>Pilar 3: Eficiencia del Capital [Débil, 0.0 p.]</item>).
+
+    ════════════════════════════════════════════
+    NORMAS DE CALIDAD DEL USUARIO (DEBES EVALUAR CADA UNA)
+    ════════════════════════════════════════════
+    {custom_evaluation_rules}
+
+    {methodology}
+
+  expected_output: |
+    # AUDITORÍA DE NORMAS DE CALIDAD DE INVERSIÓN — {target_name}
+    > Evaluación rigurosa a fecha {current_date}
+
+    ## 1. INFORME DE AUDITORÍA GENERAL
+    * **Puntuación de Calidad Total:** X.XX / 10.0 (Suma de los 5 Pilares, de 0 a 2.0 puntos cada uno)
+    * **Clasificación del Activo:** [Calidad Élite ("Core") / Calidad Sólida ("Satélite") / Calidad Insuficiente (Descarte)]
+    * **Veredicto del Auditor:** [Un párrafo contundente de por qué cumple o suspende los estándares].
+
+    ## 2. EVALUACIÓN DETALLADA PASO A PASO
+
+    ### 📋 Paso 0: Carga, Normalización y Consistencia de Datos
+    * **Resultado/Confirmación:** [Breve confirmación de que los datos están listos, con lista de posibles inconsistencias].
+
+    ### 🛡️ Pilar 1: Foso Competitivo, Pricing Power y Riesgo Terminal
+    * **Puntuación:** X.X / 2.0 Puntos
+    * **Desarrollo Analítico:**
+      - Tabla de margen bruto por año (últimos 10 años).
+      - Interpretación operativa: análisis de pricing power, ventajas de costes, o erosión competitiva.
+      - Riesgos estructurales: análisis del riesgo terminal a 10 años (obsolescencia, regulación, sustitución por software/IA, cambio generacional o pérdida de relevancia).
+
+    ### 📈 Pilar 2: Crecimiento de Ventas, FCF Total y BPA
+    * **Puntuación:** X.X / 2.0 Puntos
+    * **Desarrollo Analítico:**
+      - Cálculos y tabla de métricas (Ingresos, FCF Total y BPA CAGR a 3, 5 y 10 años, evolución de acciones en circulación, y análisis de dilución).
+
+    ### ⚙️ Pilar 3: ROIC, Márgenes y Eficiencia del Capital
+    * **Puntuación:** X.X / 2.0 Puntos
+    * **Desarrollo Analítico:**
+      - Cálculos y tabla de ratios de los últimos 10 años (ROIC promedio a 10 años con y sin goodwill, margen EBIT medio a 10 años).
+
+    ### 🏰 Pilar 4: Solvencia, Liquidez y Riesgo de Refinanciación
+    * **Puntuación:** X.X / 2.0 Puntos
+    * **Desarrollo Analítico:**
+      - Cálculos y tabla de ratios de los últimos 10 años (Deuda económica total / FCF, Quick ratio ajustado, FCF / EBITDA).
+
+    ### 👔 Pilar 5: Asignación de Capital, ROIIC, Recompra, SBC y Gobernanza
+    * **Puntuación:** X.X / 2.0 Puntos
+    * **Desarrollo Analítico:**
+      - Cálculos de los últimos 10 años (ROIIC a 3, 5 y 10 años, evolución de recompra de acciones, SBC como % de FCF operativo o FCF, gobernanza).
+
+    ## 3. RESUMEN DE PUNTUACIONES
+    | Pilar | Puntuación Obtenida | Máximo | ¿Superado? |
+    |---|---|---|---|
+    | 1. Foso Competitivo y Riesgo Terminal | X.X | 2.0 | SÍ/NO |
+    | 2. Crecimiento Ventas y FCF/Acción | X.X | 2.0 | SÍ/NO |
+    | 3. ROIC y Eficiencia del Capital | X.X | 2.0 | SÍ/NO |
+    | 4. Solvencia y Liquidez | X.X | 2.0 | SÍ/NO |
+    | 5. Capital Allocation y Gobernanza | X.X | 2.0 | SÍ/NO |
+    | **CALIDAD TOTAL** | **X.XX** | **10.0** | **[Élite / Sólida / Insuficiente]** |
+
+valuation_agent_task:
+  description: |
+    Hoy es {current_date}. Realiza las proyecciones financieras y el modelado de TIR para {target_name}.
+
+    Sigue los pasos en orden estricto:
+    1. Paso 1 — Busca las proyecciones de ingresos y FCF/BPA del consenso de Wall Street usando get_analyst_estimates y el guidance oficial de la empresa.
+    2. Paso 2 — Evalúa los vientos de cola/cara y estresa los márgenes a futuro ante inflación o competencia sectorial.
+    3. Paso 3 — Ejecuta la calculadora calculate_irr_scenarios TRES veces para obtener los tres escenarios de TIR (Pesimista, Base, Optimista).
+    4. Determina la señal de inversión final y el Strike Price basándote en los retornos matemáticos calculados frente a los riesgos.
+
+    Contexto cualitativo de la Fase 1 (Veredicto):
+    {verdict_context}
+
+    CONTEXTO DE AUDITORÍA CRÍTICA (Paso 0):
+    {audit_context}
+
+    {methodology}
+
+  expected_output: |
+    # 📊 PROYECCIONES FINANCIERAS Y MODELADO DE TIR — {target_name}
+    > Análisis de Valoración a fecha {current_date}
+
+    ## 🔮 1. PROYECCIONES FUTURAS (CONSENSO Y GUIDANCE)
+    - **Consenso de Wall Street (CAGR 3-5 años):** [Expectativas de crecimiento en ingresos y beneficios]
+    - **Guidance de la Directiva:** [Previsiones dadas por la empresa]
+    - **Viento de Cola y Viento de Cara:** [Riesgos y catalizadores sectoriales macro que afectan las proyecciones]
+    - **Stress Test de Márgenes:** [¿Podrán defender los márgenes ante inflación o competencia?]
+
+    ## 🧮 2. ESCENARIOS Y RESULTADOS DE TIR (A 5 años)
+    
+    ### 🔴 ESCENARIO PESIMISTA (Bear Case)
+    - *Crecimiento:* X% | *Múltiplo de Salida:* Xx
+    - *TIR Calculada:* X%
+
+    ### ⚖️ ESCENARIO BASE (Consenso / Realista)
+    - *Crecimiento:* X% | *Múltiplo de Salida:* Xx
+    - *TIR Calculada:* X%
+    
+    **Proyección Año a Año (Escenario Base):**
+    | Año | Crecimiento | Valor Total | Valor por Acción | Dividendo Acum. |
+    |-----|-------------|-------------|------------------|-----------------|
+    | 0   | N/A         | $X          | $X               | $0.00           |
+    | 1   | X%          | $X          | $X               | $X              |
+    | ... | ...         | ...         | ...              | ...             |
+    | 5   | X%          | $X          | $X               | $X              |
+
+    ### 🟢 ESCENARIO OPTIMISTA (Bull Case)
+    - *Crecimiento:* X% | *Múltiplo de Salida:* Xx
+    - *TIR Calculada:* X%
+
+    ---
+    ## 🎯 PRECIO DE ENTRADA OBJETIVO (STRIKE PRICE)
+    **Para obtener un 20% de TIR anualizado asumiendo el ESCENARIO BASE:**
+    - **Strike Price (Precio Máximo de Compra):** $X
+    - **Distancia al precio actual:** [ej. -30% o +15%]
+
+    ---
+    ## ⭐ SEÑAL DE VALORACIÓN: [STRONG BUY / BUY / HOLD / SELL / STRONG SELL]
+
+    ## 📋 CONCLUSIÓN DE VALORACIÓN
+    > Tres frases. ¿A los precios actuales el retorno asume un escenario perfecto o hay margen de seguridad?
+
+rules_pilar1_task:
+  description: |
+    Hoy es {current_date}. Como Auditor de Normas de Calidad, debes evaluar de forma rigurosa, exigente pero siempre justa y razonable el **Pilar 1: Foso Competitivo, Pricing Power y Riesgo Terminal** para {target_name}.
+
+    ORDEN DE EJECUCIÓN OBLIGATORIO:
+    1. Utiliza el contexto financiero real disponible en `{audit_context}`. Analiza el historial completo disponible (últimos 10 años).
+    2. Realiza los cálculos matemáticos precisos para este pilar utilizando los datos fundamentales (p.ej. Margen Bruto, ventas, etc. de los últimos 10 años).
+    3. Realiza el análisis estratégico, de pricing power y riesgo de obsolescencia bajo el marco conceptual de la "Escala de Grises del Foso" (0.0 a 2.0 puntos):
+       - NOTA CRÍTICA: Un margen bruto alto (>50%) es una condición necesaria pero NO suficiente para un foso duradero. No te dejes cegar mecánicamente por márgenes altos si el negocio opera en un sector hiper-competitivo, carece de costes de cambio reales para el cliente, depende excesivamente de marketing constante o muestra desaceleraciones severas del crecimiento.
+       - **Foso Ancho (Wide Moat) [Rango de 1.6 a 2.0 puntos]:** Reservado para empresas con barreras de entrada masivas, altos costes de cambio para el cliente, patentes, efectos de red o claras ventajas de escala monopolísticas respaldadas por márgenes excelentes y estables. El riesgo de obsolescencia a 10 años es casi nulo.
+       - **Foso Estrecho (Narrow Moat) [Rango de 1.0 a 1.5 puntos]:** El negocio tiene ventajas operativas reales o nichos de marca, pero opera en un sector abierto y altamente competitivo, sin costes de cambio para el cliente y vulnerable a modas, saturación de canal, competidores agresivos o encarecimiento de la captación de clientes. Márgenes altos pero bajo amenaza de erosión si el crecimiento se desacelera a un dígito (como es el caso de RVRC.ST, el cual debe calificarse con un escepticismo riguroso en este rango, p.ej. entre 1.0 y 1.2 puntos).
+       - **Sin Foso o Ventaja Erosionada (No Moat) [Rango de 0.0 a 0.9 puntos]:** El producto está comoditizado, el negocio carece de poder de fijación de precios, los márgenes brutos se deterioran persistentemente por debajo del 50%, o encara un riesgo terminal existencial crítico en los próximos 10 años.
+       - Si el incumplimiento se debe a una anomalía COYUNTURAL o CÍCLICA transitoria pero los fundamentos del foso estratégico de largo plazo permanecen intactos, puedes otorgar una nota aprobada justa sin castigar con el 0.0 automático.
+    4. El tono debe ser de escepticismo profesional equilibrado. Eres un auditor de calidad analítico que busca proteger el capital a largo plazo.
+    5. Para el bloque final XML de <resumen> exigido por las instrucciones del sistema:
+       - En <score> debes indicar la puntuación obtenida para este pilar (ej. 1.2/2.0 o 0.0/2.0). **NO evalúes ni des una puntuación global sobre 10.0, solo da la nota sobre 2.0 para este pilar.**
+       - En <pros> debes listar en elementos <item> los puntos fuertes de este pilar.
+       - En <cons> debes listar en elementos <item> las debilidades, riesgos o banderas rojas de este pilar.
+
+    ════════════════════════════════════════════
+    NORMAS DE CALIDAD DEL USUARIO (DEBES EVALUAR CADA UNA)
+    ════════════════════════════════════════════
+    {custom_evaluation_rules}
+
+    {methodology}
+
+  expected_output: |
+    # AUDITORÍA DE NORMAS DE CALIDAD DE INVERSIÓN — {target_name}
+    > Evaluación del Pilar 1 a fecha {current_date}
+
+    ## INFORME DE AUDITORÍA: Pilar 1: Foso Competitivo, Pricing Power y Riesgo Terminal
+    * **Puntuación del Pilar:** X.X / 2.0 Puntos
+    * **Estado:** [Aprobado / Suspenso / Excelente]
+
+    ### Desarrollo Analítico:
+    - Tabla de margen bruto por año (últimos 10 años).
+    - Interpretación operativa: análisis de pricing power, ventajas de costes, cambios de mix o erosión competitiva.
+    - Riesgos estructurales: análisis del riesgo terminal a 10 años (obsolescencia, regulación, sustitución por software/IA, cambio generacional o pérdida de relevancia).
+
+rules_pilar2_task:
+  description: |
+    Hoy es {current_date}. Como Auditor de Normas de Calidad, debes evaluar de forma rigurosa, exigente pero siempre justa y razonable el **Pilar 2: Crecimiento de Ventas, FCF Total y BPA** para {target_name}.
+
+    ORDEN DE EJECUCIÓN OBLIGATORIO:
+    1. Utiliza el contexto financiero real disponible en `{audit_context}`. Analiza el historial completo disponible (últimos 10 años).
+    2. Realiza los cálculos matemáticos precisos para este pilar utilizando los datos fundamentales (p.ej. ingresos, acciones en circulación, beneficio neto, FCF total) y calcula el CAGR de Ingresos, CAGR del FCF Total (no por acción, para medir el crecimiento a escala pura de la caja generada por el negocio) y el CAGR de BPA (BPA/EPS) a 3, 5 y 10 años.
+    3. Realiza el cálculo exacto de CAGR o medias y aplícalo de forma objetiva sobre los 10 años de historial. 
+       - REGLA CRÍTICA DE EXCELENCIA Y ANÁLISIS DE TENDENCIAS: El ancla principal para calificar con excelencia (2.0 de 2.0 puntos) es el largo plazo (10 años), donde buscamos un crecimiento sostenible de ingresos (ventas) superior al 8% CAGR Y un crecimiento de FCF Total superior al 10% CAGR.
+       - Los periodos más cortos o intermedios (3 y 5 años) deben analizarse únicamente como tendencias de trayectoria y contexto de ciclo de crecimiento, no como umbrales eliminatorios de exclusión automática. Un bache en el corto plazo (debido a ciclicidad, inversiones puntuales, pandemia, etc.) es totalmente aceptable siempre y cuando los fundamentales estructurales de largo plazo permanezcan intactos.
+       - Si la empresa no alcanza los límites de largo plazo (10 años), debes puntuar bajo (suspenso, de 0.0 a 0.5 puntos), SALVO que se encuentre en un rango de tolerancia muy cercano (ej: ventas del 7.5% o FCF del 9.5%), en cuyo caso, o si tiene fundamentales de largo plazo excepcionales batiendo algún bache temporal, puedes otorgar una nota aprobada intermedia en el rango de 1.0 a 1.5 puntos.
+       - Distingue con criterio sensato: si el corto plazo muestra una tendencia de deterioro estructural claro, irreversible y permanente (pérdida definitiva de foso o contracción continua de ventas), puntúa mal de forma rigurosa.
+       - NOTA CRÍTICA: En este pilar solo debes evaluar y puntuar el crecimiento de las métricas puras y su tracción operativa. Toda la auditoría forense sobre si la dilución por SBC es abusiva, si las recompras destruyen valor o si se está manipulando artificialmente el BPA se delega de forma centralizada al **Pilar 5**.
+    4. El tono debe ser de escepticismo profesional equilibrado. Eres un auditor de calidad analítico que busca proteger el capital a largo plazo.
+    5. Para el bloque final XML de <resumen> exigido por las instrucciones del sistema:
+       - En <score> debes indicar la puntuación obtenida para este pilar (ej. 1.5/2.0 o 0.0/2.0). **NO evalúes ni des una puntuación global sobre 10.0, solo da la nota sobre 2.0 para este pilar.**
+       - En <pros> debes listar en elementos <item> los puntos fuertes de este pilar.
+       - En <cons> debes listar en elementos <item> las debilidades o riesgos.
+
+    ════════════════════════════════════════════
+    NORMAS DE CALIDAD DEL USUARIO (DEBES EVALUAR CADA UNA)
+    ════════════════════════════════════════════
+    {custom_evaluation_rules}
+
+    {methodology}
+
+  expected_output: |
+    # AUDITORÍA DE NORMAS DE CALIDAD DE INVERSIÓN — {target_name}
+    > Evaluación del Pilar 2 a fecha {current_date}
+
+    ## INFORME DE AUDITORÍA: Pilar 2: Crecimiento de Ventas, FCF Total y BPA
+    * **Puntuación del Pilar:** X.X / 2.0 Puntos
+    * **Estado:** [Aprobado / Suspenso / Excelente]
+
+    ### Desarrollo Analítico:
+    - Cálculos y tabla de métricas (Ingresos, FCF Total y BPA CAGR a 3, 5 y 10 años, evolución de acciones en circulación, crecimiento orgánico, impacto de M&A y análisis de dilución).
+
+rules_pilar3_task:
+  description: |
+    Hoy es {current_date}. Como Auditor de Normas de Calidad, debes evaluar de forma rigurosa, exigente pero siempre justa y razonable el **Pilar 3: ROIC, Márgenes y Eficiencia del Capital** para {target_name}.
+
+    ORDEN DE EJECUCIÓN OBLIGATORIO:
+    1. Utiliza el contexto financiero real disponible en `{audit_context}`. Analiza el historial completo disponible (últimos 10 años).
+    2. Realiza los cálculos matemáticos precisos para este pilar utilizando los datos fundamentales (p.ej. ROIC con/sin Goodwill, margen EBIT medio a 10 años, cascada de margen bruto -> EBIT -> FCF).
+    3. Realiza el cálculo exacto de ratios y medias y aplícalo de forma objetiva sobre los 10 años de historial. 
+       - Si la empresa no cumple los criterios por un deterioro ESTRUCTURAL (pérdida de foso, obsolescencia, destrucción de valor permanente), califícalo con un 0.0 de forma rigurosa.
+       - Si el incumplimiento se debe a una anomalía COYUNTURAL o CÍCLICA (ej: pandemia 2020, crisis financiera, shock temporal de cadena de suministro) pero el negocio demuestra una recuperación sólida e inmediata en los años posteriores, NO apliques el 0.0 automático; pondera la nota de forma justa penalizando el año afectado pero reconociendo la resiliencia del modelo de negocio.
+    4. El tono debe ser de escepticismo profesional equilibrado. Eres un auditor de calidad analítico que busca proteger el capital a largo plazo.
+    5. Para el bloque final XML de <resumen> exigido por las instrucciones del sistema:
+       - En <score> debes indicar la puntuación obtenida para este pilar (ej. 1.5/2.0 o 0.0/2.0). **NO evalúes ni des una puntuación global sobre 10.0, solo da la nota sobre 2.0 para este pilar.**
+       - En <pros> debes listar en elementos <item> los puntos fuertes de este pilar.
+       - En <cons> debes listar en elementos <item> las debilidades o riesgos.
+
+    ════════════════════════════════════════════
+    NORMAS DE CALIDAD DEL USUARIO (DEBES EVALUAR CADA UNA)
+    ════════════════════════════════════════════
+    {custom_evaluation_rules}
+
+    {methodology}
+
+  expected_output: |
+    # AUDITORÍA DE NORMAS DE CALIDAD DE INVERSIÓN — {target_name}
+    > Evaluación del Pilar 3 a fecha {current_date}
+
+    ## INFORME DE AUDITORÍA: Pilar 3: ROIC, Márgenes y Eficiencia del Capital
+    * **Puntuación del Pilar:** X.X / 2.0 Puntos
+    * **Estado:** [Aprobado / Suspenso / Excelente]
+
+    ### Desarrollo Analítico:
+    - Cálculos y tabla de ratios de los últimos 10 años (ROIC promedio a 10 años con y sin goodwill, margen EBIT medio a 10 años, cascada de margen bruto -> EBIT -> FCF).
+
+rules_pilar4_task:
+  description: |
+    Hoy es {current_date}. Como Auditor de Normas de Calidad, debes evaluar de forma rigurosa, exigente pero siempre justa y razonable el **Pilar 4: Solvencia, Liquidez y Riesgo de Refinanciación** para {target_name}.
+
+    ORDEN DE EJECUCIÓN OBLIGATORIO:
+    1. Utiliza el contexto financiero real disponible en `{audit_context}`. Analiza el historial completo disponible (últimos 10 años).
+    2. Realiza los cálculos matemáticos precisos para este pilar utilizando los datos fundamentales (p.ej. Deuda económica total / FCF, Quick ratio ajustado, FCF / EBITDA).
+    3. Realiza el cálculo exacto de ratios y aplícalo de forma objetiva sobre los 10 años de historial. Si la empresa no cumple los criterios, califícalo con un 0.0 de forma justa pero rigurosa.
+    4. El tono debe ser de escepticismo profesional equilibrado. Eres un auditor de calidad analítico que busca proteger el capital a largo plazo.
+    5. Para el bloque final XML de <resumen> exigido por las instrucciones del sistema:
+       - En <score> debes indicar la puntuación obtenida para este pilar (ej. 1.5/2.0 o 0.0/2.0). **NO evalúes ni des una puntuación global sobre 10.0, solo da la nota sobre 2.0 para este pilar.**
+       - En <pros> debes listar en elementos <item> los puntos fuertes de este pilar.
+       - En <cons> debes listar en elementos <item> las debilidades o riesgos.
+
+    ════════════════════════════════════════════
+    NORMAS DE CALIDAD DEL USUARIO (DEBES EVALUAR CADA UNA)
+    ════════════════════════════════════════════
+    {custom_evaluation_rules}
+
+    {methodology}
+
+  expected_output: |
+    # AUDITORÍA DE NORMAS DE CALIDAD DE INVERSIÓN — {target_name}
+    > Evaluación del Pilar 4 a fecha {current_date}
+
+    ## INFORME DE AUDITORÍA: Pilar 4: Solvencia, Liquidez y Riesgo de Refinanciación
+    * **Puntuación del Pilar:** X.X / 2.0 Puntos
+    * **Estado:** [Aprobado / Suspenso / Excelente]
+
+    ### Desarrollo Analítico:
+    - Cálculos y tabla de ratios de los últimos 10 años (Deuda económica total / FCF, Quick ratio ajustado, FCF / EBITDA, calendario de vencimientos si está disponible).
+
+rules_pilar5_task:
+  description: |
+    Hoy es {current_date}. Como Auditor de Normas de Calidad, debes evaluar de forma rigurosa, exigente pero siempre justa y razonable el **Pilar 5: Asignación de Capital, ROIIC, Recompra, SBC y Gobernanza** para {target_name}.
+
+    ORDEN DE EJECUCIÓN OBLIGATORIO:
+    1. Utiliza el contexto financiero real disponible en `{audit_context}`. Analiza el historial completo disponible (últimos 10 años).
+    2. Realiza los cálculos matemáticos precisos para este pilar utilizando los datos fundamentales (p.ej. ROIIC a 3, 5 y 10 años, evolución de recompra de acciones, SBC como % de FCF operativo o FCF).
+    3. Realiza el cálculo exacto de ROIIC o ratios y aplícalo de forma objetiva sobre los 10 años de historial.
+       - Realiza una auditoría forense rigurosa de la asignación de capital: evalúa si el capital incremental genera retornos atractivos (ROIIC).
+       - Determina de forma crítica si las recompras de acciones son creadoras de valor real (compras eficientes por debajo del valor intrínseco o reduciendo de manera efectiva el recuento de acciones) o si son destructivas (compras sobrevaloradas o usadas puramente para enmascarar una dilución masiva por compensación directiva).
+       - Examina si la compensación basada en acciones (SBC) es abusiva (ej. SBC como porcentaje elevado del FCF o que genera dilución constante a pesar de las recompras) o si está bien alineada con la creación de valor real por acción.
+       - REGLA DE EVALUACIÓN DE ROIIC RECIENTE (CRÍTICA - PUNTO MEDIO): Si el ROIIC a 10 años es moderado/bajo (<12%) pero el ROIIC a 3 y 5 años demuestra una aceleración drástica y retornos excelentes (>15-20%), NO califiques con un suspenso ni con un 0.0 automático, pero TAMPOCO des la máxima puntuación de 2.0. Limita la nota de este pilar a un rango de 1.0 a 1.5 puntos para reflejar que la disciplina reciente es excelente, pero la directiva aún debe demostrar la sostenibilidad a largo plazo y purgar los resultados históricos antiguos.
+       - Si la empresa tiene una dilución o SBC incontrolada o recompras destructivas de valor, sé sumamente riguroso y califica bajo (0.0 a 0.5 puntos).
+    4. El tono debe ser de escepticismo profesional equilibrado. Eres un auditor de calidad analítico que busca proteger el capital a largo plazo.
+    5. Para el bloque final XML de <resumen> exigido por las instrucciones del sistema:
+       - En <score> debes indicar la puntuación obtenida para este pilar (ej. 1.5/2.0 o 0.0/2.0). **NO evalúes ni des una puntuación global sobre 10.0, solo da la nota sobre 2.0 para este pilar.**
+       - En <pros> debes listar en elementos <item> los puntos fuertes de este pilar.
+       - En <cons> debes listar en elementos <item> las debilidades o riesgos.
+
+    ════════════════════════════════════════════
+    NORMAS DE CALIDAD DEL USUARIO (DEBES EVALUAR CADA UNA)
+    ════════════════════════════════════════════
+    {custom_evaluation_rules}
+
+    {methodology}
+
+  expected_output: |
+    # AUDITORÍA DE NORMAS DE CALIDAD DE INVERSIÓN — {target_name}
+    > Evaluación del Pilar 5 a fecha {current_date}
+
+    ## INFORME DE AUDITORÍA: Pilar 5: Asignación de Capital, ROIIC, Recompra, SBC y Gobernanza
+    * **Puntuación del Pilar:** X.X / 2.0 Puntos
+    * **Estado:** [Aprobado / Suspenso / Excelente]
+
+    ### Desarrollo Analítico:
+    - Cálculos de los últimos 10 años (ROIIC a 3, 5 y 10 años, evolución de recompra de acciones y reducción neta, SBC como % de FCF operativo o FCF).
+    - Auditoría Forense de Recompras vs SBC: ¿Se recompran acciones para crear valor real o para camuflar la dilución de la directiva?
+    - Análisis cualitativo de la asignación de capital (M&A, Capex, Dividendos) y gobernanza.
+
+pe_forensic_task:
+  description: |
+    Hoy es {current_date}. Como Socio de Private Equity y Auditoría Forense, realiza un análisis de ingeniería inversa de los tres estados financieros para deconstruir el modelo de negocio de {target_name}.
+
+    ORDEN DE EJECUCIÓN OBLIGATORIO:
+    1. Utiliza el contexto financiero real disponible en `{audit_context}`.
+    2. Si los datos en `{audit_context}` están vacíos, detén la ejecución o indica explícitamente que los datos deben estar cargados en la pestaña de Auditoría.
+    3. Sigue estrictamente las 4 fases de la metodología para realizar la auditoría.
+
+    CONTEXTO DE AUDITORÍA CRÍTICA (Paso 0):
+    {audit_context}
+
+    {methodology}
+  expected_output: |
+    # 🕵️‍♂️ INGENIERÍA INVERSA Y CALIDAD DE BENEFICIOS (PE/VC) — {target_name}
+    > Análisis forense a fecha {current_date}
+
+    ## 🛠️ DECLARACIÓN PREVIA DE SUPUESTOS
+    [Si aplica, detalla los supuestos debido a datos incompletos. Si no, indica: "No aplica. Datos completos."]
+
+    ## 📊 FASE 1: Deconstrucción del Modelo y Benchmark Mental
+    * **Modelo de Monetización Teórico:** ...
+    * **Huella Financiera y Circulante:** ...
+    * **Partidas de Absorción de Capital (80%):** ...
+
+    ## 🔍 FASE 2: Análisis Forense de Materialidad y Reconciliación
+    [Para cada línea material >5% o YoY >20%]
+    * **Línea Analizada:** ...
+    * **Métricas Clave:** ...
+    * **Qué Debería Ser:** ...
+    * **Qué Es Realmente:** ...
+    * **Flag:** [Flag Verde / Flag Rojo]
+
+    ## 🩺 FASE 3: Calidad de Earnings y Sostenibilidad (Owner Earnings)
+    * **Calidad de los Earnings:** ...
+    * **Ajuste de CFO:** ...
+    * **Capex de Mantenimiento vs. Crecimiento:** ...
+    * **Dependencia Externa:** ...
+
+    ## ⚖️ FASE 4: El Veredicto de Inversión y Scoring
+    1. **Las 3 Mayores Incongruencias:** ...
+    2. **Matriz de Scoring de Calidad:** [Clase A / B / C / D] - [Justificación]
+    3. **Trigger de Mejora:** ...
+
+thesis_task:
+  description: |
+    Hoy es {current_date}. Como Socio de Inversiones y Gestor de Tesis, tu misión es formalizar el "Contrato de Inversión y Manual de Vigilancia" para {target_name}.
+    Este informe se genera una vez que el Director de Inversiones ha emitido un Veredicto positivo, con el objetivo de deconstruir y entender el negocio profundamente para justificar nuestra inversión, establecer un plan de monitoreo trimestral cuantitativo y definir condiciones frías y objetivas de venta (Sell Triggers).
+
+    ORDEN DE EJECUCIÓN OBLIGATORIO:
+    1. Revisa y sintetiza minuciosamente los informes de los agentes anteriores para {target_name}:
+       - Auditoría Financiera Forense: {audit_context}
+       - Calidad de Franquicia y Moat: {franchise_context}
+       - Dirección y Asignación de Capital: {mgmt_alloc_context}
+       - Veredicto del Director de Inversiones: {verdict_context}
+       - Escenarios de Valoración y TIR: {valuation_context}
+    2. Si los informes anteriores muestran de manera contundente un descarte o una nota desastrosa que desaconseje invertir, tu informe debe redactar una "Tesis de No Inversión" o "Veredicto de Evitación", argumentando con hechos por qué se rechaza el activo. Pero si el activo es apto o el veredicto es positivo, procede con el manual de tesis, monitoreo y venta detallado.
+    3. Investiga en internet (utilizando search_internet) para complementar y refinar los KPIs específicos del sector de {target_name} (ej: si es SaaS: LTV/CAC, Net Retention Rate; si es semiconductor: book-to-bill ratio, utilización de capacidad; si es retail: SSSG, etc.).
+    4. Sigue de forma estricta las cuatro fases de la metodología para generar un informe de altísima calidad y rigor analítico.
+
+    {methodology}
+
+  expected_output: |
+    # 📑 CONTRATO DE INVERSIÓN Y MANUAL DE VIGILANCIA — {target_name}
+    > Documento de Convicción y Control de Riesgos a fecha {current_date}
+
+    ## 🗺️ 1. MAPA COMPRENSIVO DEL NEGOCIO
+    * **¿Cómo genera valor e ingresos?:** [Explicación clara del modelo de monetización y flujo de valor]
+    * **Estructura de Costes y Palancas de Margen:** [Cuáles son los costes principales y cómo se escala la rentabilidad]
+    * **Dinámica Sectorial y Posicionamiento:** [Dónde se sitúa la empresa en la cadena de valor de su industria]
+
+    ## 💎 2. TESIS DE INVERSIÓN CORE (Nuestros Pilares de Convicción)
+    * **Pilar 1: [Título del pilar, ej: Pricing Power secular en un nicho oligopolístico]**
+      - *Evidencia empírica:* [Datos o conclusiones de los análisis de foso que sustentan este pilar]
+    * **Pilar 2: [Título del pilar, ej: Máquina de capital allocation dirigida por directivos "Outsiders"]**
+      - *Evidencia empírica:* [Datos de recompra de acciones eficientes, ROIC con Goodwill > 20%, o alta alineación accionarial]
+    * **Pilar 3: [Título del pilar, ej: Opcionalidad y escalabilidad operativa del software core]**
+      - *Evidencia empírica:* [Apalancamiento operativo demostrado o crecimiento de ingresos CAGR proyectado > 12%]
+
+    ## 📊 3. CUADRO DE MANDO DE MONITORIZACIÓN (KPIs Clave a seguir)
+    | Métrica / KPI Operativo | Frecuencia | Rango Objetivo / Saludable | Justificación / Por qué importa |
+    |-------------------------|------------|----------------------------|---------------------------------|
+    | [Métrica 1, ej: Margen FCF] | Trimestral | > XX% | Asegura que la conversión de caja no se deteriora |
+    | [Métrica 2, ej: NRR / SSSG] | Trimestral/Anual | > XX% | Indica la fidelidad del cliente y crecimiento orgánico |
+    | [Métrica 3, ej: Capex / Ventas] | Anual | < XX% | Controla la intensidad de capital y retorno incremental |
+    | [Métrica 4, ej: Net Debt / EBITDA] | Semestral | < X.Xx | Asegura el control de la solvencia |
+
+    ## 🛑 4. DISPARADORES DE VENTA (Motivos de Venta por Tesis Rota)
+    > Estas son nuestras líneas rojas inquebrantables. Si se cruza cualquiera de estas condiciones operativas o estructurales, la tesis de inversión se considerará rota y procederemos a la liquidación de la posición de forma disciplinada.
+
+    ### A. Deterioro del Negocio y Pérdida de Moat (Ventaja Competitiva)
+    1. **[Condición específica 1, ej: El margen bruto consolidado disminuye por debajo del XX% durante 3 trimestres consecutivos]**
+       - *Por qué rompe la tesis:* [Ej: Demostraría que el pricing power se ha perdido ante la competencia o inflación de costes]
+    2. **[Condición específica 2, ej: Pérdida o rescisión de contrato con cualquier cliente clave que suponga >10% de la facturación]**
+
+    ### B. Destrucción de Capital o Desviación Financiera
+    1. **[Condición específica 1, ej: Ejecución de una adquisición (M&A) de gran tamaño (>20% de capitalización) fuera de su core business]**
+       - *Por qué rompe la tesis:* [Ej: Señala un giro hacia crecimiento ineficiente y alto riesgo de integración]
+    2. **[Condición específica 2, ej: Aumento del ratio Deuda Neta/EBITDA por encima de X.Xx, a menos que esté justificado por una adquisición muy específica con plan de desapalancamiento rápido]**
+
+    ### C. Alineación, Gobernanza y Directiva
+    1. **[Condición específica 1, ej: Salida imprevista del CEO o CFO fundador bajo circunstancias opacas o sospechas contables]**
+       - *Por qué rompe la tesis:* [Ej: Rompe la confianza depositada en la alineación y la cultura de "outsider"]
+    2. **[Condición específica 2, ej: Emisión de nuevas acciones o SBC que diluya a los accionistas existentes a un ritmo neto superior al X% anual sin estar compensado por recompras mayores]**
+
+technical_analysis_task:
+  description: |
+    # CONTEXTO Y ROL
+    Actúa como un Analista Técnico y Estratega de Inversiones Senior, especializado en "Buy the Dip" y Reversión a la Media. Tu objetivo es evaluar la cotización de **{target_name}** a fecha de **{current_date}** y emitir un veredicto de entrada inteligente, equilibrado y realista.
+
+    # ⚙️ ORDEN DE EJECUCIÓN
+    **1. Obtención de Datos Técnicos:** Antes de empezar, utiliza de forma obligatoria la herramienta `get_technical_analysis_data` para extraer las métricas de precio, volumen, RSI, divergencias, MACD, Bandas de Bollinger, soportes históricos, tendencia semanal y patrón de vela más recientes de **{ticker}**.
+    **2. Investigación del Catalizador:** Utiliza la herramienta `search_internet` para averiguar la causa real y reciente del movimiento de precio (noticia, resultados, cambio de guidance, situación sectorial, etc.). No asumas ni inventes el motivo de la caída o subida sin buscarlo.
+    **3. Análisis y Veredicto:** Procede a realizar tu análisis siguiendo tu filosofía y modelo de decisión. Basa cada afirmación técnica exclusivamente en los datos devueltos por `get_technical_analysis_data`, y el diagnóstico del catalizador en lo encontrado con `search_internet`. Si un campo técnico vuelve como "N/A" o sin señal detectada, dilo explícitamente en vez de inventar una lectura de gráfico que no tienes.
+
+    ---
+
+    # 🧠 FILOSOFÍA DE ANÁLISIS Y MODELO DE DECISIÓN
+
+    Tu verdadero valor no reside en aplicar reglas de forma mecánica, sino en **sopesar el balance de riesgos y oportunidades** para tomar una decisión clínica. Utiliza los siguientes pilares para guiar tu juicio:
+
+    **1. DIAGNÓSTICO DEL CATALIZADOR:** Con base en lo encontrado vía `search_internet`, ¿la caída es una **Oportunidad Táctica/Temporal** o un **Riesgo Estructural Serio**?
+
+    **2. FILTRO DE CALIDAD DEL ACTIVO (MOAT):** ¿La empresa sigue siendo un negocio sólido que justifica comprar en la debilidad?
+
+    **3. INTERPRETACIÓN DEL ESCENARIO TÉCNICO:** ¿Estamos en una **Configuración A (Pánico con potencial de rebote)** o en una **Configuración B (Giro ya confirmado)**?
+
+    **4. MODELO DE PONDERACIÓN DE RIESGO (Tu Veredicto Clínico):**
+    En lugar de líneas rojas inquebrantables, evalúa los siguientes factores.
+
+    *   **Factores de Alto Riesgo (Agravantes):**
+        *   **Tendencia Primaria Rota:** El precio está por debajo de la SMA 200. Esto exige una razón de peso para comprar.
+        *   **"Cuchillo Cayendo":** El precio está en caída vertical sin signos de soporte. Esto sugiere esperar.
+        *   **RSI Neutro o Alto:** No hay sobreventa que justifique una entrada inminente por reversión a la media.
+
+    *   **Factores de Convicción (Atenuantes):**
+        *   **Calidad Excepcional del Negocio:** La empresa es una fortaleza con un Moat ancho o muy fuerte.
+        *   **Pánico Extremo:** El RSI está en sobreventa clara (<35) o muestra divergencias alcistas.
+        *   **Catalizador Temporal:** La razón de la caída es claramente temporal y no estructural.
+        *   **Nivel de Soporte Histórico:** El precio se acerca a uno de los soportes históricos reales reportados por la herramienta o a un nivel psicológico clave.
+    **Tu tarea es justificar tu veredicto final explicando cómo sopesas estos factores.** Por ejemplo, un activo bajo la SMA 200 (factor de riesgo) podría ser una compra si la calidad es excepcional y está en un soporte histórico clave con RSI de 30 (factores de convicción).
+  expected_output: |
+    # 📉 ANÁLISIS TÉCNICO Y ESTRATEGIA DE ENTRADA — {target_name}
+
+    ## 1. Matriz de Decisión y Puntuación Clínica
+    | Componente | Clasificación | Justificación Breve |
+    | :--- | :--- | :--- |
+    | **Momentum (RSI/MACD/Bollinger)** | `[Compra Fuerte/Compra/Neutral/Venta]` | `[Nivel, divergencia y lectura MACD/Bollinger]` |
+    | **Estructura (SMA/Soportes/Semanal)**| `[Compra Fuerte/Compra/Neutral/Venta]` | `[Proximidad a soporte real y tendencia semanal]` |
+    | **Price Action (Vela/Volumen)** | `[Compra Fuerte/Compra/Neutral/Venta]` | `[Patrón de vela y lectura de volumen, si los hay]` |
+    | **PUNTUACIÓN "CLÍNICA"** | **[Nota de 1 a 10]** | **[Frase que justifica la nota global]** |
+
+    *   **Veredicto Definitivo:** **[🟢 COMPRAR YA / 🟡 ESPERAR Y OBSERVAR / 🔴 DESCARTAR]**
+    *   **Sesgo (obligatorio si el veredicto es ESPERAR Y OBSERVAR):** **[ALCISTA / NEUTRAL / BAJISTA]** — nunca dejes un "ESPERAR" sin matizar hacia qué lado se inclina la balanza ahora mismo.
+    *   **Gatillo de Reevaluación (obligatorio si el veredicto es ESPERAR Y OBSERVAR):** [Condición técnica exacta y verificable que convertiría este ESPERAR en COMPRAR YA, ej: "RSI cierra por debajo de 30" o "el precio toca el soporte de $105 con vela de rechazo"]. Indica también la **Distancia Actual** a ese gatillo en % desde el precio de hoy (ej: "-4.2% hasta zona de compra"). Prohibido escribir un gatillo genérico tipo "esperar más confirmación" sin nivel ni indicador concreto.
+
+    ## 2. Diagnóstico del Dip y Veredicto de Calidad
+    *   **Catalizador de la Caída:** [Análisis del porqué de la caída y clasificación].
+    *   **Veredicto de Calidad del Activo:** [¿Merece el negocio que compremos sus problemas a corto plazo? SÍ/NO y por qué].
+
+    ## 3. Escenario Técnico y Flujo de Volumen
+    *   **Soportes y Estructura (SMA/Soportes Históricos/Tendencia Semanal):** [Proximidad del precio a los soportes históricos reales y a las SMA 50/200; estado de la tendencia semanal].
+    *   **Momentum (RSI/Divergencia/MACD/Bollinger):** [Nivel de RSI, resultado del campo de divergencia, lectura de MACD y posición en Bandas de Bollinger].
+    *   **Volumen y Patrón de Vela:** [Lectura del campo de volumen (capitulación/acumulación/sin señal) y del patrón de vela detectado, si lo hay].
+    *   **Fase del Dip:** [Clasificación: Configuración A (Pánico) o B (Confirmación)].
+
+    ## 4. Justificación del Veredicto y Estrategia de Acumulación
+    *   **Justificación del Veredicto:** [Párrafo explicando cómo se han sopesado los Factores de Alto Riesgo y los Factores de Convicción para llegar a la conclusión final. Explica tu razonamiento clínico].
+    *   **Plan de Acumulación Táctico:**
+        *   **Entrada Inicial:** `[Precio/Rango ideal para la primera compra]`
+        *   **Zona de Recompra (DCA):** `[Siguiente nivel de soporte estructural para una segunda compra si la caída continúa]`
+        *   **Nivel de Invalidación:** `[Precio por debajo del cual la tesis técnica quedaría invalidada y se debería pausar la acumulación]`
+
+thesis_destroyer_task:
+  description: |
+    Hoy es {current_date}. Como Socio Destructor de Tesis de Inversión, tu misión es someter a un "stress-test" despiadado la tesis de inversión para {target_name}.
+
+    ORDEN DE EJECUCIÓN OBLIGATORIO:
+    1. Analiza con escepticismo extremo toda la información acumulada sobre {target_name}:
+       - Auditoría Financiera Forense: {audit_context}
+       - Calidad de Franquicia y Moat: {franchise_context}
+       - Dirección y Asignación de Capital: {mgmt_alloc_context}
+       - Veredicto de Inversión: {verdict_context}
+       - Tesis de Inversión Alcista (si existe): {rules_context}
+    2. Identifica y desarrolla las 3 tesis bajistas (Bear Cases) o amenazas estructurales más críticas que podrían destruir o desintegrar este negocio en los próximos 10 años (ej: obsolsecencia por software/IA, pérdida irreversible de pricing power, irrupción de competidores de bajo coste, degradación de márgenes operativos, apalancamiento financiero peligroso, etc.).
+    3. Para cada una de las 3 tesis destructivas identificadas:
+       - Explica en detalle el mecanismo económico o estratégico de cómo ocurriría la destrucción del negocio paso a paso.
+       - Evalúa la **probabilidad real de ocurrencia** (Baja / Media / Alta) basándote en la resiliencia operativa real de la empresa y la ciclicidad histórica del sector.
+       - Identifica qué **factores de protección o barreras (Moat, contramedidas del management, flexibilidad de costes)** impiden actualmente que esta amenaza se materialice.
+    4. Adopta un tono de "Abogado del Diablo" sumamente riguroso y frío. Evita el pánico innecesario; cada amenaza debe estar sólidamente fundamentada en la realidad económica del sector.
+    5. Para el bloque final XML de <resumen> exigido por las instrucciones del sistema:
+       - En <score> debes indicar la puntuación de inmunidad del negocio a la destrucción (0.0 a 10.0, donde 10.0 significa un negocio prácticamente indestructible con bajísima probabilidad de amenazas reales, y 0.0 significa un negocio altamente vulnerable).
+       - En <pros> debes listar en elementos <item> los factores de inmunidad o mitigación más fuertes del negocio.
+       - En <cons> debes listar en elementos <item> los riesgos destructivos más probables o peligrosos.
+
+    ════════════════════════════════════════════
+    NORMAS DE CALIDAD DEL USUARIO
+    ════════════════════════════════════════════
+    {custom_evaluation_rules}
+
+    {methodology}
+
+  expected_output: |
+    # INFORME DE DESTRUCCIÓN DE TESIS (STRESS-TEST) — {target_name}
+    > Análisis de Robustez frente a Amenazas Estructurales a fecha {current_date}
+
+    ## 💀 VEREDICTO DEL ABOGADO DEL DIABLO
+    * **Puntuación de Inmunidad:** X.X / 10.0 Puntos (Inmunidad al fracaso)
+    * **Nivel de Vulnerabilidad:** [Bajo / Moderado / Alto / Crítico]
+
+    ---
+    ## ⚡ TESIS DESTRUCTIVAS DE INVERSIÓN (BEAR CASES)
+
+    ### 1. [Nombre de la Amenaza 1]
+    * **Mecanismo de Destrucción:** [Cómo el negocio se desintegra paso a paso en el mercado]
+    * **Probabilidad Real de Ocurrencia:** [Baja / Media / Alta] - [Justificación fundamentada]
+    * **Factores de Mitigación / Barreras de Defensa:** [Qué foso o escudo protege a la compañía hoy de esto]
+
+    ### 2. [Nombre de la Amenaza 2]
+    ...
+
+    ### 3. [Nombre de la Amenaza 3]
+    ...
+
+    ---
+    ## 🛡️ MATRIZ DE ROBUSTEZ Y SINOPSIS CRÍTICA
+    > Conclusión sobre si las amenazas son riesgos estructurales inevitables a largo plazo o si el foso de la empresa es lo suficientemente robusto para contenerlas.

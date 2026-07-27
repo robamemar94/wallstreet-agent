@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+{% block title %}Alpha-Flow · {{ clean_ticker(ticker) }}{% endblock %}
+
+{% block content %}
+<div class="row mt-4 mb-3">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="fw-bold mb-0">Operaciones de {{ clean_ticker(ticker) }}</h2>
+            <span class="text-muted small">
+                {% if is_active %}
+                Posición Abierta — {{ item.shares }} acciones
+                {% else %}
+                Posición Cerrada Histórica
+                {% endif %}
+            </span>
+        </div>
+        <div>
+            <a href="/portfolio" class="btn btn-outline-secondary">← Volver al Portfolio</a>
+            <a href="/ticker/{{ ticker }}" class="btn btn-primary ms-2">Ir al Análisis 📈</a>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- Resumen de Posición -->
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 bg-light h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted fw-bold">Beneficio Realizado (Ventas)</h6>
+                <h3 class="mb-0 {% if item.realized_pnl > 0 %}text-success{% elif item.realized_pnl < 0 %}text-danger{% endif %}">
+                    {% if item.realized_pnl > 0 %}+{% endif %}{{ "{:,.2f}".format(item.realized_pnl) }} {{ currency_symbol }}
+                </h3>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 bg-light h-100">
+            <div class="card-body text-center">
+                <h6 class="text-muted fw-bold">Dividendos Cobrados</h6>
+                <h3 class="mb-0 text-success">
+                    +{{ "{:,.2f}".format(item.dividends_collected|default(0)) }} {{ currency_symbol }}
+                </h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 bg-light h-100 border-start border-4 {% if total_profit_closed > 0 %}border-success{% elif total_profit_closed < 0 %}border-danger{% else %}border-secondary{% endif %}">
+            <div class="card-body text-center">
+                <h6 class="text-muted fw-bold">Bº Total Histórico</h6>
+                <h3 class="mb-0 {% if total_profit_closed > 0 %}text-success{% elif total_profit_closed < 0 %}text-danger{% endif %}">
+                    {% if total_profit_closed > 0 %}+{% endif %}{{ "{:,.2f}".format(total_profit_closed) }} {{ currency_symbol }}
+                </h3>
+                <small class="text-muted d-block" style="font-size: 0.75rem;">
+                    (Ventas + Dividendos)
+                    {% if not is_active and item.cagr is not none %}
+                    <span class="d-block mt-1">CAGR: <span class="fw-bold {% if item.cagr > 0 %}text-success{% elif item.cagr < 0 %}text-danger{% endif %}">{% if item.cagr > 0 %}+{% endif %}{{ "{:.2f}%".format(item.cagr) }}</span></span>
+                    {% endif %}
+                </small>
+            </div>
+        </div>
+    </div>
+
+    {% if is_active %}
+    <div class="col-md-3">
+        <div class="card shadow-sm border-0 bg-light h-100">
+            <div class="card-body text-center d-flex flex-column justify-content-between">
+                <div>
+                    <h6 class="text-muted fw-bold">Bº No Realizado (Latente)</h6>
+                    <h3 class="mb-0 {% if item.return_abs > 0 %}text-success{% elif item.return_abs < 0 %}text-danger{% endif %}">
+                        {% if item.return_abs > 0 %}+{% endif %}{{ "{:,.2f}".format(item.return_abs) }} {{ currency_symbol }}
+                    </h3>
+                    <small class="text-muted d-block" style="font-size: 0.75rem;">
+                        ({{ "{:.2f}%".format(item.return_pct) }})
+                        {% if item.cagr is not none %}
+                        · <span class="fw-semibold">CAGR: <span class="{% if item.cagr > 0 %}text-success{% elif item.cagr < 0 %}text-danger{% endif %}">{% if item.cagr > 0 %}+{% endif %}{{ "{:.2f}%".format(item.cagr) }}</span></span>
+                        {% endif %}
+                    </small>
+                </div>
+                
+                {% if currency_symbol != '€' %}
+                <div class="mt-2">
+                    <button class="btn btn-xs btn-outline-secondary border-0 py-0 px-2 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFx" aria-expanded="false" style="font-size: 0.7rem;">
+                        🔍 Ver Divisa y Comisiones
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if is_active and currency_symbol != '€' %}
+<div class="row mt-1 mb-4 collapse" id="collapseFx">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm bg-light-subtle">
+            <div class="card-body py-3">
+                <h6 class="fw-bold mb-3 d-flex align-items-center gap-2 flex-wrap">
+                    <i class="bi bi-currency-exchange me-1"></i> Desglose de Divisa y Comisiones (en Euros)
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-auto" style="font-size: 0.75rem; font-weight: 600;">
+                        ✂️ Comisiones Acumuladas: {{ "{:,.2f}".format(item.total_fees_eur|default(0)) }} €
+                    </span>
+                </h6>
+                <div class="row text-center g-3">
+                    <div class="col-md-3 border-end">
+                        <div class="text-muted small">Valoración Total (EUR)</div>
+                        <div class="fw-bold fs-5 mt-1">{{ "{:,.2f}".format(item.current_value_eur) }} €</div>
+                        <small class="text-muted" style="font-size: 0.7rem;">Coste: {{ "{:,.2f}".format(item.invested_value_eur) }} €</small>
+                    </div>
+                    <div class="col-md-3 border-end">
+                        <div class="text-muted small">Rendimiento Cotización (Acción)</div>
+                        <div class="fw-bold fs-5 mt-1 {% if item.pnl_price_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if item.pnl_price_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(item.pnl_price_eur) }} €
+                        </div>
+                        <small class="text-muted" style="font-size: 0.7rem;">Pura subida/bajada de cotización</small>
+                    </div>
+                    <div class="col-md-3 border-end">
+                        <div class="text-muted small">Efecto Tipo de Cambio (Divisa)</div>
+                        <div class="fw-bold fs-5 mt-1 {% if item.pnl_fx_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if item.pnl_fx_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(item.pnl_fx_eur) }} €
+                        </div>
+                        <small class="text-muted" style="font-size: 0.7rem;">Por fluctuación de la moneda</small>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small">P&amp;L Total (EUR)</div>
+                        <div class="fw-bold fs-5 mt-1 {% if item.total_pnl_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if item.total_pnl_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(item.total_pnl_eur) }} €
+                        </div>
+                        <small class="text-muted" style="font-size: 0.7rem;">Compra: {{ "{:.4f}".format(item.fx_avg_purchase) }} | Actual: {{ "{:.4f}".format(item.current_fx_rate) }}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Ledger Table -->
+<div class="card shadow-sm border-0 mb-5">
+    <div class="card-header bg-white py-3">
+        <h5 class="mb-0 fw-bold">Libro Mayor de Transacciones</h5>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-modern align-middle mb-0">
+            <thead>
+                <tr>
+                    <th class="ps-4">Fecha</th>
+                    <th class="text-center">Tipo</th>
+                    <th class="text-end">Cantidad</th>
+                    <th class="text-end">Precio Operación</th>
+                    <th class="text-end">Valor Total</th>
+                    <th class="text-center" style="width:58px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for tx in ledger %}
+                <tr class="align-middle" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#txDetails-{{ loop.index }}" aria-expanded="false">
+                    <td class="ps-4 num-font">
+                        <i class="bi bi-chevron-right text-muted me-2 small" id="chevron-{{ loop.index }}"></i>{{ tx.date }}
+                    </td>
+                    <td class="text-center">
+                        {% if tx.type == 'BUY' %}
+                            <span class="badge bg-primary px-3">COMPRA</span>
+                        {% elif tx.type == 'SELL' %}
+                            <span class="badge bg-danger px-3">VENTA</span>
+                        {% elif tx.type == 'DIVIDEND' %}
+                            <span class="badge bg-success px-3">DIVIDENDO</span>
+                        {% elif tx.type == 'SPLIT' %}
+                            <span class="badge bg-warning px-3 text-dark">SPLIT</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end num-font">
+                        {% if tx.type == 'DIVIDEND' %}
+                            <span class="text-muted small">Por {{ "{:,.2f}".format(tx.shares) }} accs.</span>
+                        {% elif tx.type == 'SPLIT' %}
+                            <span class="fw-bold">1 : {{ "{:g}".format(tx.shares) }}</span>
+                        {% else %}
+                            {{ "{:,.2f}".format(tx.shares) }}
+                        {% endif %}
+                    </td>
+                    <td class="text-end num-font">
+                        {% if tx.type == 'SPLIT' %}
+                            -
+                        {% else %}
+                            {{ "{:,.4f}".format(tx.price) }} {{ currency_symbol }}
+                        {% endif %}
+                    </td>
+                    <td class="text-end fw-bold num-font {% if tx.type == 'DIVIDEND' or tx.type == 'SELL' %}text-success{% elif tx.type == 'SPLIT' %}text-muted{% else %}text-danger{% endif %}">
+                        {% if tx.type == 'SPLIT' %}
+                            -
+                        {% else %}
+                            {% if tx.type == 'DIVIDEND' or tx.type == 'SELL' %}+{% else %}-{% endif %}{{ "{:,.2f}".format(tx.total) }} {{ currency_symbol }}
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if tx.type != 'DIVIDEND' and tx.type != 'SPLIT' %}
+                        <button class="btn btn-sm btn-outline-danger border-0 p-0" onclick="event.stopPropagation(); deleteTransaction('{{ tx.date }}', '{{ tx.type }}', {{ tx.shares }}, {{ tx.price }})" title="Eliminar Transacción">🗑️</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                <tr class="collapse" id="txDetails-{{ loop.index }}" style="background-color: rgba(248, 249, 250, 0.55);">
+                    <td colspan="6" class="py-3 px-4 border-bottom shadow-inner" style="font-size:0.88rem;">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <span class="text-muted d-block small fw-semibold">Detalles de Operación</span>
+                                <span class="fw-bold text-dark">
+                                    {% if tx.type == 'BUY' %}Compra de{% elif tx.type == 'SELL' %}Venta de{% elif tx.type == 'DIVIDEND' %}Cobro de Dividendo{% else %}Split de{% endif %}
+                                    {{ "{:,.2f}".format(tx.shares) }} acciones a {{ "{:,.4f}".format(tx.price) }} {{ currency_symbol }}
+                                </span>
+                                {% if tx.type != 'SPLIT' %}
+                                <div class="mt-2 text-muted" style="font-size:0.78rem;">
+                                    <span>Broker: <strong class="text-dark">{{ tx.broker }}</strong></span>
+                                    {% if tx.is_manual and (tx.type == 'BUY' or tx.type == 'SELL') %}
+                                    <div class="dropdown d-inline-block ms-1">
+                                        <button class="btn btn-xs btn-outline-secondary dropdown-toggle py-0 px-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:0.68rem; line-height:1.1;">
+                                            Cambiar
+                                        </button>
+                                        <ul class="dropdown-menu shadow-sm" style="font-size:0.75rem; min-width:110px;">
+                                            <li><button class="dropdown-item py-1 text-warning fw-bold" onclick="event.stopPropagation(); changeTxBroker('{{ tx.date }}', '{{ tx.type }}', {{ tx.shares }}, {{ tx.price }}, 'DEGIRO')">🟠 DEGIRO</button></li>
+                                            <li><button class="dropdown-item py-1 text-success fw-bold" onclick="event.stopPropagation(); changeTxBroker('{{ tx.date }}', '{{ tx.type }}', {{ tx.shares }}, {{ tx.price }}, 'IBKR')">🟢 IBKR</button></li>
+                                        </ul>
+                                    </div>
+                                    {% endif %}
+                                    {% if tx.fee > 0 and tx.type != 'DIVIDEND' %}
+                                    <span class="d-block mt-1">✂️ Comisión: <strong class="text-danger">{{ "{:,.2f}".format(tx.fee) }} {{ currency_symbol }}</strong></span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            {% if currency_symbol != '€' and tx.type != 'SPLIT' %}
+                            <div class="col-md-4 border-start">
+                                <span class="text-muted d-block small fw-semibold">Tipo de Cambio</span>
+                                <span class="fw-bold text-dark">
+                                    1 {{ currency_symbol }} = {{ "{:.4f}".format(tx.fx_rate) }} EUR
+                                    {% if tx.type == 'SELL' and tx.fx_avg_purchase %}
+                                    <small class="text-muted d-block fw-normal" style="font-size:0.75rem;">(Histórico de compra: {{ "{:.4f}".format(tx.fx_avg_purchase) }})</small>
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="col-md-4 border-start">
+                                <span class="text-muted d-block small fw-semibold">Equivalente en Euros (EUR)</span>
+                                <span>
+                                    {% if tx.type == 'DIVIDEND' %}
+                                        <strong class="text-success">+{{ "{:,.2f}".format(tx.pnl_eur) }} €</strong>
+                                        <small class="text-muted d-block fw-normal" style="font-size:0.75rem;">Recibido neto en EUR</small>
+                                    {% elif tx.type == 'SELL' %}
+                                        <div class="fw-bold {% if tx.pnl_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            Resultado: {% if tx.pnl_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(tx.pnl_eur) }} €
+                                        </div>
+                                        <div class="small text-muted mt-1" style="font-size:0.76rem; line-height:1.25;">
+                                            • Por Cotización: <strong class="{% if tx.pnl_price_eur >= 0 %}text-success{% else %}text-danger{% endif %}">{% if tx.pnl_price_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(tx.pnl_price_eur) }} €</strong><br>
+                                            • Por Efecto Divisa: <strong class="{% if tx.pnl_fx_eur >= 0 %}text-success{% else %}text-danger{% endif %}">{% if tx.pnl_fx_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(tx.pnl_fx_eur) }} €</strong><br>
+                                            {% if tx.fee > 0 %}
+                                            • Comisiones pagadas: <strong class="text-danger">{{ "{:,.2f}".format(tx.fee * tx.fx_rate) }} €</strong>
+                                            {% endif %}
+                                        </div>
+                                    {% else %}
+                                        <strong class="text-dark">{{ "{:,.2f}".format(tx.total * tx.fx_rate) }} €</strong>
+                                        <small class="text-muted d-block fw-normal" style="font-size:0.75rem;">Valor total invertido (con comisiones)</small>
+                                    {% endif %}
+                                </span>
+                            </div>
+                            {% else %}
+                            <div class="col-md-8 border-start">
+                                <span class="text-muted d-block small fw-semibold">Valor Total en Euros</span>
+                                <span class="fw-bold text-dark">
+                                    {% if tx.type == 'DIVIDEND' or tx.type == 'SELL' %}+{% else %}-{% endif %}{{ "{:,.2f}".format(tx.total) }} €
+                                </span>
+                                {% if tx.fee > 0 and tx.type != 'DIVIDEND' %}
+                                <small class="text-muted d-block mt-1" style="font-size:0.75rem;">(Incluye comisiones de {{ "{:,.2f}".format(tx.fee) }} €)</small>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">No hay historial de transacciones para este ticker.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+async function deleteTransaction(date, type, shares, price) {
+    if (!confirm(`¿Seguro que quieres eliminar esta transacción del ${date}? Solo se eliminarán las transacciones añadidas manualmente.`)) return;
+    
+    try {
+        const res = await fetch(`/api/portfolio/transaction/delete/{{ ticker }}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: date,
+                type: type,
+                shares: shares,
+                price: price
+            })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            location.reload();
+        } else {
+            alert(data.message || 'Error al eliminar');
+        }
+    } catch (err) {
+        alert('Error de red');
+    }
+}
+
+async function changeTxBroker(date, type, shares, price, newBroker) {
+    try {
+        const res = await fetch('/api/portfolio/transaction/edit-broker', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ticker: '{{ ticker }}',
+                date: date,
+                type: type,
+                shares: shares,
+                price: price,
+                new_broker: newBroker
+            })
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            location.reload();
+        } else {
+            alert(data.detail || 'Error al cambiar de broker');
+        }
+    } catch (err) {
+        alert('Error de red');
+    }
+}
+
+// Toggle chevron rotation on collapse show/hide
+document.addEventListener("DOMContentLoaded", function() {
+    const collapses = document.querySelectorAll('.collapse');
+    collapses.forEach(c => {
+        c.addEventListener('show.bs.collapse', function() {
+            const index = this.id.split('-')[1];
+            const icon = document.getElementById('chevron-' + index);
+            if (icon) {
+                icon.classList.remove('bi-chevron-right');
+                icon.classList.add('bi-chevron-down');
+                icon.classList.add('text-dark');
+                icon.classList.remove('text-muted');
+            }
+        });
+        c.addEventListener('hide.bs.collapse', function() {
+            const index = this.id.split('-')[1];
+            const icon = document.getElementById('chevron-' + index);
+            if (icon) {
+                icon.classList.remove('bi-chevron-down');
+                icon.classList.add('bi-chevron-right');
+                icon.classList.remove('text-dark');
+                icon.classList.add('text-muted');
+            }
+        });
+    });
+});
+</script>
+
+{% endblock %}

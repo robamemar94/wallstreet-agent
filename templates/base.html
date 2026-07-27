@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="es" {% if settings and settings.ui.dark_mode %}data-bs-theme="dark"{% endif %}>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Alpha-Flow{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <script>const __appSettings = {% if settings %}{{ settings | tojson | safe }}{% else %}{"ui":{"dark_mode":false,"items_per_page":10}}{% endif %};</script>
+    <style>
+        :root {
+            --fin-bg: #090a0f;           /* Fondo ultra oscuro institucional */
+            --fin-card-bg: #11131b;      /* Tarjetas/Paneles planos */
+            --fin-border: #1f222e;       /* Líneas de cuadrícula súper finas */
+            --fin-green: #089981;        /* Verde esmeralda profesional */
+            --fin-red: #f23645;          /* Rojo coral profesional */
+            --text-primary: #f0f3fa;     /* Texto principal legible */
+            --text-secondary: #848e9c;   /* Texto secundario atenuado */
+        }
+
+        [data-bs-theme="dark"] body { background-color: var(--fin-bg); color: var(--text-primary); }
+        [data-bs-theme="light"] body { background-color: #f8f9fa; }
+        
+        .navbar { margin-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .card { margin-bottom: 1rem; box-shadow: none !important; border: 1px solid rgba(0,0,0,0.08) !important; transition: transform 0.2s; border-radius: 4px; }
+        
+        [data-bs-theme="dark"] .card { 
+            background-color: var(--fin-card-bg); 
+            box-shadow: none !important; 
+            border: 1px solid var(--fin-border) !important; 
+        }
+        [data-bs-theme="dark"] .table { color: var(--text-primary); border-color: var(--fin-border); }
+        [data-bs-theme="dark"] .table-light { 
+            background-color: #151821 !important; 
+            color: #fff !important; 
+            border-color: var(--fin-border) !important;
+        }
+        [data-bs-theme="dark"] thead, [data-bs-theme="dark"] th {
+            background-color: #151821 !important;
+            color: var(--text-secondary) !important;
+            border-color: var(--fin-border) !important;
+        }
+        
+        /* Overrides para colores financieros de Bootstrap */
+        [data-bs-theme="dark"] .text-success { color: var(--fin-green) !important; }
+        [data-bs-theme="dark"] .text-danger { color: var(--fin-red) !important; }
+        [data-bs-theme="dark"] .btn-outline-success { color: var(--fin-green); border-color: var(--fin-green); }
+        [data-bs-theme="dark"] .btn-outline-success:hover { background-color: var(--fin-green); color: #fff; }
+        [data-bs-theme="dark"] .btn-outline-danger { color: var(--fin-red); border-color: var(--fin-red); }
+        [data-bs-theme="dark"] .btn-outline-danger:hover { background-color: var(--fin-red); color: #fff; }
+        [data-bs-theme="dark"] .list-group-item { background-color: var(--fin-card-bg); border-color: var(--fin-border); color: #e9ecef; }
+        
+        [data-bs-theme="dark"] .badge.bg-light { 
+            background-color: #30363d !important; 
+            color: #c9d1d9 !important; 
+            border: 1px solid #484f58 !important;
+        }
+        
+        [data-bs-theme="dark"] .bg-white { background-color: var(--fin-card-bg) !important; }
+        [data-bs-theme="dark"] .bg-light { background-color: #24292e !important; }
+        [data-bs-theme="dark"] .text-muted { color: #8b949e !important; }
+        [data-bs-theme="dark"] .text-dark { color: #e9ecef !important; }
+        [data-bs-theme="dark"] .text-primary { color: #58a6ff !important; }
+        
+        .report-content { background: inherit; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; }
+        [data-bs-theme="dark"] .report-content { border-color: var(--fin-border); background-color: rgba(255,255,255,0.02); }
+        
+        /* Estilos mejorados para las tablas generadas por Markdown */
+        .report-content table { 
+            width: 100%; 
+            margin-bottom: 1.5rem; 
+            color: inherit; 
+            border-collapse: collapse; 
+            border: 1px solid #dee2e6;
+            font-size: 0.95rem;
+        }
+        [data-bs-theme="dark"] .report-content table { border-color: #495057; }
+        .report-content table th, 
+        .report-content table td { 
+            padding: 0.75rem; 
+            vertical-align: middle; 
+            border: 1px solid #dee2e6; 
+        }
+        [data-bs-theme="dark"] .report-content table th, 
+        [data-bs-theme="dark"] .report-content table td { border-color: #495057; }
+
+        /* Estilo Minimalista y Denso (Finanzas) */
+        body { font-size: 0.9rem; }
+        .font-monospace-data { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-variant-numeric: tabular-nums; }
+        
+        .card { border-radius: 4px; border: 1px solid rgba(0,0,0,0.1) !important; box-shadow: none !important; }
+        [data-bs-theme="dark"] .card { border: 1px solid var(--fin-border) !important; }
+        
+        .table-sm-dense th, .table-sm-dense td { padding: 4px 8px !important; font-size: 0.85rem; }
+        
+        /* Sidebar Nav Pills */
+        .sidebar-nav .nav-link {
+            border-radius: 4px;
+            margin-bottom: 4px;
+            padding: 10px 15px;
+            color: inherit;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+        .sidebar-nav .nav-link:hover { background-color: rgba(0,0,0,0.05); }
+        [data-bs-theme="dark"] .sidebar-nav .nav-link:hover { background-color: rgba(255,255,255,0.05); }
+        
+        .sidebar-nav .nav-link.active {
+            background-color: #0d6efd !important;
+            color: #fff !important;
+            border-color: #0d6efd;
+            font-weight: 600;
+        }
+        [data-bs-theme="dark"] .sidebar-nav .nav-link.active {
+            background-color: #30363d !important;
+            color: #58a6ff !important;
+            border-color: #58a6ff;
+        }
+
+        /* Typography and Report Polish - Institutional Style */
+        .report-content { 
+            font-size: 0.85rem; 
+            line-height: 1.5; 
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        [data-bs-theme="dark"] .report-content { color: #d1d5db; }
+
+        .report-content h1 { font-size: 1.4rem; font-weight: 800; border-bottom: 2px solid #000; padding-bottom: 0.5rem; margin-top: 2rem; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: -0.02em; }
+        .report-content h2 { font-size: 1.1rem; font-weight: 700; color: #0d6efd; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 0.3rem; margin-top: 1.8rem; margin-bottom: 1rem; text-transform: uppercase; }
+        .report-content h3 { font-size: 0.95rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.75rem; color: inherit; }
+        
+        [data-bs-theme="dark"] .report-content h1 { border-bottom-color: #58a6ff; }
+        [data-bs-theme="dark"] .report-content h2 { border-bottom-color: rgba(255,255,255,0.1); color: #58a6ff; }
+
+        .report-content p { margin-bottom: 1rem; text-align: justify; }
+        .report-content ul, .report-content ol { margin-bottom: 1.2rem; padding-left: 1.5rem; }
+        .report-content li { margin-bottom: 0.4rem; }
+
+        /* Tables inside reports */
+        .report-content table { 
+            width: 100%; 
+            margin-bottom: 1.5rem; 
+            border-collapse: collapse; 
+            font-size: 0.8rem;
+        }
+        .report-content table th { 
+            background-color: #f8f9fa; 
+            font-weight: 700; 
+            text-transform: uppercase; 
+            font-size: 0.7rem; 
+            color: #666;
+            border: 1px solid #dee2e6;
+            padding: 8px;
+        }
+        .report-content table td { 
+            border: 1px solid #dee2e6; 
+            padding: 6px 10px;
+        }
+        [data-bs-theme="dark"] .report-content table th { background-color: #21262d; border-color: #30363d; color: #8b949e; }
+        [data-bs-theme="dark"] .report-content table td { border-color: #30363d; }
+
+        /* Blockquotes for key insights */
+        .report-content blockquote {
+            border-left: 4px solid #0d6efd;
+            padding: 1rem 1.5rem;
+            background-color: #f0f7ff;
+            margin: 1.5rem 0;
+            font-style: italic;
+            border-radius: 0 4px 4px 0;
+        }
+        [data-bs-theme="dark"] .report-content blockquote { background-color: rgba(13, 110, 253, 0.1); }
+
+        /* Tooltip refinement */
+        .tooltip-inner { font-size: 0.75rem; max-width: 200px; }
+
+        .report-header-toolbar {
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        [data-bs-theme="dark"] .report-header-toolbar { border-bottom-color: var(--fin-border); }
+
+        /* Sticky table headers */
+        .table thead th { position: sticky; top: 0; z-index: 2; }
+        [data-bs-theme="dark"] .table thead th { background-color: #24292e; }
+        [data-bs-theme="light"] .table thead th { background-color: #f8f9fa; }
+        
+        [data-bs-theme="dark"] .nav-tabs .nav-link.active { background-color: #2b3035; border-color: #495057 #495057 #2b3035; }
+/* Autocomplete suggestions */
+.suggestions-container {
+    position: relative;
+}
+.search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 4px;
+    z-index: 1050;
+    width: 100%;
+    max-height: 400px;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Modern Table Styles (Ticker/Fiscal.ai style) */
+.table-modern {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+}
+.table-modern thead th {
+    background-color: #f8f9fa;
+    color: #6c757d;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.025em;
+    padding: 10px 16px;
+    border-bottom: 1px solid #e9ecef;
+}
+[data-bs-theme="dark"] .table-modern thead th {
+    background-color: #1e2227;
+    color: #adb5bd;
+    border-bottom: 1px solid #2d343c;
+}
+.table-modern tbody td {
+    padding: 10px 16px;
+    border-bottom: 1px solid #f1f3f5;
+    vertical-align: middle;
+}
+[data-bs-theme="dark"] .table-modern tbody td {
+    border-bottom: 1px solid #2d343c;
+}
+
+.table-modern.table-sm tbody td {
+    padding: 6px 12px;
+}
+.table-modern.table-sm thead th {
+    padding: 8px 12px;
+}
+
+.table-modern tbody tr:hover {
+    background-color: #f8f9fa;
+}
+[data-bs-theme="dark"] .table-modern tbody tr:hover {
+    background-color: #24292e;
+}
+
+/* .ticker-logo styles removed per user request to disable logo functionality */
+
+.ticker-info {
+    display: flex;
+    align-items: center;
+}
+.ticker-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    display: block;
+    line-height: 1.2;
+}
+.company-name {
+    font-size: 0.8rem;
+    color: #6c757d;
+    display: block;
+}
+[data-bs-theme="dark"] .company-name {
+    color: #8b949e;
+}
+
+.price-up { color: #22c55e; }
+.price-down { color: #ef4444; }
+
+.num-font {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-variant-numeric: tabular-nums;
+}
+        .suggestion-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--bs-border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover, .suggestion-item.active { background-color: var(--bs-tertiary-bg); }
+        .suggestion-item .ticker { font-weight: bold; color: #0d6efd; margin-left: 10px; white-space: nowrap; flex-shrink: 0; }
+        .suggestion-item .name { font-size: 0.85rem; color: #6c757d; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 250px; flex-grow: 1; }
+
+        /* Sidebar Styles (Slim Vertical Design) */
+        :root {
+            --sidebar-width: 90px;
+        }
+        
+        body.sidebar-hidden {
+            --sidebar-width: 0px;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 1040;
+            padding: 15px 0;
+            background-color: var(--fin-card-bg, #fff);
+            transition: transform 0.2s ease, width 0.2s ease;
+            width: var(--sidebar-width);
+            overflow-x: hidden;
+            overflow-y: auto;
+            border-right: 1px solid var(--bs-border-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        body.sidebar-hidden .sidebar {
+            transform: translateX(-100%);
+        }
+        
+        [data-bs-theme="dark"] .sidebar {
+            background-color: var(--fin-card-bg);
+            border-right: 1px solid var(--fin-border);
+        }
+
+        .main-content {
+            margin-left: var(--sidebar-width);
+            padding: 20px;
+            min-height: 100vh;
+            transition: margin-left 0.2s ease;
+        }
+
+        @media (max-width: 991.98px) {
+            :root { --sidebar-width: 90px; }
+            .sidebar { transform: translateX(-100%); width: 90px; }
+            .sidebar.show { transform: translateX(0); }
+            .main-content { margin-left: 0; padding-top: 70px; }
+        }
+
+        .sidebar-brand {
+            color: var(--bs-body-color);
+            text-decoration: none;
+        }
+        
+        .sidebar .nav-link {
+            width: 100%;
+            padding: 12px 5px;
+            color: #6c757d;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+            border-radius: 0;
+            border-left: 3px solid transparent;
+        }
+        
+        .sidebar .nav-link span {
+            font-size: 0.68rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            display: block;
+            width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        [data-bs-theme="dark"] .sidebar .nav-link { color: #adb5bd; }
+
+        .sidebar .nav-link:hover {
+            color: var(--bs-body-color);
+            background-color: rgba(0,0,0,0.03);
+        }
+        
+        [data-bs-theme="dark"] .sidebar .nav-link:hover {
+            background-color: rgba(255,255,255,0.03);
+            color: #fff;
+        }
+
+        .sidebar .nav-link.active {
+            color: #0d6efd;
+            background-color: rgba(13, 110, 253, 0.08);
+            border-left: 3px solid #0d6efd;
+        }
+        
+        [data-bs-theme="dark"] .sidebar .nav-link.active {
+            color: #58a6ff;
+            background-color: rgba(88, 166, 255, 0.1);
+            border-left: 3px solid #58a6ff;
+        }
+
+        .sidebar .nav-link i {
+            font-size: 1.4rem;
+        }
+        
+        /* Mobile Topbar */
+        .mobile-topbar {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background-color: var(--fin-card-bg, #fff);
+            border-bottom: 1px solid var(--bs-border-color);
+            z-index: 1030;
+            padding: 0 15px;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        [data-bs-theme="dark"] .mobile-topbar { background-color: var(--fin-card-bg); border-bottom: 1px solid var(--fin-border); }
+
+        @media (max-width: 991.98px) {
+            .mobile-topbar { display: flex; }
+        }
+
+        /* Toggle Sidebar Button */
+        .sidebar-toggle {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            background: transparent;
+            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--bs-body-color);
+            transition: background-color 0.2s ease, transform 0.3s ease;
+        }
+        .sidebar-toggle:hover {
+            background-color: var(--bs-tertiary-bg);
+            border-color: var(--bs-border-color);
+        }
+        .sidebar-toggle i {
+            transition: transform 0.3s ease;
+        }
+        body.sidebar-hidden .sidebar-toggle i {
+            transform: rotate(180deg);
+        }
+
+        @media (max-width: 991.98px) {
+            .sidebar-toggle { display: none; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Mobile Topbar -->
+    <div class="mobile-topbar">
+        <a class="text-decoration-none text-body fw-bold fs-5" href="/">📈</a>
+        <button class="btn btn-outline-secondary border-0" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-list fs-4"></i>
+        </button>
+    </div>
+
+    <!-- Sidebar -->
+    <nav id="sidebarMenu" class="sidebar collapse d-lg-flex">
+        <a class="sidebar-brand d-flex align-items-center justify-content-center w-100 mb-4 mt-2" href="/" title="Alpha-Flow">📈</a>
+        
+        <div class="w-100 d-flex flex-column align-items-center">
+            {% set _path = request.url.path %}
+            
+            <ul class="nav flex-column w-100 mb-2">
+                <li class="nav-item">
+                    <a class="nav-link {% if _path == '/' %} active{% endif %}" href="/" title="Inicio">
+                        <i class="bi bi-house-door"></i>
+                        <span>Inicio</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/portfolio') or _path.startswith('/ticker') %} active{% endif %}" href="/portfolio" title="Portfolio">
+                        <i class="bi bi-briefcase"></i>
+                        <span>Cartera</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/ideal-portfolio') %} active{% endif %}" href="/ideal-portfolio" title="Portfolio Ideal">
+                        <i class="bi bi-award"></i>
+                        <span>P. Ideal</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/oportunidades') %} active{% endif %}" href="/oportunidades" title="Oportunidades">
+                        <i class="bi bi-bullseye"></i>
+                        <span>Oportun.</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/lists') %} active{% endif %}" href="/lists" title="Mis Listas">
+                        <i class="bi bi-list-stars"></i>
+                        <span>Listas</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/database') %} active{% endif %}" href="/database" title="Base de Datos">
+                        <i class="bi bi-database"></i>
+                        <span>BBDD</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/calendario') %} active{% endif %}" href="/calendario" title="Calendario">
+                        <i class="bi bi-calendar3"></i>
+                        <span>Calen.</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/alerts') %} active{% endif %}" href="/alerts" title="Alertas">
+                        <i class="bi bi-bell"></i>
+                        <span>Alertas</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/comparar') %} active{% endif %}" href="/comparar" title="Comparar">
+                        <i class="bi bi-layout-split"></i>
+                        <span>Comp.</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div class="mt-auto mb-3 w-100 d-flex flex-column align-items-center gap-3">
+                <button onclick="toggleDarkMode()" class="btn btn-link p-0 text-muted border-0" title="Modo Oscuro/Claro">
+                    <i class="bi {% if settings and settings.ui.dark_mode %}bi-sun-fill{% else %}bi-moon-stars-fill{% endif %}" style="font-size:1.3rem;"></i>
+                </button>
+                <a href="/settings" class="btn btn-link p-0 text-muted border-0" title="Configuración">
+                    <i class="bi bi-gear-fill" style="font-size:1.3rem;"></i>
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container-fluid pb-5">
+            <!-- Barra de búsqueda global en el contenido -->
+            <div class="row mb-4 pt-2 d-none d-lg-flex justify-content-center align-items-center">
+                <div class="col-10 col-xl-8 position-relative">
+                    <button class="sidebar-toggle position-absolute" style="left: -50px; top: 0;" onclick="toggleSidebar()" title="Mostrar/Ocultar menú">
+                        <i class="bi bi-layout-sidebar fs-5"></i>
+                    </button>
+                    <div class="suggestions-container">
+                        <form action="/search" method="post" id="nav-search-form">
+                            <div class="input-group shadow-sm border rounded-3 overflow-hidden">
+                                <span class="input-group-text bg-white border-0 ps-3 text-muted"><i class="bi bi-search"></i></span>
+                                <input class="form-control border-0 ps-2 py-2" type="search" name="ticker" id="nav-search-input" placeholder="Buscar Ticker..." autocomplete="off" required style="box-shadow: none; font-size: 0.95rem;">
+                                <button class="btn btn-dark px-4" type="submit" style="font-size: 0.85rem; font-weight: 600;">BUSCAR</button>
+                            </div>
+                        </form>
+                        <div id="nav-search-suggestions" class="search-suggestions w-100 mt-1 shadow border rounded-3 bg-body"></div>
+                    </div>
+                </div>
+            </div>
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    
+    <script>
+        function toggleSidebar() {
+            document.body.classList.toggle('sidebar-hidden');
+            localStorage.setItem('sidebar-hidden', document.body.classList.contains('sidebar-hidden'));
+        }
+        
+        // Restore sidebar state
+        if (localStorage.getItem('sidebar-hidden') === 'true') {
+            document.body.classList.add('sidebar-hidden');
+        }
+    </script>
+    
+    <!-- Contenedor para Notificaciones (Toasts) -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer" style="z-index: 1055;"></div>
+    
+    <!-- Contenedor para Notificaciones (Toasts) -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer" style="z-index: 1055;"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let analyzedCompanies = [];
+        let recentSearches = [];
+
+        async function loadGlobalSuggestions() {
+            try {
+                const [resSug, resRec] = await Promise.all([
+                    fetch('/api/search_suggestions'),
+                    fetch('/api/recent_searches')
+                ]);
+                analyzedCompanies = await resSug.json();
+                recentSearches = await resRec.json();
+                
+                setupAutocomplete('#nav-search-input', '#nav-search-suggestions');
+            } catch (e) { console.error("Error loading suggestions", e); }
+        }
+        
+        function setupAutocomplete(inputSelector, suggestionsSelector) {
+            const input = document.querySelector(inputSelector);
+            const suggestions = document.querySelector(suggestionsSelector);
+            if (!input || !suggestions) return;
+
+            let selectedIndex = -1;
+
+            const updateView = () => {
+                selectedIndex = -1;
+                const text = input.value.toLowerCase().trim();
+                let html = "";
+                
+                if (text === "") {
+                    if (recentSearches.length > 0) {
+                        recentSearches.forEach(ticker => {
+                            const company = analyzedCompanies.find(c => c.ticker === ticker);
+                            html += `
+                                <div class="suggestion-item" data-ticker="${ticker}">
+                                    <span class="name">${company ? company.name : ""}</span>
+                                    <span class="ticker"><i class="bi bi-clock-history me-2 opacity-50"></i>${ticker}</span>
+                                </div>
+                            `;
+                        });
+                    }
+                } else {
+                    const matches = analyzedCompanies.filter(c => 
+                        c.ticker.toLowerCase().includes(text) || 
+                        c.name.toLowerCase().includes(text)
+                    ).slice(0, 10);
+
+                    if (matches.length > 0) {
+                        matches.forEach(m => {
+                            html += `
+                                <div class="suggestion-item" data-ticker="${m.ticker}">
+                                    <span class="name">${m.name}</span>
+                                    <span class="ticker">${m.ticker}</span>
+                                </div>
+                            `;
+                        });
+                    }
+                }
+
+                if (html) {
+                    suggestions.innerHTML = html;
+                    suggestions.style.display = 'block';
+                } else {
+                    suggestions.style.display = 'none';
+                }
+            };
+
+            const highlightItem = (index) => {
+                const items = suggestions.querySelectorAll('.suggestion-item');
+                items.forEach((item, i) => {
+                    if (i === index) {
+                        item.classList.add('active');
+                        item.scrollIntoView({ block: 'nearest' });
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
+            };
+
+            input.addEventListener('focus', updateView);
+            input.addEventListener('input', updateView);
+            input.addEventListener('click', updateView);
+
+            // keyboard navigation
+            input.addEventListener('keydown', (e) => {
+                const items = suggestions.querySelectorAll('.suggestion-item');
+                if (suggestions.style.display === 'none' || items.length === 0) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (selectedIndex < items.length - 1) {
+                        selectedIndex++;
+                        highlightItem(selectedIndex);
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (selectedIndex > 0) {
+                        selectedIndex--;
+                        highlightItem(selectedIndex);
+                    } else if (selectedIndex === -1) {
+                        selectedIndex = items.length - 1;
+                        highlightItem(selectedIndex);
+                    }
+                } else if (e.key === 'Enter') {
+                    if (selectedIndex >= 0 && selectedIndex < items.length) {
+                        e.preventDefault();
+                        const ticker = items[selectedIndex].getAttribute('data-ticker');
+                        input.value = ticker;
+                        suggestions.style.display = 'none';
+                        if (input.form) input.form.submit();
+                    }
+                } else if (e.key === 'Escape') {
+                    suggestions.style.display = 'none';
+                }
+            });
+
+            suggestions.addEventListener('mousedown', (e) => {
+                const item = e.target.closest('.suggestion-item');
+                if (item) {
+                    const ticker = item.getAttribute('data-ticker');
+                    input.value = ticker;
+                    suggestions.style.display = 'none';
+                    if (input.form) input.form.submit();
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+                    suggestions.style.display = 'none';
+                }
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', loadGlobalSuggestions);
+
+        async function toggleDarkMode() {
+            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            const ui = (__appSettings && __appSettings.ui) || {};
+            try {
+                await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ui: { dark_mode: !isDark, items_per_page: ui.items_per_page || 10 } })
+                });
+            } catch(e) {}
+            location.reload();
+        }
+
+        function showToast(title, message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toastId = 'toast-' + Date.now();
+            const bgClass = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-primary');
+            const toastHTML = `
+                <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+                  <div class="d-flex">
+                    <div class="toast-body"><strong>${title}</strong><br>${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                  </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', toastHTML);
+            const toastEl = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastEl, { delay: 6000 });
+            toast.show();
+            toastEl.addEventListener('hidden.bs.toast', () => { toastEl.remove(); });
+        }
+
+        // Persistencia Automática de Pestañas (Tabs) en sessionStorage
+        document.addEventListener('DOMContentLoaded', () => {
+            // Guardar estado al cambiar de pestaña (Delegación de eventos en body)
+            document.body.addEventListener('shown.bs.tab', (event) => {
+                const tabList = event.target.closest('[role="tablist"]');
+                if (tabList) {
+                    const storageKey = 'active_tab_' + (tabList.id || 'tablist_index_' + Array.from(document.querySelectorAll('[role="tablist"]')).indexOf(tabList));
+                    sessionStorage.setItem(storageKey, event.target.id);
+                }
+            });
+
+            // Restaurar estado de pestañas al cargar la página
+            document.querySelectorAll('[role="tablist"]').forEach(tabList => {
+                const storageKey = 'active_tab_' + (tabList.id || 'tablist_index_' + Array.from(document.querySelectorAll('[role="tablist"]')).indexOf(tabList));
+                const savedTabId = sessionStorage.getItem(storageKey);
+                if (savedTabId) {
+                    const tabButton = document.getElementById(savedTabId);
+                    if (tabButton && window.bootstrap) {
+                        try {
+                            const tab = new bootstrap.Tab(tabButton);
+                            tab.show();
+                        } catch (e) {
+                            console.warn("No se pudo restaurar la pestaña:", savedTabId, e);
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alpha-Flow</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        body { background-color: #f8f9fa; }
+        .navbar { margin-bottom: 2rem; }
+        .card { margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; }
+        .report-content { background: white; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; }
+        .report-content table { width: 100%; margin-bottom: 1rem; color: #212529; border-collapse: collapse; }
+        .report-content table th, .report-content table td { padding: 0.75rem; vertical-align: top; border-top: 1px solid #dee2e6; }
+        .report-content table thead th { vertical-align: bottom; border-bottom: 2px solid #dee2e6; background-color: #f8f9fa; }
+        .report-content table tbody + tbody { border-top: 2px solid #dee2e6; }
+        .nav-tabs .nav-link { color: #495057; font-weight: 500; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">📈 Alpha-Flow</a>
+            <form class="d-flex" action="/search" method="post">
+                <input class="form-control me-2" type="search" name="ticker" placeholder="Buscar Ticker (ej. AAPL)" required>
+                <button class="btn btn-outline-success" type="submit">Buscar</button>
+            </form>
+        </div>
+    </nav>
+    <div class="container pb-5">
+        
+<div class="row">
+    <div class="col-12 text-center mb-5 mt-4">
+        <h1 class="display-4 fw-bold">Bienvenido a Alpha-Flow</h1>
+        <p class="lead text-muted">Plataforma de análisis de inversiones automatizada para Value Investors.</p>
+        <form action="/search" method="post" class="d-inline-flex mt-3 w-50 shadow-sm">
+            <input type="text" name="ticker" class="form-control form-control-lg me-2 border-0" placeholder="Introduce un Ticker (ej. AAPL, MSFT)" required>
+            <button type="submit" class="btn btn-primary btn-lg px-4">Analizar</button>
+        </form>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        
+            <!-- Activas y Pendientes -->
+            <div class="d-flex justify-content-between align-items-end mb-3">
+                <div>
+                    <h3 class="mb-0">Expedientes Activos</h3>
+                    <span class="text-muted small">Empresas en seguimiento o pendientes</span>
+                </div>
+            </div>
+            <hr>
+            <div class="table-responsive bg-white rounded shadow-sm mb-5">
+                <table class="table table-hover align-middle mb-0" id="activeTable">
+                    <thead class="table-light">
+                        <tr style="cursor: pointer;" title="Haz clic en una cabecera para ordenar">
+                            <th class="ps-4" onclick="sortTable('activeTable', 0)">Ticker ↕</th>
+                            <th class="text-center" onclick="sortTable('activeTable', 1)">Estado ↕</th>
+                            <th class="text-center" onclick="sortTable('activeTable', 2, true)">Financiero ↕</th>
+                            <th class="text-center" onclick="sortTable('activeTable', 3, true)">Capital ↕</th>
+                            <th class="text-center" onclick="sortTable('activeTable', 4, true)">Moat ↕</th>
+                            <th class="text-center" onclick="sortTable('activeTable', 5, true)">Veredicto ↕</th>
+                            <th class="text-center" onclick="sortTable('activeTable', 6)">Valoración ↕</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activeBody">
+                        
+                        <tr class="ticker-row" data-status="ACCEPTED" onclick="window.location='/ticker/BKNG'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">BKNG</td>
+                            <td class="text-center" data-sort-value="ACCEPTED">
+                                
+                                <span class="badge bg-success text-uppercase" style="font-size: 0.7rem;">Aceptada</span>
+                                
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                9/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                8.3/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                7.2/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                8.2/10
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="badge bg-success" style="font-size: 0.7rem;">✅ BARATA</span>
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="ticker-row" data-status="ACCEPTED" onclick="window.location='/ticker/BMI'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">BMI</td>
+                            <td class="text-center" data-sort-value="ACCEPTED">
+                                
+                                <span class="badge bg-success text-uppercase" style="font-size: 0.7rem;">Aceptada</span>
+                                
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                8/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                7.4/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                8.3/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                8.2/10
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="badge bg-secondary" style="font-size: 0.7rem;">⚖️ JUSTO</span>
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="ticker-row" data-status="ACCEPTED" onclick="window.location='/ticker/EVO.ST'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">EVO.ST</td>
+                            <td class="text-center" data-sort-value="ACCEPTED">
+                                
+                                <span class="badge bg-success text-uppercase" style="font-size: 0.7rem;">Aceptada</span>
+                                
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                9.5/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                5.0/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                9.0/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                8.0/10
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="badge bg-success bg-opacity-75" style="font-size: 0.7rem;">🔥 GANGA</span>
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="ticker-row" data-status="ACCEPTED" onclick="window.location='/ticker/GOOG'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">GOOG</td>
+                            <td class="text-center" data-sort-value="ACCEPTED">
+                                
+                                <span class="badge bg-success text-uppercase" style="font-size: 0.7rem;">Aceptada</span>
+                                
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                9.2/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                6.2/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                6.0/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                6.5/10
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="badge bg-secondary" style="font-size: 0.7rem;">⚖️ JUSTO</span>
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="ticker-row" data-status="PENDING" onclick="window.location='/ticker/ITX.MC'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">ITX.MC</td>
+                            <td class="text-center" data-sort-value="PENDING">
+                                
+                                <span class="badge bg-secondary text-uppercase" style="font-size: 0.7rem;">Pendiente</span>
+                                
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="text-muted small">-</span>
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="ticker-row" data-status="PENDING" onclick="window.location='/ticker/KRI.AT'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">KRI.AT</td>
+                            <td class="text-center" data-sort-value="PENDING">
+                                
+                                <span class="badge bg-secondary text-uppercase" style="font-size: 0.7rem;">Pendiente</span>
+                                
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                9.2/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                8.3/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                5.6/10
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="badge bg-secondary" style="font-size: 0.7rem;">⚖️ JUSTO</span>
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="ticker-row" data-status="ACCEPTED" onclick="window.location='/ticker/MBR.WA'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">MBR.WA</td>
+                            <td class="text-center" data-sort-value="ACCEPTED">
+                                
+                                <span class="badge bg-success text-uppercase" style="font-size: 0.7rem;">Aceptada</span>
+                                
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                7.5/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                7.7/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                7.2/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                7.5/10
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="badge bg-success" style="font-size: 0.7rem;">✅ BARATA</span>
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="ticker-row" data-status="PENDING" onclick="window.location='/ticker/META'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">META</td>
+                            <td class="text-center" data-sort-value="PENDING">
+                                
+                                <span class="badge bg-secondary text-uppercase" style="font-size: 0.7rem;">Pendiente</span>
+                                
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                9.5/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                7.7/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                8.3/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                8.2/10
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="badge bg-success" style="font-size: 0.7rem;">✅ BARATA</span>
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="ticker-row" data-status="PENDING" onclick="window.location='/ticker/MSFT'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">MSFT</td>
+                            <td class="text-center" data-sort-value="PENDING">
+                                
+                                <span class="badge bg-secondary text-uppercase" style="font-size: 0.7rem;">Pendiente</span>
+                                
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="text-muted small">-</span>
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="ticker-row" data-status="PENDING" onclick="window.location='/ticker/RMS.PA'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">RMS.PA</td>
+                            <td class="text-center" data-sort-value="PENDING">
+                                
+                                <span class="badge bg-secondary text-uppercase" style="font-size: 0.7rem;">Pendiente</span>
+                                
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                9.5/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                6.9/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                9.2/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                9.0/10
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="badge bg-secondary" style="font-size: 0.7rem;">⚖️ JUSTO</span>
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="ticker-row" data-status="PENDING" onclick="window.location='/ticker/UBER'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">UBER</td>
+                            <td class="text-center" data-sort-value="PENDING">
+                                
+                                <span class="badge bg-secondary text-uppercase" style="font-size: 0.7rem;">Pendiente</span>
+                                
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                8.7/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                5.4/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                5.0/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                5.6/10
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="badge bg-success" style="font-size: 0.7rem;">✅ BARATA</span>
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="ticker-row" data-status="PENDING" onclick="window.location='/ticker/WM'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">WM</td>
+                            <td class="text-center" data-sort-value="PENDING">
+                                
+                                <span class="badge bg-secondary text-uppercase" style="font-size: 0.7rem;">Pendiente</span>
+                                
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center fw-bold text-muted">
+                                -
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="text-muted small">-</span>
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                <div class="d-flex justify-content-between align-items-center p-3 border-top">
+                    <span class="text-muted small" id="activeInfo">Mostrando 0-0 de 0</span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="activePagination">
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- Descartadas -->
+            <div class="d-flex justify-content-between align-items-end mb-3 mt-5">
+                <div>
+                    <h3 class="mb-0">Expedientes Descartados</h3>
+                    <span class="text-muted small">Empresas rechazadas</span>
+                </div>
+            </div>
+            <hr>
+            <div class="table-responsive bg-white rounded shadow-sm mb-5">
+                <table class="table table-hover align-middle mb-0" id="rejectedTable">
+                    <thead class="table-light">
+                        <tr style="cursor: pointer;" title="Haz clic en una cabecera para ordenar">
+                            <th class="ps-4" onclick="sortTable('rejectedTable', 0)">Ticker ↕</th>
+                            <th class="text-center" onclick="sortTable('rejectedTable', 1)">Estado ↕</th>
+                            <th class="text-center" onclick="sortTable('rejectedTable', 2, true)">Financiero ↕</th>
+                            <th class="text-center" onclick="sortTable('rejectedTable', 3, true)">Capital ↕</th>
+                            <th class="text-center" onclick="sortTable('rejectedTable', 4, true)">Moat ↕</th>
+                            <th class="text-center" onclick="sortTable('rejectedTable', 5, true)">Veredicto ↕</th>
+                            <th class="text-center" onclick="sortTable('rejectedTable', 6)">Valoración ↕</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rejectedBody">
+                        
+                        <tr class="ticker-row" data-status="REJECTED" onclick="window.location='/ticker/ADBE'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">ADBE</td>
+                            <td class="text-center" data-sort-value="REJECTED">
+                                <span class="badge bg-danger text-uppercase" style="font-size: 0.7rem;">Descartada</span>
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                9.0/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                8/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                5.6/10
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                5/10
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="text-muted small">-</span>
+                                
+                            </td>
+                        </tr>
+                        
+                        <tr class="ticker-row" data-status="REJECTED" onclick="window.location='/ticker/NKE'" style="cursor: pointer;">
+                            <td class="ps-4 fw-bold fs-5 text-dark">NKE</td>
+                            <td class="text-center" data-sort-value="REJECTED">
+                                <span class="badge bg-danger text-uppercase" style="font-size: 0.7rem;">Descartada</span>
+                            </td>
+                            <td class="text-center fw-bold text-warning">
+                                5.5/10
+                            </td>
+                            <td class="text-center fw-bold text-success">
+                                8.1/10
+                            </td>
+                            <td class="text-center fw-bold text-danger">
+                                3.3/10
+                            </td>
+                            <td class="text-center fw-bold text-danger">
+                                2.0/10
+                            </td>
+                            <td class="text-center">
+                                
+                                <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">⚠️ CARA</span>
+                                
+                            </td>
+                        </tr>
+                        
+                    </tbody>
+                </table>
+                <div class="d-flex justify-content-between align-items-center p-3 border-top">
+                    <span class="text-muted small" id="rejectedInfo">Mostrando 0-0 de 0</span>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0" id="rejectedPagination">
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+            
+            <script>
+                // Paginación
+                const itemsPerPage = 10;
+                let currentPages = {
+                    'activeTable': 1,
+                    'rejectedTable': 1
+                };
+
+                function updatePagination(tableId) {
+                    const tbody = document.getElementById(tableId).querySelector('tbody');
+                    const rows = Array.from(tbody.querySelectorAll("tr.ticker-row"));
+                    const totalItems = rows.length;
+                    const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+                    
+                    let currentPage = currentPages[tableId];
+                    if (currentPage > totalPages) currentPage = totalPages;
+                    if (currentPage < 1) currentPage = 1;
+                    currentPages[tableId] = currentPage;
+
+                    const start = (currentPage - 1) * itemsPerPage;
+                    const end = start + itemsPerPage;
+
+                    rows.forEach((row, index) => {
+                        if (index >= start && index < end) {
+                            row.style.display = "";
+                        } else {
+                            row.style.display = "none";
+                        }
+                    });
+
+                    // Info text
+                    const infoId = tableId === 'activeTable' ? 'activeInfo' : 'rejectedInfo';
+                    const infoEl = document.getElementById(infoId);
+                    const displayStart = totalItems === 0 ? 0 : start + 1;
+                    const displayEnd = end > totalItems ? totalItems : end;
+                    infoEl.textContent = \`Mostrando \${displayStart}-\${displayEnd} de \${totalItems}\`;
+
+                    // Pagination buttons
+                    const paginationId = tableId === 'activeTable' ? 'activePagination' : 'rejectedPagination';
+                    const paginationEl = document.getElementById(paginationId);
+                    paginationEl.innerHTML = '';
+
+                    if (totalItems > 0) {
+                        // Prev button
+                        const prevLi = document.createElement('li');
+                        prevLi.className = \`page-item \${currentPage === 1 ? 'disabled' : ''}\`;
+                        prevLi.innerHTML = \`<a class="page-link" href="#" onclick="changePage('\${tableId}', \${currentPage - 1}); return false;">Anterior</a>\`;
+                        paginationEl.appendChild(prevLi);
+
+                        // Page numbers
+                        for (let i = 1; i <= totalPages; i++) {
+                            const li = document.createElement('li');
+                            li.className = \`page-item \${currentPage === i ? 'active' : ''}\`;
+                            li.innerHTML = \`<a class="page-link" href="#" onclick="changePage('\${tableId}', \${i}); return false;">\${i}</a>\`;
+                            paginationEl.appendChild(li);
+                        }
+
+                        // Next button
+                        const nextLi = document.createElement('li');
+                        nextLi.className = \`page-item \${currentPage === totalPages ? 'disabled' : ''}\`;
+                        nextLi.innerHTML = \`<a class="page-link" href="#" onclick="changePage('\${tableId}', \${currentPage + 1}); return false;">Siguiente</a>\`;
+                        paginationEl.appendChild(nextLi);
+                    }
+                }
+
+                function changePage(tableId, newPage) {
+                    currentPages[tableId] = newPage;
+                    updatePagination(tableId);
+                }
+
+                // Sorting
+                let sortDirections = {};
+                
+                function sortTable(tableId, columnIndex, isNumeric = false) {
+                    const table = document.getElementById(tableId);
+                    const tbody = table.querySelector("tbody");
+                    const rows = Array.from(tbody.querySelectorAll("tr.ticker-row"));
+                    
+                    if (rows.length === 0) return;
+
+                    const sortKey = \`\${tableId}-\${columnIndex}\`;
+                    if (sortDirections[sortKey] === undefined) {
+                        sortDirections[sortKey] = true;
+                    }
+                    const ascending = sortDirections[sortKey];
+                    
+                    rows.sort((a, b) => {
+                        let valA = a.cells[columnIndex].innerText.trim();
+                        let valB = b.cells[columnIndex].innerText.trim();
+                        
+                        if (a.cells[columnIndex].hasAttribute('data-sort-value')) {
+                            valA = a.cells[columnIndex].getAttribute('data-sort-value');
+                            valB = b.cells[columnIndex].getAttribute('data-sort-value');
+                        }
+
+                        if (isNumeric) {
+                            let numA = parseFloat(valA.split('/')[0]);
+                            let numB = parseFloat(valB.split('/')[0]);
+                            
+                            numA = isNaN(numA) ? -1 : numA;
+                            numB = isNaN(numB) ? -1 : numB;
+                            
+                            return ascending ? numA - numB : numB - numA;
+                        } else {
+                            return ascending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+                        }
+                    });
+                    
+                    sortDirections[sortKey] = !ascending;
+                    
+                    rows.forEach(row => tbody.appendChild(row));
+                    
+                    currentPages[tableId] = 1;
+                    updatePagination(tableId);
+                }
+
+                document.addEventListener('DOMContentLoaded', () => {
+                    updatePagination('activeTable');
+                    updatePagination('rejectedTable');
+                });
+            </script>
+        
+    </div>
+</div>
+
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

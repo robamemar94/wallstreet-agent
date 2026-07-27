@@ -1,0 +1,2804 @@
+{% extends "base.html" %}
+{% block title %}Alpha-Flow · Mi Portfolio{% endblock %}
+
+{% block content %}
+<style>
+    /* Estilos ultra-compactos y profesionales para la página de Mi Portfolio */
+    .tab-content {
+        font-size: 0.78rem;
+    }
+    
+    /* Reducir el tamaño de las tarjetas de KPI del Resumen Global */
+    .row-cols-lg-6 .card {
+        border-radius: 4px !important;
+        border: 1px solid var(--fin-border) !important;
+        background-color: var(--fin-card-bg) !important;
+    }
+    .row-cols-lg-6 .card-body {
+        padding: 8px 12px !important;
+    }
+    .row-cols-lg-6 h4 {
+        font-size: 1.05rem !important;
+        font-weight: 700 !important;
+        color: var(--text-primary) !important;
+        font-family: 'SFMono-Regular', Consolas, monospace !important;
+        font-variant-numeric: tabular-nums !important;
+        margin-bottom: 0 !important;
+    }
+    .row-cols-lg-6 h6 {
+        font-size: 0.62rem !important;
+        color: var(--text-secondary) !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.3px !important;
+        margin-bottom: 2px !important;
+    }
+    .row-cols-lg-6 small {
+        font-size: 0.65rem !important;
+    }
+    
+    /* Hacer todas las tablas de portfolio extremadamente compactas */
+    .table-modern {
+        font-size: 0.74rem !important;
+    }
+    .table-modern thead th {
+        font-size: 0.65rem !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        padding: 4px 8px !important;
+        background-color: #151821 !important;
+        color: var(--text-secondary) !important;
+        border-bottom: 1px solid var(--fin-border) !important;
+    }
+    .table-modern tbody td {
+        padding: 4px 8px !important;
+        height: 32px !important;
+        border-bottom: 1px solid var(--fin-border) !important;
+    }
+    
+    /* Quitar sombras de las tablas responsivas */
+    .table-responsive {
+        box-shadow: none !important;
+        border: 1px solid var(--fin-border) !important;
+        border-radius: 4px !important;
+        background-color: var(--fin-card-bg) !important;
+    }
+    
+    /* Formato de las pestañas (Tabs) */
+    .nav-tabs {
+        border-bottom: 1px solid var(--fin-border) !important;
+    }
+    .nav-tabs .nav-link {
+        font-size: 0.74rem !important;
+        padding: 4px 10px !important;
+        color: var(--text-secondary) !important;
+        border: none !important;
+        border-bottom: 2px solid transparent !important;
+    }
+    .nav-tabs .nav-link.active {
+        color: var(--fin-green) !important;
+        background: transparent !important;
+        border-bottom: 2px solid var(--fin-green) !important;
+    }
+    
+    /* Compactar los botones de exportar y distribución */
+    .btn-sm {
+        font-size: 0.7rem !important;
+        padding: 2px 6px !important;
+    }
+    
+    /* Ajustes específicos para el modo oscuro en las KPI de colores sólidos */
+    [data-bs-theme="dark"] .bg-success, [data-bs-theme="dark"] .bg-danger, [data-bs-theme="dark"] .bg-light {
+        background-color: var(--fin-card-bg) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--fin-border) !important;
+    }
+    [data-bs-theme="dark"] .bg-success h4, [data-bs-theme="dark"] .bg-success h6,
+    [data-bs-theme="dark"] .bg-danger h4, [data-bs-theme="dark"] .bg-danger h6 {
+        color: inherit !important;
+    }
+    [data-bs-theme="dark"] .bg-success h4 { color: var(--fin-green) !important; }
+    [data-bs-theme="dark"] .bg-danger h4 { color: var(--fin-red) !important; }
+    
+    /* Cambiar estilo de links */
+    .table-modern a {
+        color: var(--text-primary) !important;
+        font-weight: 700 !important;
+    }
+    .table-modern a:hover {
+        color: var(--fin-green) !important;
+    }
+</style>
+
+<div class="row mt-3 mb-2">
+    <div class="col-12">
+        <h3 class="fw-bold mb-1 text-white" style="font-size: 1.25rem;">Mi Portfolio</h3>
+    </div>
+</div>
+
+<!-- Tabs de Portfolio -->
+<ul class="nav nav-tabs mb-4" id="portfolioTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active fw-bold" id="active-tab" data-bs-toggle="tab" data-bs-target="#active-pane" type="button" role="tab" aria-controls="active-pane" aria-selected="true"><i class="bi bi-bar-chart-steps me-1"></i>Cartera</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-muted" id="perf-tab" data-bs-toggle="tab" data-bs-target="#perf-pane" type="button" role="tab" aria-controls="perf-pane" aria-selected="false"><i class="bi bi-graph-up-arrow me-1"></i>Rendimiento</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-muted" id="fund-tab" data-bs-toggle="tab" data-bs-target="#fund-pane" type="button" role="tab" aria-controls="fund-pane" aria-selected="false"><i class="bi bi-cpu me-1"></i>Fundamentales</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-muted" id="div-tab" data-bs-toggle="tab" data-bs-target="#div-pane" type="button" role="tab" aria-controls="div-pane" aria-selected="false"><i class="bi bi-cash-coin me-1"></i>Dividendos</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-muted" id="closed-tab" data-bs-toggle="tab" data-bs-target="#closed-pane" type="button" role="tab" aria-controls="closed-pane" aria-selected="false"><i class="bi bi-archive me-1"></i>Historial</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-muted" id="fiscal-tab" data-bs-toggle="tab" data-bs-target="#fiscal-pane" type="button" role="tab" aria-controls="fiscal-pane" aria-selected="false"><i class="bi bi-receipt me-1"></i>Fiscal</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-muted" id="add-tab" data-bs-toggle="tab" data-bs-target="#add-pane" type="button" role="tab" aria-controls="add-pane" aria-selected="false"><i class="bi bi-plus-lg me-1"></i>Nueva Operación</button>
+  </li>
+</ul>
+
+<div class="tab-content" id="portfolioTabsContent">
+  <!-- Pestaña Posiciones Abiertas -->
+  <div class="tab-pane fade show active" id="active-pane" role="tabpanel" aria-labelledby="active-tab">
+    
+    <!-- Resumen de Saldos y Variación -->
+    <div class="mb-3 mt-1">
+        <p class="text-muted mb-0" style="font-size:0.9rem;">
+            Valor de mercado: <strong>{{ "{:,.0f}".format(total_current_value) }} €</strong>
+            &nbsp;·&nbsp;
+            P&amp;L no realizado:
+            <strong class="{% if total_return_abs >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {% if total_return_abs >= 0 %}+{% endif %}{{ "{:,.0f}".format(total_return_abs) }} €
+                ({% if total_return_pct >= 0 %}+{% endif %}{{ "{:.1f}".format(total_return_pct) }}%)
+            </strong>
+        </p>
+    </div>
+
+    <!-- Resumen Global de Tarjetas -->
+    <div class="row mb-4 row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-6 g-2">
+        <!-- Valor Invertido -->
+        <div class="col">
+            <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
+                <div class="card-body d-flex flex-column justify-content-between p-2.5">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="text-muted fw-bold mb-0" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px;">Invertido</h6>
+                        <i class="bi bi-info-circle text-muted cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="top" title="✂️ Comisiones Totales: {{ '{:,.2f}'.format(total_fees) }} €" style="font-size: 0.72rem;"></i>
+                    </div>
+                    <h4 class="mb-0 text-white num-font mt-1" style="font-size: 1.05rem; font-weight: 700;">{{ "{:,.2f}".format(total_invested) }} €</h4>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Valor Actual -->
+        <div class="col">
+            <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
+                <div class="card-body d-flex flex-column justify-content-between p-2.5">
+                    <h6 class="text-muted fw-bold mb-0" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px;">Valor Actual</h6>
+                    <h4 class="mb-0 text-white num-font mt-1" style="font-size: 1.05rem; font-weight: 700;">{{ "{:,.2f}".format(total_current_value) }} €</h4>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Variación Diaria -->
+        <div class="col">
+            <div class="card border-0 h-100 {% if total_daily_abs > 0 %}bg-success text-white{% elif total_daily_abs < 0 %}bg-danger text-white{% else %}bg-light{% endif %}" style="background-color: var(--fin-card-bg);">
+                <div class="card-body d-flex flex-column justify-content-between p-2.5">
+                    <h6 class="fw-bold mb-0 {% if total_daily_abs == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Var. Diaria</h6>
+                    <h4 class="mb-0 num-font mt-1 {% if total_daily_abs > 0 %}text-success{% elif total_daily_abs < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
+                        {% if total_daily_abs > 0 %}+{% endif %}{{ "{:,.2f}".format(total_daily_abs) }} €
+                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if total_daily_pct > 0 %}+{% endif %}{{ "{:.2f}%".format(total_daily_pct) }})</small>
+                    </h4>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Rentabilidad Latente -->
+        <div class="col">
+            <div class="card border-0 h-100 {% if total_return_abs > 0 %}bg-success text-white{% elif total_return_abs < 0 %}bg-danger text-white{% else %}bg-light{% endif %}" style="background-color: var(--fin-card-bg);">
+                <div class="card-body d-flex flex-column justify-content-between p-2.5">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold mb-0 {% if total_return_abs == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Rent. Latente</h6>
+                        <i class="bi bi-info-circle text-muted cursor-pointer" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="📈 Efecto Acción: {% if global_unrealized_price_pnl >= 0 %}+{% endif %}{{ '{:,.0f}'.format(global_unrealized_price_pnl) }} €<br>💵 Efecto Divisa: {% if global_unrealized_fx_pnl >= 0 %}+{% endif %}{{ '{:,.0f}'.format(global_unrealized_fx_pnl) }} €" style="font-size: 0.72rem;"></i>
+                    </div>
+                    <h4 class="mb-0 num-font mt-1 {% if total_return_abs > 0 %}text-success{% elif total_return_abs < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
+                        {% if total_return_abs > 0 %}+{% endif %}{{ "{:,.2f}".format(total_return_abs) }} €
+                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if total_return_pct > 0 %}+{% endif %}{{ "{:.2f}%".format(total_return_pct) }})</small>
+                    </h4>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Beneficio Realizado -->
+        <div class="col">
+            <div class="card border-0 h-100 {% if total_realized_pnl > 0 %}bg-success text-white{% elif total_realized_pnl < 0 %}bg-danger text-white{% else %}bg-light{% endif %}" style="background-color: var(--fin-card-bg);">
+                <div class="card-body d-flex flex-column justify-content-between p-2.5">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold mb-0 {% if total_realized_pnl == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Bº Realizado</h6>
+                        <i class="bi bi-info-circle text-muted cursor-pointer" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="📈 Ventas Cerradas: {% if global_realized_price_pnl >= 0 %}+{% endif %}{{ '{:,.0f}'.format(global_realized_price_pnl) }} €<br>💵 Efecto Divisa: {% if global_realized_fx_pnl >= 0 %}+{% endif %}{{ '{:,.0f}'.format(global_realized_fx_pnl) }} €" style="font-size: 0.72rem;"></i>
+                    </div>
+                    <h4 class="mb-0 num-font mt-1 {% if total_realized_pnl > 0 %}text-success{% elif total_realized_pnl < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
+                        {% if total_realized_pnl > 0 %}+{% endif %}{{ "{:,.2f}".format(total_realized_pnl) }} €
+                    </h4>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Ganancias Totales -->
+        <div class="col">
+            <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
+                <div class="card-body d-flex flex-column justify-content-between p-2.5">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="text-white-50 fw-bold mb-0" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px;">Total Histórico</h6>
+                        <i class="bi bi-info-circle text-white-50 cursor-pointer" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="📈 Acción: {% if global_total_price_pnl >= 0 %}+{% endif %}{{ '{:,.0f}'.format(global_total_price_pnl) }} €<br>💵 Divisa: {% if global_total_fx_pnl >= 0 %}+{% endif %}{{ '{:,.0f}'.format(global_total_fx_pnl) }} €<br>💰 Dividendos: +{{ '{:,.0f}'.format(global_total_dividends) }} €<br>✂️ Comisiones: {{ '{:,.2f}'.format(total_fees) }} €" style="font-size: 0.72rem;"></i>
+                    </div>
+                    <h4 class="mb-0 text-white num-font mt-1" style="font-size: 1.05rem; font-weight: 700;">
+                        {% if global_total_profits >= 0 %}+{% endif %}{{ "{:,.2f}".format(global_total_profits) }} €
+                    </h4>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <button class="btn btn-sm btn-outline-secondary" type="button"
+                data-bs-toggle="collapse" data-bs-target="#distPanel" aria-expanded="false">
+            <i class="bi bi-pie-chart-fill me-1"></i>Distribución
+        </button>
+        <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('activeTable', 'portfolio-open-positions.csv')" title="Exportar a CSV">
+            <i class="bi bi-download me-1"></i>Exportar CSV
+        </button>
+    </div>
+    <div class="collapse mb-3" id="distPanel">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-transparent border-0 pb-0 pt-2">
+                <ul class="nav nav-pills card-header-pills justify-content-center" id="distTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active py-1 px-3" id="dist-asset-tab" data-bs-toggle="pill" data-bs-target="#dist-asset-pane" type="button" role="tab" aria-controls="dist-asset-pane" aria-selected="true">
+                            <i class="bi bi-pie-chart-fill me-1"></i>Activos
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-1 px-3 text-muted" id="dist-country-tab" data-bs-toggle="pill" data-bs-target="#dist-country-pane" type="button" role="tab" aria-controls="dist-country-pane" aria-selected="false">
+                            <i class="bi bi-globe me-1"></i>Países
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link py-1 px-3 text-muted" id="dist-sector-tab" data-bs-toggle="pill" data-bs-target="#dist-sector-pane" type="button" role="tab" aria-controls="dist-sector-pane" aria-selected="false">
+                            <i class="bi bi-diagram-3 me-1"></i>Sectores
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body py-2">
+                <div class="tab-content" id="distTabsContent">
+                    <div class="tab-pane fade show active" id="dist-asset-pane" role="tabpanel" aria-labelledby="dist-asset-tab">
+                        <div id="dist-chart" style="height:260px;"></div>
+                    </div>
+                    <div class="tab-pane fade" id="dist-country-pane" role="tabpanel" aria-labelledby="dist-country-tab">
+                        <div id="dist-country-chart" style="height:260px;"></div>
+                    </div>
+                    <div class="tab-pane fade" id="dist-sector-pane" role="tabpanel" aria-labelledby="dist-sector-tab">
+                        <div id="dist-sector-chart" style="height:260px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="table-responsive bg-white rounded shadow-sm">
+        <table class="table table-modern align-middle mb-0" id="activeTable">
+            <thead>
+                <tr style="cursor: pointer; user-select: none;">
+                    <th class="ps-4" onclick="sortTable('activeTable', 0, false)">Activo <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th onclick="sortTable('activeTable', 1, false)">Empresa <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 2, true)">Títulos <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 3, true)">Precio Medio <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 4, true)">Último <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 5, true)">Var. Día <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 6, true)">Valor Mercado <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 7, true)">Peso % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 8, true)">P&amp;L <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-center" style="width:48px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in portfolio %}
+                <tr class="portfolio-row">
+                    <td class="ps-4 align-middle">
+                        <div class="d-flex align-items-center gap-2">
+                            <!-- <img src="/logos/{{ item.ticker }}.png" class="rounded" style="width: 20px; height: 20px; object-fit: contain; background: white; padding: 1px; border: 1px solid #eee;" onerror="this.style.display='none'"> -->
+                            <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(item.ticker) }}</a>
+                        </div>
+                    </td>
+                    <td class="text-muted align-middle text-truncate" style="max-width: 150px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.shares }}">{{ item.shares }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.average_price }}">{{ "{:,.2f}".format(item.average_price) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end fw-bold num-font align-middle" data-sort-value="{{ item.daily_change_pct or 0 }}">
+                        <span class="d-block">{{ "{:,.2f}".format(item.current_price) }} {{ item.currency_symbol }}</span>
+                        {% if item.daily_change_abs is defined and item.daily_change_abs != 0 %}
+                        <small class="fw-bold {% if item.daily_change_abs > 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.72rem;">
+                            {% if item.daily_change_abs > 0 %}+{% endif %}{{ "{:,.2f}".format(item.daily_change_abs) }} {{ item.currency_symbol }} ({% if item.daily_change_pct > 0 %}+{% endif %}{{ "{:.2f}%".format(item.daily_change_pct) }})
+                        </small>
+                        {% endif %}
+                    </td>
+                    <td class="text-end fw-bold num-font align-middle {% if item.daily_change_total_eur > 0 %}text-success{% elif item.daily_change_total_eur < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ item.daily_change_total_eur }}">
+                        <span class="d-block">{% if item.daily_change_total_eur > 0 %}+{% endif %}{{ "{:,.2f}".format(item.daily_change_total_eur) }} €</span>
+                    </td>
+                    <td class="text-end fw-bold num-font align-middle" data-sort-value="{{ item.current_value_eur }}">{{ "{:,.2f}".format(item.current_value_eur) }} €</td>
+                    {% set peso = (item.current_value_eur / total_current_value * 100) if total_current_value > 0 else 0 %}
+                    <td class="text-end align-middle" data-sort-value="{{ peso }}">
+                        <span class="fw-semibold num-font">{{ "{:.1f}".format(peso) }}%</span>
+                        <div class="progress mt-1 ms-auto" style="height:3px; width:60px;">
+                            <div class="progress-bar bg-primary" style="width:{{ "{:.1f}".format(peso) }}%"></div>
+                        </div>
+                    </td>
+                    {% set pnl_total = item.current_value_eur - item.invested_value_eur %}
+                    <td class="text-end fw-bold num-font align-middle {% if pnl_total > 0 %}text-success{% elif pnl_total < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ pnl_total }}">
+                        <div style="line-height: 1.2;">
+                            <span class="d-block">{% if pnl_total > 0 %}+{% endif %}{{ "{:,.2f}".format(pnl_total) }} €</span>
+                            <small class="d-block fw-normal" style="font-size: 0.75rem; opacity: 0.85;">
+                                ({% if item.return_pct > 0 %}+{% endif %}{{ "{:.2f}%".format(item.return_pct) }})
+                                {% if item.cagr is not none %}
+                                <i class="bi bi-info-circle text-muted ms-1 cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="top" title="Rentabilidad Anualizada (CAGR): {% if item.cagr > 0 %}+{% endif %}{{ '{:.1f}%'.format(item.cagr) }}" style="font-size: 0.68rem; vertical-align: middle;"></i>
+                                {% endif %}
+                            </small>
+                            {# TODO: desglose precio/FX — pendiente de validar cálculo #}
+                        </div>
+                    </td>
+                    <td class="text-center align-middle">
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary border-0 px-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:170px;">
+                                <li>
+                                    <a class="dropdown-item small" href="/portfolio/ticker/{{ item.ticker }}">
+                                        <i class="bi bi-eye me-2 text-primary"></i>Ver detalle
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider my-1"></li>
+                                <li>
+                                    <button class="dropdown-item small text-danger" onclick="deletePosition('{{ item.ticker }}')">
+                                        <i class="bi bi-trash me-2"></i>Eliminar posición
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+  </div>
+
+  <!-- Pestaña Rendimiento -->
+  <div class="tab-pane fade" id="perf-pane" role="tabpanel" aria-labelledby="perf-tab">
+
+    <!-- BARRA DE CONTROL GLOBAL (UNIFICADA AL INICIO) -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 p-3 bg-white border rounded shadow-sm gap-2">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="fw-bold text-dark me-2" style="font-size:0.85rem;">Ver como:</span>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-primary active" id="btnNav" onclick="setMode('nav')">Índice (TWR)</button>
+          <button type="button" class="btn btn-outline-primary" id="btnReal" onclick="setMode('real')">€ Real</button>
+        </div>
+        <button id="refreshPerfBtn" class="btn btn-outline-secondary btn-sm" onclick="refreshPerformance()" title="Recalcular">
+          <i class="bi bi-arrow-clockwise"></i>
+        </button>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="small text-muted d-none d-sm-inline fw-semibold me-1" style="font-size:0.8rem;">Histórico:</span>
+        <div class="d-flex gap-1 flex-wrap" id="periodTabs">
+          {% for p, label in [('1d','1D'),('7d','7D'),('1m','1M'),('3m','3M'),('6m','6M'),('ytd','YTD'),('1y','1A'),('3y','3A'),('5y','5A'),('10y','10A'),('all','Todo')] %}
+          <button class="btn btn-sm {% if p == 'all' %}btn-dark{% else %}btn-outline-secondary{% endif %}"
+                  onclick="setPeriod('{{ p }}')" id="period-{{ p }}" style="font-size:0.75rem; min-width:38px; padding: 0.25rem 0.45rem;">{{ label }}</button>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- BARRA DE ESTADÍSTICAS HORIZONTAL ULTRA-COMPACTA (ESTILO TICKER / KOYFIN) -->
+    <div class="card border border-light-subtle shadow-sm mb-3 bg-white rounded-3">
+      <div class="card-body p-2.5">
+        <div class="row g-2 align-items-center text-center">
+          <!-- Rentabilidad Total -->
+          <div class="col-6 col-md border-end border-light-subtle">
+            <div class="text-muted text-uppercase mb-1" id="kpiTotalLabel" style="font-size:0.58rem; letter-spacing:0.04em; font-weight:700;">Rentabilidad Total</div>
+            <span class="fw-bold fs-6 lh-1" id="kpiTotal">—</span>
+          </div>
+          <!-- CAGR -->
+          <div class="col-6 col-md border-end border-light-subtle">
+            <div class="text-muted text-uppercase mb-1" id="kpiCagrLabel" style="font-size:0.58rem; letter-spacing:0.04em; font-weight:700;">CAGR</div>
+            <span class="fw-bold fs-6 lh-1" id="kpiCagr">—</span>
+            <div id="kpiBenchCagr" class="text-muted mt-1" style="font-size:0.55rem; line-height:1.1;"></div>
+          </div>
+          <!-- Máx. Drawdown -->
+          <div class="col-6 col-md border-end border-light-subtle">
+            <div class="text-muted text-uppercase mb-1" id="kpiDDLabel" style="font-size:0.58rem; letter-spacing:0.04em; font-weight:700;">Máx. Drawdown</div>
+            <span class="fw-bold fs-6 text-danger lh-1" id="kpiDD">—</span>
+          </div>
+          <!-- Beneficio Realizado -->
+          <div class="col-6 col-md border-end border-light-subtle">
+            <div class="text-muted text-uppercase mb-1" style="font-size:0.58rem; letter-spacing:0.04em; font-weight:700;">Bf. Realizado</div>
+            <span class="fw-bold fs-6 lh-1 {% if total_realized_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
+              {% if total_realized_pnl >= 0 %}+{% endif %}{{ "{:,.0f}".format(total_realized_pnl) }} €
+            </span>
+          </div>
+          <!-- Mejor Mes -->
+          <div class="col-6 col-md border-end border-light-subtle">
+            <div class="text-muted text-uppercase mb-0.5" style="font-size:0.58rem; letter-spacing:0.04em;">Mejor Mes</div>
+            <span id="kpiBestMonth" class="fw-bold fs-6 text-success lh-1">—</span>
+            <span id="kpiBestMonthLabel" class="text-muted d-block mt-0.5" style="font-size:0.55rem; line-height: 1.1;"></span>
+          </div>
+          <!-- Peor Mes -->
+          <div class="col-6 col-md border-end border-light-subtle">
+            <div class="text-muted text-uppercase mb-0.5" style="font-size:0.58rem; letter-spacing:0.04em;">Peor Mes</div>
+            <span id="kpiWorstMonth" class="fw-bold fs-6 text-danger lh-1">—</span>
+            <span id="kpiWorstMonthLabel" class="text-muted d-block mt-0.5" style="font-size:0.55rem; line-height: 1.1;"></span>
+          </div>
+          <!-- Volatilidad Anual -->
+          <div class="col-6 col-md border-end border-light-subtle">
+            <div class="text-muted text-uppercase mb-0.5" style="font-size:0.58rem; letter-spacing:0.04em;">Volatilidad Anual</div>
+            <span id="kpiVol" class="fw-bold fs-6 text-dark lh-1">—</span>
+            <span class="text-muted d-block mt-0.5" style="font-size:0.55rem; line-height: 1.1;">(desv. × √12)</span>
+          </div>
+          <!-- Meses Positivos -->
+          <div class="col-6 col-md">
+            <div class="text-muted text-uppercase mb-0.5" style="font-size:0.58rem; letter-spacing:0.04em;">Meses Positivos</div>
+            <span id="kpiPosMths" class="fw-bold fs-6 text-success lh-1">—</span>
+            <span id="kpiPosMthsSub" class="text-muted d-block mt-0.5" style="font-size:0.55rem; line-height: 1.1;"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráfica principal (mejorada y profesional) -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        
+        <!-- Contenedor a pantalla completa para el gráfico -->
+        <div class="row">
+          <div class="col-12">
+            <div id="perf-chart" style="height:340px;"></div>
+            
+            <!-- Leyenda Interactiva con botón de Ojo para ocultar/mostrar -->
+            <div id="custom-legend" class="d-flex flex-wrap gap-2 justify-content-center mt-3 mb-2"></div>
+            
+            <div class="border-top mt-3 pt-3">
+              <div class="text-muted mb-1" style="font-size:0.7rem;letter-spacing:.05em;text-transform:uppercase;">Drawdown desde máximo</div>
+              <div id="drawdown-chart" style="height:100px;"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Tablas anuales + mensuales en una sola card con sub-tabs -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-header bg-white border-0 pt-2 pb-0">
+        <ul class="nav nav-pills gap-1 pb-2" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-semibold" id="tab-annual-btn"
+                    data-bs-toggle="tab" data-bs-target="#pane-annual" type="button" role="tab">Por año</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link fw-semibold" id="tab-monthly-btn"
+                    data-bs-toggle="tab" data-bs-target="#pane-monthly" type="button" role="tab">Por mes</button>
+          </li>
+        </ul>
+      </div>
+      <div class="tab-content">
+        <!-- Sub-tab: Por año -->
+        <div class="tab-pane fade show active" id="pane-annual" role="tabpanel">
+          {% if annual_returns %}
+          <div class="px-3 pt-3 pb-1 d-flex justify-content-between align-items-center">
+            <small class="text-muted" style="font-size:0.72rem;">% anual. En modo € = retorno% × valor al inicio del año.</small>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-primary active" id="btnAnnualPct" onclick="setAnnualMode('pct')">%</button>
+              <button class="btn btn-outline-primary" id="btnAnnualEur" onclick="setAnnualMode('eur')">€</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 text-center" style="font-size:0.88rem;" id="annualTable">
+              <thead class="table-light">
+                <tr>
+                  <th class="ps-4 text-start">Año</th>
+                  <th>Mi Cartera</th>
+                  {% for bench_name in perf_benchmarks.keys() %}
+                  <th class="bench-col">{{ bench_name }}</th>
+                  {% endfor %}
+                  <th class="pe-4 alfa-col">Alfa vs MSCI</th>
+                </tr>
+              </thead>
+              <tbody id="annualTableBody">
+                {% for row in annual_returns %}
+                {% set msci_ret = row.get("MSCI World") %}
+                {% set alfa = (row.portfolio - msci_ret) if msci_ret is not none else none %}
+                <tr data-year="{{ row.year }}" data-port="{{ row.portfolio }}"
+                    data-msci="{{ msci_ret if msci_ret is not none else '' }}"
+                    data-sp="{{ row.get('S&P 500') if row.get('S&P 500') is not none else '' }}"
+                    data-alfa="{{ alfa if alfa is not none else '' }}">
+                  <td class="ps-4 text-start fw-bold">{{ row.year }}</td>
+                  <td class="fw-bold cell-port {% if row.portfolio >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    {% if row.portfolio >= 0 %}+{% endif %}{{ "{:.2f}".format(row.portfolio) }}%
+                  </td>
+                  {% for bench_name in perf_benchmarks.keys() %}
+                  {% set bret = row.get(bench_name) %}
+                  <td class="bench-col {% if bret is not none and bret >= 0 %}text-success{% elif bret is not none %}text-danger{% else %}text-muted{% endif %}">
+                    {% if bret is not none %}{% if bret >= 0 %}+{% endif %}{{ "{:.2f}".format(bret) }}%{% else %}—{% endif %}
+                  </td>
+                  {% endfor %}
+                  <td class="pe-4 fw-bold alfa-col {% if alfa is not none and alfa >= 0 %}text-success{% elif alfa is not none %}text-danger{% else %}text-muted{% endif %}">
+                    {% if alfa is not none %}{% if alfa >= 0 %}+{% endif %}{{ "{:.2f}".format(alfa) }}%{% else %}—{% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-center text-muted py-4 small">Sin datos de rentabilidad anual disponibles.</div>
+          {% endif %}
+        </div>
+        <!-- Sub-tab: Por mes -->
+        <div class="tab-pane fade" id="pane-monthly" role="tabpanel">
+          <div class="px-3 pt-3 pb-1 d-flex justify-content-between align-items-center">
+            <small class="text-muted" style="font-size:0.72rem;">TWR mensual sin efecto de aportaciones.</small>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-primary active" id="btnMonthlyPct" onclick="setMonthlyMode('pct')">%</button>
+              <button class="btn btn-outline-primary" id="btnMonthlyEur" onclick="setMonthlyMode('eur')">€</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size:0.82rem;" id="monthlyTable">
+              <thead class="table-light" id="monthlyTableHead"><tr></tr></thead>
+              <tbody id="monthlyTableBody">
+                <tr><td colspan="10" class="text-center text-muted py-3 small">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Pestaña Fundamentales -->
+  <div class="tab-pane fade" id="fund-pane" role="tabpanel" aria-labelledby="fund-tab">
+    
+    <div class="row g-4 mb-4">
+      <!-- Tarjeta 1: Calidad, Crecimiento y Riesgo (Ponderadas) -->
+      <div class="col-12 col-xl-6">
+        <div class="card h-100 shadow-sm border-0 bg-white rounded-3">
+          <div class="card-header bg-white border-bottom border-light-subtle py-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h6 class="fw-bold mb-0 text-dark" style="font-size:0.9rem;">
+                  <i class="bi bi-cpu text-primary me-1.5"></i>Calidad, Crecimiento y Riesgo (Ponderado)
+                </h6>
+                <div class="text-muted small mt-0.5" style="font-size:0.72rem;">Eficiencia operativa, velocidad de crecimiento y perfil de volatilidad.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-body p-3">
+            <div class="row g-3 align-items-center text-center">
+              <!-- ROIC -->
+              <div class="col-4 border-end border-light-subtle">
+                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">ROIC (TTM)</div>
+                <span class="fw-bold fs-5 text-success lh-1">{{ "{:,.1f}%".format(port_roic) }}</span>
+                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Retorno Capital</div>
+              </div>
+              <!-- Crecimiento -->
+              <div class="col-4 border-end border-light-subtle">
+                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Crecimiento (NTM)</div>
+                <span class="fw-bold fs-5 text-success lh-1">{{ "{:,.1f}%".format(port_growth) }}</span>
+                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Ingresos Esperados</div>
+              </div>
+              <!-- Beta -->
+              <div class="col-4">
+                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Beta Cartera</div>
+                <span class="fw-bold fs-5 text-secondary lh-1">{{ "{:,.2f}".format(port_beta) }}</span>
+                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">vs. MSCI World</div>
+              </div>
+              
+              <div class="col-12 border-top border-light-subtle pt-3">
+                <div class="row text-center">
+                  <!-- M. Bruto -->
+                  <div class="col-4 border-end border-light-subtle">
+                    <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Margen Bruto</div>
+                    <span class="fw-bold fs-6 text-dark lh-1">{{ "{:,.1f}%".format(port_gross_margin) }}</span>
+                  </div>
+                  <!-- M. Operativo -->
+                  <div class="col-4 border-end border-light-subtle">
+                    <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Margen Operativo</div>
+                    <span class="fw-bold fs-6 text-dark lh-1">{{ "{:,.1f}%".format(port_operating_margin) }}</span>
+                  </div>
+                  <!-- Alfa -->
+                  <div class="col-4">
+                    <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Alfa de Jensen</div>
+                    <span class="fw-bold fs-6 {% if port_alpha >= 0 %}text-success{% else %}text-danger{% endif %} lh-1">
+                      {% if port_alpha >= 0 %}+{% endif %}{{ "{:,.2f}%".format(port_alpha) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Tarjeta 2: Valoración, Dividendos y Solvencia (Ponderadas) -->
+      <div class="col-12 col-xl-6">
+        <div class="card h-100 shadow-sm border-0 bg-white rounded-3">
+          <div class="card-header bg-white border-bottom border-light-subtle py-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h6 class="fw-bold mb-0 text-dark" style="font-size:0.9rem;">
+                  <i class="bi bi-wallet2 text-primary me-1.5"></i>Valoración, Dividendos y Solvencia (Ponderado)
+                </h6>
+                <div class="text-muted small mt-0.5" style="font-size:0.72rem;">Múltiplos de precio, rendimiento por caja, dividendo y apalancamiento.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-body p-3">
+            <div class="row g-3 align-items-center text-center">
+              <!-- PER Forward -->
+              <div class="col-3 border-end border-light-subtle">
+                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PER Forward</div>
+                <span class="fw-bold fs-5 text-dark lh-1">{{ "{:,.1f}x".format(port_forward_pe) }}</span>
+                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Beneficios NTM</div>
+              </div>
+              <!-- FCF Yield -->
+              <div class="col-3 border-end border-light-subtle">
+                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">FCF Yield</div>
+                <span class="fw-bold fs-5 text-success lh-1">{{ "{:,.2f}%".format(port_fcf_yield) }}</span>
+                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Rendimiento Caja</div>
+              </div>
+              <!-- Deuda Neta / EBITDA -->
+              <div class="col-3 border-end border-light-subtle">
+                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Deuda / EBITDA</div>
+                <span class="fw-bold fs-5 {% if port_net_debt_ebitda <= 1.5 %}text-success{% else %}text-warning{% endif %} lh-1">{{ "{:,.2f}x".format(port_net_debt_ebitda) }}</span>
+                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Solvencia</div>
+              </div>
+              <!-- Dividend Yield -->
+              <div class="col-3">
+                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Div. Yield</div>
+                <span class="fw-bold fs-5 text-primary lh-1">{{ "{:,.2f}%".format(port_yield) }}</span>
+                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Dividendo Cartera</div>
+              </div>
+              
+              <div class="col-12 border-top border-light-subtle pt-3">
+                <div class="row text-center">
+                  <!-- PER Trailing -->
+                  <div class="col-4 border-end border-light-subtle">
+                    <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PER Trailing</div>
+                    <span class="fw-bold fs-6 text-dark lh-1">{{ "{:,.1f}x".format(port_trailing_pe) }}</span>
+                  </div>
+                  <!-- PEG Ratio -->
+                  <div class="col-4 border-end border-light-subtle">
+                    <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PEG Ratio</div>
+                    <span class="fw-bold fs-6 text-dark lh-1">{{ "{:,.2f}".format(port_peg) }}</span>
+                  </div>
+                  <!-- Liquidez -->
+                  <div class="col-4">
+                    <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Liquidez Corr.</div>
+                    <span class="fw-bold fs-6 text-success lh-1">{{ "{:,.2f}".format(port_current_ratio) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabla Detallada por Compañía -->
+    <div class="card shadow-sm border-0 mb-4 bg-white rounded-3">
+      <div class="card-header bg-white border-bottom border-light-subtle py-3">
+        <h5 class="fw-bold mb-0 text-dark" style="font-size:0.95rem;">
+          <i class="bi bi-building text-primary me-1.5"></i>Desglose de Fundamentales por Compañía
+        </h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-modern align-middle mb-0" id="fundamentalsTable" style="font-size:0.85rem;">
+            <thead>
+              <tr style="cursor: pointer; user-select: none; font-size:0.75rem;" class="table-light">
+                <th class="ps-4" onclick="sortTable('fundamentalsTable', 0, false)">Activo <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th onclick="sortTable('fundamentalsTable', 1, false)">Compañía <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 2, true)">Peso % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 3, true)">Beta <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 4, true)">ROIC <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 5, true)">Crecimiento <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 6, true)">M. Bruto <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 7, true)">M. Oper. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 8, true)">PER Trail. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 9, true)">PER Fwd. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 10, true)">PEG <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 11, true)">Yield FCF <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 12, true)">Deuda/EBITDA <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 13, true)">Liquidez <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end pe-4" onclick="sortTable('fundamentalsTable', 14, true)">Yield Div. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in portfolio %}
+              {% set peso = (item.current_value_eur / total_current_value * 100) if total_current_value > 0 else 0 %}
+              <tr>
+                <td class="ps-4 align-middle">
+                  <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(item.ticker) }}</a>
+                </td>
+                <td class="text-muted align-middle text-truncate" style="max-width: 140px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
+                <td class="text-end num-font align-middle fw-semibold" data-sort-value="{{ peso }}">{{ "{:.1f}%".format(peso) }}</td>
+                <td class="text-end num-font align-middle text-muted" data-sort-value="{{ item.beta if item.beta is not none else -100 }}">
+                  {{ "{:,.2f}".format(item.beta) if item.beta is not none else '—' }}
+                </td>
+                <td class="text-end num-font align-middle fw-bold {% if item.roic is not none %}{% if item.roic > 15 %}text-success{% elif item.roic > 8 %}text-dark{% else %}text-danger{% endif %}{% endif %}" data-sort-value="{{ item.roic if item.roic is not none else -100 }}">
+                  {{ "{:,.1f}%".format(item.roic) if item.roic is not none else '—' }}
+                </td>
+                <td class="text-end num-font align-middle fw-bold {% if item.expected_growth is not none %}{% if item.expected_growth > 12 %}text-success{% elif item.expected_growth > 5 %}text-dark{% else %}text-danger{% endif %}{% endif %}" data-sort-value="{{ item.expected_growth if item.expected_growth is not none else -100 }}">
+                  {{ "{:,.1f}%".format(item.expected_growth) if item.expected_growth is not none else '—' }}
+                </td>
+                <td class="text-end num-font align-middle text-muted" data-sort-value="{{ item.gross_margin if item.gross_margin is not none else -100 }}">
+                  {{ "{:,.1f}%".format(item.gross_margin) if item.gross_margin is not none else '—' }}
+                </td>
+                <td class="text-end num-font align-middle text-muted" data-sort-value="{{ item.operating_margin if item.operating_margin is not none else -100 }}">
+                  {{ "{:,.1f}%".format(item.operating_margin) if item.operating_margin is not none else '—' }}
+                </td>
+                <!-- PER Trailing -->
+                <td class="text-end num-font align-middle" data-sort-value="{{ item.trailing_pe if item.trailing_pe is not none else -100 }}">
+                  {{ "{:,.1f}x".format(item.trailing_pe) if item.trailing_pe is not none else '—' }}
+                </td>
+                <!-- PER Forward -->
+                <td class="text-end num-font align-middle fw-semibold" data-sort-value="{{ item.forward_pe if item.forward_pe is not none else -100 }}">
+                  {{ "{:,.1f}x".format(item.forward_pe) if item.forward_pe is not none else '—' }}
+                </td>
+                <!-- PEG Ratio -->
+                <td class="text-end num-font align-middle {% if item.peg_ratio is not none %}{% if item.peg_ratio <= 1.5 %}text-success{% else %}text-muted{% endif %}{% endif %}" data-sort-value="{{ item.peg_ratio if item.peg_ratio is not none else 100 }}">
+                  {{ "{:,.2f}".format(item.peg_ratio) if item.peg_ratio is not none else '—' }}
+                </td>
+                <!-- Yield FCF -->
+                <td class="text-end num-font align-middle fw-semibold text-success" data-sort-value="{{ item.fcf_yield if item.fcf_yield is not none else -100 }}">
+                  {{ "{:,.1f}%".format(item.fcf_yield) if item.fcf_yield is not none else '—' }}
+                </td>
+                <!-- Deuda / EBITDA -->
+                <td class="text-end num-font align-middle fw-semibold {% if item.net_debt_ebitda is not none %}{% if item.net_debt_ebitda <= 1.0 %}text-success{% elif item.net_debt_ebitda <= 2.5 %}text-dark{% else %}text-warning{% endif %}{% endif %}" data-sort-value="{{ item.net_debt_ebitda if item.net_debt_ebitda is not none else 100 }}">
+                  {{ "{:,.2f}x".format(item.net_debt_ebitda) if item.net_debt_ebitda is not none else '—' }}
+                </td>
+                <!-- Liquidez corriente -->
+                <td class="text-end num-font align-middle" data-sort-value="{{ item.current_ratio if item.current_ratio is not none else -100 }}">
+                  {{ "{:,.2f}".format(item.current_ratio) if item.current_ratio is not none else '—' }}
+                </td>
+                <!-- Dividend Yield -->
+                <td class="text-end num-font align-middle pe-4 text-primary fw-semibold" data-sort-value="{{ item.dividend_yield if item.dividend_yield is not none else -100 }}">
+                  {{ "{:,.2f}%".format(item.dividend_yield) if item.dividend_yield is not none else '—' }}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Pestaña Dividendos -->
+  <div class="tab-pane fade" id="div-pane" role="tabpanel" aria-labelledby="div-tab">
+
+    <!-- Recuadro resumen de ingresos -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body py-3">
+        <div class="row align-items-center g-0">
+          <div class="col-auto pe-4 border-end me-4">
+            <div class="text-muted fw-bold mb-1" style="font-size:0.72rem;letter-spacing:.05em;">INGRESOS POR DIVIDENDO</div>
+            <div class="d-flex align-items-baseline gap-2">
+              <span class="fw-bold" style="font-size:1.05rem;">Resumen</span>
+            </div>
+          </div>
+          <div class="col border-end pe-4 me-4">
+            <div class="text-muted" style="font-size:0.72rem;">COBRADO {{ div_kpis.current_year }}</div>
+            <div class="fw-bold num-font" style="font-size:1.25rem;">{{ "{:,.2f}".format(div_kpis.total_ytd) }} €</div>
+            {% if div_kpis.yoy_change is not none %}
+            <small class="{% if div_kpis.yoy_change >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size:0.78rem;">
+              {% if div_kpis.yoy_change >= 0 %}▲{% else %}▼{% endif %} {{ "{:.1f}".format(div_kpis.yoy_change | abs) }}% vs {{ div_kpis.current_year - 1 }}
+            </small>
+            {% endif %}
+          </div>
+          <div class="col border-end pe-4 me-4">
+            <div class="text-muted" style="font-size:0.72rem;">COBRADO {{ div_kpis.current_year - 1 }}</div>
+            <div class="fw-bold num-font" style="font-size:1.25rem;">{{ "{:,.2f}".format(div_kpis.total_last_year) }} €</div>
+          </div>
+          <div class="col border-end pe-4 me-4">
+            <div class="text-muted" style="font-size:0.72rem;">MEDIA MENSUAL (12M)</div>
+            <div class="fw-bold num-font" style="font-size:1.25rem;">{{ "{:,.2f}".format(div_kpis.avg_monthly) }} €</div>
+            <small class="text-muted" style="font-size:0.78rem;">≈ {{ "{:,.2f}".format(div_kpis.avg_monthly * 12) }} €/año</small>
+          </div>
+          <div class="col">
+            <div class="text-muted" style="font-size:0.72rem;">PRÓXIMO PAGO</div>
+            {% if upcoming_dividends %}
+              {% set nxt = upcoming_dividends[0] %}
+              <div class="fw-bold text-success num-font" style="font-size:1.25rem;">+{{ "{:.2f}".format(nxt.total_amount) }} {{ nxt.currency_code }}</div>
+              <small class="text-muted" style="font-size:0.78rem;">
+                <span class="fw-semibold">{{ clean_ticker(nxt.ticker) }}</span>
+                · {{ nxt.pay_date.strftime('%d/%m/%Y') if nxt.pay_date else (nxt.date.strftime('%d/%m/%Y') if nxt.date else '—') }}
+              </small>
+            {% else %}
+              <div class="fw-bold text-muted num-font" style="font-size:1.25rem;">—</div>
+              <small class="text-muted" style="font-size:0.78rem;">Sin datos</small>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráfico -->
+    <div class="card shadow-sm border-0 mb-4">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">Cobrados por Año</h6>
+        <div id="div-chart" style="height:260px;"></div>
+      </div>
+    </div>
+
+    <!-- Dos paneles lado a lado: Próximos | Últimos Cobrados -->
+    <div class="row g-3">
+
+      <!-- Próximos Estimados -->
+      <div class="col-xl-6">
+        <div class="card shadow-sm border-0 h-100">
+          <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="fw-bold mb-0"><i class="bi bi-calendar-check me-1 text-success"></i>Próximos Estimados</h6>
+              <small class="text-muted" style="font-size:0.72rem;">Dividendos pendientes de cobro</small>
+            </div>
+            <span class="badge bg-success bg-opacity-10 text-success fw-semibold" id="upcomingCount">{{ upcoming_dividends | length }}</span>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-modern align-middle mb-0" style="font-size:0.85rem;">
+                <thead>
+                  <tr>
+                    <th class="ps-3">Activo</th>
+                    <th>Ex-Date</th>
+                    <th>Cobro</th>
+                    <th class="text-end">Por acc.</th>
+                    <th class="text-end pe-3">Total est.</th>
+                  </tr>
+                </thead>
+                <tbody id="upcomingBody">
+                  {% if upcoming_dividends %}
+                    {% for div in upcoming_dividends %}
+                    <tr class="div-upcoming-row">
+                      <td class="ps-3 fw-bold">{{ clean_ticker(div.ticker) }}</td>
+                      <td class="num-font">{{ div.date.strftime('%d/%m/%Y') if div.date else '—' }}</td>
+                      <td class="num-font">{{ div.pay_date.strftime('%d/%m/%Y') if div.pay_date else '—' }}</td>
+                      <td class="text-end num-font">{{ "{:.4f}".format(div.amount_per_share) }} {{ div.currency_code }}</td>
+                      <td class="text-end pe-3 fw-bold text-success num-font">+{{ "{:.2f}".format(div.total_amount) }} {{ div.currency_code }}</td>
+                    </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="5" class="text-center text-muted py-4 small">Sin dividendos confirmados próximamente</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+            {% if upcoming_dividends | length > 8 %}
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+              <small class="text-muted" id="upcomingPageInfo"></small>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" onclick="divPage('upcoming', -1)"><i class="bi bi-chevron-left"></i></button>
+                <button class="btn btn-outline-secondary" onclick="divPage('upcoming', 1)"><i class="bi bi-chevron-right"></i></button>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Últimos Cobrados -->
+      <div class="col-xl-6">
+        <div class="card shadow-sm border-0 h-100">
+          <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
+            <div>
+              <h6 class="fw-bold mb-0"><i class="bi bi-check2-circle me-1 text-primary"></i>Últimos Cobrados</h6>
+              <small class="text-muted" style="font-size:0.72rem;">Dividendos recibidos</small>
+            </div>
+            <span class="badge bg-primary bg-opacity-10 text-primary fw-semibold" id="latestCount">{{ latest_dividends | length }}</span>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-modern align-middle mb-0" style="font-size:0.85rem;">
+                <thead>
+                  <tr>
+                    <th class="ps-3">Activo</th>
+                    <th>Fecha</th>
+                    <th class="text-end">Por acc.</th>
+                    <th class="text-end pe-3">Total cobrado</th>
+                  </tr>
+                </thead>
+                <tbody id="latestBody">
+                  {% if latest_dividends %}
+                    {% for div in latest_dividends %}
+                    <tr class="div-latest-row">
+                      <td class="ps-3 fw-bold">{{ clean_ticker(div.ticker) }}</td>
+                      <td class="num-font">
+                        {{ div.date[8:10] + '/' + div.date[5:7] + '/' + div.date[0:4] if div.date and div.date|length >= 10 else div.date or '—' }}
+                      </td>
+                      <td class="text-end num-font">{{ "{:.4f}".format(div.amount_per_share) }} {{ div.currency_code }}</td>
+                      <td class="text-end pe-3 fw-bold text-success num-font">+{{ "{:.2f}".format(div.total_amount) }} {{ div.currency_code }}</td>
+                    </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="4" class="text-center text-muted py-4 small">No hay registro de dividendos cobrados</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+            {% if latest_dividends | length > 8 %}
+            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+              <small class="text-muted" id="latestPageInfo"></small>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" onclick="divPage('latest', -1)"><i class="bi bi-chevron-left"></i></button>
+                <button class="btn btn-outline-secondary" onclick="divPage('latest', 1)"><i class="bi bi-chevron-right"></i></button>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Pestaña Histórico Cerrado -->
+  <div class="tab-pane fade" id="closed-pane" role="tabpanel" aria-labelledby="closed-tab">
+    
+    <!-- KPI Cards de Historial -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center py-3">
+            <div class="text-muted small mb-1">Ganancias Realizadas</div>
+            <div class="fw-bold fs-5 text-success" id="histGains">0,00 €</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center py-3">
+            <div class="text-muted small mb-1">Pérdidas Realizadas</div>
+            <div class="fw-bold fs-5 text-danger" id="histLosses">0,00 €</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center py-3">
+            <div class="text-muted small mb-1">Dividendos Cobrados</div>
+            <div class="fw-bold fs-5 text-primary" id="histDividends">0,00 €</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body text-center py-3">
+            <div class="text-muted small mb-1">Resultado Neto</div>
+            <div class="fw-bold fs-5" id="histNet">0,00 €</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selector de Sub-pestañas en Historial -->
+    <ul class="nav nav-pills justify-content-center gap-2 mb-4" id="closedSubTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active fw-bold px-4 py-2 shadow-sm border" id="closed-summary-tab" data-bs-toggle="pill" data-bs-target="#closed-summary-pane" type="button" role="tab" aria-controls="closed-summary-pane" aria-selected="true">
+          <i class="bi bi-collection-fill me-1_5"></i>Posiciones Cerradas
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link text-muted fw-bold px-4 py-2 shadow-sm border" id="closed-tx-tab" data-bs-toggle="pill" data-bs-target="#closed-tx-pane" type="button" role="tab" aria-controls="closed-tx-pane" aria-selected="false">
+          <i class="bi bi-list-ul me-1_5"></i>Detalle de Operaciones
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content" id="closedSubTabsContent">
+      
+      <!-- Sub-pestaña A: Resumen de Posiciones Cerradas -->
+      <div class="tab-pane fade show active" id="closed-summary-pane" role="tabpanel" aria-labelledby="closed-summary-tab">
+        <div class="card shadow-sm border-0 mb-4">
+          <div class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center pb-2">
+            <div>
+              <h5 class="fw-bold mb-0">Resumen de Posiciones Cerradas</h5>
+              <small class="text-muted" style="font-size:0.72rem;">
+                Rendimiento histórico agrupado por activo vendido por completo.
+              </small>
+            </div>
+            <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('closedPositionsTable', 'closed-positions-summary.csv')" title="Exportar a CSV">
+              <i class="bi bi-download me-1"></i>CSV
+            </button>
+          </div>
+          
+          <!-- Filtros de Posiciones Cerradas -->
+          <div class="card-body py-2 border-bottom border-top bg-light">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <div class="input-group input-group-sm bg-white shadow-sm rounded border-0" style="max-width: 200px;">
+                <span class="input-group-text border-0 bg-transparent text-muted pe-1">
+                  <i class="bi bi-search" style="font-size: 0.75rem;"></i>
+                </span>
+                <input type="text" id="closedPosSearch" class="form-control border-0 bg-transparent ps-1" placeholder="Buscar...">
+              </div>
+              <div class="ms-md-auto d-flex align-items-center gap-2">
+                <span class="small text-muted fw-bold">P&amp;L:</span>
+                <div class="btn-group btn-group-sm">
+                  <button class="btn btn-sm btn-dark" id="pnlFilter-all" onclick="setClosedPnlFilter('all')">Todas</button>
+                  <button class="btn btn-sm btn-outline-secondary" id="pnlFilter-profit" onclick="setClosedPnlFilter('profit')">Ganadoras</button>
+                  <button class="btn btn-sm btn-outline-secondary" id="pnlFilter-loss" onclick="setClosedPnlFilter('loss')">Perdedoras</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-body p-0">
+            {% if closed_portfolio %}
+            <div class="table-responsive">
+              <table class="table table-modern align-middle mb-0" id="closedPositionsTable">
+                <thead>
+                  <tr style="cursor: pointer; user-select: none;">
+                    <th class="ps-4" onclick="sortTable('closedPositionsTable', 0, false)">Activo <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th onclick="sortTable('closedPositionsTable', 1, false)">Empresa <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 2, true)">Títulos <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 3, true)">Pr. Compra <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 4, true)">Pr. Venta <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 5, true)">Coste Total <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 6, true)">Total Cobrado <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 7, true)">CAGR % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 8, true)">Divs Cobrados <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end pe-4" onclick="sortTable('closedPositionsTable', 9, true)">P&amp;L Realizado <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in closed_portfolio %}
+                  <tr class="closed-pos-row">
+                    <td class="ps-4 align-middle">
+                      <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(item.ticker) }}</a>
+                    </td>
+                    <td class="text-muted align-middle text-truncate" style="max-width: 150px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.total_shares_sold }}">{{ "{:,.2f}".format(item.total_shares_sold) }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.average_buy_price }}">{{ "{:,.2f}".format(item.average_buy_price) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.average_sell_price or 0 }}">
+                      {% if item.current_price > 0 %}
+                        <span class="border-bottom border-dashed cursor-help" 
+                              data-bs-toggle="tooltip" 
+                              data-bs-html="true" 
+                              data-bs-placement="top" 
+                              title="
+                                <div class='text-start p-1' style='font-size:0.75rem; max-width: 220px;'>
+                                  <strong class='d-block mb-1 border-bottom pb-1 text-white'>🔍 Efecto Salida Actual</strong>
+                                  Precio actual de mercado: <strong>{{ '{:,.2f}'.format(item.current_price) }} {{ item.currency_symbol }}</strong><br>
+                                  {% if item.opp_diff_eur > 0 %}
+                                    <span class='text-warning fw-bold'>Costo de Oportunidad: -{{ '{:,.2f}'.format(item.opp_diff_eur) }} €</span>
+                                    <p class='text-white-50 m-0 mt-1 small'>La cotización ha subido desde que vendiste.</p>
+                                  {% elif item.opp_diff_eur < 0 %}
+                                    <span class='text-success fw-bold'>🛡️ Pérdida Evitada: +{{ '{:,.2f}'.format(item.opp_diff_eur|abs) }} €</span>
+                                    <p class='text-white-50 m-0 mt-1 small'>¡Excelente venta! Evitaste pérdidas al vender a tiempo.</p>
+                                  {% else %}
+                                    <span class='text-muted'>Sin variaciones</span>
+                                  {% endif %}
+                                </div>
+                              ">
+                          {{ "{:,.2f}".format(item.average_sell_price or 0) }} {{ item.currency_symbol }}
+                        </span>
+                      {% else %}
+                        {{ "{:,.2f}".format(item.average_sell_price or 0) }} {{ item.currency_symbol }}
+                      {% endif %}
+                    </td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.invested_value }}">{{ "{:,.2f}".format(item.invested_value) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.total_sell_revenue }}">{{ "{:,.2f}".format(item.total_sell_revenue) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end num-font align-middle fw-semibold {% if item.cagr and item.cagr > 0 %}text-success{% elif item.cagr and item.cagr < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ item.cagr or -9999 }}">
+                      {% if item.cagr is not none %}{{ "{:,.2f}".format(item.cagr) }}%{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end num-font align-middle text-primary" data-sort-value="{{ item.dividends_collected }}">
+                      {% if item.dividends_collected > 0 %}{{ "{:,.2f}".format(item.dividends_collected) }} {{ item.currency_symbol }}{% else %}—{% endif %}
+                    </td>
+
+                    <td class="text-end num-font align-middle pe-4" data-sort-value="{{ item.total_profit_closed_eur }}">
+                      <div class="fw-bold {% if item.total_profit_closed_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        {% if item.total_profit_closed_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(item.total_profit_closed_eur) }} €
+                      </div>
+                      <small class="text-muted" style="font-size:0.7rem;">
+                        {% if item.return_pct >= 0 %}+{% endif %}{{ "{:,.2f}".format(item.return_pct) }}%
+                      </small>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <!-- Paginación de Posiciones Cerradas (Compacta Derecha) -->
+            <div class="d-flex justify-content-end align-items-center gap-2 px-4 py-2 border-top bg-light rounded-bottom">
+              <span class="num-font small fw-bold text-muted me-2" id="closedPosPageInfo">Pág. 1 / 1</span>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-sm btn-outline-secondary rounded-circle" onclick="closedPosPage(-1)" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; margin-right:4px;">
+                  <i class="bi bi-chevron-left" style="font-size:0.72rem;"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary rounded-circle" onclick="closedPosPage(1)" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
+                  <i class="bi bi-chevron-right" style="font-size:0.72rem;"></i>
+                </button>
+              </div>
+            </div>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+              <i class="bi bi-archive fs-3 d-block mb-2 opacity-50"></i>
+              No se han encontrado posiciones cerradas en el histórico.
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div> <!-- fin closed-summary-pane -->
+
+      <!-- Sub-pestaña B: Detalle de Operaciones Individuales -->
+      <div class="tab-pane fade" id="closed-tx-pane" role="tabpanel" aria-labelledby="closed-tx-tab">
+        <!-- Filtros de Periodo y Fecha con Buscador e Tipo integrados (Estilo Sutil Premium) -->
+        <div class="card shadow-sm border-0 mb-4 bg-light">
+          <div class="card-body py-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <div class="input-group input-group-sm bg-white shadow-sm rounded border-0" style="max-width: 180px;">
+                <span class="input-group-text border-0 bg-transparent text-muted pe-1">
+                  <i class="bi bi-search" style="font-size: 0.75rem;"></i>
+                </span>
+                <input type="text" id="closedTxSearch" class="form-control border-0 bg-transparent ps-1" placeholder="Buscar...">
+              </div>
+              
+              <div class="d-flex gap-1 flex-wrap ms-md-2">
+                <button class="btn btn-sm btn-dark" onclick="setHistPeriod('all')" id="histBtn-all">Todo</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="setHistPeriod('month')" id="histBtn-month">Este Mes</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="setHistPeriod('3m')" id="histBtn-3m">3 Meses</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="setHistPeriod('ytd')" id="histBtn-ytd">YTD</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="setHistPeriod('1y')" id="histBtn-1y">Último Año</button>
+              </div>
+              
+              <div class="ms-md-auto d-flex align-items-center gap-2 flex-wrap">
+                <div class="input-group input-group-sm" style="max-width: 130px;">
+                  <span class="input-group-text bg-white border-0 shadow-sm text-muted" style="font-size: 0.75rem;">Tipo</span>
+                  <select class="form-select border-0 bg-white shadow-sm" id="histTypeFilter" onchange="applyHistFilters(true)" style="font-size: 0.75rem;">
+                    <option value="all">Todos</option>
+                    <option value="COMPRA">Compras</option>
+                    <option value="VENTA">Ventas</option>
+                    <option value="DIVIDENDO">Dividendos</option>
+                  </select>
+                </div>
+                
+                <div class="input-group input-group-sm" style="max-width: 165px;">
+                  <span class="input-group-text bg-white border-0 shadow-sm text-muted" style="font-size: 0.75rem;">Desde</span>
+                  <input type="date" class="form-control border-0 bg-white shadow-sm" id="histDateFrom" onchange="applyHistFilters(true)" style="font-size: 0.75rem;">
+                </div>
+                
+                <div class="input-group input-group-sm" style="max-width: 165px;">
+                  <span class="input-group-text bg-white border-0 shadow-sm text-muted" style="font-size: 0.75rem;">Hasta</span>
+                  <input type="date" class="form-control border-0 bg-white shadow-sm" id="histDateTo" onchange="applyHistFilters(true)" style="font-size: 0.75rem;">
+                </div>
+                
+                <button class="btn btn-sm btn-outline-success border-0 bg-white shadow-sm px-2_5" onclick="exportTableToCSV('closedTable', 'portfolio-trade-history.csv')" title="Exportar a CSV">
+                  <i class="bi bi-download me-1"></i>CSV
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla de Operaciones Detallada -->
+        <div class="table-responsive bg-white rounded shadow-sm">
+            <table class="table table-modern align-middle mb-0" id="closedTable">
+                <thead>
+                    <tr style="cursor: pointer;">
+                        <th class="ps-4" onclick="sortTable('closedTable', 0)">Fecha ↕</th>
+                        <th class="text-center" onclick="sortTable('closedTable', 1)">Tipo ↕</th>
+                        <th onclick="sortTable('closedTable', 2)">Activo ↕</th>
+                        <th class="text-end" onclick="sortTable('closedTable', 3, true)">Cantidad ↕</th>
+                        <th class="text-end" onclick="sortTable('closedTable', 4, true)">Precio ↕</th>
+                        <th class="text-end pe-4" onclick="sortTable('closedTable', 5, true)">P&amp;L (EUR) ↕</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in realized_trades %}
+                    <tr class="hist-row" 
+                        data-date="{{ item.date[:10] }}" 
+                        data-type="{{ item.type }}" 
+                        data-pnl="{{ item.pnl_eur }}">
+                        <td class="ps-4 num-font align-middle">{{ item.date[:10] }}</td>
+                        <td class="text-center align-middle">
+                            {% if item.type == 'VENTA' %}
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" style="font-size:0.72rem;">VENTA</span>
+                            {% elif item.type == 'COMPRA' %}
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1" style="font-size:0.72rem;">COMPRA</span>
+                            {% else %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size:0.72rem;">DIVIDENDO</span>
+                            {% endif %}
+                        </td>
+                        <td class="align-middle">
+                            <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(item.ticker) }}</a>
+                        </td>
+                        <td class="text-end num-font align-middle">{{ "{:,.2f}".format(item.shares) }}</td>
+                        <td class="text-end num-font align-middle">{{ "{:,.2f}".format(item.price) }} {{ item.currency }}</td>
+                        <td class="text-end fw-bold num-font align-middle pe-4 {% if item.type == 'COMPRA' %}text-muted{% elif item.pnl_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if item.type == 'COMPRA' %}
+                            -
+                            {% else %}
+                            {% if item.pnl_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(item.pnl_eur) }} €
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-archive fs-3 d-block mb-2 opacity-50"></i>
+                            No se han encontrado operaciones de Compra, Venta ni Dividendos en el historial.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Paginación de Operaciones Detalladas (Compacta Derecha) -->
+        <div class="d-flex justify-content-end align-items-center gap-2 px-4 py-2 border-top bg-light rounded-bottom shadow-sm">
+          <span class="num-font small fw-bold text-muted me-2" id="closedTxPageInfo">Pág. 1 / 1</span>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-sm btn-outline-secondary rounded-circle" onclick="closedTxPage(-1)" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; margin-right:4px;">
+              <i class="bi bi-chevron-left" style="font-size:0.72rem;"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary rounded-circle" onclick="closedTxPage(1)" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
+              <i class="bi bi-chevron-right" style="font-size:0.72rem;"></i>
+            </button>
+          </div>
+        </div>
+      </div> <!-- fin closed-tx-pane -->
+
+    </div> <!-- fin closedSubTabsContent -->
+  </div> <!-- fin closed-pane -->
+
+  <!-- Pestaña Fiscal -->
+  <div class="tab-pane fade" id="fiscal-pane" role="tabpanel" aria-labelledby="fiscal-tab">
+    <div class="card shadow-sm border-0">
+      <div class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="fw-bold mb-0">Resumen Fiscal por Año</h5>
+          <small class="text-muted" style="font-size:0.72rem;">
+            Ganancias/pérdidas patrimoniales realizadas + dividendos. EUR aproximado usando tipos de cambio actuales.
+          </small>
+        </div>
+        <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('fiscalTable','fiscal-resumen.csv')">
+          <i class="bi bi-download me-1"></i>CSV
+        </button>
+      </div>
+      <div class="card-body p-0">
+        {% if fiscal_data %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0 text-center" style="font-size:0.9rem;" id="fiscalTable">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-4 text-start">Año</th>
+                <th class="text-end text-success">Ganancias</th>
+                <th class="text-end text-danger">Pérdidas</th>
+                <th class="text-end text-primary">Dividendos</th>
+                <th class="text-end fw-bold">Base Imponible</th>
+                <th class="text-end pe-4">Impuesto Est.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% set ns = namespace(total_gains=0, total_losses=0, total_divs=0, total_net=0, total_tax=0) %}
+              {% for row in fiscal_data %}
+              {% set ns.total_gains = ns.total_gains + row.gains %}
+              {% set ns.total_losses = ns.total_losses + row.losses %}
+              {% set ns.total_divs = ns.total_divs + row.dividends %}
+              {% set ns.total_net = ns.total_net + row.net %}
+              {% set ns.total_tax = ns.total_tax + row.tax_estimate %}
+              <tr class="{% if row.net > 0 %}table-success bg-opacity-25{% elif row.net < 0 %}table-danger bg-opacity-25{% endif %}">
+                <td class="ps-4 text-start fw-bold">{{ row.year }}</td>
+                <td class="text-end text-success fw-semibold">
+                  {% if row.gains > 0 %}+{{ "{:,.2f}".format(row.gains) }} €{% else %}—{% endif %}
+                </td>
+                <td class="text-end text-danger fw-semibold">
+                  {% if row.losses < 0 %}{{ "{:,.2f}".format(row.losses) }} €{% else %}—{% endif %}
+                </td>
+                <td class="text-end text-primary fw-semibold">
+                  {% if row.dividends > 0 %}+{{ "{:,.2f}".format(row.dividends) }} €{% else %}—{% endif %}
+                </td>
+                <td class="text-end fw-bold {% if row.net > 0 %}text-success{% elif row.net < 0 %}text-danger{% else %}text-muted{% endif %}">
+                  {% if row.net > 0 %}+{% endif %}{{ "{:,.2f}".format(row.net) }} €
+                </td>
+                <td class="text-end pe-4 fw-semibold">
+                  {% if row.tax_estimate > 0 %}{{ "{:,.2f}".format(row.tax_estimate) }} €{% else %}—{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot class="table-light fw-bold border-top border-2">
+              <tr>
+                <td class="ps-4 text-start">Total</td>
+                <td class="text-end text-success">
+                  {% if ns.total_gains > 0 %}+{{ "{:,.2f}".format(ns.total_gains) }} €{% else %}—{% endif %}
+                </td>
+                <td class="text-end text-danger">
+                  {% if ns.total_losses < 0 %}{{ "{:,.2f}".format(ns.total_losses) }} €{% else %}—{% endif %}
+                </td>
+                <td class="text-end text-primary">
+                  {% if ns.total_divs > 0 %}+{{ "{:,.2f}".format(ns.total_divs) }} €{% else %}—{% endif %}
+                </td>
+                <td class="text-end {% if ns.total_net > 0 %}text-success{% else %}text-danger{% endif %}">
+                  {% if ns.total_net > 0 %}+{% endif %}{{ "{:,.2f}".format(ns.total_net) }} €
+                </td>
+                <td class="text-end pe-4">{{ "{:,.2f}".format(ns.total_tax) }} €</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="px-4 py-3">
+          <small class="text-muted" style="font-size:0.72rem;">
+            <strong>Tramos IRPF base del ahorro 2024:</strong>
+            0–6.000 € → 19% · 6.001–50.000 € → 21% · 50.001–200.000 € → 23% · &gt;200.000 € → 27%.
+            Las pérdidas de un año pueden compensarse con ganancias de los 4 años siguientes.
+            Consulta con tu asesor fiscal — este cálculo es orientativo.
+          </small>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-5 small">
+          <i class="bi bi-receipt fs-3 d-block mb-2 opacity-50"></i>
+          Sin datos de transacciones para generar el resumen fiscal.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Pestaña Añadir Operación -->
+  <div class="tab-pane fade" id="add-pane" role="tabpanel" aria-labelledby="add-tab">
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+            <form id="add-portfolio-form" class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Fecha</label>
+                    <input type="date" class="form-control" id="add-date" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Tipo</label>
+                    <select class="form-select" id="add-type" required>
+                        <option value="BUY">Compra</option>
+                        <option value="SELL">Venta</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Ticker</label>
+                    <input type="text" class="form-control" id="add-ticker" placeholder="Ej. AAPL" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Acciones</label>
+                    <input type="number" class="form-control" id="add-shares" step="0.01" oninput="calculateEstimatedFee()" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Precio Unitario</label>
+                    <input type="number" class="form-control" id="add-price" step="0.0001" oninput="calculateEstimatedFee()" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Moneda</label>
+                    <select class="form-select" id="add-currency" onchange="calculateEstimatedFee()" required>
+                        <option value="USD">USD ($)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="GBP">GBP (£)</option>
+                        <option value="SEK">SEK (kr)</option>
+                        <option value="JPY">JPY (¥)</option>
+                        <option value="DKK">DKK (kr)</option>
+                        <option value="PLN">PLN (zł)</option>
+                        <option value="CHF">CHF (Fr)</option>
+                        <option value="MXN">MXN ($)</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Comisión <span class="text-muted fw-normal">(opcional)</span></label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="add-fee" step="0.01" min="0" value="0" placeholder="0.00">
+                        <span class="input-group-text" id="fee-currency-label">$</span>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">Broker</label>
+                    <select class="form-select" id="add-broker" onchange="calculateEstimatedFee()" required>
+                        <option value="IBKR" selected>🟢 Interactive Brokers (IBKR)</option>
+                        <option value="DEGIRO">🟠 DEGIRO</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">
+                        Tipo de cambio EUR/<span id="fx-currency-label">USD</span>
+                        <span class="text-muted fw-normal small">(auto)</span>
+                    </label>
+                    <input type="number" class="form-control" id="add-fx-rate" step="0.0001" min="0" placeholder="Auto">
+                    <div class="form-text text-muted" id="fx-rate-hint">Se obtiene automáticamente</div>
+                </div>
+                <div class="col-12 d-flex align-items-end">
+                    <button type="submit" id="submit-btn" class="btn btn-primary fw-bold px-4">➕ Guardar Transacción</button>
+                </div>
+            </form>
+        </div>
+    </div>
+  </div>
+</div>
+
+<script>
+    const perfDates      = {{ perf_dates | tojson | safe }};
+    const perfPortfolio  = {{ perf_portfolio | tojson | safe }};
+    const perfValuesEur  = {{ perf_values_eur | tojson | safe }};
+    const perfBenchmarks = {{ perf_benchmarks | tojson | safe }};
+
+    document.addEventListener("DOMContentLoaded", function() {
+        // Inicializar tooltips de Bootstrap
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        // Gráfico de Rendimiento
+        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const textColor = isDark ? "#adb5bd" : "#2c3e50";
+        const gridColor = isDark ? "rgba(255,255,255,0.05)" : "#f0f0f0";
+
+        const benchColors = { "MSCI World": "#6c757d", "S&P 500": "#fd7e14" };
+        let currentPeriod = 'all';
+        let currentMode   = 'nav';
+        let perfChartInit = false;
+
+        // Visibilidad de series para Leyenda Interactiva (ojo)
+        let seriesVisibility = { 'Mi Cartera': true };
+        Object.keys(perfBenchmarks).forEach(name => {
+            seriesVisibility[name] = true;
+        });
+
+        // ── Helpers ─────────────────────────────────────────────────────────
+        function getStartIndex(period) {
+            if (!perfDates.length || period === 'all') return 0;
+            const last = new Date(perfDates[perfDates.length - 1]);
+            let cutoff = new Date(last);
+            
+            if      (period === '1d')  cutoff.setDate(cutoff.getDate() - 1);
+            else if (period === '7d')  cutoff.setDate(cutoff.getDate() - 7);
+            else if (period === '1m')  cutoff.setMonth(cutoff.getMonth() - 1);
+            else if (period === '3m')  cutoff.setMonth(cutoff.getMonth() - 3);
+            else if (period === '6m')  cutoff.setMonth(cutoff.getMonth() - 6);
+            else if (period === 'ytd') cutoff = new Date(last.getFullYear(), 0, 1);
+            else if (period === '1y')  cutoff.setFullYear(cutoff.getFullYear() - 1);
+            else if (period === '3y')  cutoff.setFullYear(cutoff.getFullYear() - 3);
+            else if (period === '5y')  cutoff.setFullYear(cutoff.getFullYear() - 5);
+            else if (period === '10y') cutoff.setFullYear(cutoff.getFullYear() - 10);
+            
+            let si = 0;
+            for (let i = 0; i < perfDates.length; i++) {
+                if (new Date(perfDates[i]) >= cutoff) {
+                    si = i;
+                    break;
+                }
+            }
+            // Asegurar al menos 2 puntos para poder pintar línea
+            if (perfDates.length - si < 2 && perfDates.length >= 2) {
+                si = perfDates.length - 2;
+            }
+            return si;
+        }
+
+        function calcDrawdown(vals) {
+            let mx = vals[0] || 0, dd = [];
+            vals.forEach(v => { if (v > mx) mx = v; dd.push(mx > 0 ? (v - mx) / mx * 100 : 0); });
+            return dd;
+        }
+
+        // ── Leyenda Personalizada e Interactiva (botón de ojo) ────────────────
+        function renderCustomLegend() {
+            const legendContainer = document.getElementById('custom-legend');
+            if (!legendContainer) return;
+            
+            let items = ['Mi Cartera'];
+            if (currentMode !== 'real') {
+                Object.keys(perfBenchmarks).forEach(name => {
+                    items.push(name);
+                });
+            }
+            
+            let html = '';
+            items.forEach(name => {
+                const isVisible = seriesVisibility[name] !== false;
+                const color = name === 'Mi Cartera' ? '#0d6efd' : (benchColors[name] || '#adb5bd');
+                const eyeIcon = isVisible ? 'bi-eye-fill text-primary' : 'bi-eye-slash text-muted';
+                const borderClass = isVisible 
+                    ? (isDark ? 'border-primary-subtle bg-dark text-light' : 'border-primary-subtle bg-light text-dark') 
+                    : 'opacity-50 bg-light-subtle text-muted';
+                const textClass = isVisible ? 'fw-semibold' : '';
+                
+                html += `
+                    <div class="custom-legend-item d-flex align-items-center gap-2 px-3 py-1.5 rounded border ${borderClass}" 
+                         style="cursor: pointer; user-select: none; transition: all 0.2s; font-size: 0.8rem;" 
+                         onclick="toggleSeries('${name}')">
+                        <span class="legend-color-dot" style="width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; display: inline-block;"></span>
+                        <span class="${textClass}">${name}</span>
+                        <i class="bi ${eyeIcon} ms-2"></i>
+                    </div>
+                `;
+            });
+            legendContainer.innerHTML = html;
+        }
+
+        window.toggleSeries = function(name) {
+            seriesVisibility[name] = seriesVisibility[name] === false ? true : false;
+            renderCustomLegend();
+            renderPerfChart();
+        };
+
+        // ── Render principal ────────────────────────────────────────────────
+        function renderPerfChart() {
+            const si    = getStartIndex(currentPeriod);
+            const dates = perfDates.slice(si);
+            const cfg   = { responsive: true, displayModeBar: false };
+
+            if (currentMode === 'real') {
+                const vals = perfValuesEur.slice(si);
+                const traces = [];
+                
+                if (seriesVisibility['Mi Cartera'] !== false) {
+                    traces.push({
+                        x: dates, y: vals, mode: 'lines', name: 'Cartera (€)',
+                        line: { color: '#0d6efd', width: 3 },
+                        fill: 'tozeroy', fillcolor: 'rgba(13,110,253,0.08)'
+                    });
+                }
+                
+                const layout = {
+                    xaxis: { showgrid: false, tickfont: { color: textColor } },
+                    yaxis: { tickformat: ',.0f', ticksuffix: ' €',
+                             tickfont: { color: textColor }, gridcolor: gridColor,
+                             showgrid: true },
+                    margin: { t: 10, b: 40, l: 75, r: 10 },
+                    hovermode: 'x unified', showlegend: false,
+                    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+                };
+                Plotly.react('perf-chart', traces, layout, cfg);
+                renderDrawdown(vals, dates);
+                
+                // KPIs en modo real usan NAV igualmente (rentabilidad pura)
+                const portSliceNav = perfPortfolio.slice(si);
+                updateKPIs(portSliceNav, dates);
+            } else {
+                // NAV normalizado al período seleccionado
+                const base = perfPortfolio[si] || 10;
+                const portSlice = perfPortfolio.slice(si).map(v => Math.round(v / base * 1000) / 100);
+                const traces = [];
+                
+                if (seriesVisibility['Mi Cartera'] !== false) {
+                    traces.push({
+                        x: dates, y: portSlice, mode: 'lines', name: 'Mi Cartera',
+                        line: { color: '#0d6efd', width: 3 }
+                    });
+                }
+                
+                Object.entries(perfBenchmarks).forEach(([name, vals]) => {
+                    if (seriesVisibility[name] !== false) {
+                        const bBase = vals[si] || 10;
+                        traces.push({
+                            x: dates,
+                            y: vals.slice(si).map(v => Math.round(v / bBase * 1000) / 100),
+                            mode: 'lines', name,
+                            line: { color: benchColors[name] || '#adb5bd', width: 2, dash: 'dot' }
+                        });
+                    }
+                });
+                
+                const layout = {
+                    xaxis: { showgrid: false, tickfont: { color: textColor } },
+                    yaxis: { title: { text: 'Valor Cuota', font: { color: textColor } },
+                             showgrid: true, gridcolor: gridColor,
+                             tickfont: { color: textColor } },
+                    margin: { t: 10, b: 40, l: 50, r: 10 },
+                    showlegend: false, // Ocultar nativo, usamos el nuestro interactivo
+                    hovermode: 'x unified',
+                    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+                };
+                Plotly.react('perf-chart', traces, layout, cfg);
+                renderDrawdown(portSlice, dates);
+                updateKPIs(portSlice, dates);
+            }
+            
+            // Re-renderizar leyenda personalizada
+            renderCustomLegend();
+        }
+
+        function renderDrawdown(vals, dates) {
+            const dd = calcDrawdown(vals);
+            Plotly.react('drawdown-chart', [{
+                x: dates, y: dd, type: 'scatter', fill: 'tozeroy',
+                line: { color: '#dc3545', width: 1 },
+                fillcolor: 'rgba(220,53,69,0.2)', showlegend: false
+            }], {
+                xaxis: { showgrid: false, tickfont: { color: textColor } },
+                yaxis: { tickformat: '.1f', ticksuffix: '%',
+                         tickfont: { color: textColor }, gridcolor: gridColor },
+                margin: { t: 5, b: 35, l: 50, r: 10 },
+                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                showlegend: false
+            }, { responsive: true, displayModeBar: false });
+        }
+
+        // ── KPIs dinámicos ──────────────────────────────────────────────────
+        function fmt(v, decimals=2) {
+            return (v >= 0 ? '+' : '') + v.toFixed(decimals) + '%';
+        }
+        function colorClass(v) {
+            return v >= 0 ? 'text-success' : 'text-danger';
+        }
+
+        function updateKPIs(portSlice, dates) {
+            if (!portSlice.length) return;
+            const base = portSlice[0];
+            const last = portSlice[portSlice.length - 1];
+            const totalRet = (last / base - 1) * 100;
+            const days     = (new Date(dates[dates.length-1]) - new Date(dates[0])) / 86400000;
+            const years    = days / 365.25;
+            const cagr     = years > 0.1
+                ? (Math.pow(last / base, 1 / years) - 1) * 100
+                : totalRet;
+            const maxDD    = Math.min(...calcDrawdown(portSlice));
+
+            const labelMap = {
+                '1d': 'Último Día',
+                '7d': 'Últimos 7 Días',
+                '1m': 'Último Mes',
+                '3m': 'Últimos 3 Meses',
+                '6m': 'Últimos 6 Meses',
+                'ytd': 'Año en Curso (YTD)',
+                '1y': 'Último Año (1A)',
+                '3y': 'Últimos 3 Años (3A)',
+                '5y': 'Últimos 5 Años (5A)',
+                '10y': 'Últimos 10 Años (10A)',
+                'all': 'Historial Completo'
+            };
+            const periodLabel = {
+                'all':'Todo','1d':'1D','7d':'7D','1m':'1M','3m':'3M','6m':'6M','ytd':'YTD','1y':'1A','3y':'3A','5y':'5A','10y':'10A'
+            }[currentPeriod] || 'Todo';
+
+            const periodTitle = labelMap[currentPeriod] || 'Detalle';
+
+            // Actualizar Título del Panel Lateral
+            const elPeriodTitle = document.getElementById('infoPeriodTitle');
+            if (elPeriodTitle) elPeriodTitle.textContent = periodTitle;
+
+            // Total return (Badge superior)
+            const elTotal = document.getElementById('kpiTotal');
+            elTotal.textContent   = fmt(totalRet);
+            elTotal.className     = 'fw-bold fs-4 ' + colorClass(totalRet);
+            document.getElementById('kpiTotalLabel').innerHTML =
+                `Rentabilidad Total <span class="opacity-50">(${periodLabel})</span>`;
+
+            // CAGR (Badge superior)
+            const elCagr = document.getElementById('kpiCagr');
+            elCagr.textContent = fmt(cagr);
+            elCagr.className   = 'fw-bold fs-4 ' + colorClass(cagr);
+            document.getElementById('kpiCagrLabel').innerHTML =
+                `CAGR <span class="opacity-50">(${periodLabel})</span>`;
+
+            // Benchmark CAGRs (Badge superior)
+            const si = getStartIndex(currentPeriod);
+            let benchHtml = '';
+            Object.entries(perfBenchmarks).forEach(([name, vals]) => {
+                if (!vals.length) return;
+                const bBase = vals[si] || vals[0];
+                const bLast = vals[vals.length - 1];
+                const bSlice = vals.slice(si);
+                const bCagr  = years > 0.1
+                    ? (Math.pow(bSlice[bSlice.length-1] / bSlice[0], 1/years) - 1) * 100
+                    : (bSlice[bSlice.length-1] / bSlice[0] - 1) * 100;
+                const alfa   = cagr - bCagr;
+                const color  = name === 'MSCI World' ? '#6c757d' : '#fd7e14';
+                benchHtml += `<span style="color:${color};">${name}: ${fmt(bCagr)}</span>`;
+                benchHtml += ` <span class="${colorClass(alfa)}">(α ${fmt(alfa)})</span><br>`;
+            });
+            document.getElementById('kpiBenchCagr').innerHTML = benchHtml;
+
+            // Max drawdown (Badge superior)
+            document.getElementById('kpiDD').textContent = maxDD.toFixed(2) + '%';
+            document.getElementById('kpiDDLabel').innerHTML =
+                `Máx. Drawdown <span class="opacity-50">(${periodLabel})</span>`;
+
+            // ── ACTUALIZAR TARJETA DE DETALLES DEL PERÍODO (LADO DERECHO) ──
+            const elInfoPortReturn = document.getElementById('infoPortReturn');
+            const elInfoPortBadge = document.getElementById('infoPortBadge');
+            const elInfoPortRangeVal = document.getElementById('infoPortRangeVal');
+            
+            if (elInfoPortReturn) {
+                if (currentMode === 'real') {
+                    const vals = perfValuesEur.slice(si);
+                    const baseEur = vals[0] || 0;
+                    const lastEur = vals[vals.length - 1] || 0;
+                    const diffEur = lastEur - baseEur;
+                    const pctEur = baseEur > 0 ? (diffEur / baseEur * 100) : 0;
+                    
+                    elInfoPortReturn.textContent = `${pctEur >= 0 ? '+' : ''}${pctEur.toFixed(2)}%`;
+                    elInfoPortReturn.className = `fs-4 fw-bold ${pctEur >= 0 ? 'text-success' : 'text-danger'}`;
+                    
+                    elInfoPortBadge.textContent = `${diffEur >= 0 ? '+' : ''}${Math.round(diffEur).toLocaleString('es-ES')} €`;
+                    elInfoPortBadge.className = `badge ${diffEur >= 0 ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle'}`;
+                    
+                    elInfoPortRangeVal.textContent = `${Math.round(baseEur).toLocaleString('es-ES')} € → ${Math.round(lastEur).toLocaleString('es-ES')} €`;
+                } else {
+                    const baseVal = portSlice[0] || 100;
+                    const lastVal = portSlice[portSlice.length - 1] || 100;
+                    const pctVal = baseVal > 0 ? ((lastVal / baseVal) - 1) * 100 : 0;
+                    
+                    elInfoPortReturn.textContent = `${pctVal >= 0 ? '+' : ''}${pctVal.toFixed(2)}%`;
+                    elInfoPortReturn.className = `fs-4 fw-bold ${pctVal >= 0 ? 'text-success' : 'text-danger'}`;
+                    
+                    elInfoPortBadge.textContent = `NAV TWR`;
+                    elInfoPortBadge.className = `badge bg-secondary-subtle text-secondary border border-secondary-subtle`;
+                    
+                    elInfoPortRangeVal.textContent = `Índice: ${baseVal.toFixed(2)} → ${lastVal.toFixed(2)}`;
+                }
+            }
+
+            // Comparativa de Benchmarks y Alfa en tarjeta lateral
+            const elInfoBenchmarks = document.getElementById('infoBenchmarksContainer');
+            if (elInfoBenchmarks) {
+                if (currentMode === 'real') {
+                    elInfoBenchmarks.innerHTML = `
+                        <div class="text-center text-muted p-2 small bg-white border rounded">
+                            <i class="bi bi-info-circle me-1"></i> Benchmarks no comparables en modo € (las aportaciones alteran el saldo).
+                        </div>
+                    `;
+                } else {
+                    let html = '<div class="small text-muted fw-bold mb-1" style="font-size:0.75rem;">COMPARTIVA VS BENCHMARKS:</div>';
+                    
+                    // Calculo de retorno de cartera en periodo
+                    const baseVal = portSlice[0] || 100;
+                    const lastVal = portSlice[portSlice.length - 1] || 100;
+                    const portPct = baseVal > 0 ? ((lastVal / baseVal) - 1) * 100 : 0;
+                    
+                    Object.entries(perfBenchmarks).forEach(([name, bVals]) => {
+                        if (!bVals.length) return;
+                        const bSlice = bVals.slice(si);
+                        const bBase = bSlice[0] || 10;
+                        const bLast = bSlice[bSlice.length - 1] || 10;
+                        const bPct = bBase > 0 ? ((bLast / bBase) - 1) * 100 : 0;
+                        
+                        const alpha = portPct - bPct;
+                        const color = name === 'MSCI World' ? '#6c757d' : '#fd7e14';
+                        const alphaSign = alpha >= 0 ? '+' : '';
+                        
+                        html += `
+                            <div class="d-flex justify-content-between align-items-center p-2 rounded bg-white border shadow-sm">
+                                <div>
+                                    <span class="legend-color-dot me-1" style="width: 8px; height: 8px; border-radius: 50%; background-color: ${color}; display: inline-block;"></span>
+                                    <span class="small fw-semibold text-dark">${name}</span>
+                                    <div class="text-muted" style="font-size: 0.68rem;">Retorno: ${bPct >= 0 ? '+' : ''}${bPct.toFixed(2)}%</div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge ${alpha >= 0 ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'}" style="font-size:0.72rem; padding: 0.35em 0.65em;">
+                                        α ${alphaSign}${alpha.toFixed(2)}%
+                                    </span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    elInfoBenchmarks.innerHTML = html;
+                }
+            }
+
+            // Estadísticas adicionales en tarjeta lateral
+            const elInfoMaxDD = document.getElementById('infoMaxDD');
+            if (elInfoMaxDD) {
+                const activeValsForDD = currentMode === 'real' ? perfValuesEur.slice(si) : portSlice;
+                const periodMaxDD = activeValsForDD.length ? Math.min(...calcDrawdown(activeValsForDD)) : 0;
+                elInfoMaxDD.textContent = `${periodMaxDD.toFixed(2)}%`;
+            }
+
+            const elInfoDays = document.getElementById('infoAnalyzedDays');
+            if (elInfoDays && dates.length >= 2) {
+                const diffMs = new Date(dates[dates.length - 1]) - new Date(dates[0]);
+                const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                elInfoDays.textContent = `${diffDays} días`;
+            } else if (elInfoDays) {
+                elInfoDays.textContent = '—';
+            }
+        }
+
+        // ── Controles período y modo ────────────────────────────────────────
+        window.setPeriod = function(p) {
+            currentPeriod = p;
+            document.querySelectorAll('#periodTabs button').forEach(b => {
+                b.className = b.id === 'period-' + p
+                    ? 'btn btn-sm btn-dark'
+                    : 'btn btn-sm btn-outline-secondary';
+            });
+            if (perfChartInit) renderPerfChart();
+        };
+
+        window.setMode = function(m) {
+            currentMode = m;
+            const isReal = m === 'real';
+            document.getElementById('btnNav').className  = isReal ? 'btn btn-outline-primary' : 'btn btn-primary active';
+            document.getElementById('btnReal').className = isReal ? 'btn btn-primary active' : 'btn btn-outline-primary';
+            document.getElementById('chartTitle').textContent = isReal
+                ? 'Valor Real de la Cartera (€)'
+                : 'Retorno Acumulado vs Benchmarks';
+            document.getElementById('chartSubtitle').textContent = isReal
+                ? 'Valor total en EUR incluyendo aportaciones. No comparable con benchmarks.'
+                : 'Valor Liquidativo (TWR) normalizado a 10. Las aportaciones no afectan el rendimiento.';
+            if (perfChartInit) renderPerfChart();
+        };
+
+        // Gráfico de Distribución
+        const labels = {{ chart_labels | tojson | safe }};
+        const values = {{ chart_values | tojson | safe }};
+        const traceDist = [{
+            values: values, labels: labels, type: 'pie', hole: 0.4,
+            textinfo: 'percent', marker: { colors: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6610f2'] },
+            insidetextfont: { color: '#fff' },
+            outsidetextfont: { color: textColor }
+        }];
+        
+        const layoutDist = { 
+            title: { text: 'Por Activo', font: { color: textColor, size: 14, bold: true } },
+            margin: { t: 40, b: 10, l: 10, r: 10 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            legend: { font: { color: textColor } }
+        };
+
+        const countryLabels = {{ country_labels | tojson | safe }};
+        const countryValues = {{ country_values | tojson | safe }};
+        const traceCountryDist = [{
+            values: countryValues, labels: countryLabels, type: 'pie', hole: 0.4,
+            textinfo: 'percent',
+            insidetextfont: { color: '#fff' },
+            outsidetextfont: { color: textColor }
+        }];
+
+        const layoutCountryDist = { 
+            title: { text: 'Por País', font: { color: textColor, size: 14, bold: true } },
+            margin: { t: 40, b: 10, l: 10, r: 10 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            legend: { font: { color: textColor } }
+        };
+
+        const sectorLabels = {{ sector_labels | tojson | safe }};
+        const sectorValues = {{ sector_values | tojson | safe }};
+        const traceSectorDist = [{
+            values: sectorValues, labels: sectorLabels, type: 'pie', hole: 0.4,
+            textinfo: 'percent',
+            insidetextfont: { color: '#fff' },
+            outsidetextfont: { color: textColor }
+        }];
+
+        const layoutSectorDist = { 
+            title: { text: 'Por Sector', font: { color: textColor, size: 14, bold: true } },
+            margin: { t: 40, b: 10, l: 10, r: 10 },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            legend: { font: { color: textColor } }
+        };
+
+        // Gráfico de Dividendos
+        const divDataRaw = {{ div_data | tojson | safe }};
+        const divTraces = [];
+        const years = divDataRaw.years;
+        const tickers = divDataRaw.tickers;
+
+        tickers.forEach(ticker => {
+            const yValues = years.map(year => {
+                return (divDataRaw.data[year] && divDataRaw.data[year][ticker]) ? divDataRaw.data[year][ticker] : 0;
+            });
+            
+            // Solo añadir traza si hay dividendos para este ticker en algún año
+            if (yValues.some(val => val > 0)) {
+                divTraces.push({
+                    x: years,
+                    y: yValues,
+                    name: ticker,
+                    type: 'bar'
+                });
+            }
+        });
+
+        const layoutDiv = {
+            barmode: 'stack',
+            xaxis: { title: { text: 'Año', font: { color: textColor } }, tickfont: { color: textColor } },
+            yaxis: { title: { text: 'Dividendos (€)', font: { color: textColor } }, tickfont: { color: textColor }, gridcolor: gridColor },
+            margin: { t: 10, b: 40, l: 60, r: 10 },
+            legend: { orientation: 'h', y: -0.2, font: { color: textColor } },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)'
+        };
+
+        const config = { responsive: true, displayModeBar: false };
+
+        // Renderizar distribución al cargar (pestaña Cartera es la activa por defecto)
+        Plotly.newPlot('dist-chart', traceDist, layoutDist, config);
+        Plotly.newPlot('dist-country-chart', traceCountryDist, layoutCountryDist, config);
+        Plotly.newPlot('dist-sector-chart', traceSectorDist, layoutSectorDist, config);
+
+        // Renderizar cuando se cambie a la pestaña Rendimiento
+        const perfTab = document.getElementById('perf-tab');
+        perfTab.addEventListener('shown.bs.tab', function() {
+            const cfg = { responsive: true, displayModeBar: false };
+            if (!perfChartInit) {
+                perfChartInit = true;
+                if (perfDates.length > 0) {
+                    renderPerfChart();
+                } else {
+                    document.getElementById('perf-chart').innerHTML =
+                        '<div class="text-center text-muted py-5"><i class="bi bi-hourglass-split fs-3 d-block mb-2"></i>Calculando rendimiento…<br><small>Primera carga puede tardar 30-60 seg. Recarga la página.</small></div>';
+                }
+                renderMonthlyTable();
+                updateEnrichedKPIs();
+            } else {
+                Plotly.Plots.resize('perf-chart');
+                Plotly.Plots.resize('drawdown-chart');
+            }
+        });
+
+        // Renderizar gráfico al cambiar a la pestaña Dividendos
+        let divChartInit = false;
+        const divTabBtn = document.getElementById('div-tab');
+        if (divTabBtn) {
+            divTabBtn.addEventListener('shown.bs.tab', function() {
+                if (!divChartInit) {
+                    divChartInit = true;
+                    if (divTraces.length > 0) {
+                        Plotly.newPlot('div-chart', divTraces, layoutDiv, { responsive: true, displayModeBar: false });
+                    } else {
+                        document.getElementById('div-chart').innerHTML =
+                            '<div class="text-center text-muted py-5 small">Sin datos de dividendos</div>';
+                    }
+                } else {
+                    Plotly.Plots.resize('div-chart');
+                }
+            });
+        }
+
+        // Toggle text-muted class y redimensionar gráficos de distribución al cambiar de pestaña
+        const distTabEls = document.querySelectorAll('#distTabs button[data-bs-toggle="pill"]');
+        distTabEls.forEach(tabEl => {
+            tabEl.addEventListener('shown.bs.tab', function (event) {
+                event.target.classList.remove('text-muted');
+                if (event.relatedTarget) {
+                    event.relatedTarget.classList.add('text-muted');
+                }
+                
+                if (event.target.id === 'dist-asset-tab') {
+                    Plotly.Plots.resize('dist-chart');
+                } else if (event.target.id === 'dist-country-tab') {
+                    Plotly.Plots.resize('dist-country-chart');
+                } else if (event.target.id === 'dist-sector-tab') {
+                    Plotly.Plots.resize('dist-sector-chart');
+                }
+            });
+        });
+
+        // Resize dist-charts cuando se abre el panel de distribución (sólo el gráfico activo)
+        const distPanel = document.getElementById('distPanel');
+        if (distPanel) {
+            distPanel.addEventListener('shown.bs.collapse', function() {
+                const activeTab = document.querySelector('#distTabs button.active');
+                if (activeTab) {
+                    if (activeTab.id === 'dist-asset-tab') {
+                        Plotly.Plots.resize('dist-chart');
+                    } else if (activeTab.id === 'dist-country-tab') {
+                        Plotly.Plots.resize('dist-country-chart');
+                    } else if (activeTab.id === 'dist-sector-tab') {
+                        Plotly.Plots.resize('dist-sector-chart');
+                    }
+                }
+            });
+        }
+    });
+
+    // ── Paginación tablas de dividendos ────────────────────────────────────
+    const divPagState = { upcoming: 1, latest: 1 };
+    const DIV_PER_PAGE = 8;
+
+    function divPage(which, delta) {
+        const rows = document.querySelectorAll(`.div-${which}-row`);
+        const total = rows.length;
+        if (total === 0) return;
+        const pages = Math.ceil(total / DIV_PER_PAGE);
+        divPagState[which] = Math.min(pages, Math.max(1, divPagState[which] + delta));
+        const start = (divPagState[which] - 1) * DIV_PER_PAGE;
+        rows.forEach((r, i) => r.style.display = (i >= start && i < start + DIV_PER_PAGE) ? '' : 'none');
+        const info = document.getElementById(which + 'PageInfo');
+        if (info) info.textContent = `Pág. ${divPagState[which]} / ${pages}`;
+    }
+
+    // ── Paginación Posiciones Cerradas (Summary Table) ─────────────────────
+    let closedPosPageState = 1;
+    const CLOSED_POS_PER_PAGE = 8;
+
+    function closedPosPage(delta) {
+        const rows = document.querySelectorAll('.closed-pos-row');
+        const total = rows.length;
+        if (total === 0) return;
+        const pages = Math.ceil(total / CLOSED_POS_PER_PAGE);
+        closedPosPageState = Math.min(pages, Math.max(1, closedPosPageState + delta));
+        const start = (closedPosPageState - 1) * CLOSED_POS_PER_PAGE;
+        rows.forEach((r, i) => r.style.display = (i >= start && i < start + CLOSED_POS_PER_PAGE) ? '' : 'none');
+        const info = document.getElementById('closedPosPageInfo');
+        if (info) info.textContent = `Pág. ${closedPosPageState} / ${pages}`;
+    }
+
+    // Inicializar paginación al abrir la pestaña
+    document.getElementById('div-tab')?.addEventListener('shown.bs.tab', function() {
+        divPage('upcoming', 0);
+        divPage('latest', 0);
+    });
+
+    document.getElementById('closed-tab')?.addEventListener('shown.bs.tab', function() {
+        closedPosPage(0);
+        applyHistFilters(true);
+    });
+
+    document.getElementById('closed-summary-tab')?.addEventListener('shown.bs.tab', function() {
+        closedPosPage(0);
+    });
+
+    document.getElementById('closed-tx-tab')?.addEventListener('shown.bs.tab', function() {
+        applyHistFilters(false);
+    });
+
+    // ── Toggle tabla anual %  vs € ──────────────────────────────────────────
+    let annualMode = 'pct';
+
+    function getYearStartEur() {
+        const yearStart = {};
+        perfDates.forEach((d, i) => {
+            const yr = d.slice(0, 4);
+            if (yearStart[yr] === undefined) yearStart[yr] = perfValuesEur[i];
+        });
+        return yearStart;
+    }
+
+    function fmtEur(v) {
+        return (v >= 0 ? '+' : '') + new Intl.NumberFormat('es-ES', {
+            style: 'currency', currency: 'EUR', maximumFractionDigits: 0
+        }).format(v);
+    }
+
+    window.setAnnualMode = function(mode) {
+        annualMode = mode;
+        const isPct = mode === 'pct';
+        document.getElementById('btnAnnualPct').className = isPct
+            ? 'btn btn-sm btn-primary active' : 'btn btn-sm btn-outline-primary';
+        document.getElementById('btnAnnualEur').className = isPct
+            ? 'btn btn-sm btn-outline-primary' : 'btn btn-sm btn-primary active';
+
+        // Benchmarks y alfa solo tienen sentido en % (no comparables en €)
+        document.querySelectorAll('.bench-col, .alfa-col').forEach(el => {
+            el.style.display = isPct ? '' : 'none';
+        });
+
+        if (isPct) {
+            document.querySelectorAll('#annualTableBody tr').forEach(tr => {
+                const pct      = parseFloat(tr.dataset.port);
+                const portCell = tr.querySelector('.cell-port');
+                portCell.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+                portCell.className   = 'fw-bold cell-port ' + (pct >= 0 ? 'text-success' : 'text-danger');
+            });
+        } else {
+            const yearStart = getYearStartEur();
+            document.querySelectorAll('#annualTableBody tr').forEach(tr => {
+                const yr       = tr.dataset.year;
+                const pct      = parseFloat(tr.dataset.port);
+                const startV   = yearStart[yr] || 0;
+                const eurGain  = (pct / 100) * startV;
+                const portCell = tr.querySelector('.cell-port');
+                portCell.textContent = fmtEur(eurGain);
+                portCell.className   = 'fw-bold cell-port ' + (eurGain >= 0 ? 'text-success' : 'text-danger');
+            });
+        }
+    };
+
+    // ── KPIs enriquecidos (mejor/peor mes, volatilidad, % meses positivos) ─────
+    function updateEnrichedKPIs() {
+        const data = buildMonthlyData();
+        if (!data || !data.years.length) return;
+        const { years, matrix } = data;
+        const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        let bestPct = -Infinity, bestLabel = '';
+        let worstPct = Infinity, worstLabel = '';
+        const allReturns = [];
+        let posMths = 0, totalMths = 0;
+        years.forEach(yr => {
+            for (let m = 0; m < 12; m++) {
+                const c = matrix[yr][m];
+                if (!c || !c.hasData) continue;
+                totalMths++;
+                if (c.pct >= 0) posMths++;
+                allReturns.push(c.pct);
+                if (c.pct > bestPct) { bestPct = c.pct; bestLabel = `${monthNames[m]} ${yr}`; }
+                if (c.pct < worstPct) { worstPct = c.pct; worstLabel = `${monthNames[m]} ${yr}`; }
+            }
+        });
+        const fmtP = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+        if (bestPct > -Infinity) {
+            document.getElementById('kpiBestMonth').textContent = fmtP(bestPct);
+            document.getElementById('kpiBestMonthLabel').textContent = bestLabel;
+        }
+        if (worstPct < Infinity) {
+            document.getElementById('kpiWorstMonth').textContent = fmtP(worstPct);
+            document.getElementById('kpiWorstMonthLabel').textContent = worstLabel;
+        }
+        if (allReturns.length > 1) {
+            const mean = allReturns.reduce((a, b) => a + b, 0) / allReturns.length;
+            const variance = allReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / (allReturns.length - 1);
+            document.getElementById('kpiVol').textContent = Math.sqrt(variance * 12).toFixed(2) + '%';
+        }
+        if (totalMths > 0) {
+            document.getElementById('kpiPosMths').textContent = Math.round(posMths / totalMths * 100) + '%';
+            document.getElementById('kpiPosMthsSub').textContent = `${posMths} de ${totalMths} meses`;
+        }
+    }
+
+    // ── Tabla crecimiento mensual ──────────────────────────────────────────────
+    let monthlyMode = 'pct';
+
+    function buildMonthlyData() {
+        if (!perfDates || !perfDates.length) return null;
+        const monthData = {};
+        perfDates.forEach((d, i) => {
+            const key = d.slice(0, 7); // "YYYY-MM"
+            if (!monthData[key]) {
+                monthData[key] = { firstNav: perfPortfolio[i], firstEur: perfValuesEur[i] || 0 };
+            }
+            monthData[key].lastNav = perfPortfolio[i];
+            monthData[key].lastEur = perfValuesEur[i] || 0;
+        });
+        const years = [...new Set(Object.keys(monthData).map(k => k.slice(0, 4)))].sort();
+        const matrix = {}, yearTotals = {};
+        years.forEach(yr => {
+            matrix[yr] = {};
+            let yFirstNav = null, yLastNav = null, yFirstEur = null, yLastEur = null;
+            for (let m = 0; m < 12; m++) {
+                const key = `${yr}-${String(m + 1).padStart(2, '0')}`;
+                const md = monthData[key];
+                if (md) {
+                    const mPct = (md.lastNav / md.firstNav - 1) * 100;
+                    matrix[yr][m] = { pct: mPct, eur: (mPct / 100) * md.firstEur, hasData: true };
+                    if (yFirstNav === null) { yFirstNav = md.firstNav; yFirstEur = md.firstEur; }
+                    yLastNav = md.lastNav; yLastEur = md.lastEur;
+                } else {
+                    matrix[yr][m] = { hasData: false };
+                }
+            }
+            yearTotals[yr] = yFirstNav !== null
+                ? { pct: (yLastNav / yFirstNav - 1) * 100, eur: ((yLastNav / yFirstNav - 1)) * yFirstEur, hasData: true }
+                : { hasData: false };
+        });
+        return { years, matrix, yearTotals };
+    }
+
+    window.setMonthlyMode = function(mode) {
+        monthlyMode = mode;
+        const isPct = mode === 'pct';
+        document.getElementById('btnMonthlyPct').className = 'btn btn-sm ' + (isPct ? 'btn-primary active' : 'btn-outline-primary');
+        document.getElementById('btnMonthlyEur').className = 'btn btn-sm ' + (isPct ? 'btn-outline-primary' : 'btn-primary active');
+        renderMonthlyTable();
+    };
+
+    function renderMonthlyTable() {
+        const data = buildMonthlyData();
+        const thead = document.querySelector('#monthlyTableHead tr');
+        const tbody = document.getElementById('monthlyTableBody');
+        if (!tbody || !thead) return;
+        if (!data || !data.years.length) {
+            thead.innerHTML = '<th colspan="10" class="text-center text-muted py-2 small">Sin datos.</th>';
+            tbody.innerHTML = '';
+            return;
+        }
+        const { years, matrix, yearTotals } = data;
+        const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        const fmtEur = v => (v >= 0 ? '+' : '') + new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+        const fmtPct = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+        const fmt    = v => monthlyMode === 'pct' ? fmtPct(v) : fmtEur(v);
+
+        // Cabecera: Mes | 2022 | 2023 | 2024 | ...
+        thead.innerHTML = `<th class="ps-3 text-start text-muted" style="min-width:46px;font-weight:600;">Mes</th>` +
+            years.map(yr => `<th class="text-center" style="min-width:72px;">${yr}</th>`).join('');
+
+        // Filas: una por mes + fila Total
+        let html = monthNames.map((name, m) => {
+            let row = `<tr><td class="ps-3 fw-semibold text-muted">${name}</td>`;
+            years.forEach(yr => {
+                const c = matrix[yr] && matrix[yr][m];
+                if (!c || !c.hasData) { row += `<td class="text-center text-muted" style="opacity:.4;">—</td>`; return; }
+                const val = monthlyMode === 'pct' ? c.pct : c.eur;
+                row += `<td class="text-center fw-semibold ${val >= 0 ? 'text-success' : 'text-danger'}">${fmt(val)}</td>`;
+            });
+            return row + `</tr>`;
+        }).join('');
+
+        // Fila total anual
+        html += `<tr style="border-top:2px solid #dee2e6;"><td class="ps-3 fw-bold">Total</td>`;
+        years.forEach(yr => {
+            const yt = yearTotals[yr];
+            if (!yt || !yt.hasData) { html += `<td class="text-center text-muted">—</td>`; return; }
+            const val = monthlyMode === 'pct' ? yt.pct : yt.eur;
+            html += `<td class="text-center fw-bold ${val >= 0 ? 'text-success' : 'text-danger'}">${fmt(val)}</td>`;
+        });
+        html += `</tr>`;
+
+        tbody.innerHTML = html;
+    }
+
+    // Recalcular performance
+    async function refreshPerformance() {
+        const btn = document.getElementById('refreshPerfBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Calculando…';
+        try {
+            await fetch('/api/portfolio/performance/refresh', { method: 'POST' });
+            showToast('Performance', 'Caché eliminada. Recargando...', 'success');
+            setTimeout(() => location.reload(), 1200);
+        } catch(e) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Recalcular';
+            showToast('Error', 'No se pudo recalcular', 'error');
+        }
+    }
+    window.refreshPerformance = refreshPerformance;
+
+    // Actualizar labels de moneda en el formulario
+    document.getElementById('add-currency').addEventListener('change', function() {
+        const sym = {'USD':'$','EUR':'€','GBP':'£','SEK':'kr','JPY':'¥','DKK':'kr','PLN':'zł','CHF':'Fr','MXN':'$'};
+        const cur = this.value;
+        document.getElementById('fee-currency-label').textContent = sym[cur] || cur;
+        document.getElementById('fx-currency-label').textContent = cur;
+        if (cur === 'EUR') {
+            document.getElementById('add-fx-rate').value = '1';
+            document.getElementById('fx-rate-hint').textContent = 'EUR → sin conversión';
+        } else {
+            document.getElementById('add-fx-rate').value = '';
+            document.getElementById('fx-rate-hint').textContent = 'Se obtiene automáticamente de Yahoo Finance';
+        }
+    });
+
+    // Formulario de añadir
+    document.getElementById('add-portfolio-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('submit-btn');
+        const originalText = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...`;
+
+        try {
+            const fxRawVal = document.getElementById('add-fx-rate').value;
+            const fxRate = fxRawVal ? parseFloat(fxRawVal) : null;
+            const feeVal = parseFloat(document.getElementById('add-fee').value) || 0;
+
+            const res = await fetch('/api/portfolio/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date: document.getElementById('add-date').value,
+                    type: document.getElementById('add-type').value,
+                    ticker: document.getElementById('add-ticker').value.toUpperCase(),
+                    shares: parseFloat(document.getElementById('add-shares').value),
+                    price: parseFloat(document.getElementById('add-price').value),
+                    currency: document.getElementById('add-currency').value,
+                    fee: feeVal,
+                    fx_rate_at_purchase: fxRate,
+                    broker: document.getElementById('add-broker').value
+                })
+            });
+            
+            const data = await res.json();
+            if (data.status === 'success') {
+                if (typeof showToast === 'function') {
+                    showToast('✅ Éxito', 'Transacción guardada correctamente. Recargando...', 'success');
+                }
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                throw new Error(data.detail || 'Error al guardar la transacción');
+            }
+        } catch (err) {
+            console.error(err);
+            if (typeof showToast === 'function') {
+                showToast('❌ Error', err.message, 'error');
+            } else {
+                alert(err.message);
+            }
+            // Desbloquear si hay error
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    });
+
+    async function deletePosition(ticker) {
+        if (confirm(`¿Eliminar todo el histórico de ${ticker}?`)) {
+            if (typeof showToast === 'function') {
+                showToast('⏳ Procesando', `Eliminando ${ticker} y recalculando portfolio...`, 'info');
+            }
+            try {
+                const res = await fetch(`/api/portfolio/${ticker}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    showToast('❌ Error', 'No se pudo eliminar la posición', 'error');
+                }
+            } catch (err) {
+                showToast('❌ Error', 'Error de conexión', 'error');
+            }
+        }
+    }
+
+    // Sorting
+    let sortDirections = {};
+    function sortTable(tableId, columnIndex, isNumeric = false) {
+        const table = document.getElementById(tableId);
+        if (!table) return;
+        const tbody = table.querySelector("tbody");
+        const rows = Array.from(tbody.querySelectorAll("tr.portfolio-row, tr"));
+
+        if (rows.length === 0) return;
+
+        const sortKey = tableId + "-" + columnIndex;
+        if (sortDirections[sortKey] === undefined) {
+            sortDirections[sortKey] = true;
+        }
+        const ascending = sortDirections[sortKey];
+
+        // Filter out rows without enough cells (e.g. empty messages)
+        const validRows = rows.filter(r => r.cells.length > columnIndex);
+
+        validRows.sort((a, b) => {
+            let valA = a.cells[columnIndex].innerText.trim();
+            let valB = b.cells[columnIndex].innerText.trim();
+
+            if (a.cells[columnIndex].hasAttribute('data-sort-value')) {
+                valA = a.cells[columnIndex].getAttribute('data-sort-value');
+                valB = b.cells[columnIndex].getAttribute('data-sort-value');
+            }
+
+            if (isNumeric) {
+                let numA = parseFloat(valA);
+                let numB = parseFloat(valB);
+
+                numA = isNaN(numA) ? -Infinity : numA;
+                numB = isNaN(numB) ? -Infinity : numB;
+
+                return ascending ? numA - numB : numB - numA;
+            } else {
+                return ascending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            }
+        });
+
+        sortDirections[sortKey] = !ascending;
+        validRows.forEach(row => tbody.appendChild(row));
+
+        // Re-aplicar filtros/paginado si es una de nuestras tablas paginadas
+        if (tableId === 'closedPositionsTable') {
+            if (typeof filterClosedPositions === 'function') {
+                filterClosedPositions();
+            }
+        } else if (tableId === 'closedTable') {
+            if (typeof applyHistFilters === 'function') {
+                applyHistFilters(false); // Mantener página actual de operaciones detalladas
+            }
+        }
+
+        // Actualizar visualmente la cabecera (iconos y clases de Bootstrap)
+        const headers = table.querySelectorAll("thead th");
+        headers.forEach((th, idx) => {
+            const icon = th.querySelector("i.bi");
+            if (icon) {
+                if (idx === columnIndex) {
+                    // Columna ordenada activa
+                    icon.className = ascending ? "bi bi-sort-down text-primary fw-bold" : "bi bi-sort-up text-primary fw-bold";
+                    icon.style.opacity = "1";
+                    th.classList.add("text-primary");
+                } else {
+                    // Columnas inactivas
+                    icon.className = "bi bi-arrow-down-up text-muted";
+                    icon.style.opacity = "0.5";
+                    th.classList.remove("text-primary");
+                }
+            }
+        });
+    }
+function exportTableToCSV(tableId, filename) {
+        const table = document.getElementById(tableId);
+        if (!table) return;
+        const rows = Array.from(table.querySelectorAll('tr'));
+        
+        let csvContent = "";
+        rows.forEach(row => {
+            const cols = Array.from(row.querySelectorAll('th, td'));
+            const data = cols.map(col => {
+                let text = col.innerText.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""').trim();
+                return `"${text}"`;
+            });
+            // Si la última columna es "Ajustes", no la exportamos
+            if(data.length > 0 && cols[cols.length - 1].innerText === 'Ajustes' || (cols[cols.length - 1].querySelector('button'))) {
+                data.pop();
+            }
+            csvContent += data.join(",") + "\n";
+        });
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // ── Historial P&L Filtering, KPI Calculation, and Pagination ──────────────
+    let closedTxPageState = 1;
+    const CLOSED_TX_PER_PAGE = 10;
+
+    function applyHistFilters(resetPage = true) {
+        if (resetPage) {
+            closedTxPageState = 1;
+        }
+
+        const fromVal = document.getElementById('histDateFrom').value;
+        const toVal = document.getElementById('histDateTo').value;
+        const query = document.getElementById('closedTxSearch')?.value.toLowerCase() || '';
+        const typeFilter = document.getElementById('histTypeFilter')?.value || 'all';
+
+        // Interpret dates in local time to avoid timezone offset shifts
+        const parseLocalDate = (dateStr) => {
+            if (!dateStr) return null;
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return null;
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        };
+
+        const dateFrom = parseLocalDate(fromVal);
+        const dateTo = parseLocalDate(toVal);
+
+        const rows = document.querySelectorAll('.hist-row');
+        let totalGains = 0;
+        let totalLosses = 0;
+        let totalDividends = 0;
+
+        const matchingRows = [];
+
+        rows.forEach(row => {
+            const dateStr = row.getAttribute('data-date');
+            const type = row.getAttribute('data-type');
+            const pnl = parseFloat(row.getAttribute('data-pnl') || '0');
+            const rowDate = parseLocalDate(dateStr);
+            const ticker = row.cells[2].innerText.toLowerCase();
+
+            let matches = true;
+            if (dateFrom && rowDate && rowDate < dateFrom) matches = false;
+            if (dateTo && rowDate && rowDate > dateTo) matches = false;
+            if (query && !ticker.includes(query)) matches = false;
+            if (typeFilter !== 'all' && type !== typeFilter) matches = false;
+
+            if (matches) {
+                matchingRows.push(row);
+                
+                // Calcular KPIs solo para las filas filtradas
+                if (type === 'VENTA') {
+                    if (pnl >= 0) {
+                        totalGains += pnl;
+                    } else {
+                        totalLosses += pnl; // is negative
+                    }
+                } else if (type === 'DIVIDENDO') {
+                    totalDividends += pnl;
+                }
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // Aplicar paginación sobre las filas que coinciden
+        const total = matchingRows.length;
+        const pages = Math.ceil(total / CLOSED_TX_PER_PAGE) || 1;
+        closedTxPageState = Math.min(pages, Math.max(1, closedTxPageState));
+        
+        const start = (closedTxPageState - 1) * CLOSED_TX_PER_PAGE;
+        
+        matchingRows.forEach((row, i) => {
+            if (i >= start && i < start + CLOSED_TX_PER_PAGE) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // Actualizar controles de paginación
+        const info = document.getElementById('closedTxPageInfo');
+        if (info) info.textContent = `Pág. ${closedTxPageState} / ${pages}`;
+
+        // Calcular total e inflar los KPIs
+        const totalNet = totalGains + totalLosses + totalDividends;
+        document.getElementById('histGains').innerText = formatCurrency(totalGains);
+        document.getElementById('histLosses').innerText = formatCurrency(totalLosses);
+        document.getElementById('histDividends').innerText = formatCurrency(totalDividends);
+        
+        const netEl = document.getElementById('histNet');
+        if (netEl) {
+            netEl.innerText = formatCurrency(totalNet);
+            netEl.className = 'fw-bold fs-5 ' + (totalNet >= 0 ? 'text-success' : 'text-danger');
+        }
+    }
+
+    function closedTxPage(delta) {
+        const rows = document.querySelectorAll('.hist-row');
+        const fromVal = document.getElementById('histDateFrom').value;
+        const toVal = document.getElementById('histDateTo').value;
+        const query = document.getElementById('closedTxSearch')?.value.toLowerCase() || '';
+        const typeFilter = document.getElementById('histTypeFilter')?.value || 'all';
+
+        const parseLocalDate = (dateStr) => {
+            if (!dateStr) return null;
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return null;
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        };
+
+        const dateFrom = parseLocalDate(fromVal);
+        const dateTo = parseLocalDate(toVal);
+
+        const matchingCount = Array.from(rows).filter(row => {
+            const dateStr = row.getAttribute('data-date');
+            const rowDate = parseLocalDate(dateStr);
+            const ticker = row.cells[2].innerText.toLowerCase();
+            const type = row.getAttribute('data-type');
+            
+            let matches = true;
+            if (dateFrom && rowDate && rowDate < dateFrom) matches = false;
+            if (dateTo && rowDate && rowDate > dateTo) matches = false;
+            if (query && !ticker.includes(query)) matches = false;
+            if (typeFilter !== 'all' && type !== typeFilter) matches = false;
+            return matches;
+        }).length;
+
+        const pages = Math.ceil(matchingCount / CLOSED_TX_PER_PAGE) || 1;
+        closedTxPageState = Math.min(pages, Math.max(1, closedTxPageState + delta));
+        
+        applyHistFilters(false); // Llamamos con false para no resetear a la pag 1
+    }
+
+    // ── Filtros Avanzados para Posiciones Cerradas ──────────────────────────
+    let closedPnlFilterState = 'all';
+
+    function setClosedPnlFilter(type) {
+        closedPnlFilterState = type;
+        const btns = ['all', 'profit', 'loss'];
+        btns.forEach(b => {
+            const el = document.getElementById('pnlFilter-' + b);
+            if (el) {
+                if (b === type) {
+                    el.classList.remove('btn-outline-secondary');
+                    el.classList.add('btn-dark');
+                } else {
+                    el.classList.remove('btn-dark');
+                    el.classList.add('btn-outline-secondary');
+                }
+            }
+        });
+        closedPosPageState = 1; // reset page to 1
+        filterClosedPositions();
+    }
+
+    function filterClosedPositions() {
+        const query = document.getElementById('closedPosSearch')?.value.toLowerCase() || '';
+        const rows = document.querySelectorAll('.closed-pos-row');
+        
+        // 1. Filtrar las filas por búsqueda de texto y ganancias/pérdidas
+        const matchingRows = [];
+        rows.forEach(row => {
+            const ticker = row.cells[0].innerText.toLowerCase();
+            const company = row.cells[1].innerText.toLowerCase();
+            
+            // Obtener el P&L numérico para ver si es positivo o negativo (está en la columna 9)
+            const pnlVal = parseFloat(row.cells[9].getAttribute('data-sort-value') || '0');
+
+            let matchesText = ticker.includes(query) || company.includes(query);
+            let matchesPnl = true;
+            if (closedPnlFilterState === 'profit' && pnlVal < 0) matchesPnl = false;
+            if (closedPnlFilterState === 'loss' && pnlVal >= 0) matchesPnl = false;
+
+            if (matchesText && matchesPnl) {
+                matchingRows.push(row);
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // 2. Aplicar paginación sobre las que coinciden
+        const total = matchingRows.length;
+        const pages = Math.ceil(total / CLOSED_POS_PER_PAGE) || 1;
+        closedPosPageState = Math.min(pages, Math.max(1, closedPosPageState));
+        
+        const start = (closedPosPageState - 1) * CLOSED_POS_PER_PAGE;
+        matchingRows.forEach((row, i) => {
+            if (i >= start && i < start + CLOSED_POS_PER_PAGE) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // 3. Actualizar indicador de páginas
+        const info = document.getElementById('closedPosPageInfo');
+        if (info) info.textContent = `Pág. ${closedPosPageState} / ${pages}`;
+    }
+
+    function formatCurrency(val) {
+        return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(val);
+    }
+
+    // Auxiliar de Debouncing para suavizar el filtrado de búsqueda en tiempo real
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    // Registrar escuchadores de búsqueda con debounce de 300ms cuando el DOM esté cargado
+    document.addEventListener("DOMContentLoaded", function() {
+        const closedPosSearch = document.getElementById('closedPosSearch');
+        if (closedPosSearch) {
+            closedPosSearch.addEventListener('input', debounce(function() {
+                closedPosPageState = 1; // resetear a pág 1 al buscar
+                filterClosedPositions();
+            }, 300));
+        }
+
+        const closedTxSearch = document.getElementById('closedTxSearch');
+        if (closedTxSearch) {
+            closedTxSearch.addEventListener('input', debounce(function() {
+                applyHistFilters(true); // resetear a pág 1 al buscar
+            }, 300));
+        }
+    });
+
+    function setHistPeriod(period) {
+        const today = new Date();
+        let fromDate = null;
+        let toDate = null;
+
+        // Reset all buttons
+        const btns = ['all', 'month', '3m', 'ytd', '1y'];
+        btns.forEach(b => {
+            const el = document.getElementById('histBtn-' + b);
+            if (el) {
+                el.classList.remove('btn-dark');
+                el.classList.add('btn-outline-secondary');
+            }
+        });
+
+        // Set active button
+        const activeBtn = document.getElementById('histBtn-' + period);
+        if (activeBtn) {
+            activeBtn.classList.remove('btn-outline-secondary');
+            activeBtn.classList.add('btn-dark');
+        }
+
+        if (period === 'month') {
+            fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        } else if (period === '3m') {
+            fromDate = new Date();
+            fromDate.setMonth(fromDate.getMonth() - 3);
+        } else if (period === 'ytd') {
+            fromDate = new Date(today.getFullYear(), 0, 1);
+        } else if (period === '1y') {
+            fromDate = new Date();
+            fromDate.setFullYear(fromDate.getFullYear() - 1);
+        }
+
+        // Format Date to YYYY-MM-DD in local time
+        const formatLocalDate = (dateObj) => {
+            if (!dateObj) return '';
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
+
+        document.getElementById('histDateFrom').value = fromDate ? formatLocalDate(fromDate) : '';
+        document.getElementById('histDateTo').value = ''; // usually empty for up-to-now
+
+        applyHistFilters();
+    }
+
+    // Configuración visual de comisiones de Brokers cargadas de la DB
+    const BROKER_SETTINGS = {
+        degiro_fee_eur: {{ settings.get('brokers', {}).get('degiro_fee_eur', 1.0) }},
+        degiro_fee_usd: {{ settings.get('brokers', {}).get('degiro_fee_usd', 1.0) }},
+        degiro_fee_sek: {{ settings.get('brokers', {}).get('degiro_fee_sek', 3.90) }},
+        degiro_autofx_pct: {{ settings.get('brokers', {}).get('degiro_autofx_pct', 0.25) }},
+        ibkr_fee_usd_per_share: {{ settings.get('brokers', {}).get('ibkr_fee_usd_per_share', 0.005) }},
+        ibkr_fee_usd_min: {{ settings.get('brokers', {}).get('ibkr_fee_usd_min', 1.00) }},
+        ibkr_fee_usd_max_pct: {{ settings.get('brokers', {}).get('ibkr_fee_usd_max_pct', 1.0) }},
+        ibkr_autofx_usd_min: {{ settings.get('brokers', {}).get('ibkr_autofx_usd_min', 2.00) }},
+        ibkr_autofx_usd_pct: {{ settings.get('brokers', {}).get('ibkr_autofx_usd_pct', 0.2) }},
+        ibkr_fee_sek_min: {{ settings.get('brokers', {}).get('ibkr_fee_sek_min', 40.0) }},
+        ibkr_fee_sek_pct: {{ settings.get('brokers', {}).get('ibkr_fee_sek_pct', 0.05) }},
+        ibkr_fee_eur_min: {{ settings.get('brokers', {}).get('ibkr_fee_eur_min', 1.25) }},
+        ibkr_fee_eur_pct: {{ settings.get('brokers', {}).get('ibkr_fee_eur_pct', 0.05) }}
+    };
+
+    function calculateEstimatedFee() {
+        const shares = parseFloat(document.getElementById('add-shares').value) || 0;
+        const price = parseFloat(document.getElementById('add-price').value) || 0;
+        const broker = document.getElementById('add-broker').value;
+        const currency = document.getElementById('add-currency').value.toUpperCase();
+
+        if (shares <= 0 || price <= 0) {
+            document.getElementById('add-fee').value = "0.00";
+            return;
+        }
+
+        let estFee = 0;
+        const value = shares * price;
+
+        if (broker === 'DEGIRO') {
+            if (currency === 'EUR') {
+                estFee = BROKER_SETTINGS.degiro_fee_eur;
+            } else if (currency === 'USD') {
+                // Fijo USD convertido a USD + AutoFX
+                const usdRate = 1.08; // fallback aproximado para estimación local
+                estFee = BROKER_SETTINGS.degiro_fee_usd + (BROKER_SETTINGS.degiro_autofx_pct / 100.0) * value;
+            } else if (currency === 'SEK') {
+                estFee = BROKER_SETTINGS.degiro_fee_sek + (BROKER_SETTINGS.degiro_autofx_pct / 100.0) * value;
+            } else {
+                estFee = BROKER_SETTINGS.degiro_fee_eur + (BROKER_SETTINGS.degiro_autofx_pct / 100.0) * value;
+            }
+        } else {
+            // IBKR
+            if (currency === 'USD') {
+                let comm = Math.max(BROKER_SETTINGS.ibkr_fee_usd_min, BROKER_SETTINGS.ibkr_fee_usd_per_share * shares);
+                comm = Math.min(comm, (BROKER_SETTINGS.ibkr_fee_usd_max_pct / 100.0) * value);
+                const fx = Math.max(BROKER_SETTINGS.ibkr_autofx_usd_min, (BROKER_SETTINGS.ibkr_autofx_usd_pct / 100.0) * value);
+                estFee = comm + fx;
+            } else if (currency === 'SEK') {
+                const comm = Math.max(BROKER_SETTINGS.ibkr_fee_sek_min, (BROKER_SETTINGS.ibkr_fee_sek_pct / 100.0) * value);
+                const fx = 22.0; // aprox 2 USD en SEK
+                estFee = comm + fx;
+            } else if (currency === 'EUR') {
+                estFee = Math.max(BROKER_SETTINGS.ibkr_fee_eur_min, (BROKER_SETTINGS.ibkr_fee_eur_pct / 100.0) * value);
+            } else {
+                estFee = Math.max(BROKER_SETTINGS.ibkr_fee_eur_min, (BROKER_SETTINGS.ibkr_fee_eur_pct / 100.0) * value);
+            }
+        }
+
+        document.getElementById('add-fee').value = estFee.toFixed(2);
+    }
+
+    // Inicializar fecha de hoy
+    document.addEventListener("DOMContentLoaded", function() {
+        const dateInput = document.getElementById('add-date');
+        if (dateInput && !dateInput.value) {
+            const today = new Date();
+            const y = today.getFullYear();
+            const m = String(today.getMonth() + 1).padStart(2, '0');
+            const d = String(today.getDate()).padStart(2, '0');
+            dateInput.value = `${y}-${m}-${d}`;
+        }
+    });
+
+    // Run initial KPIs and filters calculation for Historial
+    document.addEventListener("DOMContentLoaded", function() {
+        if (document.getElementById('closedTable')) {
+            applyHistFilters();
+        }
+    });
+</script>
+{% endblock %}

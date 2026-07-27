@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+{% block title %}Alpha-Flow · Oportunidades{% endblock %}
+{% block content %}
+<style>
+    /* Estilos ultra-compactos y profesionales para Oportunidades de Compra */
+    .table-modern {
+        font-size: 0.74rem !important;
+    }
+    .table-modern thead th {
+        font-size: 0.65rem !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        padding: 4px 8px !important;
+        background-color: #151821 !important;
+        color: var(--text-secondary) !important;
+        border-bottom: 1px solid var(--fin-border) !important;
+    }
+    .table-modern tbody td {
+        padding: 4px 8px !important;
+        height: 32px !important;
+        border-bottom: 1px solid var(--fin-border) !important;
+    }
+    .table-responsive {
+        box-shadow: none !important;
+        border: 1px solid var(--fin-border) !important;
+        border-radius: 4px !important;
+        background-color: var(--fin-card-bg) !important;
+    }
+    .table-modern a.ticker-name {
+        color: var(--text-primary) !important;
+        font-weight: 700 !important;
+    }
+    .table-modern a.ticker-name:hover {
+        color: var(--fin-green) !important;
+    }
+    /* Estilo de los inputs editables */
+    .table-modern input.form-control-sm {
+        font-size: 0.72rem !important;
+        padding: 2px 4px !important;
+        background-color: rgba(255,255,255,0.015) !important;
+        border: 1px solid var(--fin-border) !important;
+        color: var(--text-primary) !important;
+    }
+    h2, h3, h4, h5, h6 {
+        color: var(--text-primary) !important;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-3 mt-2">
+    <div>
+        <h3 class="fw-bold mb-1 text-white" style="font-size: 1.25rem;">Oportunidades de Compra</h3>
+        <p class="text-muted mb-0">
+            Solo acciones <strong>ACCEPTED</strong> con PER Justo configurado. El PE de Compra (Barato) y el Precio Ganga se calculan dinámicamente según los porcentajes sobre el PER Justo definidos en tu configuración.
+        </p>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+        <div class="text-end text-muted small lh-sm">
+            <div>🎯 Cerca: &le; <strong>{{ near_threshold }}%</strong></div>
+            <div>👁 Seguimiento: {{ near_threshold }}–<strong>{{ watch_threshold }}%</strong></div>
+            <div>📍 Lejos: {{ watch_threshold }}–<strong>{{ far_threshold }}%</strong></div>
+        </div>
+        <button id="editModeBtn" onclick="toggleEditMode()" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-pencil me-1"></i>Editar PERs Justos
+        </button>
+    </div>
+</div>
+
+{# ── Macro: tabla con inputs editables ── #}
+{% macro pe_table(items, list_id, item_class, pagination_id, show_no_pe=false) %}
+<div class="table-responsive">
+    <table class="table table-modern align-middle mb-0" style="font-size:0.83rem;">
+        <thead>
+            <tr>
+                <th class="ps-3" style="width:230px">Activo</th>
+                <th class="text-muted small">Sector</th>
+                <th class="text-end">Precio actual</th>
+                <th class="text-end">Hoy</th>
+                <th class="text-end">PE Fwd mercado</th>
+                <th class="text-end" style="width:110px">PER Justo</th>
+                {% if not show_no_pe %}
+                <th class="text-end">PE Compra (Barato)</th>
+                <th class="text-end">Precio Compra</th>
+                <th class="text-end">Precio Ganga</th>
+                <th class="text-end pe-3">Diferencia</th>
+                {% else %}
+                <th class="text-end pe-3">Precio Compra</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody id="{{ list_id }}">
+            {% for item in items %}
+            <tr style="display:none;" class="{{ item_class }}">
+                <td class="ps-3">
+                    <div class="ticker-info">
+                        <div>
+                            <a href="/ticker/{{ item.ticker }}" class="text-decoration-none text-dark ticker-name">{{ clean_ticker(item.ticker) }}</a>
+                            {% if item.valuation_status == 'GANGA' %}
+                                <span class="badge bg-success bg-opacity-75" style="font-size:0.6rem; padding: 2px 4px;">🔥 GANGA</span>
+                            {% elif item.valuation_status == 'BARATA' %}
+                                <span class="badge bg-success" style="font-size:0.6rem; padding: 2px 4px;">✅ BARATA</span>
+                            {% elif item.valuation_status == 'PRECIO_JUSTO' %}
+                                <span class="badge bg-secondary" style="font-size:0.6rem; padding: 2px 4px;">⚖️ JUSTO</span>
+                            {% elif item.valuation_status == 'CARO' %}
+                                <span class="badge bg-warning text-dark" style="font-size:0.6rem; padding: 2px 4px;">📈 CARO</span>
+                            {% elif item.valuation_status == 'BURBUJA' %}
+                                <span class="badge bg-danger" style="font-size:0.6rem; padding: 2px 4px;">🚨 BURBUJA</span>
+                            {% endif %}
+                            <span class="company-name text-truncate d-block text-muted" style="max-width:180px; font-size:0.65rem;" title="{{ item.company_name }}">
+                                {{ item.company_name }}
+                            </span>
+                        </div>
+                    </div>
+                </td>
+                <td class="text-muted small text-truncate align-middle" style="max-width:100px;">{{ item.sector }}</td>
+                <td class="text-end fw-bold align-middle">
+                    {% if item.current_price %}
+                        {{ item.currency_symbol }}{{ format_euro(item.current_price, 2) }}
+                    {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-end align-middle {% if item.change_pct and item.change_pct > 0 %}text-success{% elif item.change_pct and item.change_pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size:0.78rem;">
+                    {% if item.change_pct is not none %}
+                        <div class="fw-bold">{% if item.change_pct > 0 %}+{% endif %}{{ format_euro(item.change_pct, 2) }}%</div>
+                        <div class="opacity-75">{% if item.change_abs > 0 %}+{% endif %}{{ format_euro(item.change_abs, 2) }}</div>
+                    {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-end align-middle">
+                    {% if item.market_pe %}
+                        <span class="fw-bold">{{ item.market_pe }}x</span>
+                    {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-end align-middle">
+                    <div class="d-flex justify-content-end align-items-center gap-1">
+                        <input type="number"
+                               class="form-control form-control-sm text-end pe-input"
+                               data-ticker="{{ item.ticker }}"
+                               data-original="{{ item.buy_pe if item.buy_pe is defined else '' }}"
+                               value="{{ item.buy_pe if item.buy_pe is defined else '' }}"
+                               placeholder="—"
+                               step="0.5" min="1" max="999"
+                               style="width:70px;"
+                               disabled>
+                        <small class="text-muted">x</small>
+                    </div>
+                </td>
+                {% if not show_no_pe %}
+                <td class="text-end align-middle">
+                    {% if item.compra_pe %}
+                        <span class="fw-bold">{{ item.compra_pe }}x</span>
+                    {% else %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-end fw-bold text-success buy-price-cell align-middle" data-ticker="{{ item.ticker }}">
+                    {% if item.buy_price %}
+                        {{ item.currency_symbol }}{{ format_euro(item.buy_price, 2) }}
+                    {% else %}—{% endif %}
+                </td>
+                <td class="text-end fw-bold text-success align-middle" style="color: #198754 !important;" data-ticker="{{ item.ticker }}">
+                    {% if item.ganga_price %}
+                        {{ item.currency_symbol }}{{ format_euro(item.ganga_price, 2) }}
+                    {% else %}—{% endif %}
+                </td>
+                <td class="text-end pe-3 fw-bold diff-cell align-middle" data-ticker="{{ item.ticker }}">
+                    {% if item.drop_needed is defined %}
+                        {% if item.drop_needed <= 0 %}
+                            <span class="text-success">✓ en zona</span>
+                            <small class="text-success opacity-75 d-block" style="font-size:0.7rem;">
+                                ({{ format_euro(item.drop_needed|abs, 1) }}% abajo)
+                            </small>
+                        {% else %}
+                            <span class="text-danger">-{{ format_euro(item.drop_needed, 1) }}%</span>
+                        {% endif %}
+                    {% else %}—{% endif %}
+                </td>
+                {% else %}
+                <td class="text-end pe-3 fw-bold buy-price-cell text-muted" data-ticker="{{ item.ticker }}">—</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+    <small class="text-muted">{{ items|length }} acción{% if items|length != 1 %}es{% endif %}</small>
+    <div id="{{ pagination_id }}" class="pagination-small"></div>
+</div>
+{% endmacro %}
+
+
+<!-- ── En zona de compra ── -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header border-0 pt-3 pb-2 d-flex justify-content-between align-items-center"
+         style="background:linear-gradient(135deg,#198754 0%,#0f5132 100%);">
+        <div>
+            <h5 class="fw-bold text-white mb-0">✅ En zona de compra</h5>
+            <small class="text-white opacity-75">PE mercado &le; PE Compra (Barato)</small>
+        </div>
+        <span class="badge bg-white text-success fw-bold" style="font-size:1rem;">{{ in_zone|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        {% if in_zone %}
+            {{ pe_table(in_zone, "inZoneList", "in-zone-item", "inZonePagination") }}
+        {% else %}
+        <div class="text-center py-4 text-muted small">Ninguna acción está actualmente en zona de compra.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ── Cerca ── -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header border-0 pt-3 pb-2 d-flex justify-content-between align-items-center"
+         style="background:linear-gradient(135deg,#fd7e14 0%,#dc6b00 100%);">
+        <div>
+            <h5 class="fw-bold text-white mb-0">🎯 Cerca del precio de compra</h5>
+            <small class="text-white opacity-75">Necesitan caer menos de un {{ near_threshold }}% para llegar al Precio Compra (Barato)</small>
+        </div>
+        <span class="badge bg-white text-warning fw-bold" style="font-size:1rem;">{{ near_list|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        {% if near_list %}
+            {{ pe_table(near_list, "nearList", "near-item", "nearPagination") }}
+        {% else %}
+        <div class="text-center py-4 text-muted small">No hay acciones dentro del {{ near_threshold }}% del precio de compra (Barato).</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ── Seguimiento (15–30%) ── -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header border-0 pt-3 pb-2 d-flex justify-content-between align-items-center bg-secondary bg-opacity-10">
+        <div>
+            <h5 class="fw-bold mb-0">👁 En seguimiento</h5>
+            <small class="text-muted">Entre {{ near_threshold }}% y {{ watch_threshold }}% por encima del Precio Compra (Barato)</small>
+        </div>
+        <span class="badge bg-secondary fw-bold" style="font-size:1rem;">{{ watch_list|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        {% if watch_list %}
+            {{ pe_table(watch_list, "watchList", "watch-item", "watchPagination") }}
+        {% else %}
+        <div class="text-center py-4 text-muted small">No hay acciones en seguimiento.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ── Lejos de compra (30–50%) ── -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header border-0 pt-3 pb-2 d-flex justify-content-between align-items-center"
+         style="background:rgba(108,117,125,0.08);">
+        <div>
+            <h5 class="fw-bold mb-0 text-muted">📍 Lejos de compra</h5>
+            <small class="text-muted">Entre {{ watch_threshold }}% y {{ far_threshold }}% por encima del Precio Compra (Barato)</small>
+        </div>
+        <span class="badge bg-light text-muted border fw-bold" style="font-size:1rem;">{{ far_list|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        {% if far_list %}
+            {{ pe_table(far_list, "farList", "far-item", "farPagination") }}
+        {% else %}
+        <div class="text-center py-4 text-muted small">No hay acciones en este rango.</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ── Pendiente de fijar PE ── -->
+{% if no_pe_list %}
+<div class="card shadow-sm border-0 mb-5" style="border-left:4px solid #ffc107 !important;">
+    <div class="card-header border-0 pt-3 pb-2 d-flex justify-content-between align-items-center"
+         style="background:rgba(255,193,7,0.08);">
+        <div>
+            <h5 class="fw-bold mb-0">
+                <i class="bi bi-hourglass-split text-warning me-1"></i> Pendiente de fijar PER Justo
+            </h5>
+            <small class="text-muted">Fija el PER Justo objetivo para que aparezcan clasificadas en las secciones anteriores</small>
+        </div>
+        <span class="badge bg-warning text-dark fw-bold" style="font-size:1rem;">{{ no_pe_list|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        {{ pe_table(no_pe_list, "noPeList", "no-pe-item", "noPePagination", show_no_pe=true) }}
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Barra flotante de guardado ── -->
+<div id="saveBar" class="position-fixed bottom-0 start-0 end-0 py-3 px-0 d-none"
+     style="z-index:1050; background:rgba(13,110,253,0.97); backdrop-filter:blur(4px);">
+    <div class="container d-flex justify-content-between align-items-center">
+        <div class="text-white">
+            <span id="saveBarCount" class="fw-bold fs-5 me-2">0</span>
+            <span id="saveBarMsg" class="opacity-90">cambios pendientes</span>
+        </div>
+        <div class="d-flex gap-2">
+            <button onclick="discardChanges()" class="btn btn-outline-light btn-sm">
+                <i class="bi bi-x-lg me-1"></i>Descartar
+            </button>
+            <button onclick="saveAllChanges()" class="btn btn-light btn-sm fw-bold text-primary">
+                <i class="bi bi-floppy-fill me-1"></i>Guardar todos
+            </button>
+        </div>
+    </div>
+</div>
+<div id="saveBarSpacer" class="d-none" style="height:64px;"></div>
+
+<script>
+const originalValues = {};
+let pendingChanges = {};
+let editMode = false;
+
+function toggleEditMode() {
+    editMode = !editMode;
+    const btn = document.getElementById('editModeBtn');
+    const inputs = document.querySelectorAll('.pe-input');
+
+    if (editMode) {
+        btn.innerHTML = '<i class="bi bi-x-lg me-1"></i>Cancelar edición';
+        btn.classList.replace('btn-outline-primary', 'btn-outline-danger');
+        inputs.forEach(inp => { inp.disabled = false; });
+    } else {
+        // Cancel: revert all pending changes and disable
+        discardChanges();
+        btn.innerHTML = '<i class="bi bi-pencil me-1"></i>Editar PEs';
+        btn.classList.replace('btn-outline-danger', 'btn-outline-primary');
+        inputs.forEach(inp => { inp.disabled = true; });
+    }
+}
+
+function initInputs() {
+    document.querySelectorAll('.pe-input').forEach(input => {
+        const ticker = input.dataset.ticker;
+        const orig = input.dataset.original ? parseFloat(input.dataset.original) : null;
+        originalValues[ticker] = orig;
+
+        input.addEventListener('input', () => {
+            if (!editMode) return;
+            const val = input.value.trim() === '' ? null : parseFloat(input.value);
+            const changed = val !== originalValues[ticker];
+            if (changed) {
+                pendingChanges[ticker] = val;
+                input.classList.add('border-primary');
+            } else {
+                delete pendingChanges[ticker];
+                input.classList.remove('border-primary');
+            }
+            updateSaveBar();
+        });
+    });
+}
+
+function updateSaveBar() {
+    const count = Object.keys(pendingChanges).length;
+    const bar    = document.getElementById('saveBar');
+    const spacer = document.getElementById('saveBarSpacer');
+    document.getElementById('saveBarCount').textContent = count;
+    if (count > 0) {
+        bar.classList.remove('d-none');
+        spacer.classList.remove('d-none');
+    } else {
+        bar.classList.add('d-none');
+        spacer.classList.add('d-none');
+    }
+}
+
+async function saveAllChanges() {
+    const payload = Object.entries(pendingChanges)
+        .filter(([, v]) => v !== null && v > 0)
+        .map(([ticker, pe]) => ({ ticker, fair_forward_pe: pe }));
+
+    if (payload.length === 0) return;
+
+    try {
+        const res = await fetch('/api/fair_pe_bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            showToast('Guardado', `${data.updated} PE${data.updated !== 1 ? 's' : ''} actualizado${data.updated !== 1 ? 's' : ''} correctamente`, 'success');
+            setTimeout(() => location.reload(), 1200);
+        } else {
+            showToast('Error', 'No se pudieron guardar los cambios', 'error');
+        }
+    } catch(e) {
+        showToast('Error', 'Error de conexión al guardar', 'error');
+    }
+}
+
+function discardChanges() {
+    Object.keys(pendingChanges).forEach(ticker => {
+        document.querySelectorAll(`.pe-input[data-ticker="${ticker}"]`).forEach(input => {
+            const orig = originalValues[ticker];
+            input.value = orig !== null ? orig : '';
+            input.classList.remove('border-primary');
+        });
+    });
+    pendingChanges = {};
+    updateSaveBar();
+}
+
+// ── Paginación ──
+function setupPagination(listId, itemClass, paginationId, perPage) {
+    const tbody = document.getElementById(listId);
+    if (!tbody) return;
+    const items = Array.from(tbody.getElementsByClassName(itemClass));
+    const pg = document.getElementById(paginationId);
+    if (!items.length) return;
+    let page = 1;
+    const total = Math.ceil(items.length / perPage);
+    function render() {
+        items.forEach((el, i) => {
+            const visible = i >= (page - 1) * perPage && i < page * perPage;
+            el.style.setProperty('display', visible ? 'table-row' : 'none', 'important');
+        });
+        if (pg) pg.innerHTML = total > 1 ? `
+            <button class="btn btn-xs btn-outline-secondary py-0 px-1"
+                ${page === 1 ? 'disabled' : ''} onclick="opp_pg('${listId}',${page-1})">&lt;</button>
+            <small class="mx-1 text-muted">${page}/${total}</small>
+            <button class="btn btn-xs btn-outline-secondary py-0 px-1"
+                ${page === total ? 'disabled' : ''} onclick="opp_pg('${listId}',${page+1})">&gt;</button>
+        ` : '';
+    }
+    window._opp = window._opp || {};
+    window._opp[listId] = p => { page = p; render(); };
+    render();
+}
+window.opp_pg = (id, p) => window._opp?.[id]?.(p);
+
+document.addEventListener('DOMContentLoaded', () => {
+    setupPagination('inZoneList', 'in-zone-item', 'inZonePagination', 15);
+    setupPagination('nearList',   'near-item',    'nearPagination',   15);
+    setupPagination('watchList',  'watch-item',   'watchPagination',  15);
+    setupPagination('farList',    'far-item',     'farPagination',    15);
+    setupPagination('noPeList',   'no-pe-item',   'noPePagination',   15);
+    initInputs();
+});
+</script>
+
+<style>
+    .btn-xs { padding:.05rem .25rem; font-size:.65rem; line-height:1; border-radius:3px; }
+    .pagination-small { font-size:.7rem; }
+    /* Deshabilitado: parece texto normal, sin borde ni fondo */
+    .pe-input:disabled {
+        background: transparent !important;
+        border-color: transparent !important;
+        color: inherit;
+        cursor: default;
+        font-weight: 600;
+        -webkit-text-fill-color: inherit;
+        opacity: 1;
+    }
+    .pe-input:not(:disabled) { border-color: #ced4da; }
+    .pe-input:not(:disabled):focus { box-shadow: 0 0 0 0.2rem rgba(13,110,253,.25); }
+    .pe-input.border-primary { border-color: #0d6efd !important; background-color: rgba(13,110,253,.05) !important; }
+    [data-bs-theme="dark"] .pe-input:disabled { color: #e9ecef; -webkit-text-fill-color: #e9ecef; }
+</style>
+
+{% endblock %}

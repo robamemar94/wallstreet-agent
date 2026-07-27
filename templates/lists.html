@@ -1,0 +1,651 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- CABECERA -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold text-white mb-1">
+                <i class="bi bi-list-stars text-warning me-2"></i> Mis Listas Personalizadas
+            </h4>
+            <p class="text-muted small mb-0">Organiza tus empresas bajo seguimiento en grupos, temas o tesis de inversión.</p>
+        </div>
+        <button class="btn btn-warning fw-bold d-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#createListModal">
+            <i class="bi bi-folder-plus fs-5"></i> Nueva Lista
+        </button>
+    </div>
+
+    <!-- PESTAÑAS DE LISTAS (ESTILO BBDD) -->
+    {% if lists %}
+    <div class="card border-0 mb-4 shadow" style="background-color: var(--fin-card-bg); border-radius: 12px; border: 1px solid var(--fin-border) !important;">
+        <div class="card-header border-bottom pt-3 pb-0 px-3" style="background: transparent; border-color: rgba(255,255,255,0.08) !important;">
+            <ul class="nav nav-tabs border-bottom-0" id="customListsTabs" role="tablist">
+                {% for list in lists %}
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link {% if loop.first %}active{% endif %} fw-bold px-3 py-2.5" 
+                            id="tab-btn-{{ list.id }}" 
+                            data-bs-toggle="tab" 
+                            data-bs-target="#pane-list-{{ list.id }}" 
+                            type="button" 
+                            role="tab" 
+                            aria-controls="pane-list-{{ list.id }}" 
+                            aria-selected="{% if loop.first %}true{% else %}false{% endif %}"
+                            style="border-top-left-radius: 8px; border-top-right-radius: 8px; font-size: 0.85rem; color: rgba(255,255,255,0.6); transition: all 0.2s;">
+                        <i class="bi bi-folder2-open me-2 {% if loop.first %}text-warning{% endif %}" id="tab-icon-{{ list.id }}"></i>{{ list.name }}
+                        <span class="badge bg-secondary bg-opacity-25 text-white opacity-75 small ms-1.5" style="font-size: 0.68rem; vertical-align: middle;">{{ list.assets|length }}</span>
+                    </button>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+        <div class="card-body p-3">
+            <div class="tab-content" id="customListsContent">
+                {% for list in lists %}
+                <div class="tab-pane fade {% if loop.first %}show active{% endif %}" 
+                     id="pane-list-{{ list.id }}" 
+                     role="tabpanel" 
+                     aria-labelledby="tab-btn-{{ list.id }}">
+                     
+                     <!-- FILA DE ACCIONES UNIFICADA (Descripción, Añadir Ticker y Editar Lista) -->
+                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3.5 pb-3 border-bottom" style="border-color: rgba(255,255,255,0.08) !important;">
+                         <!-- Izquierda: Descripción de la Lista -->
+                         <div class="flex-grow-1 text-start" style="min-width: 200px; max-width: 55%;">
+                             {% if list.description %}
+                             <p class="text-muted small mb-0 fs-6" style="line-height: 1.35;">{{ list.description }}</p>
+                             {% endif %}
+                         </div>
+                         
+                         <!-- Derecha: Buscador Inline de Adición Rápida y Editar Lista colocados lado a lado -->
+                         <div class="d-flex align-items-center flex-wrap gap-2.5 ms-auto">
+                             <!-- Buscador Inline con Autocompletado -->
+                             <div class="position-relative" style="width: 250px;">
+                                 <form onsubmit="addTickerToList(event, {{ list.id }})" class="input-group input-group-sm">
+                                     <input type="text" class="form-control bg-dark border-secondary text-white fw-bold px-3 py-1.5" placeholder="Añadir ticker..." id="ticker-input-{{ list.id }}" required style="text-transform: uppercase; font-size: 0.76rem; border-radius: 4px 0 0 4px;" autocomplete="off">
+                                     <button class="btn btn-warning fw-bold px-2.5 py-1.5" type="submit" style="border-radius: 0 4px 4px 0; font-size: 0.74rem;">
+                                         <i class="bi bi-plus-lg"></i>
+                                     </button>
+                                 </form>
+                                 <!-- Caja flotante de sugerencias -->
+                                 <div id="suggestions-{{ list.id }}" class="search-suggestions position-absolute w-100 mt-1 shadow border rounded bg-body" style="display: none; z-index: 1050; max-height: 200px; overflow-y: auto; font-size: 0.74rem;"></div>
+                             </div>
+
+                             <!-- Botón de Editar Lista -->
+                             <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 py-1.5 px-2.5" 
+                                     id="btn-edit-list-{{ list.id }}"
+                                     data-id="{{ list.id }}"
+                                     data-name="{{ list.name }}"
+                                     data-description="{{ list.description or '' }}"
+                                     onclick="openEditListModal({{ list.id }})" 
+                                     style="font-size: 0.76rem; border-radius: 4px; min-height: 31px;">
+                                 <i class="bi bi-pencil-square text-warning me-1"></i>Editar
+                             </button>
+                         </div>
+                     </div>
+
+                     <!-- TABLA DE LA LISTA -->
+                     <div class="table-responsive" style="border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.06);">
+                         <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.8rem;">
+                             <thead>
+                                 <tr class="text-muted" style="background-color: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.08);">
+                                     <th class="ps-3 py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'ticker')" title="Ordenar por Ticker" style="cursor: pointer;">
+                                         Ticker <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-ticker" style="font-size: 0.68rem;"></i>
+                                     </th>
+                                     <th class="py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'name')" title="Ordenar por Empresa" style="cursor: pointer;">
+                                         Empresa <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-name" style="font-size: 0.68rem;"></i>
+                                     </th>
+                                     <th class="py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'region')" title="Ordenar por Región" style="cursor: pointer;">
+                                         Región <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-region" style="font-size: 0.68rem;"></i>
+                                     </th>
+                                     <th class="text-end py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'price')" title="Ordenar por Precio" style="cursor: pointer;">
+                                         Precio <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-price" style="font-size: 0.68rem;"></i>
+                                     </th>
+                                     <th class="text-end py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'pct')" title="Ordenar por Cambio Diario" style="cursor: pointer;">
+                                         Cambio Diario <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-pct" style="font-size: 0.68rem;"></i>
+                                     </th>
+                                     <th class="text-center py-2.5" style="width: 80px;">Acción</th>
+                                 </tr>
+                             </thead>
+                             <tbody>
+                                 {% for asset in list.assets %}
+                                 <tr class="hover-row" 
+                                     style="border-bottom: 1px solid rgba(255,255,255,0.05); transition: all 0.15s;"
+                                     data-ticker="{{ asset.ticker }}"
+                                     data-name="{{ asset.company_name|lower }}"
+                                     data-region="{{ asset.region|lower }}"
+                                     data-price="{{ asset.price }}"
+                                     data-pct="{{ asset.pct }}">
+                                     <!-- Ticker -->
+                                     <td class="ps-3 py-2.5" onclick="window.location='/ticker/{{ asset.ticker }}'" style="cursor: pointer;">
+                                         <span class="fw-bold text-white fs-6">{{ asset.ticker }}</span>
+                                         {% if asset.is_favorite %}
+                                         <i class="bi bi-star-fill text-warning ms-1" style="font-size: 0.65rem;" title="Favorito"></i>
+                                         {% endif %}
+                                     </td>
+                                     <!-- Empresa -->
+                                     <td class="py-2.5" onclick="window.location='/ticker/{{ asset.ticker }}'" style="cursor: pointer;">
+                                         <span class="company-name text-white opacity-85">{{ asset.company_name }}</span>
+                                     </td>
+                                     <!-- Región -->
+                                     <td class="py-2.5 text-muted text-uppercase" style="font-size: 0.72rem;">
+                                         {{ asset.region }}
+                                     </td>
+                                     <!-- Precio -->
+                                     <td class="text-end py-2.5 align-middle num-font font-monospace fw-bold text-white">
+                                         {{ "{:,.2f}".format(asset.price) }}{{ asset.symbol }}
+                                     </td>
+                                     <!-- % Cambio -->
+                                     <td class="text-end py-2.5 align-middle num-font">
+                                         <span class="fw-bold {% if asset.pct > 0 %}text-success{% elif asset.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.8rem; white-space: nowrap;">
+                                             {% if asset.change_abs > 0 %}+{% endif %}{{ "{:,.2f}".format(asset.change_abs) }}{{ asset.symbol }}
+                                             <span class="opacity-85 small ms-1">({% if asset.pct > 0 %}+{% endif %}{{ "{:,.2f}".format(asset.pct) }}%)</span>
+                                         </span>
+                                     </td>
+                                     <!-- Acciones de Quitar de la Lista -->
+                                     <td class="text-center py-2.5">
+                                         <button class="btn btn-xs btn-outline-danger border-0 p-1.5 opacity-60 hover-opacity-100" onclick="removeTickerFromList({{ list.id }}, '{{ asset.ticker }}')" title="Quitar de esta lista">
+                                             <i class="bi bi-trash-fill fs-6"></i>
+                                         </button>
+                                     </td>
+                                 </tr>
+                                 {% endfor %}
+                                 {% if not list.assets %}
+                                 <tr>
+                                     <td colspan="6" class="text-center py-5 text-muted">
+                                         <i class="bi bi-folder-symlink fs-3 d-block mb-2 text-secondary"></i>
+                                         Esta lista está vacía. Añade tickers usando el buscador de arriba.
+                                     </td>
+                                 </tr>
+                                 {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="row">
+        <div class="col-12 text-center py-5">
+            <div class="card border-0 py-5" style="background-color: var(--fin-card-bg); border-radius: 12px;">
+                <div class="card-body">
+                    <i class="bi bi-list-stars text-muted" style="font-size: 3.5rem;"></i>
+                    <h5 class="fw-bold text-white mt-3 mb-2">No tienes listas personalizadas</h5>
+                    <p class="text-muted small mb-4">Empieza creando una lista para clasificar tus acciones o sectores favoritos.</p>
+                    <button class="btn btn-warning fw-bold px-4" data-bs-toggle="modal" data-bs-target="#createListModal">
+                        <i class="bi bi-folder-plus me-1"></i> Crear mi Primera Lista
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- MODAL CREACIÓN DE LISTA -->
+<div class="modal fade" id="createListModal" tabindex="-1" aria-labelledby="createListModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 text-white" style="background-color: var(--fin-card-bg); border-radius: 12px;">
+            <div class="modal-header border-bottom border-secondary pb-2">
+                <h5 class="modal-title fw-bold" id="createListModalLabel">
+                    <i class="bi bi-folder-plus text-warning me-2"></i> Crear Nueva Lista
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form onsubmit="createNewList(event)">
+                <div class="modal-body py-3">
+                    <div class="mb-3">
+                        <label for="list-name" class="form-label small fw-bold text-muted">Nombre de la lista</label>
+                        <input type="text" class="form-control bg-dark border-secondary text-white" id="list-name" placeholder="Ej: Semiconductores, Dividendos, Growth..." required maxlength="40">
+                    </div>
+                    <div class="mb-1">
+                        <label for="list-desc" class="form-label small fw-bold text-muted">Descripción (opcional)</label>
+                        <textarea class="form-control bg-dark border-secondary text-white" id="list-desc" rows="3" placeholder="Ej: Empresas líderes de microchips bajo seguimiento constante." maxlength="150"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary pt-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning btn-sm fw-bold">Crear Lista</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL EDICIÓN DE LISTA -->
+<div class="modal fade" id="editListModal" tabindex="-1" aria-labelledby="editListModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 text-white" style="background-color: var(--fin-card-bg); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1) !important;">
+            <div class="modal-header border-bottom border-secondary pb-2">
+                <h5 class="modal-title fw-bold" id="editListModalLabel">
+                    <i class="bi bi-pencil-square text-warning me-2"></i> Editar Lista
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form onsubmit="saveListChanges(event)">
+                <input type="hidden" id="edit-list-id">
+                <div class="modal-body py-3">
+                    <div class="mb-3">
+                        <label for="edit-list-name" class="form-label small fw-bold text-muted">Nombre de la lista</label>
+                        <input type="text" class="form-control bg-dark border-secondary text-white" id="edit-list-name" required maxlength="40">
+                    </div>
+                    <div class="mb-1">
+                        <label for="edit-list-desc" class="form-label small fw-bold text-muted">Descripción (opcional)</label>
+                        <textarea class="form-control bg-dark border-secondary text-white" id="edit-list-desc" rows="3" placeholder="Ej: Empresas líderes de microchips bajo seguimiento constante." maxlength="150"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary d-flex justify-content-between pt-2">
+                    <!-- Botón Eliminar Lista de forma segura en la esquina inferior izquierda -->
+                    <button type="button" class="btn btn-outline-danger btn-sm d-flex align-items-center gap-1.5" onclick="deleteListFromEditModal()">
+                        <i class="bi bi-trash3-fill"></i> Eliminar Lista
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-warning btn-sm fw-bold">Guardar Cambios</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .hover-row:hover {
+        background-color: rgba(255, 255, 255, 0.02) !important;
+    }
+    .hover-opacity-100:hover {
+        opacity: 1 !important;
+    }
+    .opacity-60 {
+        opacity: 0.6;
+    }
+    
+    /* Estilos personalizados para que las pestañas encajen perfectamente en el diseño global */
+    .nav-tabs .nav-link {
+        border: 1px solid transparent;
+        color: rgba(255, 255, 255, 0.5) !important;
+        transition: all 0.15s ease-in-out;
+    }
+    .nav-tabs .nav-link:hover {
+        color: #fff !important;
+        border-color: transparent !important;
+        background-color: rgba(255, 255, 255, 0.03);
+    }
+    .nav-tabs .nav-link.active {
+        color: #ffc107 !important; /* text-warning */
+        background-color: rgba(255, 255, 255, 0.02) !important;
+        border-color: rgba(255,255,255,0.1) rgba(255,255,255,0.1) transparent !important;
+    }
+</style>
+
+<script>
+    let listsCompanies = [];
+
+    // Cargar sugerencias de empresas asíncronamente para uso exclusivo de las listas
+    async function loadListsCompanies() {
+        try {
+            const response = await fetch('/api/search_suggestions');
+            if (response.ok) {
+                listsCompanies = await response.json();
+            }
+        } catch (e) {
+            console.error("Error al precargar sugerencias de listas:", e);
+        }
+    }
+
+    // Autocompletado específico para Listas (No muestra búsquedas recientes y gestiona adición directa)
+    function setupListAutocomplete(inputId, suggestionsId, listId) {
+        const input = document.getElementById(inputId);
+        const suggestions = document.getElementById(suggestionsId);
+        if (!input || !suggestions) return;
+
+        let selectedIndex = -1;
+
+        const updateView = () => {
+            selectedIndex = -1;
+            const text = input.value.toLowerCase().trim();
+            let html = "";
+            
+            // Sugerir ÚNICAMENTE si hay texto escrito (se omiten búsquedas recientes)
+            if (text !== "") {
+                const matches = listsCompanies.filter(c => 
+                    c.ticker.toLowerCase().includes(text) || 
+                    c.name.toLowerCase().includes(text)
+                ).slice(0, 8);
+
+                if (matches.length > 0) {
+                    matches.forEach(m => {
+                        html += `
+                            <div class="suggestion-item p-2 cursor-pointer transition hover-row" data-ticker="${m.ticker}" style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                                <span class="name fw-bold text-white d-block" style="font-size: 0.76rem;">${m.name}</span>
+                                <span class="ticker text-warning small font-monospace" style="font-size: 0.68rem;">${m.ticker}</span>
+                            </div>
+                        `;
+                    });
+                }
+            }
+
+            if (html) {
+                suggestions.innerHTML = html;
+                suggestions.style.display = 'block';
+            } else {
+                suggestions.style.display = 'none';
+            }
+        };
+
+        const highlightItem = (index) => {
+            const items = suggestions.querySelectorAll('.suggestion-item');
+            items.forEach((item, i) => {
+                if (i === index) {
+                    item.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.style.backgroundColor = '';
+                }
+            });
+        };
+
+        input.addEventListener('focus', updateView);
+        input.addEventListener('input', updateView);
+        input.addEventListener('click', updateView);
+
+        // Soporte de navegación por teclado (Flechas y Enter)
+        input.addEventListener('keydown', (e) => {
+            const items = suggestions.querySelectorAll('.suggestion-item');
+            if (suggestions.style.display === 'none' || items.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (selectedIndex < items.length - 1) {
+                    selectedIndex++;
+                    highlightItem(selectedIndex);
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (selectedIndex > 0) {
+                    selectedIndex--;
+                    highlightItem(selectedIndex);
+                } else if (selectedIndex === -1) {
+                    selectedIndex = items.length - 1;
+                    highlightItem(selectedIndex);
+                }
+            } else if (e.key === 'Enter') {
+                if (selectedIndex >= 0 && selectedIndex < items.length) {
+                    e.preventDefault();
+                    const ticker = items[selectedIndex].getAttribute('data-ticker');
+                    input.value = ticker;
+                    suggestions.style.display = 'none';
+                    addTickerDirectly(listId, ticker);
+                }
+            } else if (e.key === 'Escape') {
+                suggestions.style.display = 'none';
+            }
+        });
+
+        // Click en una sugerencia
+        suggestions.addEventListener('mousedown', (e) => {
+            const item = e.target.closest('.suggestion-item');
+            if (item) {
+                const ticker = item.getAttribute('data-ticker');
+                input.value = ticker;
+                suggestions.style.display = 'none';
+                addTickerDirectly(listId, ticker);
+            }
+        });
+
+        // Cerrar sugerencias al hacer clic fuera
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+                suggestions.style.display = 'none';
+            }
+        });
+    }
+
+    // Configurar autocompletados e íconos activos en el cambio de pestaña
+    document.addEventListener("DOMContentLoaded", async () => {
+        // Precargar sugerencias antes de enlazar los inputs
+        await loadListsCompanies();
+
+        // 1. Inicializar autocompletados específicos para cada lista
+        {% for list in lists %}
+        setupListAutocomplete('ticker-input-{{ list.id }}', 'suggestions-{{ list.id }}', {{ list.id }});
+        {% endfor %}
+
+        // 2. Control dinámico de los iconos amarillos activos al alternar pestañas
+        const tabButtons = document.querySelectorAll('#customListsTabs button');
+        tabButtons.forEach(btn => {
+            btn.addEventListener('shown.bs.tab', (event) => {
+                // Remover color del icono de la pestaña anterior
+                const prevBtn = event.relatedTarget;
+                if (prevBtn) {
+                    const prevIcon = prevBtn.querySelector('i');
+                    if (prevIcon) prevIcon.classList.remove('text-warning');
+                }
+                // Añadir color al icono de la pestaña activa
+                const activeIcon = event.target.querySelector('i');
+                if (activeIcon) activeIcon.classList.add('text-warning');
+            });
+        });
+    });
+
+    // Crear nueva lista
+    async function createNewList(event) {
+        event.preventDefault();
+        const name = document.getElementById('list-name').value;
+        const description = document.getElementById('list-desc').value;
+
+        try {
+            const response = await fetch('/api/lists', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description })
+            });
+            const data = await response.json();
+            
+            if (response.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('createListModal')).hide();
+                window.location.reload();
+            } else {
+                alert(data.detail || 'Error al crear la lista');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al comunicarse con el servidor');
+        }
+    }
+
+    // Eliminar lista
+    async function deleteList(listId, listName) {
+        if (!confirm(`¿Estás seguro de que quieres eliminar la lista "${listName}"? Las empresas asociadas no se borrarán de la base de datos.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/lists/${listId}`, {
+                method: 'DELETE'
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert(data.detail || 'Error al eliminar la lista');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al comunicarse con el servidor');
+        }
+    }
+
+    // Abrir Modal de Edición cargando datos dinámicamente desde data attributes
+    function openEditListModal(listId) {
+        const btn = document.getElementById(`btn-edit-list-${listId}`);
+        if (!btn) return;
+        
+        const id = btn.getAttribute('data-id');
+        const name = btn.getAttribute('data-name');
+        const description = btn.getAttribute('data-description');
+        
+        document.getElementById('edit-list-id').value = id;
+        document.getElementById('edit-list-name').value = name;
+        document.getElementById('edit-list-desc').value = description;
+        
+        // Mostrar Modal de Edición de Bootstrap
+        const editModal = new bootstrap.Modal(document.getElementById('editListModal'));
+        editModal.show();
+    }
+
+    // Guardar los cambios realizados en el Modal de Edición de Lista
+    async function saveListChanges(event) {
+        event.preventDefault();
+        const id = document.getElementById('edit-list-id').value;
+        const name = document.getElementById('edit-list-name').value;
+        const description = document.getElementById('edit-list-desc').value;
+
+        try {
+            const response = await fetch(`/api/lists/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description })
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('editListModal')).hide();
+                window.location.reload();
+            } else {
+                alert(data.detail || 'Error al actualizar la lista');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al comunicarse con el servidor');
+        }
+    }
+
+    // Disparar borrado de lista de forma segura desde el Modal de Edición
+    function deleteListFromEditModal() {
+        const id = document.getElementById('edit-list-id').value;
+        const name = document.getElementById('edit-list-name').value;
+        
+        // Cerrar modal de edición antes de confirmar el borrado
+        const modalEl = document.getElementById('editListModal');
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+        
+        // Llamar a la lógica de confirmación y borrado existente
+        deleteList(id, name);
+    }
+
+    // Guardar direcciones de ordenación por lista y criterio
+    const listSortDirections = {};
+
+    // Ordenar tabla de lista de forma dinámica por cualquier columna
+    function sortListTable(listId, criteria) {
+        const tbody = document.querySelector(`#pane-list-${listId} tbody`);
+        if (!tbody) return;
+
+        // Obtener filas de empresas válidas
+        const rows = Array.from(tbody.querySelectorAll('tr.hover-row'));
+        if (rows.length === 0) return;
+
+        // Alternar dirección de orden (ascendente / descendente)
+        const stateKey = `${listId}_${criteria}`;
+        const isAscending = listSortDirections[stateKey] === 'asc' ? false : true;
+        listSortDirections[stateKey] = isAscending ? 'asc' : 'desc';
+
+        // Ordenar filas en memoria
+        rows.sort((a, b) => {
+            let valA, valB;
+            if (criteria === 'ticker' || criteria === 'name' || criteria === 'region') {
+                valA = (a.getAttribute(`data-${criteria}`) || "").toLowerCase();
+                valB = (b.getAttribute(`data-${criteria}`) || "").toLowerCase();
+                return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else { // 'price' o 'pct' (variación porcentual diaria)
+                valA = parseFloat(a.getAttribute(`data-${criteria}`)) || 0;
+                valB = parseFloat(b.getAttribute(`data-${criteria}`)) || 0;
+                return isAscending ? valA - valB : valB - valA;
+            }
+        });
+
+        // Re-añadir las filas ordenadas al tbody
+        rows.forEach(row => tbody.appendChild(row));
+
+        // Resetear todos los iconos de las columnas en este panel
+        const pane = document.getElementById(`pane-list-${listId}`);
+        if (pane) {
+            pane.querySelectorAll('th i.bi').forEach(icon => {
+                icon.className = 'bi bi-arrow-down-up ms-1 text-muted';
+            });
+        }
+
+        // Colocar el icono de dirección activo en la cabecera correspondiente
+        const activeIcon = document.getElementById(`sort-icon-${listId}-${criteria}`);
+        if (activeIcon) {
+            activeIcon.className = isAscending 
+                ? 'bi bi-caret-up-fill ms-1 text-warning' 
+                : 'bi bi-caret-down-fill ms-1 text-warning';
+        }
+    }
+
+    // Función centralizada para añadir Ticker a la lista mediante API AJAX
+    async function addTickerDirectly(listId, ticker) {
+        const tickerUpper = ticker.trim().toUpperCase();
+        if (!tickerUpper) return;
+
+        try {
+            const response = await fetch(`/api/lists/${listId}/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ticker: tickerUpper })
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert(data.detail || 'Error al añadir el ticker. Asegúrate de que el ticker existe en la BBDD.');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al comunicarse con el servidor');
+        }
+    }
+
+    // Añadir Ticker desde el formulario (botón Añadir o Enter manual)
+    async function addTickerToList(event, listId) {
+        if (event) event.preventDefault();
+        const inputEl = document.getElementById(`ticker-input-${listId}`);
+        if (!inputEl) return;
+        const ticker = inputEl.value;
+        await addTickerDirectly(listId, ticker);
+    }
+
+    // Quitar Ticker de la lista
+    async function removeTickerFromList(listId, ticker) {
+        if (!confirm(`¿Quieres quitar a ${ticker} de esta lista?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/lists/${listId}/remove`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ticker })
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert(data.detail || 'Error al eliminar el ticker');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error al comunicarse con el servidor');
+        }
+    }
+</script>
+{% endblock %}

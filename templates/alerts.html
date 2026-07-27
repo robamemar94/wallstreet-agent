@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Alpha-Flow · Alertas{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12 d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="fw-bold mb-1">Alertas</h2>
+            <p class="text-muted mb-0">Cambios de valoración y caídas de precio (&ge;10% desde máximos) en las empresas en seguimiento.</p>
+        </div>
+        <form action="/api/alerts/scan" method="post">
+            <button type="submit" class="btn btn-primary shadow-sm">
+                🔄 Escanear Mercado
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        {% if history %}
+            <div class="table-responsive bg-white rounded shadow-sm">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Fecha y Hora</th>
+                            <th>Ticker</th>
+                            <th>Compañía</th>
+                            <th class="text-center">Tipo</th>
+                            <th class="text-center" colspan="3">Detalle</th>
+                            <th class="text-end pe-4">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for alert in history %}
+                        {% set alert_type = alert.type if alert.type is defined else 'VALORACIÓN' %}
+                        <tr class="{% if alert_type == 'CAÍDA' %}table-warning{% endif %}">
+                            <td class="ps-4 text-muted small">{{ alert.date }}</td>
+                            <td class="fw-bold">
+                                <a href="/ticker/{{ alert.ticker }}" class="text-decoration-none text-dark">{{ clean_ticker(alert.ticker) }}</a>
+                            </td>
+                            <td class="text-muted small">{{ alert.company_name }}</td>
+
+                            {% if alert_type == 'CAÍDA' %}
+                            <td class="text-center">
+                                <span class="badge bg-warning text-dark" style="font-size:0.75rem;">📉 CAÍDA</span>
+                            </td>
+                            <td class="text-center fw-bold text-danger" colspan="3">
+                                <span style="font-size:0.85rem;">
+                                    -{{ alert.drop_pct }}% &nbsp;|&nbsp;
+                                    ref: <span class="text-muted">{{ alert.ref_price }}</span>
+                                    &rarr; <span class="text-danger">{{ alert.current_price }}</span>
+                                </span>
+                            </td>
+                            {% else %}
+                            <td class="text-center">
+                                <span class="badge bg-primary bg-opacity-75" style="font-size:0.75rem;">⚖️ VALORACIÓN</span>
+                            </td>
+                            <td class="text-center">
+                                {% set os = alert.old_status %}
+                                {% if os == 'GANGA' %}<span class="badge bg-success bg-opacity-75">🔥 GANGA</span>
+                                {% elif os == 'BARATA' %}<span class="badge bg-success">✅ BARATA</span>
+                                {% elif os == 'PRECIO JUSTO' %}<span class="badge bg-secondary">⚖️ JUSTO</span>
+                                {% elif os == 'CARA' %}<span class="badge bg-warning text-dark">⚠️ CARA</span>
+                                {% elif os == 'BURBUJA' %}<span class="badge bg-danger">🚨 BURBUJA</span>
+                                {% else %}<span class="badge bg-light text-muted border">{{ os or 'N/A' }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center text-muted">➡️</td>
+                            <td class="text-center">
+                                {% set ns = alert.new_status %}
+                                {% if ns == 'GANGA' %}<span class="badge bg-success bg-opacity-75">🔥 GANGA</span>
+                                {% elif ns == 'BARATA' %}<span class="badge bg-success">✅ BARATA</span>
+                                {% elif ns == 'PRECIO JUSTO' %}<span class="badge bg-secondary">⚖️ JUSTO</span>
+                                {% elif ns == 'CARA' %}<span class="badge bg-warning text-dark">⚠️ CARA</span>
+                                {% elif ns == 'BURBUJA' %}<span class="badge bg-danger">🚨 BURBUJA</span>
+                                {% else %}<span class="badge bg-light text-muted border">{{ ns }}</span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                            <td class="text-end pe-4">
+                                <form action="/api/alerts/delete" method="post" onsubmit="return confirm('¿Seguro que quieres ignorar/eliminar esta alerta?');" style="display: inline;">
+                                    <input type="hidden" name="ticker" value="{{ alert.ticker }}">
+                                    <input type="hidden" name="type" value="{{ alert_type }}">
+                                    <input type="hidden" name="date" value="{{ alert.date }}">
+                                    <button type="submit" class="btn btn-sm btn-light border text-danger py-1 px-2" title="Ignorar Alerta">
+                                        <i class="bi bi-trash"></i> Ignorar
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="alert alert-info shadow-sm text-center py-5">
+                <h4 class="alert-heading mb-3">No hay alertas registradas</h4>
+                <p class="mb-0">Haz clic en <strong>"Escanear Mercado"</strong> para verificar si hay cambios en tus empresas en seguimiento.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

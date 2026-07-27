@@ -1,0 +1,346 @@
+{% extends "base.html" %}
+{% block title %}Alpha-Flow · Configuración{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-md-8 offset-md-2">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold mb-0">⚙️ Configuración del Sistema</h2>
+            <button type="button" class="btn btn-primary px-4 fw-bold" onclick="saveSettings()">Guardar Cambios</button>
+        </div>
+
+        <!-- Interfaz de Usuario -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 fw-bold text-primary">🖥️ Interfaz de Usuario</h5>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center mb-4">
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold mb-0">Elementos por página</label>
+                        <p class="text-muted small mb-0">Número de filas a mostrar en las tablas de seguimiento.</p>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="number" class="form-control" id="ui-items-per-page" value="{{ settings.ui.items_per_page }}" min="1" max="100">
+                    </div>
+                </div>
+                <hr>
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <label class="form-label fw-bold mb-0">Modo Oscuro</label>
+                        <p class="text-muted small mb-0">Cambia el estilo visual de la aplicación a tonos oscuros.</p>
+                    </div>
+                    <div class="col-md-4 d-flex justify-content-end">
+                        <div class="form-check form-switch fs-4">
+                            <input class="form-check-input" type="checkbox" role="switch" id="ui-dark-mode" {% if settings.ui.dark_mode %}checked{% endif %}>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Umbrales de Valoración -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 fw-bold text-success">💰 Umbrales de Valoración (Ratio Precio/Fair)</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-4">Define los límites para clasificar una acción según su ratio de infra/sobrevaloración.</p>
+                
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">🔥 GANGA (Menor a)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="val-ganga" value="{{ settings.valuation.ganga }}" step="0.05">
+                            <span class="input-group-text">ratio</span>
+                        </div>
+                        <small class="text-muted">Ej: 0.60 significa que el precio es un 40% menor al Fair PE.</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">✅ BARATA (Menor a)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="val-barata" value="{{ settings.valuation.barata }}" step="0.05">
+                            <span class="input-group-text">ratio</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">⚖️ PRECIO JUSTO (Hasta)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="val-justo-max" value="{{ settings.valuation.justo_max }}" step="0.05">
+                            <span class="input-group-text">ratio</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">⚠️ CARA (Hasta)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="val-cara-max" value="{{ settings.valuation.cara_max }}" step="0.05">
+                            <span class="input-group-text">ratio</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rendimiento y Datos -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 fw-bold text-info">📊 Rendimiento y Datos</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">Benchmark de Referencia</label>
+                        <input type="text" class="form-control" id="perf-benchmark" value="{{ settings.performance.benchmark_ticker }}">
+                        <small class="text-muted">Ticker para la comparativa (ej: URTH, SPY, ^GSPC).</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">Duración de Caché (minutos)</label>
+                        <input type="number" class="form-control" id="perf-cache" value="{{ settings.performance.cache_duration_min }}" min="5">
+                        <small class="text-muted">Tiempo antes de volver a descargar datos de mercado.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tarifas de Brokers y Comisiones -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 fw-bold text-warning"><i class="bi bi-wallet2 me-1"></i> ✂️ Tarifas de Brokers y Comisiones</h5>
+            </div>
+            <div class="card-body">
+                <h6 class="fw-bold mb-3 text-secondary">🟠 DEGIRO</h6>
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Comisión Fija EUR (€)</label>
+                        <input type="number" class="form-control" id="degiro-fee-eur" value="{{ settings.get('brokers', {}).get('degiro_fee_eur', 1.0) }}" step="0.05">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Comisión Fija USD ($)</label>
+                        <input type="number" class="form-control" id="degiro-fee-usd" value="{{ settings.get('brokers', {}).get('degiro_fee_usd', 1.0) }}" step="0.05">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Comisión Fija SEK (kr)</label>
+                        <input type="number" class="form-control" id="degiro-fee-sek" value="{{ settings.get('brokers', {}).get('degiro_fee_sek', 3.90) }}" step="0.05">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">Comisión AutoFX (%)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="degiro-autofx-pct" value="{{ settings.get('brokers', {}).get('degiro_autofx_pct', 0.25) }}" step="0.01">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <h6 class="fw-bold mb-3 text-secondary">🟢 Interactive Brokers (IBKR)</h6>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Comisión USD por Acción ($)</label>
+                        <input type="number" class="form-control" id="ibkr-fee-usd-per-share" value="{{ settings.get('brokers', {}).get('ibkr_fee_usd_per_share', 0.005) }}" step="0.001">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Mínimo Comisión USD ($)</label>
+                        <input type="number" class="form-control" id="ibkr-fee-usd-min" value="{{ settings.get('brokers', {}).get('ibkr_fee_usd_min', 1.00) }}" step="0.1">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold">Máximo Comisión USD (%)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="ibkr-fee-usd-max-pct" value="{{ settings.get('brokers', {}).get('ibkr_fee_usd_max_pct', 1.0) }}" step="0.05">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">IBKR AutoFX Mínimo ($)</label>
+                        <input type="number" class="form-control" id="ibkr-autofx-usd-min" value="{{ settings.get('brokers', {}).get('ibkr_autofx_usd_min', 2.00) }}" step="0.1">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">IBKR AutoFX Tasa (%)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="ibkr-autofx-usd-pct" value="{{ settings.get('brokers', {}).get('ibkr_autofx_usd_pct', 0.2) }}" step="0.01">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Mínimo Comisión SEK (kr)</label>
+                        <input type="number" class="form-control" id="ibkr-fee-sek-min" value="{{ settings.get('brokers', {}).get('ibkr_fee_sek_min', 40.0) }}" step="1">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Tasa Comisión SEK (%)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="ibkr-fee-sek-pct" value="{{ settings.get('brokers', {}).get('ibkr_fee_sek_pct', 0.05) }}" step="0.01">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Mínimo Comisión EUR (€)</label>
+                        <input type="number" class="form-control" id="ibkr-fee-eur-min" value="{{ settings.get('brokers', {}).get('ibkr_fee_eur_min', 1.25) }}" step="0.05">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">Tasa Comisión EUR (%)</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="ibkr-fee-eur-pct" value="{{ settings.get('brokers', {}).get('ibkr_fee_eur_pct', 0.05) }}" step="0.01">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Normas de Calidad de Inversión (Editor Interactivo) -->
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0 fw-bold text-danger"><i class="bi bi-list-check me-1"></i> 📋 Normas de Calidad de Inversión (Editor Dinámico)</h5>
+                <button class="btn btn-sm btn-outline-danger fw-bold shadow-sm" type="button" onclick="addRuleCard()">
+                    <i class="bi bi-plus-circle me-1"></i> + Añadir Nueva Norma
+                </button>
+            </div>
+            <div class="card-body">
+                <p class="text-muted small mb-4">Define y audita tus normas de inversión personalizadas una por una. Puedes editar los títulos, los criterios detallados, añadir nuevas normas o eliminar las existentes. El Auditor de Calidad evaluará cada una con rigurosidad matemática.</p>
+                
+                <!-- Contenedor dinámico de normas -->
+                <div id="dynamic-rules-container" class="d-flex flex-column gap-3">
+                    <!-- Las tarjetas de normas se renderizarán aquí con JS -->
+                </div>
+                
+                <div class="text-center mt-4 border-top pt-3">
+                    <button class="btn btn-outline-danger btn-sm fw-bold shadow-sm" type="button" onclick="addRuleCard()">
+                        <i class="bi bi-plus-circle me-1"></i> + Añadir Nueva Norma de Calidad
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Cargar las normas existentes de forma segura como objeto JS
+    let rulesList = {{ settings.get('custom_evaluation_rules', []) | tojson }};
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function renderRules() {
+        const container = document.getElementById('dynamic-rules-container');
+        container.innerHTML = '';
+        
+        if (!Array.isArray(rulesList) || rulesList.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-5 text-muted border rounded border-dashed bg-light bg-opacity-50">
+                    <i class="bi bi-clipboard-x fs-1 mb-2 d-block text-secondary"></i>
+                    No hay ninguna norma configurada. ¡Añade una nueva norma para empezar!
+                </div>
+            `;
+            return;
+        }
+
+        rulesList.forEach((rule, index) => {
+            const card = document.createElement('div');
+            card.className = 'card border shadow-xs p-3 position-relative bg-white';
+            card.innerHTML = `
+                <div class="position-absolute top-0 end-0 mt-2 me-2" style="z-index: 10;">
+                    <button class="btn btn-xs btn-outline-danger px-2" type="button" onclick="deleteRule(${index})" title="Eliminar Norma" style="font-size: 0.7rem; padding: 2px 6px;">
+                        <i class="bi bi-trash-fill me-1"></i> Eliminar
+                    </button>
+                </div>
+                <div class="mb-2 pe-5">
+                    <label class="form-label fw-bold text-danger small mb-1" style="font-size: 0.72rem;">Título de la Norma / Sección</label>
+                    <input type="text" class="form-control form-control-sm font-monospace fw-bold" value="${escapeHtml(rule.title || '')}" oninput="updateRuleTitle(${index}, this.value)" placeholder="Ej. Norma 1: Moat & Bypass Test" style="font-size: 0.82rem;">
+                </div>
+                <div>
+                    <label class="form-label fw-bold text-muted small mb-1" style="font-size: 0.72rem;">Criterio detallado (Prompt / Fórmulas)</label>
+                    <textarea class="form-control form-control-sm font-monospace" rows="8" oninput="updateRuleContent(${index}, this.value)" style="font-size: 0.78rem; line-height: 1.45;" placeholder="Describe las reglas, cálculos, test binarios y asignación de puntos...">${escapeHtml(rule.content || '')}</textarea>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function addRuleCard() {
+        rulesList.push({
+            title: "Nueva Norma: [Título]",
+            content: "Describe aquí los criterios, el test binario (SÍ/NO) y la puntuación de calidad."
+        });
+        renderRules();
+    }
+
+    function deleteRule(index) {
+        if (confirm('¿Estás seguro de que deseas eliminar esta norma?')) {
+            rulesList.splice(index, 1);
+            renderRules();
+        }
+    }
+
+    function updateRuleTitle(index, val) {
+        rulesList[index].title = val;
+    }
+
+    function updateRuleContent(index, val) {
+        rulesList[index].content = val;
+    }
+
+    // Renderizar al cargar la página
+    document.addEventListener('DOMContentLoaded', () => {
+        renderRules();
+    });
+
+    async function saveSettings() {
+        const darkMode = document.getElementById('ui-dark-mode').checked;
+        const settings = {
+            ui: {
+                items_per_page: parseInt(document.getElementById('ui-items-per-page').value),
+                dark_mode: darkMode
+            },
+            valuation: {
+                ganga: parseFloat(document.getElementById('val-ganga').value),
+                barata: parseFloat(document.getElementById('val-barata').value),
+                justo_max: parseFloat(document.getElementById('val-justo-max').value),
+                cara_max: parseFloat(document.getElementById('val-cara-max').value)
+            },
+            performance: {
+                benchmark_ticker: document.getElementById('perf-benchmark').value.toUpperCase(),
+                cache_duration_min: parseInt(document.getElementById('perf-cache').value)
+            },
+            brokers: {
+                degiro_fee_eur: parseFloat(document.getElementById('degiro-fee-eur').value),
+                degiro_fee_usd: parseFloat(document.getElementById('degiro-fee-usd').value),
+                degiro_fee_sek: parseFloat(document.getElementById('degiro-fee-sek').value),
+                degiro_autofx_pct: parseFloat(document.getElementById('degiro-autofx-pct').value),
+                ibkr_fee_usd_per_share: parseFloat(document.getElementById('ibkr-fee-usd-per-share').value),
+                ibkr_fee_usd_min: parseFloat(document.getElementById('ibkr-fee-usd-min').value),
+                ibkr_fee_usd_max_pct: parseFloat(document.getElementById('ibkr-fee-usd-max-pct').value),
+                ibkr_autofx_usd_min: parseFloat(document.getElementById('ibkr-autofx-usd-min').value),
+                ibkr_autofx_usd_pct: parseFloat(document.getElementById('ibkr-autofx-usd-pct').value),
+                ibkr_fee_sek_min: parseFloat(document.getElementById('ibkr-fee-sek-min').value),
+                ibkr_fee_sek_pct: parseFloat(document.getElementById('ibkr-fee-sek-pct').value),
+                ibkr_fee_eur_min: parseFloat(document.getElementById('ibkr-fee-eur-min').value),
+                ibkr_fee_eur_pct: parseFloat(document.getElementById('ibkr-fee-eur-pct').value)
+            },
+            custom_evaluation_rules: rulesList
+        };
+
+        try {
+            const res = await fetch('/api/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            });
+            const data = await res.json();
+            if (data.status === 'success') {
+                showToast('✅ Éxito', 'Configuración guardada correctamente', 'success');
+                // Aplicar el tema inmediatamente
+                document.documentElement.setAttribute('data-bs-theme', darkMode ? 'dark' : 'light');
+            } else {
+                showToast('❌ Error', 'No se pudo guardar la configuración', 'error');
+            }
+        } catch (e) {
+            showToast('❌ Error', 'Error de conexión', 'error');
+        }
+    }
+</script>
+{% endblock %}

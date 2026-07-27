@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+{% block title %}Alpha-Flow · Comparador{% endblock %}
+
+{% block content %}
+<div class="row mt-4 mb-3">
+  <div class="col-12">
+    <h2 class="fw-bold mb-1">Comparador de Tickers</h2>
+    <p class="text-muted mb-0" style="font-size:0.9rem;">Selecciona hasta 4 tickers analizados para compararlos lado a lado.</p>
+  </div>
+</div>
+
+<!-- Selector de tickers -->
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-body">
+    <form method="get" action="/comparar" id="compararForm" class="row g-2 align-items-end">
+      {% for i in range(4) %}
+      {% set pre = selected[i] if i < selected|length else '' %}
+      <div class="col-6 col-md-3">
+        <label class="form-label small fw-semibold text-muted">Ticker {{ i + 1 }}</label>
+        <!-- hidden input enviado con el form -->
+        <input type="hidden" name="t" class="ticker-hidden" data-slot="{{ i }}" value="{{ pre }}">
+        <!-- input visible con búsqueda -->
+        <div class="position-relative">
+          <input type="text"
+                 class="form-control form-control-sm ticker-search"
+                 data-slot="{{ i }}"
+                 placeholder="Buscar ticker o empresa…"
+                 autocomplete="off"
+                 value="{{ pre }}">
+          <div class="ticker-dropdown shadow border rounded-2 position-absolute w-100 d-none"
+               data-slot="{{ i }}"
+               style="z-index:1050;max-height:220px;overflow-y:auto;top:100%;left:0;"></div>
+        </div>
+      </div>
+      {% endfor %}
+      <div class="col-12 col-md-auto">
+        <button type="submit" class="btn btn-primary btn-sm w-100">
+          <i class="bi bi-bar-chart-line me-1"></i>Comparar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const TICKERS_DATA = {{ all_tickers | tojson }};
+
+document.querySelectorAll('.ticker-search').forEach(input => {
+    const slot = input.dataset.slot;
+    const hidden = document.querySelector(`.ticker-hidden[data-slot="${slot}"]`);
+    const dropdown = document.querySelector(`.ticker-dropdown[data-slot="${slot}"]`);
+
+    function showDropdown(query) {
+        const q = query.trim().toLowerCase();
+        const matches = q
+            ? TICKERS_DATA.filter(t =>
+                t.ticker.toLowerCase().includes(q) ||
+                t.name.toLowerCase().includes(q)
+              ).slice(0, 30)
+            : TICKERS_DATA.slice(0, 30);
+
+        if (!matches.length) { dropdown.classList.add('d-none'); return; }
+
+        dropdown.innerHTML = matches.map(t => `
+            <div class="ticker-option px-3 py-2 d-flex justify-content-between align-items-center"
+                 data-ticker="${t.ticker}" style="cursor:pointer;font-size:0.82rem;">
+                <span class="fw-bold">${t.ticker}</span>
+                <span class="text-muted text-truncate ms-2" style="font-size:0.75rem;max-width:140px;">${t.name}</span>
+            </div>
+        `).join('');
+
+        dropdown.querySelectorAll('.ticker-option').forEach(opt => {
+            opt.addEventListener('mousedown', e => {
+                e.preventDefault();
+                select(opt.dataset.ticker, TICKERS_DATA.find(t => t.ticker === opt.dataset.ticker)?.name || '');
+            });
+            opt.addEventListener('mouseover', () => {
+                dropdown.querySelectorAll('.ticker-option').forEach(o => o.classList.remove('bg-primary', 'text-white'));
+                opt.classList.add('bg-primary', 'text-white');
+                opt.querySelector('.text-muted')?.classList.replace('text-muted', 'text-white');
+            });
+            opt.addEventListener('mouseout', () => {
+                opt.classList.remove('bg-primary', 'text-white');
+                opt.querySelector('.text-white.text-truncate')?.classList.replace('text-white', 'text-muted');
+            });
+        });
+
+        dropdown.classList.remove('d-none');
+    }
+
+    function select(ticker, name) {
+        hidden.value = ticker;
+        input.value = ticker + (name && name !== ticker ? '  ·  ' + name : '');
+        dropdown.classList.add('d-none');
+    }
+
+    function clear() {
+        hidden.value = '';
+        input.value = '';
+    }
+
+    input.addEventListener('input', () => showDropdown(input.value));
+    input.addEventListener('focus', () => showDropdown(input.value));
+    input.addEventListener('blur', () => setTimeout(() => dropdown.classList.add('d-none'), 150));
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { dropdown.classList.add('d-none'); input.blur(); }
+        if (e.key === 'Delete' || e.key === 'Backspace') { if (!input.value) clear(); }
+    });
+
+    // Si hay valor preseleccionado, mostrar nombre también
+    if (hidden.value) {
+        const pre = TICKERS_DATA.find(t => t.ticker === hidden.value);
+        if (pre) select(pre.ticker, pre.name);
+    }
+});
+
+// Al enviar, aseguramos que los hidden inputs tengan el valor correcto
+document.getElementById('compararForm').addEventListener('submit', e => {
+    document.querySelectorAll('.ticker-hidden').forEach(h => {
+        if (!h.value) h.disabled = true; // no enviar slots vacíos
+    });
+});
+</script>
+
+<style>
+[data-bs-theme="dark"] .ticker-dropdown {
+    background: #1e2328;
+    border-color: #373d44 !important;
+}
+[data-bs-theme="dark"] .ticker-option:hover,
+[data-bs-theme="dark"] .ticker-option.bg-primary { background: #0d6efd !important; }
+</style>
+
+{% if archived_comparisons %}
+<div class="card shadow-sm border mb-4">
+  <div class="card-header bg-white py-2.5 d-flex justify-content-between align-items-center">
+    <span class="fw-bold small text-uppercase text-muted"><i class="bi bi-archive me-1.5 text-primary"></i> Historial de Comparaciones Guardadas</span>
+    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle font-monospace" style="font-size:0.75rem;">{{ archived_comparisons|length }} informes</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-modern table-sm table-hover align-middle mb-0" style="font-size: 0.8rem;">
+      <thead>
+        <tr class="table-light text-muted small text-uppercase">
+          <th class="ps-4 py-2" style="width: 15%;">Fecha y Hora</th>
+          <th class="py-2" style="width: 25%;">Empresas Comparadas</th>
+          <th class="py-2" style="width: 45%;">Pautas del Análisis</th>
+          <th class="text-center py-2" style="width: 15%;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for arch in archived_comparisons %}
+        <tr>
+          <td class="ps-4 num-font py-2.5">
+            <i class="bi bi-calendar3 text-muted me-1.5"></i>{{ arch.timestamp[:10] }} <span class="text-muted" style="font-size:0.7rem;">{{ arch.timestamp[11:16] }}</span>
+          </td>
+          <td class="py-2.5 font-monospace fw-bold text-dark">
+            {% for t in arch.tickers %}
+              <span class="badge bg-light text-dark border border-secondary-subtle px-1.5 py-0.5 rounded" style="font-size: 0.72rem;">{{ clean_ticker(t) }}</span>
+              {% if not loop.last %}<span class="text-muted mx-0.5" style="font-size: 0.65rem;">vs</span>{% endif %}
+            {% endfor %}
+          </td>
+          <td class="py-2.5 text-muted">
+            <div class="text-truncate" style="max-width: 400px;" title="{{ arch.prompt }}">{{ arch.prompt }}</div>
+          </td>
+          <td class="text-center py-2.5">
+            <div class="d-flex justify-content-center gap-1.5">
+              <a href="/comparar?archive_id={{ arch.id }}" class="btn btn-xs btn-outline-primary py-0.5 px-2.5 fw-semibold" style="font-size: 0.7rem;">
+                <i class="bi bi-eye me-1"></i> Ver Informe
+              </a>
+              <button type="button" class="btn btn-xs btn-outline-danger py-0.5 px-1.5" onclick="deleteArchivedComparison('{{ arch.id }}')" title="Eliminar del archivo">
+                🗑️
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if loaded_comparison %}
+<!-- MOSTRAR INFORME IA CARGADO -->
+<div class="card shadow-sm border border-info mb-4 shadow-lg">
+  <div class="card-header bg-info bg-opacity-10 py-3 d-flex justify-content-between align-items-center">
+    <h5 class="mb-0 fw-bold text-info text-uppercase" style="font-size:0.95rem; letter-spacing:0.5px;">
+      <i class="bi bi-robot me-1.5"></i> Informe Comparativo IA: {% for t in loaded_comparison.tickers %}{{ clean_ticker(t) }}{% if not loop.last %} vs {% endif %}{% endfor %}
+    </h5>
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-muted small font-monospace-data">{{ loaded_comparison.timestamp[:10] }} {{ loaded_comparison.timestamp[11:16] }}</span>
+      <button class="btn btn-xs btn-outline-danger py-0 px-2" style="font-size: 0.65rem;" onclick="deleteArchivedComparison('{{ loaded_comparison.id }}', true)">
+        🗑️ Eliminar
+      </button>
+    </div>
+  </div>
+  <div class="card-body p-4 bg-white text-dark shadow-inner" style="font-size:0.92rem; line-height:1.6;">
+    <div class="alert bg-light bg-opacity-50 border p-3 mb-4 rounded-3 text-muted" style="font-size:0.8rem;">
+      <strong>Pautas del Análisis:</strong> "{{ loaded_comparison.prompt }}"
+    </div>
+    <div class="lh-lg">
+      {{ loaded_comparison.analysis_html|safe }}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if comparisons %}
+
+<!-- Tabla de comparación -->
+<div class="card shadow-sm border-0 mb-4">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0" style="font-size:0.88rem;">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-4" style="min-width:160px;">Métrica</th>
+            {% for c in comparisons %}
+            <th class="text-center" style="min-width:150px;">
+              <div class="fw-bold fs-6">{{ clean_ticker(c.ticker) }}</div>
+              <div class="text-muted fw-normal" style="font-size:0.72rem;">{{ c.name }}</div>
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+
+          <!-- Info general -->
+          <tr class="table-secondary">
+            <td colspan="{{ comparisons|length + 1 }}" class="ps-4 fw-semibold py-1" style="font-size:0.75rem;letter-spacing:.06em;text-transform:uppercase;">General</td>
+          </tr>
+          <tr>
+            <td class="ps-4 text-muted">Sector</td>
+            {% for c in comparisons %}<td class="text-center">{{ c.sector }}</td>{% endfor %}
+          </tr>
+          <tr>
+            <td class="ps-4 text-muted">País</td>
+            {% for c in comparisons %}<td class="text-center">{{ c.country }}</td>{% endfor %}
+          </tr>
+          <tr>
+            <td class="ps-4 text-muted">Precio actual</td>
+            {% for c in comparisons %}
+            <td class="text-center fw-semibold">
+              {% if c.price %}{{ "{:,.2f}".format(c.price) }} {{ c.currency }}{% else %}—{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          <tr>
+            <td class="ps-4 text-muted">Veredicto</td>
+            {% for c in comparisons %}
+            <td class="text-center">
+              {% if c.status == 'ACCEPTED' %}<span class="badge bg-success">Aceptado</span>
+              {% elif c.status == 'REJECTED' %}<span class="badge bg-danger">Rechazado</span>
+              {% elif c.status == 'PENDING' %}<span class="badge bg-warning text-dark">Pendiente</span>
+              {% elif c.status == 'STANDBY' %}<span class="badge bg-secondary">Standby</span>
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+
+          <!-- Valoración -->
+          <tr class="table-secondary">
+            <td colspan="{{ comparisons|length + 1 }}" class="ps-4 fw-semibold py-1" style="font-size:0.75rem;letter-spacing:.06em;text-transform:uppercase;">Valoración</td>
+          </tr>
+          <tr>
+            <td class="ps-4 text-muted">Fwd P/E mercado</td>
+            {% for c in comparisons %}
+            <td class="text-center">{{ "{:.1f}x".format(c.fwd_pe) if c.fwd_pe else "—" }}</td>
+            {% endfor %}
+          </tr>
+          <tr>
+            <td class="ps-4 text-muted">Fwd P/E justo</td>
+            {% for c in comparisons %}
+            <td class="text-center">{{ "{:.1f}x".format(c.fair_pe) if c.fair_pe else "—" }}</td>
+            {% endfor %}
+          </tr>
+          <tr>
+            <td class="ps-4 text-muted">Descuento / Prima</td>
+            {% for c in comparisons %}
+            <td class="text-center fw-semibold">
+              {% if c.fwd_pe and c.fair_pe %}
+                {% set diff = ((c.fwd_pe / c.fair_pe) - 1) * 100 %}
+                <span class="{{ 'text-danger' if diff > 0 else 'text-success' }}">
+                  {% if diff > 0 %}+{% endif %}{{ "{:.1f}".format(diff) }}%
+                </span>
+              {% else %}—{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+
+          <!-- Puntuaciones -->
+          <tr class="table-secondary">
+            <td colspan="{{ comparisons|length + 1 }}" class="ps-4 fw-semibold py-1" style="font-size:0.75rem;letter-spacing:.06em;text-transform:uppercase;">Puntuaciones del Análisis</td>
+          </tr>
+          {% set score_rows = [
+            ('Salud Financiera', 'fin_score', 'primary'),
+            ('Asignación de Capital', 'cap_score', 'info'),
+            ('Moat Competitivo', 'moat_score', 'success'),
+            ('Veredicto Inversión', 'verdict_score', 'warning'),
+          ] %}
+          {% for label, key, color in score_rows %}
+          <tr>
+            <td class="ps-4 text-muted">{{ label }}</td>
+            {% for c in comparisons %}
+            <td class="text-center">
+              {% set sc = c[key] %}
+              {% if sc is not none %}
+              <div class="fw-bold mb-1">{{ "{:.1f}".format(sc) }}/10</div>
+              <div class="progress" style="height:5px;border-radius:3px;">
+                <div class="progress-bar bg-{{ color }}" style="width:{{ (sc / 10 * 100)|int }}%"></div>
+              </div>
+              {% else %}—{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+
+          <!-- Pros & Cons del veredicto -->
+          <tr class="table-secondary">
+            <td colspan="{{ comparisons|length + 1 }}" class="ps-4 fw-semibold py-1" style="font-size:0.75rem;letter-spacing:.06em;text-transform:uppercase;">Tesis de Inversión</td>
+          </tr>
+          <tr>
+            <td class="ps-4 text-muted align-top">Puntos fuertes</td>
+            {% for c in comparisons %}
+            <td style="font-size:0.8rem;">
+              {% if c.verdict_pros %}
+              <ul class="mb-0 ps-3">
+                {% for p in c.verdict_pros %}<li class="text-success mb-1">{{ p[:80] }}{% if p|length > 80 %}…{% endif %}</li>{% endfor %}
+              </ul>
+              {% else %}—{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          <tr>
+            <td class="ps-4 text-muted align-top">Riesgos</td>
+            {% for c in comparisons %}
+            <td style="font-size:0.8rem;">
+              {% if c.verdict_cons %}
+              <ul class="mb-0 ps-3">
+                {% for p in c.verdict_cons %}<li class="text-danger mb-1">{{ p[:80] }}{% if p|length > 80 %}…{% endif %}</li>{% endfor %}
+              </ul>
+              {% else %}—{% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- TRIGGER IA COMPARISON -->
+<div class="card shadow-sm border-0 border-start border-4 border-info mb-4">
+  <div class="card-body">
+    <h5 class="fw-bold text-info d-flex align-items-center gap-2 mb-2" style="font-size:1.05rem;">
+      <i class="bi bi-robot"></i> Análisis Comparativo con Inteligencia Artificial (Director de Inversiones)
+    </h5>
+    <p class="text-muted small mb-3">El Director de Inversiones de la IA evaluará minuciosamente los informes de calidad y múltiplos de valoración de los activos seleccionados para emitir un veredicto definitivo optimizado para el largo plazo.</p>
+    
+    <div class="row g-3">
+      <div class="col-12">
+        <label for="ai-prompt" class="form-label small fw-semibold text-muted">Horizonte de Inversión y Prioridades del Análisis</label>
+        <textarea class="form-control font-monospace-data bg-light bg-opacity-50 p-2.5" id="ai-prompt" rows="3" style="font-size:0.85rem;" placeholder="Escribe aquí las pautas adicionales. Por ejemplo, priorizar crecimiento, foso, etc...">Realiza un veredicto de inversión comparando detalladamente estas empresas con un horizonte a largo plazo, priorizando el potencial de crecimiento de beneficios futuros y rentabilidad. Evalúa y destaca explícitamente las puntuaciones/notas de los distintos informes, sus fosos competitivos, equipos gestores y solidez financiera para decretar cuál es la mejor compra hoy.</textarea>
+      </div>
+      <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="text-muted small"><i class="bi bi-info-circle me-1"></i> Se incluirán las notas de los informes de cada empresa para compararlos lado a lado.</span>
+        <button class="btn btn-info text-white fw-bold px-4 py-2" id="btn-generate-ai-comp" onclick="generateAiComparison()">
+          <i class="bi bi-magic me-1.5"></i> Generar Comparación con IA
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function generateAiComparison() {
+    const promptText = document.getElementById('ai-prompt').value.trim();
+    const tickers = [{% for c in comparisons %}'{{ c.ticker }}',{% endfor %}];
+    
+    if (!tickers.length) {
+        alert('Por favor, selecciona al menos un ticker para comparar.');
+        return;
+    }
+    
+    const btn = document.getElementById('btn-generate-ai-comp');
+    const originalText = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1.5" role="status" aria-hidden="true"></span> Analizando informes...`;
+    
+    const loadingTexts = [
+        "Analizando informes de calidad...",
+        "Evaluando foso competitivo y ventajas...",
+        "Comparando puntuaciones y solidez contable...",
+        "Calculando margen de seguridad y múltiplos...",
+        "Redactando veredicto del Director de Inversiones..."
+    ];
+    let textIdx = 0;
+    const interval = setInterval(() => {
+        textIdx = (textIdx + 1) % loadingTexts.length;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1.5" role="status" aria-hidden="true"></span> ${loadingTexts[textIdx]}`;
+    }, 3500);
+    
+    try {
+        const res = await fetch('/api/comparar/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tickers: tickers,
+                prompt: promptText
+            })
+        });
+        const data = await res.json();
+        clearInterval(interval);
+        
+        if (data.status === 'success') {
+            window.location.href = `/comparar`;
+        } else {
+            alert(data.message || 'Error al generar la comparación');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    } catch (err) {
+        clearInterval(interval);
+        alert('Error de red al conectar con el servidor.');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+
+</script>
+
+{% else %}
+<div class="card shadow-sm border-0">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-bar-chart-line fs-1 text-muted opacity-50 d-block mb-3"></i>
+    <p class="text-muted">Selecciona al menos un ticker para comenzar la comparación.</p>
+    <small class="text-muted">Solo aparecen tickers con análisis completado en la base de datos.</small>
+  </div>
+</div>
+{% endif %}
+
+<script>
+async function deleteArchivedComparison(compId, isCurrent = false) {
+    if (!confirm('¿Seguro que quieres eliminar esta comparación guardada de tu archivo permanente?')) return;
+    
+    try {
+        const res = await fetch(`/api/comparar/delete/${compId}`, {
+            method: 'POST'
+        });
+        const data = await res.json();
+        if (data.status === 'success') {
+            if (isCurrent) {
+                window.location.href = '/comparar';
+            } else {
+                location.reload();
+            }
+        } else {
+            alert(data.message || 'Error al eliminar');
+        }
+    } catch (err) {
+        alert('Error de red');
+    }
+}
+</script>
+
+{% endblock %}

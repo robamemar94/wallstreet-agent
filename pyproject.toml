@@ -1,0 +1,26 @@
+[project]
+name = "alpha-flow"
+version = "0.1.0"
+description = "Alpha-Flow: Terminal and Streamlit app for investment analysis using CrewAI"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "crewai>=0.100.0",
+    "crewai-tools>=0.12.0",
+    "pyyaml>=6.0.1",
+    "python-dotenv>=1.0.1",
+    "google-generativeai",
+    "langchain-google-genai",
+    "yfinance",
+    "fastapi",
+    "uvicorn",
+    "jinja2",
+    "markdown",
+    "python-multipart",
+    "duckduckgo-search",
+    "langchain-community",
+    "ddgs>=9.11.2",
+    "google-genai>=1.66.0",
+    "sqlalchemy>=2.0.48",
+    "alembic>=1.18.4",
+]

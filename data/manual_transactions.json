@@ -1,0 +1,162 @@
+[
+    {
+        "date": "2026-02-12",
+        "type": "BUY",
+        "ticker": "MSFT",
+        "shares": 11.0,
+        "price": 398.34,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-02-12",
+        "type": "BUY",
+        "ticker": "BKNG",
+        "shares": 1.0,
+        "price": 3920.0,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-03-12",
+        "type": "BUY",
+        "ticker": "EVO.ST",
+        "shares": 8.0,
+        "price": 600.0,
+        "currency": "SEK"
+    },
+    {
+        "date": "2026-03-19",
+        "type": "SELL",
+        "ticker": "QFIN",
+        "shares": 20.0,
+        "price": 13.0,
+        "currency": "USD"
+    },
+    {
+        "date": "2025-11-07",
+        "type": "SELL",
+        "ticker": "OPEN",
+        "shares": 25.0,
+        "price": 5.795,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-03-15",
+        "type": "BUY",
+        "ticker": "META",
+        "shares": 7.0,
+        "price": 560.0,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-03-20",
+        "type": "BUY",
+        "ticker": "NVDA",
+        "shares": 3.0,
+        "price": 178.08,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-04-30",
+        "type": "BUY",
+        "ticker": "META",
+        "shares": 1.0,
+        "price": 603.5,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-04-30",
+        "type": "BUY",
+        "ticker": "MSFT",
+        "shares": 1.0,
+        "price": 402.0,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-05-12",
+        "type": "BUY",
+        "ticker": "META",
+        "shares": 1.0,
+        "price": 592.99,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-05-12",
+        "type": "SELL",
+        "ticker": "HIMS",
+        "shares": 28.0,
+        "price": 25.51,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-05-27",
+        "type": "SELL",
+        "ticker": "CIFR",
+        "shares": 80.0,
+        "price": 25.4,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-06-01",
+        "type": "BUY",
+        "ticker": "META",
+        "shares": 1.0,
+        "price": 610.0,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-06-03",
+        "type": "BUY",
+        "ticker": "UBER",
+        "shares": 6.0,
+        "price": 70.7,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-06-03",
+        "type": "BUY",
+        "ticker": "MELI",
+        "shares": 1.0,
+        "price": 1645.0,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-06-04",
+        "type": "BUY",
+        "ticker": "NVDA",
+        "shares": 2.0,
+        "price": 213.21,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-06-09",
+        "type": "BUY",
+        "ticker": "NVDA",
+        "shares": 1.0,
+        "price": 205.5,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-06-10",
+        "type": "BUY",
+        "ticker": "UBER",
+        "shares": 4.0,
+        "price": 69.19,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-06-16",
+        "type": "BUY",
+        "ticker": "MSFT",
+        "shares": 1.0,
+        "price": 394.0,
+        "currency": "USD"
+    },
+    {
+        "date": "2026-06-24",
+        "type": "BUY",
+        "ticker": "MSFT",
+        "shares": 1.0,
+        "price": 374.0,
+        "currency": "USD"
+    }
+]

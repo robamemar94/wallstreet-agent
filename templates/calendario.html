@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Alpha-Flow · Calendario{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex align-items-center gap-3">
+        <h4 class="fw-bold mb-0"><i class="bi bi-calendar3 text-primary me-2"></i>Calendario</h4>
+        <!-- Leyenda -->
+        <div class="d-flex gap-2 flex-wrap">
+            <span class="badge d-flex align-items-center gap-1" style="background:#0d6efd22;color:#0d6efd;border:1px solid #0d6efd55;font-size:0.7rem;font-weight:600;">
+                <i class="bi bi-briefcase-fill"></i> Cartera
+            </span>
+            <span class="badge d-flex align-items-center gap-1" style="background:#ffc10722;color:#b8860b;border:1px solid #ffc10755;font-size:0.7rem;font-weight:600;">
+                <i class="bi bi-star-fill"></i> Favorito
+            </span>
+            <span class="badge d-flex align-items-center gap-1" style="background:#19875422;color:#198754;border:1px solid #19875455;font-size:0.7rem;font-weight:600;">
+                <i class="bi bi-eye-fill"></i> Seguimiento
+            </span>
+            <span class="badge d-flex align-items-center gap-1" style="background:#6f42c122;color:#6f42c1;border:1px solid #6f42c155;font-size:0.7rem;font-weight:600;">
+                <i class="bi bi-cash-stack"></i> Dividendo
+            </span>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="prevMonth()"><i class="bi bi-chevron-left"></i></button>
+        <span id="monthLabel" class="fw-bold fs-6 text-center" style="min-width:160px;"></span>
+        <button class="btn btn-outline-secondary btn-sm" onclick="nextMonth()"><i class="bi bi-chevron-right"></i></button>
+        <button class="btn btn-outline-primary btn-sm ms-2" onclick="goToday()">Hoy</button>
+    </div>
+</div>
+
+<!-- Grid del calendario -->
+<div class="card shadow-sm border-0">
+    <div class="card-body p-2">
+        <!-- Cabecera días semana -->
+        <div class="cal-grid cal-header mb-1">
+            {% for d in ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'] %}
+            <div class="cal-dow text-center text-muted fw-bold" style="font-size:0.72rem;">{{ d }}</div>
+            {% endfor %}
+        </div>
+        <!-- Celdas -->
+        <div class="cal-grid" id="calGrid"></div>
+    </div>
+</div>
+
+<!-- Modal de detalle del día -->
+<div class="modal fade" id="dayModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header border-0 pb-1">
+                <h6 class="modal-title fw-bold" id="dayModalTitle"></h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-1" id="dayModalBody"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+.cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+}
+.cal-header { margin-bottom: 2px; }
+.cal-dow { padding: 4px 0; }
+.cal-cell {
+    min-height: 90px;
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: 6px;
+    padding: 4px 5px;
+    position: relative;
+    background: var(--bs-body-bg, #fff);
+    cursor: default;
+}
+.cal-cell.other-month { opacity: 0.35; }
+.cal-cell.today {
+    border-color: #0d6efd;
+    border-width: 2px;
+    background: rgba(13,110,253,0.04);
+}
+.cal-cell.has-events { cursor: pointer; }
+.cal-cell.has-events:hover { background: rgba(13,110,253,0.06); }
+.cal-day-num {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--bs-body-color);
+    line-height: 1;
+    margin-bottom: 4px;
+}
+.cal-cell.today .cal-day-num {
+    background: #0d6efd;
+    color: #fff;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+}
+.cal-chips { display: flex; flex-direction: column; gap: 2px; }
+.cal-chip {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    line-height: 1.4;
+}
+.chip-portfolio  { background:#0d6efd22; color:#0d6efd; border:1px solid #0d6efd44; }
+.chip-favorite   { background:#ffc10733; color:#b8860b; border:1px solid #ffc10766; }
+.chip-seguimiento{ background:#19875422; color:#198754; border:1px solid #19875455; }
+.chip-dividend   { background:#6f42c122; color:#6f42c1; border:1px solid #6f42c155; }
+.chip-more       { background:var(--bs-secondary-bg,#f8f9fa); color:var(--bs-secondary-color,#6c757d); border:1px solid var(--bs-border-color,#dee2e6); font-style:italic; }
+
+/* modal detail rows */
+.ev-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--bs-border-color,#dee2e6); }
+.ev-row:last-child { border-bottom:none; }
+.ev-dot { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+[data-bs-theme="dark"] .cal-cell { background:#1e2328; border-color:#373d44; }
+[data-bs-theme="dark"] .cal-cell.today { background:rgba(13,110,253,0.1); }
+[data-bs-theme="dark"] .cal-cell.has-events:hover { background:rgba(13,110,253,0.12); }
+</style>
+
+<script>
+const ALL_EVENTS = {{ cal_events_json | tojson }};
+const TODAY_STR  = "{{ today }}";
+
+const MONTH_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const CAT_META = {
+    portfolio:   { cls:'chip-portfolio',   dot:'#0d6efd', icon:'bi-briefcase-fill',  label:'Cartera' },
+    favorite:    { cls:'chip-favorite',    dot:'#ffc107', icon:'bi-star-fill',        label:'Favorito' },
+    seguimiento: { cls:'chip-seguimiento', dot:'#198754', icon:'bi-eye-fill',         label:'Seguimiento' },
+    dividend:    { cls:'chip-dividend',    dot:'#6f42c1', icon:'bi-cash-stack',       label:'Dividendo' },
+};
+
+let cur = new Date(TODAY_STR + 'T00:00:00');
+cur.setDate(1);
+
+function eventsForDate(dateStr) {
+    return ALL_EVENTS.filter(e => e.date === dateStr);
+}
+
+function renderCalendar() {
+    const year = cur.getFullYear();
+    const month = cur.getMonth(); // 0-based
+    document.getElementById('monthLabel').textContent = `${MONTH_ES[month]} ${year}`;
+
+    const grid = document.getElementById('calGrid');
+    grid.innerHTML = '';
+
+    // First day of month (Mon=0 … Sun=6)
+    const firstDay = new Date(year, month, 1);
+    let startDow = firstDay.getDay(); // 0=Sun
+    startDow = startDow === 0 ? 6 : startDow - 1; // convert to Mon-based
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrev  = new Date(year, month, 0).getDate();
+
+    const totalCells = Math.ceil((startDow + daysInMonth) / 7) * 7;
+
+    for (let i = 0; i < totalCells; i++) {
+        let dayNum, dateStr, isOther = false;
+        if (i < startDow) {
+            dayNum = daysInPrev - startDow + i + 1;
+            const d = new Date(year, month - 1, dayNum);
+            dateStr = d.toISOString().slice(0, 10);
+            isOther = true;
+        } else if (i >= startDow + daysInMonth) {
+            dayNum = i - startDow - daysInMonth + 1;
+            const d = new Date(year, month + 1, dayNum);
+            dateStr = d.toISOString().slice(0, 10);
+            isOther = true;
+        } else {
+            dayNum = i - startDow + 1;
+            dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`;
+        }
+
+        const isToday = dateStr === TODAY_STR;
+        const evs = eventsForDate(dateStr);
+
+        const cell = document.createElement('div');
+        cell.className = 'cal-cell' +
+            (isOther ? ' other-month' : '') +
+            (isToday ? ' today' : '') +
+            (evs.length ? ' has-events' : '');
+
+        const numEl = document.createElement('div');
+        numEl.className = 'cal-day-num';
+        numEl.textContent = dayNum;
+        cell.appendChild(numEl);
+
+        if (evs.length) {
+            const chips = document.createElement('div');
+            chips.className = 'cal-chips';
+            const MAX_VISIBLE = 3;
+            evs.slice(0, MAX_VISIBLE).forEach(ev => {
+                const meta = CAT_META[ev.category];
+                const chip = document.createElement('div');
+                chip.className = `cal-chip ${meta.cls}`;
+                chip.innerHTML = `<i class="bi ${meta.icon}" style="font-size:0.6rem;flex-shrink:0;"></i><span>${ev.ticker}</span>`;
+                chips.appendChild(chip);
+            });
+            if (evs.length > MAX_VISIBLE) {
+                const more = document.createElement('div');
+                more.className = 'cal-chip chip-more';
+                more.textContent = `+${evs.length - MAX_VISIBLE} más`;
+                chips.appendChild(more);
+            }
+            cell.appendChild(chips);
+            cell.addEventListener('click', () => openDayModal(dateStr, evs));
+        }
+
+        grid.appendChild(cell);
+    }
+}
+
+function openDayModal(dateStr, evs) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    document.getElementById('dayModalTitle').textContent =
+        `${d} de ${MONTH_ES[m-1]} de ${y}`;
+
+    const body = document.getElementById('dayModalBody');
+    body.innerHTML = '';
+
+    evs.forEach(ev => {
+        const meta = CAT_META[ev.category];
+        const row = document.createElement('div');
+        row.className = 'ev-row';
+
+        let detail = '';
+        if (ev.type === 'Dividendo') {
+            detail = ev.amount && ev.amount > 0 ? `<small class="text-success fw-bold">+${ev.amount.toFixed(2)}€</small>` : '';
+            if (ev.pay_date) detail += `<small class="text-muted ms-2">Cobro: ${ev.pay_date}</small>`;
+        } else {
+            detail = `<small class="text-muted">Resultados</small>`;
+        }
+
+        row.innerHTML = `
+            <div class="ev-dot" style="background:${meta.dot};"></div>
+            <div class="flex-grow-1">
+                <a href="/ticker/${ev.ticker}" class="fw-bold text-decoration-none" style="font-size:0.88rem;">${ev.ticker}</a>
+                <span class="badge ms-1" style="font-size:0.6rem;background:${meta.dot}22;color:${meta.dot};border:1px solid ${meta.dot}44;">
+                    <i class="bi ${meta.icon}"></i> ${meta.label}
+                </span>
+            </div>
+            <div class="text-end">${detail}</div>
+        `;
+        body.appendChild(row);
+    });
+
+    new bootstrap.Modal(document.getElementById('dayModal')).show();
+}
+
+function prevMonth() { cur.setMonth(cur.getMonth() - 1); renderCalendar(); }
+function nextMonth() { cur.setMonth(cur.getMonth() + 1); renderCalendar(); }
+function goToday()   { cur = new Date(TODAY_STR + 'T00:00:00'); cur.setDate(1); renderCalendar(); }
+
+document.addEventListener('DOMContentLoaded', renderCalendar);
+</script>
+
+{% endblock %}

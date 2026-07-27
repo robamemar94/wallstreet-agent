@@ -1,0 +1,1357 @@
+{% extends "base.html" %}
+{% block title %}Alpha-Flow · Inicio{% endblock %}
+{% block content %}
+
+<style>
+    /* Estilizar barra de scroll moderna, sutil y visible */
+    #gainerScrollWrapper::-webkit-scrollbar,
+    #loserScrollWrapper::-webkit-scrollbar,
+    #portAllScrollWrapper::-webkit-scrollbar,
+    #favScrollWrapper::-webkit-scrollbar {
+        width: 6px !important;
+        height: 6px !important;
+        display: block !important;
+    }
+    #gainerScrollWrapper::-webkit-scrollbar-track,
+    #loserScrollWrapper::-webkit-scrollbar-track,
+    #portAllScrollWrapper::-webkit-scrollbar-track,
+    #favScrollWrapper::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.05) !important;
+        border-radius: 10px !important;
+    }
+    #gainerScrollWrapper::-webkit-scrollbar-thumb,
+    #loserScrollWrapper::-webkit-scrollbar-thumb,
+    #portAllScrollWrapper::-webkit-scrollbar-thumb,
+    #favScrollWrapper::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.15) !important;
+        border-radius: 10px !important;
+    }
+    #gainerScrollWrapper::-webkit-scrollbar-thumb:hover,
+    #loserScrollWrapper::-webkit-scrollbar-thumb:hover,
+    #portAllScrollWrapper::-webkit-scrollbar-thumb:hover,
+    #favScrollWrapper::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.3) !important;
+    }
+
+    /* Soporte para modo oscuro */
+    [data-bs-theme="dark"] #gainerScrollWrapper::-webkit-scrollbar-track,
+    [data-bs-theme="dark"] #loserScrollWrapper::-webkit-scrollbar-track,
+    [data-bs-theme="dark"] #portAllScrollWrapper::-webkit-scrollbar-track,
+    [data-bs-theme="dark"] #favScrollWrapper::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05) !important;
+    }
+    [data-bs-theme="dark"] #gainerScrollWrapper::-webkit-scrollbar-thumb,
+    [data-bs-theme="dark"] #loserScrollWrapper::-webkit-scrollbar-thumb,
+    [data-bs-theme="dark"] #portAllScrollWrapper::-webkit-scrollbar-thumb,
+    [data-bs-theme="dark"] #favScrollWrapper::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15) !important;
+    }
+    [data-bs-theme="dark"] #gainerScrollWrapper::-webkit-scrollbar-thumb:hover,
+    [data-bs-theme="dark"] #loserScrollWrapper::-webkit-scrollbar-thumb:hover,
+    [data-bs-theme="dark"] #portAllScrollWrapper::-webkit-scrollbar-thumb:hover,
+    [data-bs-theme="dark"] #favScrollWrapper::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.3) !important;
+    }
+
+    /* Soporte para Firefox */
+    #gainerScrollWrapper,
+    #loserScrollWrapper,
+    #portAllScrollWrapper,
+    #favScrollWrapper {
+        scrollbar-width: thin !important;
+        scrollbar-color: rgba(0, 0, 0, 0.15) rgba(0, 0, 0, 0.05) !important;
+    }
+    [data-bs-theme="dark"] #gainerScrollWrapper,
+    [data-bs-theme="dark"] #loserScrollWrapper,
+    [data-bs-theme="dark"] #portAllScrollWrapper,
+    [data-bs-theme="dark"] #favScrollWrapper {
+        scrollbar-color: rgba(255, 255, 255, 0.15) rgba(255, 255, 255, 0.05) !important;
+    }
+    /* Estrechar filas poniendo el nombre de la compañía al lado del símbolo en vez de abajo */
+    .card-body .ticker-name {
+        display: inline-block !important;
+        vertical-align: middle;
+    }
+    .card-body .company-name {
+        display: inline-block !important;
+        vertical-align: middle;
+        margin-left: 6px;
+    }
+    .portfolio-stat-box {
+        transition: background-color 0.2s ease, border-color 0.2s ease;
+        border-radius: 4px;
+    }
+    .portfolio-stat-box:hover {
+        background-color: rgba(13, 110, 253, 0.08) !important;
+    }
+    .portfolio-stat-box:hover .text-muted {
+        color: var(--bs-primary) !important;
+    }
+
+    /* Estilo para Heatmap en Pantalla Completa */
+    .heatmap-fullscreen-card {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        z-index: 1080 !important;
+        background-color: #11151f !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+        padding: 20px !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+    .heatmap-fullscreen-card .card-body {
+        height: calc(100vh - 80px) !important;
+        border-radius: 0 !important;
+    }
+    .table-caution {
+        --bs-table-bg: #ffc107;
+        --bs-table-border-color: #ffc107;
+        --bs-table-striped-bg: #f2e7c3;
+        --bs-table-striped-color: #000;
+        --bs-table-active-bg: #e6dbb9;
+        --bs-table-active-color: #000;
+        --bs-table-hover-bg: #ece1be;
+        --bs-table-hover-color: #000;
+        color: #000;
+        border-color: #ffe69c
+    }
+    [data-bs-theme="dark"] .table-caution {
+        --bs-table-bg: #332701;
+        --bs-table-border-color: #4d3a01;
+        --bs-table-striped-bg: #3e3001;
+        --bs-table-striped-color: #fff;
+        --bs-table-active-bg: #4a3902;
+        --bs-table-active-color: #fff;
+        --bs-table-hover-bg: #443402;
+        --bs-table-hover-color: #fff;
+        color: #ffc107;
+        border-color: #4d3a01;
+    }
+</style>
+
+<!-- 1. Row: Portfolio, Global Indices, and Heatmap -->
+<div class="row mb-4 g-2">
+    <!-- Portfolio Summary KPI -->
+    <div class="col-xl-3 col-lg-12">
+        <div class="card border-0 h-100" style="height: 280px; background-color: var(--fin-card-bg);">
+            <div class="card-header border-0 pt-2 pb-0 d-flex align-items-center gap-2" style="background: transparent;">
+                <h6 class="fw-bold mb-0 text-white" style="font-size: 0.82rem;"><i class="bi bi-briefcase-fill text-primary"></i> Mi Cartera</h6>
+            </div>
+            {% set portfolio_idx = market_indices[0] %}
+            <div class="card-body p-2 px-3 d-flex flex-column justify-content-between h-100">
+                <!-- Portfolio Summary Widget -->
+                <div class="p-2 mb-1 rounded border d-flex flex-column justify-content-center" style="background: linear-gradient(135deg, #161a24, #1b202e); border-color: rgba(255, 255, 255, 0.05) !important; height: 110px;">
+                    <div>
+                        <span class="text-muted small d-block fw-semibold uppercase" style="font-size: 0.52rem; letter-spacing: 0.5px;">VALOR TOTAL</span>
+                        <span class="fw-bold fs-5 num-font text-white d-block" style="line-height: 1.2;">{{ format_euro(portfolio_idx.price, 2) }} €</span>
+                    </div>
+                    <div class="mt-1 pt-1 border-top" style="border-color: rgba(255,255,255,0.05) !important;">
+                        <span class="fw-bold num-font {% if portfolio_idx.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.78rem;">
+                            {% if portfolio_idx.change >= 0 %}+{% endif %}{{ format_euro(portfolio_idx.change, 2) }}€
+                            <span class="opacity-75 small ms-1" style="font-size: 0.68rem;">
+                                ({% if portfolio_idx.pct >= 0 %}+{% endif %}{{ "%.2f"|format(portfolio_idx.pct) }}%)
+                            </span>
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Terminal-style Portfolio Stats Grid -->
+                <div class="row g-1 mt-1 pt-1 border-top" style="border-color: var(--fin-border) !important;">
+                    <div class="col-6 border-end portfolio-stat-box p-1" style="border-color: var(--fin-border) !important; cursor: pointer;" data-bs-toggle="modal" data-bs-target="#portfolioModal" title="Ver posiciones de mi cartera">
+                        <span class="text-muted d-block uppercase" style="font-size: 0.52rem; letter-spacing: 0.2px;">POSICIONES <i class="bi bi-box-arrow-up-right ms-0.5 opacity-50" style="font-size: 0.5rem;"></i></span>
+                        <span class="fw-semibold text-white num-font" style="font-size: 0.74rem;"><i class="bi bi-tag-fill me-1 opacity-50 text-primary"></i>{{ port_all|length }}</span>
+                    </div>
+                    <div class="col-6 text-end p-1">
+                        <span class="text-muted d-block uppercase" style="font-size: 0.52rem; letter-spacing: 0.2px;">SESIÓN</span>
+                        <span class="fw-semibold text-white num-font" style="font-size: 0.74rem;"><i class="bi bi-clock-history me-1 opacity-50"></i>{{ latest_market_date }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Indices Grid -->
+    <div class="col-xl-3 col-lg-12">
+        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg); height: 280px;">
+            <div class="card-header border-0 pt-2 pb-0" style="background: transparent;">
+                <h6 class="fw-bold mb-0 text-white" style="font-size: 0.82rem;"><i class="bi bi-globe text-primary"></i> Índices de Mercado</h6>
+            </div>
+            <div class="card-body p-2 d-flex flex-column justify-content-between h-100">
+                <div class="row g-2">
+                    {% for idx in market_indices if not idx.is_portfolio %}
+                    <div class="col-6">
+                        <div class="p-1 px-2 d-flex flex-column justify-content-between rounded" style="background: rgba(255,255,255,0.015); height: 64px; border: 1px solid var(--fin-border);">
+                            <span class="text-muted fw-bold uppercase" style="font-size: 0.58rem; letter-spacing: 0.2px;">{{ idx.name }}</span>
+                            <div class="d-flex justify-content-between align-items-baseline">
+                                <span class="fw-bold text-white num-font" style="font-size: 0.74rem;">
+                                    {{ format_euro(idx.price, 0) if idx.price > 1000 else format_euro(idx.price, 2) }}
+                                </span>
+                                <span class="fw-bold num-font {% if idx.pct > 0 %}text-success{% elif idx.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.68rem; white-space: nowrap;">
+                                    {% if idx.change > 0 %}+{% endif %}{{ format_euro(idx.change, 0) if idx.change|abs > 1000 else format_euro(idx.change, 1) }}
+                                    <span class="small" style="font-size: 0.58rem;">({% if idx.pct > 0 %}+{% endif %}{{ format_euro(idx.pct, 1) }}%)</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Heatmap Tracked -->
+    <div class="col-xl-6 col-lg-12">
+        <div class="card border-0 h-100 bg-transparent" id="heatmapCard">
+            <div class="card-header border-0 pb-0 pt-2 px-2 bg-transparent d-flex justify-content-between align-items-center">
+                <small class="text-muted fw-bold" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px;">Distribución: Mercado vs Cartera</small>
+                <div class="d-flex align-items-center gap-1">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Alternar Heatmap">
+                        <button type="button" class="btn btn-outline-secondary active py-0.5 px-2" id="btnHeatmapMarket" onclick="setHeatmapMode('market')" style="font-size: 0.62rem; line-height: 1; border-color: rgba(255,255,255,0.15);">🌐 Mercado</button>
+                        <button type="button" class="btn btn-outline-secondary py-0.5 px-2" id="btnHeatmapPortfolio" onclick="setHeatmapMode('portfolio')" style="font-size: 0.62rem; line-height: 1; border-color: rgba(255,255,255,0.15);">💼 Cartera</button>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary py-0.5 px-2" id="btnHeatmapFullscreen" onclick="toggleHeatmapFullscreen()" style="font-size: 0.62rem; line-height: 1; border-color: rgba(255,255,255,0.15); color: #6c757d;" title="Pantalla Completa">
+                        <i class="bi bi-arrows-angle-expand"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-1" style="background-color: var(--fin-card-bg); border-radius: 8px; height: 245px;">
+                <div id="heatmapTracked" style="height: 235px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Row: Movers (Ganadores, Perdedores, Mi Cartera) -->
+<div class="d-flex justify-content-start align-items-center mb-3 mt-4 flex-wrap gap-3">
+    <h4 class="fw-bold mb-0 text-white" id="activityTitle" style="font-size: 1.12rem;">Actividad del Día</h4>
+    <div class="btn-group btn-group-sm" id="activityFilterGroup" role="group" aria-label="Filtro de Región">
+        <button type="button" class="btn btn-outline-secondary active py-1 px-2.5" data-filter="all" onclick="setActivityRegionFilter('all')" style="font-size: 0.72rem; line-height: 1;">
+            🌍 Todos
+        </button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2.5" data-filter="usa" onclick="setActivityRegionFilter('usa')" style="font-size: 0.72rem; line-height: 1;">
+            🇺🇸 EE.UU.
+        </button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2.5" data-filter="europa" onclick="setActivityRegionFilter('europa')" style="font-size: 0.72rem; line-height: 1;">
+            🇪🇺 Europa
+        </button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2.5" data-filter="resto" onclick="setActivityRegionFilter('resto')" style="font-size: 0.72rem; line-height: 1;">
+            🌎 Resto del Mundo
+        </button>
+    </div>
+
+    <!-- Filtro de Estados Multi-selección (Alineado junto a las regiones) -->
+    <div class="dropdown" id="activityStatusDropdownContainer">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle py-1 px-2.5 d-flex align-items-center gap-1" type="button" id="activityStatusDropdownBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" style="font-size: 0.72rem; line-height: 1; border-color: rgba(255,255,255,0.15); color: rgba(255,255,255,0.75);">
+            <i class="bi bi-filter-circle-fill text-info" id="activityStatusIcon" style="font-size: 0.75rem;"></i> 🟢 Seguim., 🟡 Dudas
+        </button>
+        <ul class="dropdown-menu dropdown-menu-dark p-2 shadow-lg" aria-labelledby="activityStatusDropdownBtn" style="font-size: 0.72rem; background-color: #1a1e29; border: 1px solid rgba(255,255,255,0.15); min-width: 170px;">
+            <li class="px-1 py-0.5">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="ALL" id="actStatus_ALL" onchange="toggleActivityStatus('ALL')">
+                    <label class="form-check-label text-white-50 fw-bold" for="actStatus_ALL">📋 Todos</label>
+                </div>
+            </li>
+            <li><hr class="dropdown-divider my-1 bg-secondary opacity-25"></li>
+            <li class="px-1 py-0.5">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="ACCEPTED" id="actStatus_ACCEPTED" checked onchange="toggleActivityStatus('ACCEPTED')">
+                    <label class="form-check-label text-success fw-bold" for="actStatus_ACCEPTED">🟢 En Seguimiento</label>
+                </div>
+            </li>
+            <li class="px-1 py-0.5">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="STANDBY" id="actStatus_STANDBY" onchange="toggleActivityStatus('STANDBY')">
+                    <label class="form-check-label text-warning fw-bold" for="actStatus_STANDBY">🟡 Dudas</label>
+                </div>
+            </li>
+            <li class="px-1 py-0.5">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="PENDING" id="actStatus_PENDING" onchange="toggleActivityStatus('PENDING')">
+                    <label class="form-check-label text-secondary fw-bold" for="actStatus_PENDING">⚪ Pendientes</label>
+                </div>
+            </li>
+            <li class="px-1 py-0.5">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="REJECTED" id="actStatus_REJECTED" onchange="toggleActivityStatus('REJECTED')">
+                    <label class="form-check-label text-danger fw-bold" for="actStatus_REJECTED">🔴 Descartadas</label>
+                </div>
+            </li>
+            <li class="px-1 py-0.5">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="NONE" id="actStatus_NONE" onchange="toggleActivityStatus('NONE')">
+                    <label class="form-check-label text-white-50" for="actStatus_NONE">⚪ Sin Analizar</label>
+                </div>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<div class="row g-2 mb-4">
+    <!-- Ganadores -->
+    <div class="col-xl-3 col-lg-3 col-md-6 col-12">
+        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
+            <div class="card-header border-0 pt-2 pb-1 d-flex justify-content-between align-items-center" style="background: transparent;">
+                <h6 class="fw-bold text-success mb-0" style="font-size: 0.82rem;">
+                    <i class="bi bi-graph-up-arrow"></i> Ganadores
+                </h6>
+                <div id="gainerPagination" class="pagination-small"></div>
+            </div>
+            <div class="card-body px-0 py-0">
+                <div class="table-responsive" id="gainerScrollWrapper" style="height: 250px; overflow-y: auto;">
+                    <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
+                        <tbody id="gainerListMarket">
+                            {% for t in top_gainers %}
+                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="gainer-item-market" data-region="{{ t.region }}" data-status="{{ t.status }}">
+                                <td class="ps-3 py-1">
+                                    <div class="ticker-info" style="gap: 6px;">
+                                        <div>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>
+                                            <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-3 align-middle num-font">
+                                    <div class="d-flex align-items-center justify-content-end gap-2">
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Perdedores -->
+    <div class="col-xl-3 col-lg-3 col-md-6 col-12">
+        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
+            <div class="card-header border-0 pt-2 pb-1 d-flex justify-content-between align-items-center" style="background: transparent;">
+                <h6 class="fw-bold text-danger mb-0" style="font-size: 0.82rem;">
+                    <i class="bi bi-graph-down-arrow"></i> Perdedores
+                </h6>
+                <div id="loserPagination" class="pagination-small"></div>
+            </div>
+            <div class="card-body px-0 py-0">
+                <div class="table-responsive" id="loserScrollWrapper" style="height: 250px; overflow-y: auto;">
+                    <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
+                        <tbody id="loserListMarket">
+                            {% for t in top_losers %}
+                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="loser-item-market" data-region="{{ t.region }}" data-status="{{ t.status }}">
+                                <td class="ps-3 py-1">
+                                    <div class="ticker-info" style="gap: 6px;">
+                                        <div>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>
+                                            <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-3 align-middle num-font">
+                                    <div class="d-flex align-items-center justify-content-end gap-2">
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Favoritos / Listas -->
+    <div class="col-xl-3 col-lg-3 col-md-6 col-12">
+        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
+            <div class="card-header border-0 pt-2 pb-1 d-flex justify-content-between align-items-center" style="background: transparent;">
+                <!-- Selector Dinámico de Lista -->
+                <div class="dropdown">
+                    <button class="btn btn-xs btn-link text-warning fw-bold p-0 border-0 dropdown-toggle d-flex align-items-center gap-1.5" type="button" id="dashboardListSelectorButton" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.82rem; text-decoration: none; box-shadow: none;">
+                        <i class="bi bi-star-fill" id="dashboardListIcon" class="me-1"></i> <span id="dashboardListTitle">Favoritos</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-dark p-1 shadow" aria-labelledby="dashboardListSelectorButton" style="font-size: 0.76rem; background-color: var(--fin-card-bg); border: 1px solid rgba(255,255,255,0.15); min-width: 160px; z-index: 1050;">
+                        <li>
+                            <button class="dropdown-item py-1 fw-bold text-warning" onclick="switchDashboardList('fav', 'Favoritos', 'bi-star-fill')">
+                                <i class="bi bi-star-fill me-1.5"></i> Favoritos
+                            </button>
+                        </li>
+                        {% for list in custom_lists %}
+                        <li>
+                            <button class="dropdown-item py-1 text-white" onclick="switchDashboardList('list-{{ list.id }}', '{{ list.name }}', 'bi-folder2-open')">
+                                <i class="bi bi-folder2-open me-1.5"></i> {{ list.name }}
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    <!-- Botón único toggle 1-click: Alza / Caída (Solo icono) -->
+                    <button class="btn btn-xs btn-outline-secondary py-0 px-1.5 d-flex align-items-center" onclick="toggleFavPerformanceSort()" id="btnFavSortToggle" style="font-size: 0.72rem; border-color: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); min-width: 24px; justify-content: center;" title="Alternar orden por rendimiento (Mejor / Peor)">
+                        <i class="bi bi-arrow-down-up"></i>
+                    </button>
+                    <div id="favPagination" class="pagination-small"></div>
+                </div>
+            </div>
+            <div class="card-body px-0 py-0">
+                <div class="table-responsive" id="favScrollWrapper" style="height: 250px; overflow-y: auto;">
+                    <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
+                        <!-- Cuerpo de Favoritos -->
+                        <tbody id="list-body-fav" class="dashboard-list-body">
+                            {% for t in fav_movers %}
+                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="fav-item"
+                                data-ticker="{{ clean_ticker(t.name) }}"
+                                data-price="{{ t.price or 0 }}"
+                                data-pct="{{ t.pct or 0 }}"
+                                data-region="{{ t.region }}"
+                                data-status="{{ t.status }}">
+                                <td class="ps-3 py-1">
+                                    <div class="ticker-info" style="gap: 6px;">
+                                        <div>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>
+                                            <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-3 align-middle num-font">
+                                    <div class="d-flex align-items-center justify-content-end gap-2">
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not fav_movers %}
+                            <tr><td colspan="4" class="text-center py-4 text-muted small">Sin favoritos con actividad hoy</td></tr>
+                            {% endif %}
+                        </tbody>
+
+                        <!-- Cuerpos de Listas Personalizadas -->
+                        {% for clist in custom_lists %}
+                        <tbody id="list-body-list-{{ clist.id }}" class="dashboard-list-body" style="display: none;">
+                            {% for t in clist.movers %}
+                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="list-{{ clist.id }}-item"
+                                data-ticker="{{ clean_ticker(t.name) }}"
+                                data-price="{{ t.price or 0 }}"
+                                data-pct="{{ t.pct or 0 }}"
+                                data-region="{{ t.region }}"
+                                data-status="{{ t.status }}">
+                                <td class="ps-3 py-1">
+                                    <div class="ticker-info" style="gap: 6px;">
+                                        <div>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>
+                                            <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-3 align-middle num-font">
+                                    <div class="d-flex align-items-center justify-content-end gap-2">
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not clist.movers %}
+                            <tr><td colspan="4" class="text-center py-4 text-muted small">Lista vacía o sin cotizaciones hoy</td></tr>
+                            {% endif %}
+                        </tbody>
+                        {% endfor %}
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mi Cartera -->
+    <div class="col-xl-3 col-lg-3 col-md-6 col-12">
+        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
+            <div class="card-header border-0 pt-2 pb-1 d-flex justify-content-between align-items-center" style="background: transparent;">
+                <h6 class="fw-bold text-primary mb-0" style="font-size: 0.82rem;">
+                    <i class="bi bi-briefcase-fill"></i> Mi Cartera
+                </h6>
+                <div id="portPagination" class="pagination-small"></div>
+            </div>
+            <div class="card-body px-0 py-0">
+                <div class="table-responsive" id="portScrollWrapper" style="height: 250px; overflow-y: auto;">
+                    <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
+                        <tbody id="portListMarket">
+                            {% for t in port_all %}
+                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="port-item-market" data-region="{{ t.region }}" data-status="{{ t.status }}">
+                                <td class="ps-3 py-1">
+                                    <div class="ticker-info" style="gap: 6px;">
+                                        <div>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>
+                                            <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-3 align-middle num-font">
+                                    <div class="d-flex align-items-center justify-content-end gap-2">
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not port_all %}
+                            <tr><td colspan="4" class="text-center py-4 text-muted small">Sin activos en cartera</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 3. Row: Events and Weekly Calendar -->
+<div class="row mb-4 g-2">
+    <div class="col-12">
+        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
+            <div class="card-header border-0 pt-3 pb-2 d-flex justify-content-between align-items-center" style="background: transparent;">
+                <h6 class="fw-bold mb-0 text-white" style="font-size: 0.85rem;">
+                    <i class="bi bi-calendar-event text-primary me-1"></i> Próximos Eventos y Calendario Semanal
+                </h6>
+                <a href="/calendario" class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:0.7rem;" title="Ver calendario completo">
+                    <i class="bi bi-calendar3 me-1"></i>Calendario Completo
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="row g-0 h-100">
+                    <!-- Resultados -->
+                    <div class="col-xl-4 col-md-4 col-12 border-end" style="border-color: var(--fin-border) !important;">
+                        <div class="px-3 pt-2 pb-1 d-flex justify-content-between align-items-center border-bottom" style="border-color: var(--fin-border) !important;">
+                            <span class="fw-semibold text-white" style="font-size: 0.75rem;"><i class="bi bi-bar-chart-fill text-primary me-1"></i>Resultados</span>
+                            <div class="btn-group btn-group-sm" id="earnFilterGroup" role="group">
+                                <button type="button" class="btn btn-outline-secondary active py-0 px-1" data-filter="all" onclick="setEarnFilter('all')" title="Todos" style="font-size:0.6rem;">Todos</button>
+                                <button type="button" class="btn btn-outline-primary py-0 px-1" data-filter="portfolio" onclick="setEarnFilter('portfolio')" title="Solo cartera"><i class="bi bi-briefcase-fill" style="font-size:0.6rem;"></i></button>
+                                <button type="button" class="btn btn-outline-secondary py-0 px-1" data-filter="no-portfolio" onclick="setEarnFilter('no-portfolio')" title="Sin cartera"><i class="bi bi-briefcase" style="font-size:0.6rem;"></i></button>
+                            </div>
+                        </div>
+                        <ul class="list-group list-group-flush" id="earnList">
+                                {% for ev in upcoming_earnings %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-3 earn-item"
+                                    style="display:none;"
+                                    data-is-portfolio="{{ 'true' if ev.is_portfolio else 'false' }}"
+                                    data-is-favorite="{{ 'true' if ev.is_favorite else 'false' }}">
+                                    <div class="d-flex align-items-center gap-1">
+                                        <span class="fw-bold" style="font-size:0.78rem;">{{ clean_ticker(ev.ticker) }}</span>
+                                        {% if ev.is_portfolio %}<i class="bi bi-briefcase-fill text-primary" style="font-size:0.55rem;" title="En cartera"></i>{% endif %}
+                                        {% if ev.is_favorite %}<i class="bi bi-star-fill text-warning" style="font-size:0.55rem;" title="Favorito"></i>{% endif %}
+                                    </div>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <span class="text-muted" style="font-size:0.6rem;">{{ ev.date }}</span>
+                                        <span class="badge border-0 fw-bold
+                                            {% if ev.days_remaining == 0 %}bg-danger text-white
+                                            {% elif ev.days_remaining <= 7 %}bg-warning text-dark
+                                            {% elif ev.days_remaining <= 30 %}bg-info bg-opacity-75 text-white
+                                            {% else %}bg-light text-muted{% endif %}"
+                                            style="font-size:0.62rem;min-width:44px;text-align:center;">
+                                            {% if ev.days_remaining == 0 %}Hoy
+                                            {% elif ev.days_remaining == 1 %}Mañana
+                                            {% else %}{{ ev.days_remaining }}d{% endif %}
+                                        </span>
+                                    </div>
+                                </li>
+                                {% endfor %}
+                                {% if not upcoming_earnings %}
+                                <li class="list-group-item text-center py-4 text-muted small">Sin resultados próximos</li>
+                                {% endif %}
+                            </ul>
+                        <div class="d-flex justify-content-center py-1" id="earnPagination"></div>
+                    </div>
+                    <!-- Dividendos a Cobrar -->
+                    <div class="col-xl-4 col-md-4 col-12 border-end" style="border-color: var(--fin-border) !important;">
+                        <div class="px-3 pt-2 pb-1 border-bottom" style="border-color: var(--fin-border) !important;">
+                            <span class="fw-semibold small text-white" style="font-size: 0.75rem;"><i class="bi bi-cash-stack text-success me-1"></i>Dividendos a Cobrar</span>
+                        </div>
+                        <ul class="list-group list-group-flush" id="divList">
+                                {% for ev in upcoming_dividends %}
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-3 div-item" style="display:none;">
+                                    <div class="d-flex flex-column">
+                                        <span class="fw-bold" style="font-size:0.78rem;">{{ clean_ticker(ev.ticker) }}</span>
+                                        {% if ev.amount %}<small class="text-success fw-bold" style="font-size:0.62rem;">+{{ format_euro(ev.amount, 2) }}€</small>{% endif %}
+                                    </div>
+                                    <div class="d-flex flex-column align-items-end gap-1">
+                                        <div class="d-flex align-items-center gap-1">
+                                            <span class="text-muted" style="font-size:0.58rem;">Ex:</span>
+                                            <span class="text-muted" style="font-size:0.62rem;">{{ ev.date }}</span>
+                                        </div>
+                                        {% if ev.pay_date %}
+                                        <div class="d-flex align-items-center gap-1">
+                                            <span class="text-muted" style="font-size:0.58rem;">Cobro:</span>
+                                            <span class="badge border-0 fw-bold
+                                                {% if ev.pay_days_remaining is not none %}
+                                                    {% if ev.pay_days_remaining == 0 %}bg-danger text-white
+                                                    {% elif ev.pay_days_remaining <= 7 %}bg-warning text-dark
+                                                    {% elif ev.pay_days_remaining <= 30 %}bg-info bg-opacity-75 text-white
+                                                    {% else %}bg-light text-muted{% endif %}
+                                                {% else %}bg-light text-muted{% endif %}"
+                                                style="font-size:0.62rem;min-width:44px;text-align:center;">
+                                                {% if ev.pay_days_remaining is not none %}
+                                                    {% if ev.pay_days_remaining == 0 %}Hoy
+                                                    {% elif ev.pay_days_remaining == 1 %}Mañana
+                                                    {% else %}{{ ev.pay_days_remaining }}d{% endif %}
+                                                {% else %}{{ ev.pay_date }}{% endif %}
+                                            </span>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </li>
+                                {% endfor %}
+                                {% if not upcoming_dividends %}
+                                <li class="list-group-item text-center py-4 text-muted small">Sin dividendos próximos</li>
+                                {% endif %}
+                            </ul>
+                        <div class="d-flex justify-content-center py-1" id="divPagination"></div>
+                    </div>
+                    <!-- Calendario Semanal (Lunes a Viernes) con paginación de semanas -->
+                    <div class="col-xl-4 col-md-4 col-12">
+                        <div class="px-3 pt-2 pb-1 border-bottom d-flex justify-content-between align-items-center" style="border-color: var(--fin-border) !important; height: 35px;">
+                            <span class="fw-semibold small text-white" style="font-size: 0.75rem;">
+                                <i class="bi bi-calendar-week text-primary me-1"></i>Calendario Semanal
+                            </span>
+                            <div class="d-flex align-items-center gap-1">
+                                <button class="btn btn-xs btn-outline-secondary py-0 px-1 border-secondary" style="font-size: 0.6rem; color: #dee2e6;" onclick="moveWeek(-1)">&lt;</button>
+                                <span id="weekLabel" class="small text-muted fw-bold" style="font-size: 0.65rem; min-width: 75px; text-align: center;">Esta Semana</span>
+                                <button class="btn btn-xs btn-outline-secondary py-0 px-1 border-secondary" style="font-size: 0.6rem; color: #dee2e6;" onclick="moveWeek(1)">&gt;</button>
+                            </div>
+                        </div>
+                        <ul class="list-group list-group-flush" id="weeklyCalendarList">
+                            <!-- Se renderiza dinámicamente con JavaScript -->
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 4. Row: Oportunidades de Compra & Alertas de Caída -->
+<div class="row mb-5 g-2">
+    <!-- Oportunidades de Compra -->
+    <div class="col-xl-6 col-lg-12">
+        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
+            <div class="card-header border-0 pt-2 pb-1 d-flex justify-content-between align-items-center" style="background: transparent;">
+                <h6 class="fw-bold text-white mb-0" style="font-size: 0.82rem;">
+                    <i class="bi bi-bullseye text-primary"></i> Oportunidades de Compra
+                    <a href="/oportunidades" class="ms-2 small text-decoration-none text-muted" style="font-size:0.68rem; text-transform: none;">(todas →)</a>
+                </h6>
+                <div id="oppPagination" class="pagination-small"></div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" id="oppScrollWrapper" style="height: 250px; overflow-y: auto;">
+                    <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
+                        <thead>
+                            <tr class="text-muted" style="font-size: 0.65rem; background-color: #151821;">
+                                <th class="ps-3 py-1">Activo</th>
+                                <th class="text-end py-1">Precio</th>
+                                <th class="text-end py-1">Hoy</th>
+                                <th class="text-end py-1">P. compra</th>
+                                <th class="text-end pe-3 py-1">Dif.</th>
+                            </tr>
+                        </thead>
+                        <tbody id="oppList">
+                            {% for op in near_opportunities %}
+                            <tr onclick="window.location='/ticker/{{ op.ticker }}'" style="cursor:pointer; display:none;" class="opp-item">
+                                <td class="ps-3 py-1">
+                                    <div class="ticker-info" style="gap: 4px;">
+                                        <div>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.76rem;">{{ clean_ticker(op.ticker) }}</span>
+                                            <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.62rem; text-transform: uppercase;">{{ op.company_name }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end fw-bold align-middle num-font text-white py-1" style="font-size: 0.74rem;">{{ op.currency_symbol }}{{ format_euro(op.current_price, 2) }}</td>
+                                <td class="text-end align-middle num-font py-1 {% if op.change_pct and op.change_pct > 0 %}text-success{% elif op.change_pct and op.change_pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size:0.72rem;">
+                                    {% if op.change_pct is not none %}
+                                        <span class="fw-bold">{% if op.change_abs > 0 %}+{% endif %}{{ format_euro(op.change_abs, 2) }}</span>
+                                        <span class="opacity-85 small">({% if op.change_pct > 0 %}+{% endif %}{{ format_euro(op.change_pct, 1) }}%)</span>
+                                    {% else %}<span class="text-muted">—</span>{% endif %}
+                                </td>
+                                <td class="text-end fw-bold text-success align-middle num-font py-1" style="font-size: 0.74rem;">{{ op.currency_symbol }}{{ format_euro(op.buy_price, 2) }}</td>
+                                <td class="text-end pe-3 fw-bold align-middle num-font py-1 {% if op.drop_needed <= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.74rem;">
+                                    {% if op.drop_needed <= 0 %}✓ en zona{% else %}-{{ format_euro(op.drop_needed, 1) }}%{% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not near_opportunities %}
+                            <tr><td colspan="5" class="text-center py-4 text-muted small">No hay oportunidades cercanas</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alertas de Caída desde ATH -->
+    <div class="col-xl-6 col-lg-12">
+        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
+            <div class="card-header border-0 pt-2 pb-1 d-flex justify-content-between align-items-center" style="background: transparent;">
+                <div>
+                    <h6 class="fw-bold text-white mb-0" style="font-size: 0.82rem;">
+                        <i class="bi bi-graph-down-arrow text-danger"></i> Alertas de Caída desde ATH
+                        <a href="/alerts" class="text-decoration-none ms-1 text-muted" style="font-size:0.68rem; text-transform: none;">(todas →)</a>
+                    </h6>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    {% if drop_alerts %}
+                    <span class="badge bg-danger rounded-pill" style="font-size: 0.62rem; padding: 2px 6px;">{{ drop_alerts|length }}</span>
+                    {% endif %}
+                    <div id="dropAlertPagination" class="pagination-small"></div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" id="dropAlertScrollWrapper" style="height: 250px; overflow-y: auto;">
+                    {% if drop_alerts %}
+                    <table class="table table-modern align-middle mb-0" style="font-size:0.72rem;">
+                        <thead>
+                            <tr class="text-muted" style="font-size: 0.65rem; background-color: #151821;">
+                                <th class="ps-3 py-1">Fecha</th>
+                                <th class="py-1">Activo</th>
+                                <th class="text-center py-1">Escalón</th>
+                                <th class="text-end py-1">ATH</th>
+                                <th class="text-end py-1">Alerta</th>
+                                <th class="text-end pe-3 py-1">Caída</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dropAlertList">
+                            {% for alert in drop_alerts %}
+                            {% set color_class = 'table-' + alert.color_category if alert.color_category in ['warning', 'danger'] else 'table-caution' if alert.color_category == 'caution' else '' %}
+                            <tr onclick="window.location='/ticker/{{ alert.ticker }}'" style="cursor:pointer; display:none;" class="drop-alert-item {{ color_class }}">
+                                <td class="ps-3 text-muted small align-middle num-font py-1">{{ alert.date }}</td>
+                                <td class="py-1">
+                                    <div class="ticker-info" style="gap: 4px;">
+                                        <div>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.76rem;">{{ clean_ticker(alert.ticker) }}</span>
+                                            <span class="company-name text-truncate text-muted ms-1" style="max-width:80px; font-size: 0.62rem; text-transform: uppercase;">{{ alert.company_name }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-center align-middle py-1">
+                                    <span class="badge bg-danger bg-opacity-90 fw-bold" style="font-size: 0.62rem; padding: 2px 4px;">–{{ alert.escalon }}%</span>
+                                </td>
+                                <td class="text-end text-muted align-middle num-font py-1">{{ format_euro(alert.ath, 2) }}</td>
+                                <td class="text-end fw-bold align-middle num-font py-1">{{ format_euro(alert.current_price, 2) }}</td>
+                                <td class="text-end pe-3 fw-bold align-middle num-font py-1">–{{ format_euro(alert.drop_pct, 1) }}%</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="text-center py-5 text-muted small" style="background-color: var(--fin-card-bg);">
+                        <i class="bi bi-check-circle text-success d-block mb-1" style="font-size:1.3rem;"></i>
+                        Ninguna acción ha caído un escalón.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<script>
+    let earnFilter = 'all';
+    function setEarnFilter(filter) {
+        earnFilter = filter;
+        document.querySelectorAll('#earnFilterGroup .btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === filter);
+        });
+        window.paginationStates?.['earnList']?.refresh();
+    }
+
+    let activityRegionFilter = 'all';
+    let selectedActivityStatuses = ['ACCEPTED', 'STANDBY'];
+
+    window.activityFilterFn = el => {
+        // 1. Filtrar por región
+        let passRegion = true;
+        if (activityRegionFilter !== 'all') {
+            const r = el.getAttribute('data-region') || '';
+            if (activityRegionFilter === 'usa') passRegion = (r === 'USA' || r === 'US');
+            else if (activityRegionFilter === 'europa') passRegion = (r === 'Europa');
+            else if (activityRegionFilter === 'resto') passRegion = (r !== 'Europa' && r !== 'USA' && r !== 'US');
+        }
+
+        // 2. Filtrar por estado
+        let passStatus = true;
+        if (!selectedActivityStatuses.includes('ALL')) {
+            const s = el.getAttribute('data-status') || 'NONE';
+            passStatus = selectedActivityStatuses.includes(s);
+        }
+
+        return passRegion && passStatus;
+    };
+
+    function setActivityRegionFilter(filter) {
+        activityRegionFilter = filter;
+        document.querySelectorAll('#activityFilterGroup .btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === filter);
+        });
+        window.paginationStates?.['gainerListMarket']?.refresh();
+        window.paginationStates?.['loserListMarket']?.refresh();
+        window.paginationStates?.['favList']?.refresh();
+        window.paginationStates?.['portListMarket']?.refresh();
+    }
+
+    function toggleActivityStatus(statusVal) {
+        const container = document.getElementById('activityStatusDropdownContainer');
+        const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+        const allCheckbox = document.getElementById('actStatus_ALL');
+        const btn = document.getElementById('activityStatusDropdownBtn');
+
+        if (statusVal === 'ALL') {
+            if (allCheckbox.checked) {
+                // Desmarcar todos los demás
+                checkboxes.forEach(cb => {
+                    if (cb.value !== 'ALL') cb.checked = false;
+                });
+                selectedActivityStatuses = ['ALL'];
+            } else {
+                // Si desmarcan ALL y no hay ninguno marcado, lo volvemos a marcar
+                allCheckbox.checked = true;
+                selectedActivityStatuses = ['ALL'];
+            }
+        } else {
+            // Si marcan otro, desmarcar ALL
+            allCheckbox.checked = false;
+            
+            const activeCbs = Array.from(checkboxes).filter(cb => cb.value !== 'ALL' && cb.checked);
+            if (activeCbs.length === 0) {
+                allCheckbox.checked = true;
+                selectedActivityStatuses = ['ALL'];
+            } else {
+                selectedActivityStatuses = activeCbs.map(cb => cb.value);
+            }
+        }
+
+        // Actualizar el texto del botón
+        if (allCheckbox.checked) {
+            btn.innerHTML = `<i class="bi bi-filter-circle"></i> Estados (Todos)`;
+        } else {
+            const labels = {
+                'ACCEPTED': '🟢 Seguim.',
+                'STANDBY': '🟡 Dudas',
+                'PENDING': '⚪ Pend.',
+                'REJECTED': '🔴 Descart.',
+                'NONE': '⚪ Sin An.'
+            };
+            const names = selectedActivityStatuses.map(s => labels[s] || s);
+            btn.innerHTML = `<i class="bi bi-filter-circle-fill text-info"></i> ${names.join(', ')}`;
+        }
+
+        // Actualizar la paginación y renderizado
+        window.paginationStates?.['gainerListMarket']?.refresh();
+        window.paginationStates?.['loserListMarket']?.refresh();
+        const activeListId = 'list-body-' + (window.currentDashboardListId || 'fav');
+        window.paginationStates?.[activeListId]?.refresh();
+        window.paginationStates?.['portListMarket']?.refresh();
+    }
+
+    function setupSimplePagination(listId, itemClass, paginationId, itemsPerPage, filterFn) {
+        const list = document.getElementById(listId);
+        if (!list) return;
+        const allItems = Array.from(list.getElementsByClassName(itemClass));
+        const paginationContainer = document.getElementById(paginationId);
+        if (!paginationContainer) return;
+        paginationContainer.innerHTML = '';
+        let currentPage = 1;
+
+        function getItems() { return filterFn ? allItems.filter(filterFn) : allItems; }
+
+        function render(newPage) {
+            if (newPage !== undefined) currentPage = newPage;
+            const items = getItems();
+            const totalPages = Math.ceil(items.length / itemsPerPage) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            allItems.forEach(item => item.style.setProperty('display', 'none', 'important'));
+            const start = itemsPerPage === Infinity ? 0 : (currentPage - 1) * itemsPerPage;
+            const end = itemsPerPage === Infinity ? items.length : start + itemsPerPage;
+            const displayType = (list.tagName === 'TBODY' || list.id === 'oppList' || list.id.startsWith('list-body-') || list.id === 'gainerListMarket' || list.id === 'loserListMarket' || list.id === 'portAllList' || list.id === 'portListMarket') ? 'table-row' : 'flex';
+            items.slice(start, end).forEach(item => item.style.setProperty('display', displayType, 'important'));
+
+            // Control dinámico de scroll: si hay más de 10 elementos se activa, si no, se quita.
+            if (itemsPerPage === Infinity) {
+                const wrapper = list.closest('.table-responsive');
+                if (wrapper) {
+                    if (items.length > 10) {
+                        wrapper.classList.add('table-scrollable');
+                    } else {
+                        wrapper.classList.remove('table-scrollable');
+                    }
+                }
+            }
+
+            if (totalPages > 1) {
+                paginationContainer.innerHTML = `
+                    <button class="btn btn-xs btn-outline-secondary py-0 px-1 text-muted border-secondary" ${currentPage === 1 ? 'disabled' : ''} onclick="window.changeListP('${listId}', ${currentPage - 1})"><</button>
+                    <small class="mx-1 text-muted">${currentPage}/${totalPages}</small>
+                    <button class="btn btn-xs btn-outline-secondary py-0 px-1 text-muted border-secondary" ${currentPage === totalPages ? 'disabled' : ''} onclick="window.changeListP('${listId}', ${currentPage + 1})">></button>
+                `;
+            } else {
+                paginationContainer.innerHTML = '';
+            }
+        }
+        window.paginationStates = window.paginationStates || {};
+        window.paginationStates[listId] = { setPage: (p) => { currentPage = p; render(); }, refresh: () => render(1) };
+        render();
+    }
+    window.changeListP = function(listId, page) { if (window.paginationStates && window.paginationStates[listId]) window.paginationStates[listId].setPage(page); };
+
+    // Cambiar la lista que se muestra en el dashboard dinámicamente
+    window.currentDashboardListId = 'fav';
+    window.switchDashboardList = function(listId, name, iconClass) {
+        window.currentDashboardListId = listId;
+        
+        // Actualizar el título y el icono del selector
+        document.getElementById('dashboardListTitle').innerText = name;
+        const iconEl = document.getElementById('dashboardListIcon');
+        iconEl.className = 'bi ' + iconClass;
+        
+        // Ocultar todos los cuerpos de tabla y mostrar solo el activo
+        document.querySelectorAll('.dashboard-list-body').forEach(tbody => {
+            tbody.style.setProperty('display', 'none', 'important');
+        });
+        
+        const activeTbodyId = 'list-body-' + listId;
+        const activeTbody = document.getElementById(activeTbodyId);
+        if (activeTbody) {
+            activeTbody.style.display = '';
+        }
+        
+        // Re-inicializar paginación
+        const itemClass = listId === 'fav' ? 'fav-item' : listId + '-item';
+        setupSimplePagination(activeTbodyId, itemClass, 'favPagination', Infinity, window.activityFilterFn);
+    };
+
+    // Ordenar la lista activa de forma dinámica (Mejora UX en página principal)
+    window.sortFavoritesList = function(criteria, ascending) {
+        const listId = window.currentDashboardListId || 'fav';
+        const list = document.getElementById('list-body-' + listId);
+        if (!list) return;
+        const itemClass = listId === 'fav' ? 'fav-item' : listId + '-item';
+        const items = Array.from(list.getElementsByClassName(itemClass));
+        if (items.length === 0) return;
+        
+        items.sort((a, b) => {
+            let valA, valB;
+            if (criteria === 'ticker') {
+                valA = a.getAttribute('data-ticker').toLowerCase();
+                valB = b.getAttribute('data-ticker').toLowerCase();
+                return ascending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else if (criteria === 'price') {
+                valA = parseFloat(a.getAttribute('data-price')) || 0;
+                valB = parseFloat(b.getAttribute('data-price')) || 0;
+                return ascending ? valB - valA : valA - valB; // 'price' default is highest first
+            } else { // 'pct' / return
+                valA = parseFloat(a.getAttribute('data-pct')) || 0;
+                valB = parseFloat(b.getAttribute('data-pct')) || 0;
+                return ascending ? valB - valA : valA - valB; // 'pct' default is best performance first
+            }
+        });
+        
+        // Añadir elementos ordenados de nuevo al tbody
+        items.forEach(item => list.appendChild(item));
+        
+        // Re-inicializar paginación con el nuevo orden
+        setupSimplePagination('list-body-' + listId, itemClass, 'favPagination', Infinity, window.activityFilterFn);
+    };
+
+    // Alternar ordenación de favoritos (Mejor rendimiento / Peor rendimiento) con un solo clic
+    let favSortAscending = false; // por defecto empieza mostrando los mejores
+    window.toggleFavPerformanceSort = function() {
+        favSortAscending = !favSortAscending;
+        
+        // Ordenar:
+        // Si favSortAscending es true, ordenamos de PEOR a MEJOR (caídas primero, ascending=false en sortFavoritesList)
+        // Si favSortAscending es false, ordenamos de MEJOR a PEOR (alzas primero, ascending=true en sortFavoritesList)
+        sortFavoritesList('pct', !favSortAscending);
+        
+        // Actualizar icono y color del botón unificado (solo icono, sin texto)
+        const btn = document.getElementById('btnFavSortToggle');
+        if (btn) {
+            if (favSortAscending) {
+                // Modo Caídas (Peores primero)
+                btn.innerHTML = '<i class="bi bi-sort-down text-danger fw-bold" style="font-size:0.72rem;"></i>';
+                btn.className = "btn btn-xs btn-outline-danger py-0 px-1.5 d-flex align-items-center";
+            } else {
+                // Modo Alzas (Mejores primero)
+                btn.innerHTML = '<i class="bi bi-sort-up text-success fw-bold" style="font-size:0.72rem;"></i>';
+                btn.className = "btn btn-xs btn-outline-success py-0 px-1.5 d-flex align-items-center";
+            }
+        }
+    };
+
+    function initAutoScroll(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        
+        let scrollSpeed = 0.4; // píxeles por paso
+        let isHovered = false;
+        
+        container.addEventListener('mouseenter', () => { isHovered = true; });
+        container.addEventListener('mouseleave', () => { isHovered = false; });
+        
+        function scrollStep() {
+            if (!isHovered && container.scrollHeight > container.clientHeight) {
+                container.scrollTop += scrollSpeed;
+                // Si llega al final de forma suave, vuelve al inicio
+                if (container.scrollTop >= (container.scrollHeight - container.clientHeight - 1)) {
+                    container.scrollTop = 0;
+                }
+            }
+        }
+        setInterval(scrollStep, 35); // Animación ultra suave cada 35ms
+    }
+
+    let currentWeekOffset = 0;
+    const upcomingEvents = {{ upcoming_events_json | tojson if upcoming_events_json is defined else '[]' }};
+
+    function formatEuro(value, decimals = 2) {
+        if (value === null || value === undefined) return '';
+        return parseFloat(value).toLocaleString('es-ES', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    }
+
+    function cleanTicker(ticker) {
+        return ticker ? ticker.replace('.SW', '').replace('.ST', '').replace('.AS', '').replace('.MC', '').replace('.PA', '').replace('.MI', '').replace('.L', '').replace('.MX', '').replace('.DE', '').replace('.WA', '').replace('.AX', '') : '';
+    }
+
+    function renderWeeklyCalendar(offset) {
+        const container = document.getElementById("weeklyCalendarList");
+        if (!container) return;
+
+        const today = new Date();
+        const todayDayOfWeek = today.getDay();
+        const normalizedDay = todayDayOfWeek === 0 ? 7 : todayDayOfWeek;
+        
+        const currentMonday = new Date(today);
+        currentMonday.setDate(today.getDate() - (normalizedDay - 1));
+        currentMonday.setHours(0, 0, 0, 0);
+
+        const targetMonday = new Date(currentMonday);
+        targetMonday.setDate(currentMonday.getDate() + (offset * 7));
+
+        const weekLabel = document.getElementById("weekLabel");
+        if (weekLabel) {
+            if (offset === 0) weekLabel.textContent = "Esta Semana";
+            else if (offset === 1) weekLabel.textContent = "Próx. Semana";
+            else if (offset === -1) weekLabel.textContent = "Semana Ant.";
+            else {
+                const targetFriday = new Date(targetMonday);
+                targetFriday.setDate(targetMonday.getDate() + 4);
+                const formatD = d => String(d.getDate()).padStart(2, '0') + "/" + String(d.getMonth() + 1).padStart(2, '0');
+                weekLabel.textContent = `${formatD(targetMonday)} - ${formatD(targetFriday)}`;
+            }
+        }
+
+        const dayNames = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
+        let html = "";
+
+        for (let i = 0; i < 5; i++) {
+            const currentDay = new Date(targetMonday);
+            currentDay.setDate(targetMonday.getDate() + i);
+
+            const yyyy = currentDay.getFullYear();
+            const mm = String(currentDay.getMonth() + 1).padStart(2, '0');
+            const dd = String(currentDay.getDate()).padStart(2, '0');
+            const dateStr = `${yyyy}-${mm}-${dd}`;
+
+            const isToday = (
+                currentDay.getFullYear() === today.getFullYear() &&
+                currentDay.getMonth() === today.getMonth() &&
+                currentDay.getDate() === today.getDate()
+            );
+
+            const dayEvents = upcomingEvents.filter(e => e.date === dateStr);
+            const activeBg = isToday ? 'background-color: rgba(13, 110, 253, 0.05) !important; border-left: 3px solid var(--bs-primary) !important;' : '';
+            const badgeClass = isToday ? 'bg-primary text-white' : 'bg-secondary bg-opacity-25 text-white';
+
+            html += `
+                <li class="list-group-item d-flex align-items-center py-1.5 px-3 justify-content-between" style="height: 40px; ${activeBg}">
+                    <div class="d-flex align-items-center gap-2" style="min-width: 75px;">
+                        <span class="fw-bold uppercase text-muted" style="font-size: 0.65rem; width: 32px;">${dayNames[i].substring(0, 3)}</span>
+                        <span class="badge ${badgeClass} num-font fw-bold" style="font-size: 0.72rem; width: 24px; height: 24px; line-height: 14px; padding: 4px;">
+                            ${currentDay.getDate()}
+                        </span>
+                    </div>
+                    <div class="flex-grow-1 d-flex flex-wrap justify-content-end gap-1 ps-2">
+            `;
+
+            if (dayEvents.length > 0) {
+                dayEvents.forEach(e => {
+                    const badgeTypeClass = e.type === 'Resultados' ? 'bg-primary bg-opacity-20 text-white border border-primary-subtle' : 'bg-success bg-opacity-20 text-success border border-success-subtle';
+                    const amountText = e.amount ? ` (+${formatEuro(e.amount, 2)}€)` : '';
+                    const titleText = e.type === 'Resultados' ? `Resultados de ${e.ticker}` : `Dividendo${amountText} de ${e.ticker}`;
+                    const icon = e.type === 'Resultados' ? '📊' : '💰';
+
+                    html += `
+                        <span onclick="window.location='/ticker/${e.ticker}'" 
+                              style="cursor: pointer; font-size: 0.64rem; padding: 1px 3px;"
+                              class="badge border ${badgeTypeClass}"
+                              title="${titleText}">
+                            ${cleanTicker(e.ticker)} ${icon}
+                        </span>
+                    `;
+                });
+            } else {
+                html += `<span class="text-muted opacity-25" style="font-size: 0.7rem;">—</span>`;
+            }
+
+            html += `
+                    </div>
+                </li>
+            `;
+        }
+
+        container.innerHTML = html;
+    }
+
+    window.moveWeek = function(dir) {
+        currentWeekOffset += dir;
+        renderWeeklyCalendar(currentWeekOffset);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // Inicializar Calendario Semanal Dinámico
+        renderWeeklyCalendar(0);
+
+        setupSimplePagination('gainerListMarket', 'gainer-item-market', 'gainerPagination', 10, window.activityFilterFn);
+        setupSimplePagination('loserListMarket', 'loser-item-market', 'loserPagination', 10, window.activityFilterFn);
+        setupSimplePagination('portListMarket', 'port-item-market', 'portPagination', 10, window.activityFilterFn);
+        setupSimplePagination('portAllList', 'port-all-item', 'portAllPagination', Infinity);
+        setupSimplePagination('list-body-fav', 'fav-item', 'favPagination', Infinity, window.activityFilterFn);
+        setupSimplePagination('earnList', 'earn-item', 'earnPagination', 7, el => {
+            if (earnFilter === 'portfolio')    return el.dataset.isPortfolio === 'true';
+            if (earnFilter === 'no-portfolio') return el.dataset.isPortfolio !== 'true';
+            return true;
+        });
+        setupSimplePagination('divList', 'div-item', 'divPagination', 7);
+        setupSimplePagination('oppList', 'opp-item', 'oppPagination', Infinity);
+        setupSimplePagination('dropAlertList', 'drop-alert-item', 'dropAlertPagination', Infinity);
+
+        // --- FINVIZ Style Treemap ---
+        const heatmapRaw = {{ heatmap_data | tojson }};
+        
+        window.renderHeatmap = function(mode) {
+            let filteredData = heatmapRaw;
+            if (mode === 'portfolio') {
+                filteredData = heatmapRaw.filter(d => d.is_portfolio && d.value_eur > 0);
+            }
+            
+            if (filteredData.length === 0) {
+                Plotly.purge('heatmapTracked');
+                document.getElementById('heatmapTracked').innerHTML = '<div class="text-center text-muted py-5 small" style="margin-top: 30px;">No hay activos en cartera con saldo.</div>';
+                return;
+            }
+
+            const ids = ["MERCADO"];
+            const labels = ["MERCADO"];
+            const parents = [""];
+            const values = [0];
+            const colors = [0];
+            const texts = [""];
+
+            const sectors = [...new Set(filteredData.map(d => d.sector))];
+            sectors.forEach(s => {
+                ids.push(s); labels.push(s); parents.push("MERCADO"); values.push(0); colors.push(0); texts.push("");
+                const industries = [...new Set(filteredData.filter(d => d.sector === s).map(d => d.industry))];
+                industries.forEach(ind => {
+                    const id = s + "_" + ind;
+                    if (ind !== s) {
+                        ids.push(id); labels.push(ind); parents.push(s); values.push(0); colors.push(0); texts.push("");
+                        sectorData = filteredData.filter(d => d.sector === s && d.industry === ind);
+                        sectorData.forEach(d => {
+                            ids.push(d.ticker); labels.push(d.ticker); parents.push(id); 
+                            const valSize = mode === 'portfolio' ? d.value_eur : 1;
+                            values.push(valSize); 
+                            colors.push(d.pct);
+                            texts.push(d.pct.toFixed(2) + '%');
+                        });
+                    } else {
+                        filteredData.filter(d => d.sector === s && d.industry === ind).forEach(d => {
+                            ids.push(d.ticker); labels.push(d.ticker); parents.push(s); 
+                            const valSize = mode === 'portfolio' ? d.value_eur : 1;
+                            values.push(valSize); 
+                            colors.push(d.pct);
+                            texts.push(d.pct.toFixed(2) + '%');
+                        });
+                    }
+                });
+            });
+
+            const data = [{
+                type: 'treemap',
+                ids: ids,
+                labels: labels,
+                parents: parents,
+                values: values,
+                text: texts,
+                textinfo: "label+text",
+                marker: {
+                    colors: colors,
+                    cmid: 0,
+                    cmin: -3,
+                    cmax: 3,
+                    colorscale: [
+                        [0, '#f23645'], [0.35, '#a32932'], [0.48, '#21242e'], [0.5, '#161a24'], [0.52, '#21242e'], [0.65, '#066e5c'], [1, '#089981']
+                    ],
+                    line: { width: 1.5, color: '#11131b' }
+                },
+                pathbar: { visible: false }
+            }];
+
+            Plotly.newPlot('heatmapTracked', data, {
+                margin: { t: 5, l: 5, r: 5, b: 5 },
+                paper_bgcolor: '#11131b',
+                plot_bgcolor: '#11131b',
+                font: { color: '#f0f3fa', size: 10, family: 'Arial' }
+            }, { responsive: true, displayModeBar: false });
+        }
+
+        window.setHeatmapMode = function(mode) {
+            const btnMarket = document.getElementById('btnHeatmapMarket');
+            const btnPortfolio = document.getElementById('btnHeatmapPortfolio');
+            if (btnMarket && btnPortfolio) {
+                if (mode === 'market') {
+                    btnMarket.classList.add('active');
+                    btnPortfolio.classList.remove('active');
+                } else {
+                    btnMarket.classList.remove('active');
+                    btnPortfolio.classList.add('active');
+                }
+            }
+            renderHeatmap(mode);
+        }
+
+        window.toggleHeatmapFullscreen = function() {
+            const card = document.getElementById('heatmapCard');
+            const innerDiv = document.getElementById('heatmapTracked');
+            const icon = document.querySelector('#btnHeatmapFullscreen i');
+            
+            card.classList.toggle('heatmap-fullscreen-card');
+            
+            if (card.classList.contains('heatmap-fullscreen-card')) {
+                icon.className = 'bi bi-arrows-angle-contract';
+                innerDiv.style.height = 'calc(100vh - 100px)';
+            } else {
+                icon.className = 'bi bi-arrows-angle-expand';
+                innerDiv.style.height = '235px';
+            }
+            Plotly.Plots.resize('heatmapTracked');
+        };
+
+        // Renderizado inicial en modo mercado
+        if (heatmapRaw.length > 0) {
+            renderHeatmap('market');
+        }
+
+        // Sincronizar el estado inicial del filtro de estado de actividad
+        toggleActivityStatus();
+    });
+</script>
+
+<!-- Modal de Mi Cartera -->
+<div class="modal fade" id="portfolioModal" tabindex="-1" aria-labelledby="portfolioModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-md">
+        <div class="modal-content border-0 shadow-lg" style="background-color: var(--fin-card-bg); border-radius: 8px;">
+            <div class="modal-header border-bottom-0 pb-1 pt-3 px-3 d-flex justify-content-between align-items-center">
+                <h6 class="modal-title fw-bold text-primary mb-0" id="portfolioModalLabel" style="font-size: 0.95rem;">
+                    <i class="bi bi-briefcase-fill me-1"></i> Posiciones de mi Cartera
+                </h6>
+                <button type="button" class="btn-close btn-close-white small" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive table-scrollable" id="portAllScrollWrapper" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.75rem;">
+                        <tbody id="portAllList">
+                            {% for t in port_all %}
+                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="port-all-item">
+                                <td class="ps-3 py-2">
+                                    <div class="ticker-info" style="gap: 6px;">
+                                        <div>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.8rem;">{{ clean_ticker(t.name) }}</span>
+                                            <span class="company-name text-truncate text-muted ms-1" style="max-width: 150px; font-size: 0.68rem; text-transform: uppercase;">{{ t.company_name }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-3 py-2 align-middle num-font">
+                                    <div class="d-flex align-items-center justify-content-end gap-2">
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.8rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.76rem; white-space: nowrap;">
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
+                                        </span>
+                                    </div>
+                                    {% if t.total_change_eur is defined and t.total_change_eur != 0 %}
+                                        <div class="text-end text-muted mt-0.5" style="font-size: 0.62rem; line-height: 1;">
+                                            Acum: <span class="fw-bold {% if t.total_change_eur > 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.64rem;">{% if t.total_change_eur > 0 %}+{% endif %}{{ format_euro(t.total_change_eur, 2) }}€</span>
+                                        </div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not port_all %}
+                            <tr><td colspan="5" class="text-center py-4 text-muted small">Sin activos en cartera</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer border-top-0 pt-1 pb-3 px-3 d-flex justify-content-between align-items-center">
+                <div id="portAllPagination" class="pagination-small"></div>
+                <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-3" data-bs-dismiss="modal" style="font-size: 0.72rem;">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .table-scrollable {
+        max-height: 380px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+    }
+    .table-scrollable::-webkit-scrollbar {
+        width: 6px;
+    }
+    .table-scrollable::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .table-scrollable::-webkit-scrollbar-thumb {
+        background-color: rgba(128, 128, 128, 0.3);
+        border-radius: 4px;
+    }
+    .pagination-small { font-size: 0.7rem; }
+    .btn-xs { padding: 0.05rem 0.25rem; font-size: 0.65rem; line-height: 1; border-radius: 3px; }
+    .list-group-item { border-left: none; border-right: none; }
+    [data-bs-theme="dark"] .table-light th { background-color: #24292e !important; color: #dee2e6 !important; }
+</style>
+
+{% endblock %}}
