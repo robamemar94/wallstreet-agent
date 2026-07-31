@@ -19,7 +19,7 @@ from app.infrastructure.dependencies import (
     get_settings_from_db,
 )
 from app.infrastructure.templates import templates
-from app.interfaces.views.market_views import get_currency_symbol, is_reload_request
+from app.interfaces.views.market_views import get_currency_symbol, is_reload_request, INDEX_CACHE, ensure_prices_cached
 from utils.financial_math import calculate_position_cagr
 # from tools.download_logos import download_logo
 
@@ -223,111 +223,33 @@ def portfolio_page(
     # 1. Rendimiento histórico (ya tiene su propia caché interna)
     perf_data = performance_service.get_performance_data()
     
-    # Si es una recarga del navegador (F5), forzar la expiración de la caché de precios
+    # Si es una recarga del navegador (F5), forzar la expiración de la caché de precios compartida
     if is_reload_request(request):
-        GLOBAL_CACHE["last_update"] = 0
-        GLOBAL_CACHE["prices"] = {}
-    
-    # 2. Actualizar caché de precios y divisas si ha pasado más de 15 min o hay nuevos tickers
+        INDEX_CACHE["prices_update"] = 0
+
+    # 2. Actualizar caché de precios y divisas (compartida con el dashboard vía INDEX_CACHE,
+    # para que "Var. Diaria" aquí y "MI CARTERA" en el dashboard nunca diverjan)
     now = time.time()
     tickers = [p['ticker'] for p in portfolio_data] + [p['ticker'] for p in closed_portfolio_data]
     missing_tickers = any(t for t in tickers if t not in GLOBAL_CACHE.get("prices", {}))
-    
+
+    ensure_prices_cached(tickers, asset_repo)
+    GLOBAL_CACHE["prices"] = INDEX_CACHE["data"]
+
+    currencies = {asset_repo.get_asset_data(p['ticker']).get("currency", "USD") for p in portfolio_data + closed_portfolio_data}
+    valid_currencies = {c for c in currencies if isinstance(c, str) and len(c) == 3}
+    GLOBAL_CACHE["rates"]["EUR"] = 1.0
+    for c in valid_currencies:
+        if c == "EUR":
+            continue
+        fx_data = INDEX_CACHE["data"].get(f"{c}EUR=X")
+        if fx_data:
+            GLOBAL_CACHE["rates"][c] = fx_data["price"]
+
     if now - GLOBAL_CACHE["last_update"] > 900 or missing_tickers:
-        currencies = {asset_repo.get_asset_data(p['ticker']).get("currency", "USD") for p in portfolio_data + closed_portfolio_data}
-        
-        # Filtrar códigos de moneda válidos (3 letras)
-        valid_currencies = {c for c in currencies if isinstance(c, str) and len(c) == 3}
-        
-        ex_tickers = [f"{c}EUR=X" for c in valid_currencies if c != "EUR"]
         try:
-            full_dataset = yf.download(tickers + ex_tickers, period="5d", progress=False)
-            full_data = full_dataset['Close'] if 'Close' in full_dataset else pd.DataFrame()
-            full_open = full_dataset['Open'] if 'Open' in full_dataset else pd.DataFrame()
-            
-            if isinstance(full_data, pd.Series): full_data = full_data.to_frame()
-            if isinstance(full_open, pd.Series): full_open = full_open.to_frame()
-            
-            # Intentar obtener los últimos datos reales (1d) para evitar NaNs en el último día de diario (sobre todo los fines de semana)
-            try:
-                latest_dataset = yf.download(tickers + ex_tickers, period="1d", progress=False)
-                latest_close = latest_dataset['Close'] if 'Close' in latest_dataset else pd.DataFrame()
-                latest_open = latest_dataset['Open'] if 'Open' in latest_dataset else pd.DataFrame()
-                
-                if isinstance(latest_close, pd.Series): latest_close = latest_close.to_frame()
-                if isinstance(latest_open, pd.Series): latest_open = latest_open.to_frame()
-                
-                if not full_data.empty and not latest_close.empty:
-                    last_idx = full_data.index[-1]
-                    if last_idx in latest_close.index:
-                        for col in full_data.columns:
-                            if col in latest_close.columns:
-                                val = latest_close.at[last_idx, col]
-                                if not pd.isna(val):
-                                    full_data.at[last_idx, col] = val
-                                    
-                if not full_open.empty and not latest_open.empty:
-                    last_idx = full_open.index[-1]
-                    if last_idx in latest_open.index:
-                        for col in full_open.columns:
-                            if col in latest_open.columns:
-                                val = latest_open.at[last_idx, col]
-                                if not pd.isna(val):
-                                    full_open.at[last_idx, col] = val
-            except Exception:
-                pass
-            
-            full_data = full_data.ffill().bfill()
-            full_open = full_open.ffill().bfill()
-            
-            # Guardar precios
-            for t in tickers:
-                if t in full_data.columns:
-                    try:
-                        col_ticker = full_data[t].dropna()
-                        if col_ticker.empty:
-                            continue
-                        
-                        price = float(col_ticker.iloc[-1])
-                        prev = float(col_ticker.iloc[-2]) if len(col_ticker) > 1 else price
-                        last_date = col_ticker.index[-1].date()
-                        
-                        # Fallback if Yahoo historical bars are lagging or missing the previous trading day
-                        p_prev = prev
-                        if len(col_ticker) > 1:
-                            calendar_gap = (col_ticker.index[-1].date() - col_ticker.index[-2].date()).days
-                            expected_gap = 3 if last_date.weekday() == 0 else 1
-                            if calendar_gap > expected_gap:
-                                try:
-                                    p_prev = float(yf.Ticker(t).fast_info["previous_close"])
-                                except Exception:
-                                    pass
-                                
-                        if pd.isna(price) or pd.isna(p_prev):
-                            continue
-                        GLOBAL_CACHE["prices"][t] = {
-                            'price': price,
-                            'prev': p_prev,
-                            'last_date': last_date
-                        }
-                    except (ValueError, TypeError, IndexError):
-                        pass
-            
-            # Guardar divisas
-            GLOBAL_CACHE["rates"]["EUR"] = 1.0
-            for c in valid_currencies:
-                if c == "EUR": continue
-                t_ex = f"{c}EUR=X"
-                if t_ex in full_data.columns:
-                    try:
-                        rate = float(full_data[t_ex].iloc[-1])
-                        if not pd.isna(rate):
-                            GLOBAL_CACHE["rates"][c] = rate
-                    except (ValueError, TypeError, IndexError):
-                        pass
-            
             GLOBAL_CACHE["last_update"] = now
-            
+
             # 2.5 Actualizar dividendos futuros y métricas fundamentales
 
             def fetch_dividend(item):

@@ -1,8 +1,41 @@
 from datetime import datetime
+import pandas as pd
+import yfinance as yf
 from sqlalchemy.orm import Session
 
 from app.infrastructure.db.models import DBAlerts
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
+
+ATH_BACKFILL_INTERVAL_DAYS = 30
+
+
+def _fetch_historical_ath(tickers: list[str]) -> dict:
+    """
+    Descarga el histórico completo de precios y devuelve el máximo (ATH real)
+    por ticker. No lanza excepción: si falla, devuelve {} y el llamador conserva
+    el ATH auto-trackeado que ya tuviera.
+    """
+    if not tickers:
+        return {}
+    highs = {}
+    try:
+        data = yf.download(" ".join(tickers), period="max", progress=False)
+        if data.empty or "High" not in data:
+            return {}
+        col_high = data["High"]
+        if isinstance(col_high, pd.Series):
+            m = col_high.max()
+            if pd.notna(m):
+                highs[tickers[0]] = float(m)
+        else:
+            for t in tickers:
+                if t in col_high:
+                    m = col_high[t].max()
+                    if pd.notna(m):
+                        highs[t] = float(m)
+    except Exception as e:
+        print(f"Error fetching historical ATH: {e}")
+    return highs
 
 
 def get_alerts_data(db: Session) -> dict:
@@ -43,9 +76,41 @@ def run_alerts_scan(
     history            = list(alerts_data.get("history", []))
     ath_refs           = dict(alerts_data.get("ath_refs", {}))
     ath_alerted_levels = dict(alerts_data.get("ath_alerted_levels", {}))
+    ath_source         = dict(alerts_data.get("ath_source", {}))
+    ath_last_backfill  = dict(alerts_data.get("ath_last_backfill", {}))
 
-    today_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d %H:%M:%S")
+    today_date_str = now.strftime("%Y-%m-%d")
     new_count = 0
+
+    # ── 0. Backfill del ATH histórico real (una vez por ticker, refrescado cada
+    #        ATH_BACKFILL_INTERVAL_DAYS días) para que la caída se calcule desde
+    #        el máximo histórico de verdad y no desde "el máximo visto por la app" ──
+    tickers_needing_backfill = []
+    for t in ticker_prices:
+        last_bf = ath_last_backfill.get(t)
+        stale = True
+        if last_bf:
+            try:
+                stale = (now - datetime.strptime(last_bf, "%Y-%m-%d")).days >= ATH_BACKFILL_INTERVAL_DAYS
+            except ValueError:
+                stale = True
+        if ath_source.get(t) != "historical" or stale:
+            tickers_needing_backfill.append(t)
+
+    historical_highs = _fetch_historical_ath(tickers_needing_backfill)
+    for t in tickers_needing_backfill:
+        historical_max = historical_highs.get(t)
+        if historical_max is None:
+            continue
+        prev_ath = ath_refs.get(t)
+        new_ath = max(prev_ath, historical_max) if prev_ath is not None else historical_max
+        if prev_ath is None or new_ath > prev_ath:
+            ath_alerted_levels[t] = []
+        ath_refs[t] = new_ath
+        ath_source[t] = "historical"
+        ath_last_backfill[t] = today_date_str
 
     for t, current_price in ticker_prices.items():
         if current_price is None:
@@ -86,53 +151,59 @@ def run_alerts_scan(
                 new_count += 1
             last_statuses[t] = current_status
 
-        # ── 2. Alertas de caída desde ATH por escalones del 10% ──────────────
+        # ── 2. Alertas de caída desde ATH: una única alerta "viva" por ticker ──
+        # Se actualiza (sustituye) mientras el precio siga cayendo a un escalón
+        # más profundo, y se elimina en cuanto se recupera a un nuevo máximo
+        # (aunque sea intermedio, no hace falta superar el ATH absoluto). Así
+        # no se acumulan en el historial caídas ya resueltas.
 
         ath = ath_refs.get(t)
+        prev_level = ath_alerted_levels.get(t)
+        if isinstance(prev_level, list):
+            # Migración del formato antiguo (lista de escalones alertados)
+            prev_level = max(prev_level) if prev_level else None
+
         if ath is None:
             # Primera vez: inicializar ATH al precio actual, sin alertar
             ath_refs[t] = current_price
-            ath_alerted_levels[t] = []
+            ath_alerted_levels[t] = None
         elif current_price > ath:
-            # Nuevo máximo histórico → actualizar ATH y resetear escalones
+            # Nuevo máximo (intermedio o absoluto) → la caída anterior se resuelve
             ath_refs[t] = current_price
-            ath_alerted_levels[t] = []
+            ath_alerted_levels[t] = None
+            if prev_level is not None:
+                history = [h for h in history if not (h.get("type") == "CAÍDA" and h.get("ticker") == t)]
         else:
-            alerted = set(ath_alerted_levels.get(t, []))
-            # Comprobar cada escalón del 10% al 60%
+            deepest_level = None
             for level in range(10, 61, 10):
-                threshold_price = ath * (1 - level / 100)
-                if current_price <= threshold_price and level not in alerted:
-                    color_cat = "warning"
-                    if 30 <= level <= 40:
-                        color_cat = "caution"
-                    elif level >= 50:
-                        color_cat = "danger"
+                if current_price <= ath * (1 - level / 100):
+                    deepest_level = level
 
-                    history.append({
-                        "type": "CAÍDA",
-                        "ticker": t,
-                        "company_name": db_data.get("company_name", t),
-                        "drop_pct": round((ath - current_price) / ath * 100, 1),
-                        "escalon": level,
-                        "ath": round(ath, 2),
-                        "current_price": round(current_price, 2),
-                        "date": today_str,
-                        "color_category": color_cat,
-                    })
-                    alerted.add(level)
-                    new_count += 1
-                # Si el precio recupera por encima del escalón anterior, desbloquearlo
-                if level > 10:
-                    prev_level = level - 10
-                    if current_price > ath * (1 - prev_level / 100) and level in alerted:
-                        alerted.discard(level)
-            ath_alerted_levels[t] = list(alerted)
+            if deepest_level and (prev_level is None or deepest_level > prev_level):
+                # Ha caído a un escalón más profundo que el último aviso: se
+                # sustituye la alerta anterior de este ticker por la nueva.
+                history = [h for h in history if not (h.get("type") == "CAÍDA" and h.get("ticker") == t)]
+                history.append({
+                    "type": "CAÍDA",
+                    "ticker": t,
+                    "company_name": db_data.get("company_name", t),
+                    "drop_pct": round((ath - current_price) / ath * 100, 1),
+                    "escalon": deepest_level,
+                    "ath": round(ath, 2),
+                    "current_price": round(current_price, 2),
+                    "date": today_str,
+                })
+                new_count += 1
+                prev_level = deepest_level
+
+            ath_alerted_levels[t] = prev_level
 
     alerts_data["last_statuses"]      = last_statuses
     alerts_data["history"]            = history
     alerts_data["ath_refs"]           = ath_refs
     alerts_data["ath_alerted_levels"] = ath_alerted_levels
+    alerts_data["ath_source"]         = ath_source
+    alerts_data["ath_last_backfill"]  = ath_last_backfill
     # Mantener price_drop_refs por compatibilidad con datos anteriores
     alerts_data["price_drop_refs"]    = alerts_data.get("price_drop_refs", {})
     save_alerts_data(db_session, alerts_data)

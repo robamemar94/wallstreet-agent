@@ -34,8 +34,11 @@
                     <tbody>
                         {% for alert in history %}
                         {% set alert_type = alert.type if alert.type is defined else 'VALORACIÓN' %}
-                        <tr class="{% if alert_type == 'CAÍDA' %}table-warning{% endif %}">
-                            <td class="ps-4 text-muted small">{{ alert.date }}</td>
+                        <tr {% if alert_type == 'CAÍDA' %}data-alert-key="{{ alert.ticker }}_{{ alert.date }}_{{ alert.escalon }}"{% endif %}>
+                            <td class="ps-4 text-muted small">
+                                {{ alert.date }}
+                                {% if alert_type == 'CAÍDA' %}<span class="alert-new-badge d-none">NUEVO</span>{% endif %}
+                            </td>
                             <td class="fw-bold">
                                 <a href="/ticker/{{ alert.ticker }}" class="text-decoration-none text-dark">{{ clean_ticker(alert.ticker) }}</a>
                             </td>
@@ -43,12 +46,12 @@
 
                             {% if alert_type == 'CAÍDA' %}
                             <td class="text-center">
-                                <span class="badge bg-warning text-dark" style="font-size:0.75rem;">📉 CAÍDA</span>
+                                <span class="badge badge-drop-{{ alert.escalon }}" style="font-size:0.75rem;">📉 –{{ alert.escalon }}%</span>
                             </td>
                             <td class="text-center fw-bold text-danger" colspan="3">
                                 <span style="font-size:0.85rem;">
                                     -{{ alert.drop_pct }}% &nbsp;|&nbsp;
-                                    ref: <span class="text-muted">{{ alert.ref_price }}</span>
+                                    ATH: <span class="text-muted">{{ alert.ath }}</span>
                                     &rarr; <span class="text-danger">{{ alert.current_price }}</span>
                                 </span>
                             </td>
@@ -79,6 +82,11 @@
                             </td>
                             {% endif %}
                             <td class="text-end pe-4">
+                                {% if alert_type == 'CAÍDA' %}
+                                <button type="button" class="btn-mark-seen d-none" title="Marcar como visto" onclick="markAlertSeen(this);">
+                                    <i class="bi bi-check-circle"></i>
+                                </button>
+                                {% endif %}
                                 <form action="/api/alerts/delete" method="post" onsubmit="return confirm('¿Seguro que quieres ignorar/eliminar esta alerta?');" style="display: inline;">
                                     <input type="hidden" name="ticker" value="{{ alert.ticker }}">
                                     <input type="hidden" name="type" value="{{ alert_type }}">

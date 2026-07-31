@@ -131,6 +131,7 @@
         color: #ffc107;
         border-color: #4d3a01;
     }
+
 </style>
 
 <!-- 1. Row: Portfolio, Global Indices, and Heatmap -->
@@ -720,7 +721,7 @@
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     {% if drop_alerts %}
-                    <span class="badge bg-danger rounded-pill" style="font-size: 0.62rem; padding: 2px 6px;">{{ drop_alerts|length }}</span>
+                    <span id="dropAlertCounterBadge" class="badge bg-danger rounded-pill" style="font-size: 0.62rem; padding: 2px 6px;">{{ drop_alerts|length }}</span>
                     {% endif %}
                     <div id="dropAlertPagination" class="pagination-small"></div>
                 </div>
@@ -736,28 +737,36 @@
                                 <th class="text-center py-1">Escalón</th>
                                 <th class="text-end py-1">ATH</th>
                                 <th class="text-end py-1">Alerta</th>
-                                <th class="text-end pe-3 py-1">Caída</th>
+                                <th class="text-end py-1">Caída</th>
+                                <th class="text-center pe-3 py-1">Visto</th>
                             </tr>
                         </thead>
                         <tbody id="dropAlertList">
                             {% for alert in drop_alerts %}
-                            {% set color_class = 'table-' + alert.color_category if alert.color_category in ['warning', 'danger'] else 'table-caution' if alert.color_category == 'caution' else '' %}
-                            <tr onclick="window.location='/ticker/{{ alert.ticker }}'" style="cursor:pointer; display:none;" class="drop-alert-item {{ color_class }}">
+                            <tr onclick="window.location='/ticker/{{ alert.ticker }}'" style="cursor:pointer; display:none;"
+                                class="drop-alert-item"
+                                data-alert-key="{{ alert.ticker }}_{{ alert.date }}_{{ alert.escalon }}">
                                 <td class="ps-3 text-muted small align-middle num-font py-1">{{ alert.date }}</td>
                                 <td class="py-1">
                                     <div class="ticker-info" style="gap: 4px;">
                                         <div>
                                             <span class="fw-bold ticker-name text-white" style="font-size: 0.76rem;">{{ clean_ticker(alert.ticker) }}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width:80px; font-size: 0.62rem; text-transform: uppercase;">{{ alert.company_name }}</span>
+                                            <span class="alert-new-badge d-none">NUEVO</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-center align-middle py-1">
-                                    <span class="badge bg-danger bg-opacity-90 fw-bold" style="font-size: 0.62rem; padding: 2px 4px;">–{{ alert.escalon }}%</span>
+                                    <span class="badge badge-drop-{{ alert.escalon }} fw-bold" style="font-size: 0.62rem; padding: 2px 4px;">–{{ alert.escalon }}%</span>
                                 </td>
                                 <td class="text-end text-muted align-middle num-font py-1">{{ format_euro(alert.ath, 2) }}</td>
                                 <td class="text-end fw-bold align-middle num-font py-1">{{ format_euro(alert.current_price, 2) }}</td>
-                                <td class="text-end pe-3 fw-bold align-middle num-font py-1">–{{ format_euro(alert.drop_pct, 1) }}%</td>
+                                <td class="text-end fw-bold align-middle num-font py-1">–{{ format_euro(alert.drop_pct, 1) }}%</td>
+                                <td class="text-center pe-3 align-middle py-1">
+                                    <button type="button" class="btn-mark-seen d-none" title="Marcar como visto" onclick="event.stopPropagation(); markAlertSeen(this);">
+                                        <i class="bi bi-check-circle"></i>
+                                    </button>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -1155,6 +1164,7 @@
         setupSimplePagination('divList', 'div-item', 'divPagination', 7);
         setupSimplePagination('oppList', 'opp-item', 'oppPagination', Infinity);
         setupSimplePagination('dropAlertList', 'drop-alert-item', 'dropAlertPagination', Infinity);
+        window.applyAlertSeenState();
 
         // --- FINVIZ Style Treemap ---
         const heatmapRaw = {{ heatmap_data | tojson }};
