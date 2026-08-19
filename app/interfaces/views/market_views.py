@@ -37,6 +37,55 @@ INDEX_CACHE = {"data": {}, "last_update": 0, "prices_update": 0, "upcoming_event
 PRICE_TTL = 120   # precios: 2 minutos
 EVENT_TTL = 600   # eventos: 10 minutos
 
+# Caché de variación por periodo para la tabla de /database (1D sigue usando INDEX_CACHE, sin tocar)
+PERIOD_CACHE = {}  # {period: {"data": {ticker: pct}, "update": timestamp}}
+PERIOD_TTL = 3600  # 1 hora: estos periodos no cambian intradía salvo el propio precio actual
+PERIOD_START_DATES = {
+    "1w": lambda today: today - datetime.timedelta(days=7),
+    "1m": lambda today: today - datetime.timedelta(days=30),
+    "3m": lambda today: today - datetime.timedelta(days=91),
+    "6m": lambda today: today - datetime.timedelta(days=182),
+    "ytd": lambda today: datetime.date(today.year, 1, 1),
+    "3y": lambda today: today - datetime.timedelta(days=3 * 365),
+    "5y": lambda today: today - datetime.timedelta(days=5 * 365),
+}
+
+def get_period_variacion(tickers: list, period: str) -> dict:
+    """Devuelve {ticker: pct_change} para un periodo (1w/1m/3m/6m/ytd/3y/5y), con caché TTL.
+    No sustituye a INDEX_CACHE (1D): es un cálculo aparte sobre una ventana histórica más larga.
+    """
+    now = time.time()
+    tickers = list(set([t for t in tickers if t and not t.startswith('^')]))
+    if not tickers or period not in PERIOD_START_DATES:
+        return {}
+
+    cache_entry = PERIOD_CACHE.get(period, {"data": {}, "update": 0})
+    stale = now - cache_entry["update"] > PERIOD_TTL or any(t not in cache_entry["data"] for t in tickers)
+    if not stale:
+        return cache_entry["data"]
+
+    start_date = PERIOD_START_DATES[period](datetime.date.today())
+    result = dict(cache_entry["data"])
+    try:
+        data = yf.download(tickers, start=start_date.isoformat(), progress=False)
+        if not data.empty and 'Close' in data:
+            closes = data['Close']
+            if isinstance(closes, pd.Series):
+                closes = pd.DataFrame({tickers[0]: closes})
+            for t in closes.columns:
+                try:
+                    col = closes[t].dropna()
+                    if len(col) >= 2:
+                        first = float(col.iloc[0])
+                        last = float(col.iloc[-1])
+                        result[t] = ((last / first) - 1) * 100 if first > 0 else 0
+                except Exception:
+                    continue
+        PERIOD_CACHE[period] = {"data": result, "update": now}
+    except Exception as e:
+        print(f"Error fetching period variacion ({period}): {e}")
+    return result
+
 def is_reload_request(request: Request) -> bool:
     """Detecta si la petición es un refresco de página (F5 o Ctrl+F5)"""
     cache_control = request.headers.get("cache-control", "").lower()
@@ -685,6 +734,7 @@ async def database_page(
 
     tickers = []
     assets = db_session.query(DBAsset).all()
+    ensure_prices_cached([a.ticker for a in assets], asset_repo)
     for asset in assets:
         t = asset.ticker
         db_d = asset.data or {}
@@ -1827,14 +1877,27 @@ def get_history(ticker: str, period: str = "10y"):
         hist = stock.history(period=period)
         if hist.empty:
             return {"status": "error", "message": "No se encontraron datos para el período."}
-        
+
         # Formatear para el gráfico
         dates = hist.index.strftime('%Y-%m-%d').tolist()
         closes = hist['Close'].tolist()
-        
+
         return {"status": "success", "dates": dates, "prices": closes}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+@router.get("/api/database/variacion")
+def api_database_variacion(period: str, db_session: Session = Depends(get_db)):
+    """
+    Variación de precio por periodo (1w/1m/3m/6m/ytd/3y/5y) para todos los tickers de /database.
+    El 1D no pasa por aquí: sigue calculándose con INDEX_CACHE como hasta ahora.
+    """
+    if period not in PERIOD_START_DATES:
+        return {"status": "error", "message": "Periodo no válido"}
+    tickers = [row[0] for row in db_session.query(DBAsset.ticker).all()]
+    data = get_period_variacion(tickers, period)
+    return {"status": "success", "period": period, "data": data}
 
 
 def get_calendar_events(ticker: str):

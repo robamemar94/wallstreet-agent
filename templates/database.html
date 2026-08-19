@@ -372,6 +372,16 @@
                 </li>
             </ul>
             <div class="d-flex align-items-center gap-2 pb-1">
+                <select class="form-select form-select-sm shadow-sm" id="period-select" style="width: 100px;" onchange="onPeriodChange(this.value)">
+                    <option value="1d" selected>1D</option>
+                    <option value="1w">1 Sem.</option>
+                    <option value="1m">1 Mes</option>
+                    <option value="3m">3 Meses</option>
+                    <option value="6m">6 Meses</option>
+                    <option value="ytd">YTD</option>
+                    <option value="3y">3 Años</option>
+                    <option value="5y">5 Años</option>
+                </select>
                 <div style="width: 250px;" class="suggestions-container">
                     <div class="input-group input-group-sm shadow-sm">
                         <span class="input-group-text bg-white border-end-0">🔍</span>
@@ -392,7 +402,7 @@
                             <th style="width: 12%;" onclick="sortRows(3)">Sector</th>
                             <th style="width: 12%;" onclick="sortRows(4)">Subsector</th>
                             <th class="text-center" style="width: 8%;" onclick="sortRows(5)">Precio</th>
-                            <th class="text-center" style="width: 9%;" onclick="sortRows(6)">Variación</th>
+                            <th class="text-center" style="width: 9%;" onclick="sortRows(6)" id="var-header">Variación <span id="var-header-period"></span></th>
                             <th class="text-center" style="width: 8%;" onclick="sortRows(7)">Normas Calidad</th>
                             <th class="text-center" style="width: 8%;" onclick="sortRows(8)">Veredicto</th>
                             <th class="text-center" style="width: 8%;" onclick="sortRows(9)">Media</th>
@@ -404,8 +414,9 @@
                         {% for t in tickers %}
                         {% set verdict_raw = t.get('scores', {}).get('verdict', '-') %}
                         {% set v_score = verdict_raw.split('/')[0]|trim if verdict_raw and verdict_raw != '-' and verdict_raw != 'N/A' and verdict_raw != '' else '-' %}
-                        <tr class="ticker-row" 
-                            data-status="{{ t.status }}" 
+                        <tr class="ticker-row"
+                            data-ticker="{{ t.name }}"
+                            data-status="{{ t.status }}"
                             data-is-favorite="{{ 'true' if t.is_favorite else 'false' }}"
                             data-is-portfolio="{{ 'true' if t.is_portfolio else 'false' }}"
                             data-country="{{ t.country }}"
@@ -433,7 +444,7 @@
                             <td class="text-center align-middle fw-bold num-font" data-sort-value="{{ t.market_data.price }}">
                                 {{ format_euro(t.market_data.price, 2) }} {{ t.currency_symbol }}
                             </td>
-                            <td class="text-center align-middle" data-sort-value="{{ t.market_data.pct }}">
+                            <td class="text-center align-middle var-cell" data-sort-value="{{ t.market_data.pct }}" data-abs-1d="{{ t.market_data.change }}" data-pct-1d="{{ t.market_data.pct }}">
                                 <span class="small fw-bold num-font {% if t.market_data.change > 0 %}text-success{% elif t.market_data.change < 0 %}text-danger{% else %}text-muted{% endif %}">
                                     {% if t.market_data.change > 0 %}+{% endif %}{{ format_euro(t.market_data.change, 2) }}
                                     ({% if t.market_data.pct > 0 %}+{% endif %}{{ format_euro(t.market_data.pct, 2) }}%)
@@ -532,6 +543,82 @@
     let itemsPerPage = 10;
     let currentPage = 1;
     let currentSort = { col: null, asc: true };
+    let currentPeriod = '1d';
+    let periodRequestToken = 0;
+    const periodCache = {}; // {period: {ticker: pct}}
+    const periodLabels = { '1d': '', '1w': '(1 Sem.)', '1m': '(1 Mes)', '3m': '(3M)', '6m': '(6M)', 'ytd': '(YTD)', '3y': '(3A)', '5y': '(5A)' };
+
+    function showVarCellsLoading() {
+        document.querySelectorAll('#dbBody td.var-cell').forEach(cell => {
+            cell.innerHTML = '<span class="spinner-border spinner-border-sm text-secondary" role="status" aria-hidden="true"></span>';
+        });
+    }
+
+    async function onPeriodChange(period) {
+        currentPeriod = period;
+        document.getElementById('var-header-period').textContent = periodLabels[period] || '';
+
+        if (period === '1d') {
+            document.querySelectorAll('#dbBody td.var-cell').forEach(cell => {
+                const pct = parseFloat(cell.getAttribute('data-pct-1d'));
+                const abs = parseFloat(cell.getAttribute('data-abs-1d'));
+                cell.setAttribute('data-sort-value', cell.getAttribute('data-pct-1d'));
+                renderVarCell(cell, pct, abs);
+            });
+            if (currentSort.col === 6) sortRows(6, false);
+            return;
+        }
+
+        const myToken = ++periodRequestToken;
+        const selectEl = document.getElementById('period-select');
+
+        if (!periodCache[period]) {
+            showVarCellsLoading();
+            selectEl.disabled = true;
+            try {
+                const res = await fetch(`/api/database/variacion?period=${period}`);
+                const json = await res.json();
+                if (myToken !== periodRequestToken) return; // el usuario ya cambió de periodo mientras cargaba
+                if (json.status !== 'success') { console.error(json.message); return; }
+                periodCache[period] = json.data;
+            } catch (e) {
+                if (myToken !== periodRequestToken) return;
+                console.error('Error obteniendo variación por periodo', e);
+                return;
+            } finally {
+                if (myToken === periodRequestToken) selectEl.disabled = false;
+            }
+        }
+
+        if (myToken !== periodRequestToken) return;
+
+        const data = periodCache[period];
+        document.querySelectorAll('#dbBody tr.ticker-row').forEach(row => {
+            const ticker = row.getAttribute('data-ticker');
+            const cell = row.querySelector('td.var-cell');
+            if (!cell) return;
+            const pct = data[ticker];
+            if (pct === undefined || pct === null) {
+                cell.setAttribute('data-sort-value', '-');
+                cell.innerHTML = '<span class="small text-muted">-</span>';
+                return;
+            }
+            cell.setAttribute('data-sort-value', pct);
+            renderVarCell(cell, pct, null);
+        });
+        if (currentSort.col === 6) sortRows(6, false);
+    }
+
+    function renderVarCell(cell, pct, abs) {
+        const colorClass = pct > 0 ? 'text-success' : (pct < 0 ? 'text-danger' : 'text-muted');
+        const sign = pct > 0 ? '+' : '';
+        let absPart = '';
+        if (abs !== null && abs !== undefined && !isNaN(abs)) {
+            const absSign = abs > 0 ? '+' : '';
+            absPart = `${absSign}${abs.toFixed(2)} `;
+        }
+        cell.innerHTML = `<span class="small fw-bold num-font ${colorClass}">${absPart}(${sign}${pct.toFixed(2)}%)</span>`;
+    }
 
     function filterDropdownItems(input) {
         const filterVal = input.value.toLowerCase();
@@ -723,14 +810,16 @@
 
     function changePage(p) { currentPage = p; renderTable(); return false; }
 
-    function sortRows(col) {
+    function sortRows(col, toggle = true) {
         const table = document.getElementById("dbTable");
         const tbody = document.getElementById("dbBody");
         const headers = table.querySelectorAll("thead th");
         const rows = Array.from(tbody.querySelectorAll("tr.ticker-row"));
-        
-        if (currentSort.col === col) currentSort.asc = !currentSort.asc;
-        else { currentSort.col = col; currentSort.asc = true; }
+
+        if (toggle) {
+            if (currentSort.col === col) currentSort.asc = !currentSort.asc;
+            else { currentSort.col = col; currentSort.asc = true; }
+        }
 
         // Remove existing arrows and highlight from all headers
         headers.forEach(th => {
