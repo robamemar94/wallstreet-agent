@@ -300,7 +300,23 @@ def portfolio_page(
                     fcf = info.get('freeCashflow')
                     mcap = info.get('marketCap')
                     if fcf and mcap and mcap > 0:
-                        ret_data["metrics"]["fcf_yield"] = float(fcf) / float(mcap)
+                        fcf_val = float(fcf)
+                        # yfinance a veces reporta freeCashflow en la divisa de los estados
+                        # financieros (financialCurrency), distinta de la divisa de cotización
+                        # (currency) usada en marketCap. Ej: OMAB reporta en MXN pero cotiza en USD.
+                        # Sin esta conversión el ratio sale inflado por el tipo de cambio.
+                        fin_ccy = info.get('financialCurrency')
+                        quote_ccy = info.get('currency')
+                        if fin_ccy and quote_ccy and fin_ccy != quote_ccy:
+                            try:
+                                fx_rate = yf.Ticker(f"{fin_ccy}{quote_ccy}=X").fast_info['lastPrice']
+                                if fx_rate:
+                                    fcf_val = fcf_val * float(fx_rate)
+                                else:
+                                    fcf_val = None
+                            except Exception:
+                                fcf_val = None
+                        ret_data["metrics"]["fcf_yield"] = (fcf_val / float(mcap)) if fcf_val is not None else None
                     else:
                         ret_data["metrics"]["fcf_yield"] = None
                         
