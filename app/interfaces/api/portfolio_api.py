@@ -1,4 +1,5 @@
 import os
+import datetime
 from typing import Optional
 import yfinance as yf
 from fastapi import APIRouter, HTTPException, Depends
@@ -8,8 +9,9 @@ from app.infrastructure.db.database import get_db
 from app.infrastructure.db.models import DBSetting
 from app.application.services.portfolio_service import PortfolioService
 from app.domain.models import Transaction, TransactionType
-from app.infrastructure.dependencies import get_portfolio_service, get_asset_repository
+from app.infrastructure.dependencies import get_portfolio_service, get_asset_repository, get_settings_from_db
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
+from app.interfaces.views.settings_views import save_settings_to_db
 
 PERF_CACHE_FILE = "data/performance_cache.json"
 
@@ -448,6 +450,38 @@ async def refresh_performance_cache():
         if os.path.exists(PERF_CACHE_FILE):
             os.remove(PERF_CACHE_FILE)
         return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class PerformanceStartDateBody(BaseModel):
+    start_date: Optional[str] = None  # 'YYYY-MM-DD'; None/"" para quitar el corte
+
+
+@router.post("/performance/start-date")
+async def set_performance_start_date(
+    body: PerformanceStartDateBody,
+    db_session: Session = Depends(get_db)
+):
+    """Fija (o elimina) una fecha de inicio personalizada para el cálculo de rendimiento
+    (pestaña Rendimiento de /portfolio). Las operaciones anteriores a esa fecha se ignoran
+    en la serie de Valor Liquidativo, tratando la posición que ya existía en esa fecha como
+    el punto de partida — útil para descartar los primeros movimientos "de prueba"."""
+    start_date = (body.start_date or "").strip() or None
+    if start_date:
+        try:
+            datetime.date.fromisoformat(start_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Formato de fecha inválido (usa YYYY-MM-DD)")
+
+    try:
+        settings = get_settings_from_db(db_session)
+        perf_settings = dict(settings.get("performance", {}))
+        perf_settings["start_date"] = start_date
+        save_settings_to_db(db_session, {"performance": perf_settings})
+        if os.path.exists(PERF_CACHE_FILE):
+            os.remove(PERF_CACHE_FILE)
+        return {"status": "success", "start_date": start_date}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

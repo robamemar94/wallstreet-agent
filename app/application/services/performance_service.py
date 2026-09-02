@@ -31,13 +31,13 @@ class PerformanceService:
     # Público
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_performance_data(self) -> Dict[str, Any]:
-        cached = self._load_cache()
+    def get_performance_data(self, start_date_override: str = None) -> Dict[str, Any]:
+        cached = self._load_cache(start_date_override)
         if cached:
             return cached
 
-        result = self._compute()
-        self._save_cache(result)
+        result = self._compute(start_date_override)
+        self._save_cache(result, start_date_override)
         return result
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -54,25 +54,30 @@ class PerformanceService:
             "annualized_return": 0.0,
         }
 
-    def _load_cache(self):
+    def _load_cache(self, start_date_override: str = None):
         try:
             if os.path.exists(CACHE_FILE):
                 with open(CACHE_FILE) as f:
                     c = json.load(f)
-                if time.time() - c.get("timestamp", 0) < CACHE_TTL:
+                if (c.get("start_date_override") == start_date_override
+                        and time.time() - c.get("timestamp", 0) < CACHE_TTL):
                     return c["data"]
         except Exception:
             pass
         return None
 
-    def _save_cache(self, data):
+    def _save_cache(self, data, start_date_override: str = None):
         try:
             with open(CACHE_FILE, "w") as f:
-                json.dump({"timestamp": time.time(), "data": data}, f)
+                json.dump({
+                    "timestamp": time.time(),
+                    "start_date_override": start_date_override,
+                    "data": data,
+                }, f)
         except Exception:
             pass
 
-    def _compute(self) -> Dict[str, Any]:
+    def _compute(self, start_date_override: str = None) -> Dict[str, Any]:
         csv_txs    = self.portfolio_service.load_csv_transactions()
         manual_txs = self.portfolio_service.repository.load_manual_transactions()
         all_txs    = [tx for tx in csv_txs + manual_txs
@@ -81,7 +86,32 @@ class PerformanceService:
             return self._empty()
 
         all_txs.sort(key=lambda x: x.date)
-        start_date = pd.to_datetime(all_txs[0].date).strftime("%Y-%m-%d")
+        first_tx_date = pd.to_datetime(all_txs[0].date)
+
+        # Fecha de inicio personalizada: permite ignorar operaciones iniciales
+        # (p.ej. compras "de prueba" de cuando no se tomaba en serio la cartera)
+        # tratando la posición que ya existía en esa fecha como el punto de partida
+        # del cálculo (nueva "inception" al valor liquidativo inicial).
+        cutoff = None
+        if start_date_override:
+            try:
+                parsed = pd.to_datetime(start_date_override).normalize()
+                if parsed > first_tx_date:
+                    cutoff = parsed
+            except Exception:
+                cutoff = None
+
+        if cutoff is not None:
+            pre_txs    = [tx for tx in all_txs if pd.to_datetime(tx.date) < cutoff]
+            post_txs   = [tx for tx in all_txs if pd.to_datetime(tx.date) >= cutoff]
+            start_date = cutoff.strftime("%Y-%m-%d")
+        else:
+            pre_txs    = []
+            post_txs   = all_txs
+            start_date = first_tx_date.strftime("%Y-%m-%d")
+
+        if not post_txs:
+            return self._empty()
 
         tickers    = list({tx.ticker.upper() for tx in all_txs})
         currencies = list({tx.currency.upper() for tx in all_txs
@@ -108,9 +138,9 @@ class PerformanceService:
         col_map  = {c.upper(): c for c in df.columns}
         tick_ccy = {tx.ticker.upper(): tx.currency.upper() for tx in all_txs}
 
-        # ── Agrupar transacciones por fecha de trading ─────────────────────
+        # ── Agrupar transacciones por fecha de trading (solo posteriores al corte) ──
         tx_by_date: Dict[pd.Timestamp, list] = defaultdict(list)
-        for tx in all_txs:
+        for tx in post_txs:
             d = self._align_date(pd.to_datetime(tx.date).normalize(), df.index)
             tx_by_date[d].append(tx)
 
@@ -118,6 +148,23 @@ class PerformanceService:
         holdings: Dict[str, float] = defaultdict(float)
         nav      = INITIAL_NAV
         units    = 0.0
+
+        # Si hay corte personalizado, la posición acumulada antes del corte (pre_txs)
+        # se convierte en el punto de partida ("nueva inception" al VL inicial),
+        # valorada a precio de mercado del primer día de la serie.
+        if pre_txs:
+            for tx in pre_txs:
+                t = tx.ticker.upper()
+                if tx.type.value == "BUY":
+                    holdings[t] += tx.shares
+                else:
+                    holdings[t] -= tx.shares
+            holdings = defaultdict(float, {t: q for t, q in holdings.items() if q > 0.0001})
+            if holdings and len(df.index) > 0:
+                seed_val = self._portfolio_value(holdings, df.index[0], df, col_map, tick_ccy)
+                if seed_val > 0:
+                    units = seed_val / INITIAL_NAV
+
         nav_series:   List[float] = []
         value_series: List[float] = []   # valor real en EUR
         date_series:  List[str]   = []

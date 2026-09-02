@@ -103,6 +103,28 @@ class PortfolioService:
             ))
         return transactions
 
+    def _get_pending_dividend_ex_dates(self, tickers: set) -> Dict[str, str]:
+        """Para cada ticker, si el dividendo más reciente (ex-date) todavía no se ha
+        pagado (pay-date en el futuro), devuelve {ticker: ex_date_str}. yfinance solo
+        expone la pay-date del próximo/último evento vía `.info`, no un histórico, así
+        que solo podemos detectar como "pendiente de cobro" ese último evento."""
+        pending = {}
+        today = datetime.now().date()
+        for ticker in tickers:
+            try:
+                info = yf.Ticker(ticker).info
+                ex_ts = info.get('exDividendDate') or info.get('dividendExDate')
+                pay_ts = info.get('dividendDate') or info.get('dividendPaymentDate')
+                if not ex_ts or not pay_ts:
+                    continue
+                ex_date = datetime.fromtimestamp(ex_ts).date()
+                pay_date = datetime.fromtimestamp(pay_ts).date()
+                if ex_date <= today and pay_date > today:
+                    pending[ticker] = ex_date.strftime('%Y-%m-%d')
+            except Exception:
+                pass
+        return pending
+
     def _sync_dividends(self, tickers: set):
         if os.path.exists(DIV_CACHE_FILE):
             with open(DIV_CACHE_FILE, 'r') as f:
@@ -298,6 +320,7 @@ class PortfolioService:
                     # total_cost y total_cost_eur se mantienen iguales
 
         master_dividend_history = self._sync_dividends(tickers_seen)
+        pending_ex_dates = self._get_pending_dividend_ex_dates(tickers_seen)
 
         for ticker, txs in ledger.items():
             daily_balance = {}
@@ -320,6 +343,7 @@ class PortfolioService:
 
             for d_date_str, d_amount in ticker_divs.items():
                 if pd.isna(d_amount) or d_amount <= 0: continue
+                if pending_ex_dates.get(ticker) == d_date_str: continue  # ex-date ya pasó pero el pago sigue pendiente
                 d_date = pd.to_datetime(d_date_str)
                 held_before = balance_series[balance_series.index <= d_date]
                 if not held_before.empty:

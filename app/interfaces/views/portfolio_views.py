@@ -20,6 +20,7 @@ from app.infrastructure.dependencies import (
 )
 from app.infrastructure.templates import templates
 from app.interfaces.views.market_views import get_currency_symbol, is_reload_request, INDEX_CACHE, ensure_prices_cached
+from app.domain.models import TransactionType
 from utils.financial_math import calculate_position_cagr
 # from tools.download_logos import download_logo
 
@@ -44,6 +45,23 @@ FALLBACK_RATES = {
 def get_current_rate(currency_code: str) -> float:
     ccy = (currency_code or "USD").upper()
     return GLOBAL_CACHE.get("rates", {}).get(ccy) or FALLBACK_RATES.get(ccy, 1.0)
+
+def _shares_held_at(ledger_entries, as_of_date):
+    """Acciones en cartera a fecha `as_of_date`, reconstruidas a partir del ledger persistido (BUY/SELL/SPLIT)."""
+    balance = 0.0
+    for entry in sorted(ledger_entries, key=lambda e: e.date):
+        e_date = pd.to_datetime(entry.date).date()
+        if e_date > as_of_date:
+            break
+        if entry.type == TransactionType.DIVIDEND:
+            continue
+        elif entry.type == TransactionType.SPLIT:
+            balance *= entry.shares
+        elif entry.type == TransactionType.BUY:
+            balance += entry.shares
+        elif entry.type == TransactionType.SELL:
+            balance -= entry.shares
+    return balance
 
 @router.get("/portfolio/ticker/{ticker}", response_class=HTMLResponse)
 def portfolio_ticker_page(
@@ -219,9 +237,12 @@ def portfolio_page(
 ):
     portfolio_data = [p.model_dump() for p in portfolio_service.get_active_portfolio()]
     closed_portfolio_data = [p.model_dump() for p in portfolio_service.get_closed_portfolio()]
-    
+
+    settings = get_settings_from_db(db_session)
+    perf_start_date = settings.get("performance", {}).get("start_date")
+
     # 1. Rendimiento histórico (ya tiene su propia caché interna)
-    perf_data = performance_service.get_performance_data()
+    perf_data = performance_service.get_performance_data(perf_start_date)
     
     # Si es una recarga del navegador (F5), forzar la expiración de la caché de precios compartida
     if is_reload_request(request):
@@ -252,10 +273,19 @@ def portfolio_page(
 
             # 2.5 Actualizar dividendos futuros y métricas fundamentales
 
+            # Ledger y divisa por ticker cargados por adelantado (fuera del ThreadPool) para
+            # poder validar, más abajo, que la posición ya existía en la fecha ex-date de cada
+            # dividendo próximo. La sesión de SQLAlchemy no es thread-safe para uso concurrente:
+            # llamar a asset_repo/db_session dentro de fetch_dividend (ejecutado en varios hilos
+            # a la vez) puede lanzar una excepción intermitente que aborta todo el bloque y deja
+            # GLOBAL_CACHE["upcoming_dividends"] vacío.
+            ledger_by_ticker = {p['ticker']: portfolio_service.get_ledger(p['ticker']) for p in portfolio_data}
+            currency_by_ticker = {p['ticker']: asset_repo.get_asset_data(p['ticker']).get("currency", "USD") for p in portfolio_data}
+
             def fetch_dividend(item):
                 ticker = item['ticker']
                 shares = item['shares']
-                curr = asset_repo.get_asset_data(ticker).get("currency", "USD")
+                curr = currency_by_ticker.get(ticker, "USD")
                 
                 ret_data = {
                     "ticker": ticker,
@@ -370,8 +400,15 @@ def portfolio_page(
                         if not val:
                             div_rate = info.get('dividendRate')
                             val = (div_rate / 4.0) if div_rate else 0.0
-                            
-                        if val > 0:
+
+                        # Si el ex-date ya pasó (pero el pago sigue pendiente), hay que
+                        # validar que ya teníamos la posición en esa fecha: si la compra
+                        # fue posterior al ex-date, ese dividendo no nos corresponde.
+                        eligible_shares = shares
+                        if ex_date and ex_date < today:
+                            eligible_shares = _shares_held_at(ledger_by_ticker.get(ticker, []), ex_date)
+
+                        if val > 0 and eligible_shares > 0.0001:
                             # Prefer sorting by ex-date if available, otherwise pay-date
                             sort_date = ex_date if ex_date else pay_date_obj
                             ret_data["upcoming_dividend"] = {
@@ -379,7 +416,7 @@ def portfolio_page(
                                 "date": ex_date or sort_date,
                                 "pay_date": pay_date_obj,
                                 "amount_per_share": val,
-                                "total_amount": val * shares,
+                                "total_amount": val * eligible_shares,
                                 "currency_code": curr,
                                 "sort_date": sort_date
                             }
@@ -880,7 +917,8 @@ def portfolio_page(
         "chart_labels": labels, "chart_values": values,
         "country_labels": country_labels, "country_values": country_values,
         "sector_labels": sector_labels, "sector_values": sector_values,
-        "settings": get_settings_from_db(db_session)
+        "settings": settings,
+        "perf_start_date": perf_start_date,
     })
 
 @router.get("/ideal-portfolio", response_class=HTMLResponse)

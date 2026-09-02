@@ -597,10 +597,6 @@
                                         {% if ev.amount %}<small class="text-success fw-bold" style="font-size:0.62rem;">+{{ format_euro(ev.amount, 2) }}€</small>{% endif %}
                                     </div>
                                     <div class="d-flex flex-column align-items-end gap-1">
-                                        <div class="d-flex align-items-center gap-1">
-                                            <span class="text-muted" style="font-size:0.58rem;">Ex:</span>
-                                            <span class="text-muted" style="font-size:0.62rem;">{{ ev.date }}</span>
-                                        </div>
                                         {% if ev.pay_date %}
                                         <div class="d-flex align-items-center gap-1">
                                             <span class="text-muted" style="font-size:0.58rem;">Cobro:</span>
@@ -620,6 +616,10 @@
                                             </span>
                                         </div>
                                         {% endif %}
+                                        <div class="d-flex align-items-center gap-1">
+                                            <span class="text-muted" style="font-size:0.58rem;">Ex:</span>
+                                            <span class="text-muted" style="font-size:0.62rem;">{{ ev.date }}</span>
+                                        </div>
                                     </div>
                                 </li>
                                 {% endfor %}

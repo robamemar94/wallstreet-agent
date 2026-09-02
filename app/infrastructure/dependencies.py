@@ -18,7 +18,7 @@ DEFAULT_SETTINGS = {
         "cara": "Caro",
         "burbuja": "Burbuja"
     },
-    "performance": {"benchmark_ticker": "URTH", "cache_duration_min": 60},
+    "performance": {"benchmark_ticker": "URTH", "cache_duration_min": 60, "start_date": None},
     "alerts": {"price_drop_threshold": 10},
     "brokers": {
         "degiro_fee_eur": 1.0,

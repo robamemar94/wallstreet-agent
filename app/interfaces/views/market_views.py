@@ -11,7 +11,8 @@ from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.infrastructure.db.database import get_db
-from app.infrastructure.db.models import DBAsset, DBTask, DBPortfolioItem
+from app.infrastructure.db.models import DBAsset, DBTask, DBPortfolioItem, DBTransaction
+from app.domain.models import TransactionType
 from app.infrastructure.dependencies import (
     get_asset_repository,
     get_portfolio_service,
@@ -336,6 +337,40 @@ def index(
                     event_items.append({"ticker": t, "shares": 0, "is_portfolio": False, "is_favorite": meta.get("is_fav", False)})
                     _ev_seen.add(t)
 
+            # Histórico de transacciones (BUY/SELL/SPLIT) de los tickers en cartera,
+            # para saber cuántas acciones teníamos realmente en la fecha ex-dividendo
+            # (no las que tenemos ahora, que pueden haber cambiado desde entonces).
+            _portfolio_tickers = [p.ticker for p in active_portfolio]
+            _tx_by_ticker = {}
+            if _portfolio_tickers:
+                _tx_rows = (
+                    db_session.query(DBTransaction)
+                    .filter(DBTransaction.ticker.in_(_portfolio_tickers))
+                    .all()
+                )
+                for tx in _tx_rows:
+                    try:
+                        tx_date = datetime.datetime.strptime(tx.date[:10], "%Y-%m-%d").date()
+                    except Exception:
+                        continue
+                    _tx_by_ticker.setdefault(tx.ticker, []).append((tx_date, tx.type, tx.shares))
+                for t in _tx_by_ticker:
+                    _tx_by_ticker[t].sort(key=lambda x: x[0])
+
+            def shares_as_of(ticker, as_of_date):
+                total = 0.0
+                for tx_date, tx_type, tx_shares in _tx_by_ticker.get(ticker, []):
+                    if tx_date > as_of_date:
+                        break
+                    if tx_type == TransactionType.SPLIT:
+                        if tx_shares > 0:
+                            total *= tx_shares
+                    elif tx_type == TransactionType.BUY:
+                        total += tx_shares
+                    elif tx_type == TransactionType.SELL:
+                        total -= tx_shares
+                return total
+
             def fetch_event(item):
                 ticker = item["ticker"]
                 evs = []
@@ -369,7 +404,17 @@ def index(
                             if hasattr(pay_date_obj, 'date'):
                                 pay_date_obj = pay_date_obj.date()
 
-                        if d >= today: evs.append({"ticker": ticker, "type": "Dividendo", "date": d, "pay_date": pay_date_obj, "amount": div_amount * item["shares"], "is_portfolio": item["is_portfolio"], "is_favorite": item["is_favorite"]})
+                        # "Próximo a cobrar": mientras el pago no se haya realizado, sigue siendo
+                        # relevante aunque la fecha ex-dividendo ya haya pasado (fallback a ex-div
+                        # si no conocemos la fecha de pago).
+                        pending = (pay_date_obj >= today) if pay_date_obj else (d >= today)
+
+                        # Acciones que teníamos en la fecha ex-dividendo (no las actuales):
+                        # si compramos después del ex-div, ese dividendo concreto no nos corresponde.
+                        shares_at_exdiv = shares_as_of(ticker, d) if item["is_portfolio"] else 0
+
+                        if pending and (not item["is_portfolio"] or shares_at_exdiv > 0.0001):
+                            evs.append({"ticker": ticker, "type": "Dividendo", "date": d, "pay_date": pay_date_obj, "amount": div_amount * shares_at_exdiv, "is_portfolio": item["is_portfolio"], "is_favorite": item["is_favorite"]})
 
                     ed = None
                     if isinstance(cal, dict): ed = cal.get('Earnings Date')
