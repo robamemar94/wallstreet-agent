@@ -8,19 +8,47 @@
             <h2 class="fw-bold mb-1">Alertas</h2>
             <p class="text-muted mb-0">Cambios de valoración y caídas de precio (&ge;10% desde máximos) en las empresas en seguimiento.</p>
         </div>
-        <form action="/api/alerts/scan" method="post">
-            <button type="submit" class="btn btn-primary shadow-sm">
-                🔄 Escanear Mercado
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary shadow-sm" onclick="window.markAllAlertsSeen();">
+                <i class="bi bi-check2-all"></i> Marcar todas como leídas
             </button>
-        </form>
+            <form action="/api/alerts/scan" method="post">
+                <button type="submit" class="btn btn-primary shadow-sm">
+                    🔄 Escanear Mercado
+                </button>
+            </form>
+        </div>
     </div>
 </div>
 
 <div class="row">
     <div class="col-12">
         {% if history %}
+            <div class="btn-group mb-3" role="group" aria-label="Filtro de alertas" id="alertTypeFilter">
+                <button type="button" class="btn btn-sm btn-outline-secondary active" data-alert-filter="ALL" onclick="filterAlertsByType('ALL', this)">
+                    Todas <span class="badge bg-secondary ms-1 alert-count-badge" data-count-type="ALL">{{ history|length }}</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-alert-filter="VALORACIÓN" onclick="filterAlertsByType('VALORACIÓN', this)">
+                    ⚖️ Valoración <span class="badge bg-secondary ms-1 alert-count-badge" data-count-type="VALORACIÓN">{{ count_valoracion }}</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-alert-filter="CAÍDA" onclick="filterAlertsByType('CAÍDA', this)">
+                    📉 Caída de Precio <span class="badge bg-secondary ms-1 alert-count-badge" data-count-type="CAÍDA">{{ count_caida }}</span>
+                </button>
+            </div>
+
+            <div class="btn-group mb-3 ms-2 d-none" role="group" aria-label="Filtro de dirección de valoración" id="alertDirectionFilter">
+                <button type="button" class="btn btn-sm btn-outline-secondary active" data-direction-filter="ALL" onclick="filterAlertsByDirection('ALL', this)">
+                    Todas
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-direction-filter="SUBE" onclick="filterAlertsByDirection('SUBE', this)">
+                    <i class="bi bi-arrow-up-circle-fill text-danger"></i> Sube <span class="badge bg-secondary ms-1 alert-count-badge" data-count-direction="SUBE">{{ count_sube }}</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-direction-filter="BAJA" onclick="filterAlertsByDirection('BAJA', this)">
+                    <i class="bi bi-arrow-down-circle-fill text-success"></i> Baja <span class="badge bg-secondary ms-1 alert-count-badge" data-count-direction="BAJA">{{ count_baja }}</span>
+                </button>
+            </div>
             <div class="table-responsive bg-white rounded shadow-sm">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0" id="alertsTable">
                     <thead class="table-light">
                         <tr>
                             <th class="ps-4">Fecha y Hora</th>
@@ -34,10 +62,10 @@
                     <tbody>
                         {% for alert in history %}
                         {% set alert_type = alert.type if alert.type is defined else 'VALORACIÓN' %}
-                        <tr {% if alert_type == 'CAÍDA' %}data-alert-key="{{ alert.ticker }}_{{ alert.date }}_{{ alert.escalon }}"{% endif %}>
+                        <tr data-type="{{ alert_type }}" data-direction="{{ alert._direction or '' }}" data-alert-key="{{ alert._key }}">
                             <td class="ps-4 text-muted small">
                                 {{ alert.date }}
-                                {% if alert_type == 'CAÍDA' %}<span class="alert-new-badge d-none">NUEVO</span>{% endif %}
+                                <span class="alert-new-badge d-none">NUEVO</span>
                             </td>
                             <td class="fw-bold">
                                 <a href="/ticker/{{ alert.ticker }}" class="text-decoration-none text-dark">{{ clean_ticker(alert.ticker) }}</a>
@@ -82,11 +110,9 @@
                             </td>
                             {% endif %}
                             <td class="text-end pe-4">
-                                {% if alert_type == 'CAÍDA' %}
                                 <button type="button" class="btn-mark-seen d-none" title="Marcar como visto" onclick="markAlertSeen(this);">
                                     <i class="bi bi-check-circle"></i>
                                 </button>
-                                {% endif %}
                                 <form action="/api/alerts/delete" method="post" onsubmit="return confirm('¿Seguro que quieres ignorar/eliminar esta alerta?');" style="display: inline;">
                                     <input type="hidden" name="ticker" value="{{ alert.ticker }}">
                                     <input type="hidden" name="type" value="{{ alert_type }}">
@@ -98,6 +124,9 @@
                             </td>
                         </tr>
                         {% endfor %}
+                        <tr id="alertsNoMatchRow" class="d-none">
+                            <td colspan="8" class="text-center py-4 text-muted small">No hay alertas de este tipo.</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -109,4 +138,53 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+    let currentTypeFilter = 'ALL';
+    let currentDirectionFilter = 'ALL';
+
+    function applyAlertFilters() {
+        const rows = document.querySelectorAll('#alertsTable tbody tr[data-type]');
+        let visibleCount = 0;
+        rows.forEach(row => {
+            const typeMatch = (currentTypeFilter === 'ALL' || row.dataset.type === currentTypeFilter);
+            // El filtro de dirección solo aplica a filas de Valoración; el resto no se ve afectado.
+            const directionMatch = (
+                currentDirectionFilter === 'ALL' ||
+                row.dataset.type !== 'VALORACIÓN' ||
+                row.dataset.direction === currentDirectionFilter
+            );
+            const match = typeMatch && directionMatch;
+            row.style.display = match ? '' : 'none';
+            if (match) visibleCount++;
+        });
+        const noMatchRow = document.getElementById('alertsNoMatchRow');
+        if (noMatchRow) noMatchRow.classList.toggle('d-none', visibleCount > 0);
+    }
+
+    function filterAlertsByType(type, btn) {
+        currentTypeFilter = type;
+        document.querySelectorAll('#alertTypeFilter [data-alert-filter]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // El submenú de dirección (sube/baja) solo tiene sentido dentro de Valoración.
+        const directionFilter = document.getElementById('alertDirectionFilter');
+        if (directionFilter) {
+            directionFilter.classList.toggle('d-none', type !== 'VALORACIÓN');
+            if (type !== 'VALORACIÓN') {
+                currentDirectionFilter = 'ALL';
+                directionFilter.querySelectorAll('[data-direction-filter]').forEach(b => b.classList.remove('active'));
+                directionFilter.querySelector('[data-direction-filter="ALL"]').classList.add('active');
+            }
+        }
+        applyAlertFilters();
+    }
+
+    function filterAlertsByDirection(direction, btn) {
+        currentDirectionFilter = direction;
+        document.querySelectorAll('#alertDirectionFilter [data-direction-filter]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        applyAlertFilters();
+    }
+</script>
 {% endblock %}

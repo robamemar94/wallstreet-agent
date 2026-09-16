@@ -195,9 +195,15 @@ def get_extended_stats(info, stock=None, db=None):
     mkt_cap = info.get('marketCap', 0)
     eps_ltm = get_latest_manual('eps')
     curr_price = info.get('currentPrice', 1)
-    
+
+    # Yahoo cotiza los valores del Reino Unido (LSE) en peniques (GBp/GBX), mientras que
+    # el EPS auditado manualmente se introduce en libras (unidad mayor). Sin este ajuste
+    # el PER calculado a mano sale ~100x inflado (aparenta estar "en miles").
+    is_pence_currency = info.get('currency') in ('GBp', 'GBX')
+    curr_price_major = curr_price / 100.0 if is_pence_currency else curr_price
+
     stats['valuation_ttm'] = {
-        'P/E (Trailing)': (curr_price / eps_ltm) if eps_ltm and eps_ltm > 0 else safe_get(info, 'trailingPE'),
+        'P/E (Trailing)': (curr_price_major / eps_ltm) if eps_ltm and eps_ltm > 0 else safe_get(info, 'trailingPE'),
         'P/B': safe_get(info, 'priceToBook'),
         'EV/Sales': safe_get(info, 'enterpriseToRevenue'),
         'EV/EBITDA': safe_get(info, 'enterpriseToEbitda'),

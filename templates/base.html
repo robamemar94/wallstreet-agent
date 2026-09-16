@@ -493,6 +493,27 @@
         }
         .btn-mark-seen:hover { color: #ffc107; }
 
+        /* Badge de notificaciones estilo "burbuja" Android sobre el icono del sidebar:
+           círculo perfecto para 1-2 dígitos, se estira a píldora solo si hace falta (99+). */
+        .sidebar-notif-badge {
+            position: absolute;
+            top: -6px;
+            right: -10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 16px;
+            height: 16px;
+            padding: 0 3px;
+            background: #dc3545;
+            color: #fff;
+            border-radius: 999px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            line-height: 1;
+            box-shadow: 0 0 0 2px var(--fin-card-bg, #fff);
+        }
+
     </style>
 </head>
 <body>
@@ -557,7 +578,10 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if _path.startswith('/alerts') %} active{% endif %}" href="/alerts" title="Alertas">
-                        <i class="bi bi-bell"></i>
+                        <span class="position-relative d-inline-block">
+                            <i class="bi bi-bell"></i>
+                            <span id="sidebarAlertBadge" class="sidebar-notif-badge d-none">0</span>
+                        </span>
                         <span>Alertas</span>
                     </a>
                 </li>
@@ -656,6 +680,26 @@
                     counterBadge.classList.add('d-none');
                 }
             }
+            // Contadores de las pills de filtro en /alerts (Todas / Valoración / Caída):
+            // muestran no leídas, no el total.
+            document.querySelectorAll('.alert-count-badge[data-count-type]').forEach(badge => {
+                const t = badge.dataset.countType;
+                const rows = t === 'ALL'
+                    ? document.querySelectorAll('#alertsTable tbody tr[data-alert-key]')
+                    : document.querySelectorAll('#alertsTable tbody tr[data-type="' + t + '"][data-alert-key]');
+                let unread = 0;
+                rows.forEach(r => { if (!localStorage.getItem('alert_seen_' + r.dataset.alertKey)) unread++; });
+                badge.textContent = unread;
+            });
+            // Contadores del submenú de dirección (📈 Se encarece / 📉 Se abarata), no leídas.
+            document.querySelectorAll('.alert-count-badge[data-count-direction]').forEach(badge => {
+                const d = badge.dataset.countDirection;
+                const rows = document.querySelectorAll('#alertsTable tbody tr[data-type="VALORACIÓN"][data-direction="' + d + '"][data-alert-key]');
+                let unread = 0;
+                rows.forEach(r => { if (!localStorage.getItem('alert_seen_' + r.dataset.alertKey)) unread++; });
+                badge.textContent = unread;
+            });
+            window.refreshSidebarAlertBadge();
         };
         window.markAlertSeen = function(btn) {
             const row = btn.closest('[data-alert-key]');
@@ -663,6 +707,34 @@
             localStorage.setItem('alert_seen_' + row.dataset.alertKey, '1');
             window.applyAlertSeenState();
         };
+        window.markAllAlertsSeen = function() {
+            document.querySelectorAll('[data-alert-key]').forEach(row => {
+                const key = row.dataset.alertKey;
+                if (key) localStorage.setItem('alert_seen_' + key, '1');
+            });
+            window.applyAlertSeenState();
+        };
+
+        // --- Badge de notificaciones (estilo Android) en el icono "Alertas" del sidebar ---
+        // Se calcula globalmente (todas las páginas) contra un listado ligero de claves,
+        // ya que el detalle de las alertas solo se carga en /alerts y /.
+        window._alertKeysCache = null;
+        window.refreshSidebarAlertBadge = function() {
+            const badge = document.getElementById('sidebarAlertBadge');
+            if (!badge || !window._alertKeysCache) return;
+            const unread = window._alertKeysCache.filter(k => !localStorage.getItem('alert_seen_' + k.key)).length;
+            if (unread > 0) {
+                badge.textContent = unread > 99 ? '99+' : unread;
+                badge.classList.remove('d-none');
+            } else {
+                badge.classList.add('d-none');
+            }
+        };
+        fetch('/api/alerts/keys').then(r => r.json()).then(data => {
+            window._alertKeysCache = data.keys || [];
+            window.refreshSidebarAlertBadge();
+        }).catch(() => {});
+
         document.addEventListener('DOMContentLoaded', () => window.applyAlertSeenState());
 
         let analyzedCompanies = [];

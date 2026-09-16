@@ -722,6 +722,9 @@
                 <div class="d-flex align-items-center gap-2">
                     {% if drop_alerts %}
                     <span id="dropAlertCounterBadge" class="badge bg-danger rounded-pill" style="font-size: 0.62rem; padding: 2px 6px;">{{ drop_alerts|length }}</span>
+                    <button type="button" class="btn-mark-seen" title="Marcar todas como leídas" onclick="window.markAllAlertsSeen();">
+                        <i class="bi bi-check2-all"></i>
+                    </button>
                     {% endif %}
                     <div id="dropAlertPagination" class="pagination-small"></div>
                 </div>

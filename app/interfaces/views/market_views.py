@@ -1442,6 +1442,12 @@ def oportunidades_page(
             info = stock.info
             price = info.get("currentPrice") or info.get("regularMarketPrice")
 
+            # Los tickers de UK (LSE) cotizan en peniques (currency 'GBp'/'GBX') pero el
+            # EPS (trailing/forward/consenso de analistas) viene en libras. Sin esta
+            # conversión el PE calculado sale ~100x inflado (ej. PER en miles).
+            if price and info.get("currency") in ("GBp", "GBX"):
+                price = price / 100.0
+
             # Fuente 1: EPS forward del consenso de analistas (totalmente independiente del precio)
             forward_eps = None
             pe_calculated = None

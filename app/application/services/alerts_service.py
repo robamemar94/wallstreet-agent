@@ -45,6 +45,30 @@ def get_alerts_data(db: Session) -> dict:
     return {"last_statuses": {}, "history": [], "price_drop_refs": {}}
 
 
+def build_alert_key(alert: dict) -> str:
+    """Clave estable por alerta, usada tanto para el atributo data-alert-key
+    del HTML como para el endpoint que alimenta el contador de no leídas del
+    sidebar. Debe ser idéntica en ambos sitios o el conteo de no leídas queda
+    desincronizado con el estado "visto" guardado en localStorage."""
+    alert_type = alert.get("type", "VALORACIÓN")
+    ticker = alert.get("ticker")
+    date = alert.get("date")
+    if alert_type == "CAÍDA":
+        return f"{ticker}_{date}_{alert.get('escalon')}"
+    return f"{ticker}_{date}_{alert.get('old_status')}-{alert.get('new_status')}"
+
+
+VALUATION_RANK = {"GANGA": 0, "BARATA": 1, "PRECIO JUSTO": 2, "CARA": 3, "BURBUJA": 4}
+
+
+def valuation_direction(old_status: str, new_status: str) -> str:
+    """SUBE si la nueva zona de valoración es más cara que la anterior
+    (se encarece), BAJA si es más barata (se abarata)."""
+    old_rank = VALUATION_RANK.get(old_status, 2)
+    new_rank = VALUATION_RANK.get(new_status, 2)
+    return "SUBE" if new_rank >= old_rank else "BAJA"
+
+
 def save_alerts_data(db: Session, data: dict):
     db_alert = db.query(DBAlerts).first()
     if not db_alert:

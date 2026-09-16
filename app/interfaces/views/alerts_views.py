@@ -7,7 +7,9 @@ from app.infrastructure.db.database import get_db
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
 from app.infrastructure.dependencies import get_asset_repository, get_settings_from_db
 from app.infrastructure.templates import templates
-from app.application.services.alerts_service import get_alerts_data, save_alerts_data, run_alerts_scan
+from app.application.services.alerts_service import (
+    get_alerts_data, save_alerts_data, run_alerts_scan, build_alert_key, valuation_direction
+)
 
 router = APIRouter(tags=["Alerts Views"])
 
@@ -18,15 +20,42 @@ async def alerts_page(
 ):
     alerts_data = get_alerts_data(db_session)
     history = alerts_data.get("history", [])
-    
+
     # Sort history descending (newest first)
     history.sort(key=lambda x: x.get("date", ""), reverse=True)
-    
+    for alert in history:
+        alert["_key"] = build_alert_key(alert)
+        if alert.get("type", "VALORACIÓN") == "VALORACIÓN":
+            alert["_direction"] = valuation_direction(alert.get("old_status"), alert.get("new_status"))
+
+    count_valoracion = sum(1 for a in history if a.get("type", "VALORACIÓN") == "VALORACIÓN")
+    count_caida = sum(1 for a in history if a.get("type") == "CAÍDA")
+    count_sube = sum(1 for a in history if a.get("_direction") == "SUBE")
+    count_baja = sum(1 for a in history if a.get("_direction") == "BAJA")
+
     return templates.TemplateResponse("alerts.html", {
         "request": request,
         "history": history,
+        "count_valoracion": count_valoracion,
+        "count_caida": count_caida,
+        "count_sube": count_sube,
+        "count_baja": count_baja,
         "settings": get_settings_from_db(db_session)
     })
+
+@router.get("/api/alerts/keys")
+def get_alert_keys(db_session: Session = Depends(get_db)):
+    """Claves ligeras de todas las alertas activas, para que el badge de
+    notificaciones del sidebar (presente en todas las páginas) pueda calcular
+    cuántas quedan sin leer comparando contra localStorage."""
+    alerts_data = get_alerts_data(db_session)
+    history = alerts_data.get("history", [])
+    return {
+        "keys": [
+            {"key": build_alert_key(a), "type": a.get("type", "VALORACIÓN")}
+            for a in history
+        ]
+    }
 
 @router.post("/api/alerts/scan")
 def scan_alerts(
