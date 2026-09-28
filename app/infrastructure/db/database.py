@@ -7,17 +7,29 @@ DATABASE_URL = "sqlite:///./data/alpha_flow.db"
 # Asegurar que el directorio data exista
 os.makedirs("data", exist_ok=True)
 
-# Crear copia de seguridad automática rodante al iniciar para evitar pérdida de datos
+# Copia de seguridad diaria: una copia fechada por día en data/backups/ (se conservan las últimas BACKUP_KEEP).
+# Antes se sobrescribía un único .bak en cada arranque, así que un fallo se copiaba encima de la copia buena.
+BACKUP_DIR = "./data/backups"
+BACKUP_KEEP = 14
+
 def make_rolling_backup():
     import shutil
+    from datetime import date
     db_path = "./data/alpha_flow.db"
-    backup_path = "./data/alpha_flow.db.bak"
-    if os.path.exists(db_path) and os.path.getsize(db_path) > 10000:
-        try:
-            shutil.copy2(db_path, backup_path)
-            print("Auto-backup: Creada copia de seguridad rodante de la base de datos.")
-        except Exception as e:
-            print("Auto-backup error:", e)
+    if not (os.path.exists(db_path) and os.path.getsize(db_path) > 10000):
+        return
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    today_path = os.path.join(BACKUP_DIR, f"alpha_flow-{date.today():%Y-%m-%d}.db")
+    if os.path.exists(today_path):
+        return
+    try:
+        shutil.copy2(db_path, today_path)
+        print(f"Auto-backup: copia diaria en {today_path}")
+        backups = sorted(f for f in os.listdir(BACKUP_DIR) if f.startswith("alpha_flow-") and f.endswith(".db"))
+        for old in backups[:-BACKUP_KEEP]:
+            os.remove(os.path.join(BACKUP_DIR, old))
+    except Exception as e:
+        print("Auto-backup error:", e)
 
 make_rolling_backup()
 

@@ -9,6 +9,9 @@ qué se busca, qué se lee y cuánto cuesta.
   4. Analista call     tono, guía, evasivas, preocupaciones de analistas, promesas y su cumplimiento    (Pro)
   5. Juez de la tesis  hipótesis, abogado del diablo, kill switches, propuestas de cambio, veredicto    (Pro)
 
+Los pasos 4 y 5 reciben las EXPECTATIVAS PREVIAS (consenso, guía y promesas de la revisión anterior, últimos valores y
+estado de los kill switches) para juzgar los resultados frente a lo que se esperaba, no en el vacío.
+
 El resultado es un INFORME + una PROPUESTA de KPIs: nada se guarda en la tesis hasta que el usuario confirma.
 """
 import json
@@ -178,9 +181,36 @@ def parse_kpis(data: Dict[str, Any], valid_kpi_ids: set) -> List[Dict[str, Any]]
     return items
 
 
+# --- Expectativas previas (lo que se esperaba antes de publicar) ---
+
+def build_expectations(ev: Dict[str, Any], previous_reports: List[Dict[str, Any]],
+                       consensus: Optional[Dict[str, Any]], watchlist: Optional[List[Dict[str, Any]]] = None) -> str:
+    """Contexto «previo a resultados» para que el análisis compare lo publicado con lo esperado."""
+    lines = [f"- En vigilancia ({w.get('type')}): {w.get('title')}" for w in watchlist or []]
+    if consensus and consensus.get("eps_estimate") is not None:
+        lines.append(f"- Consenso de BPA para el trimestre: {consensus['eps_estimate']} (real publicado: {consensus.get('eps_reported')}).")
+    prev = previous_reports[0] if previous_reports else None
+    if prev:
+        for g in (prev.get("call") or {}).get("guidance") or []:
+            lines.append(f"- Guía dada en la revisión anterior ({prev.get('period') or '?'}): {g.get('metric')}"
+                         f"{' (' + g['period'] + ')' if g.get('period') else ''}: {g.get('value')}")
+        for p in (prev.get("call") or {}).get("promises") or []:
+            lines.append(f"- Promesa de la dirección: {p.get('promise')} (plazo: {p.get('deadline') or '-'})")
+        for k in prev.get("kill_switch_watch") or []:
+            lines.append(f"- Vigilancia de kill switch: {k.get('kill_switch')}: {k.get('comment')}")
+    for p in ev["pillars"]:
+        for k in p["kpis"]:
+            last = k["eval"]["last"]
+            if last and last.get("value") is not None:
+                lines.append(f"- Último valor registrado de {k['name']}: {last['value']}{k.get('unit') or ''} ({last['period']}, {last['status']})")
+            if k.get("is_kill_switch") and k["eval"]["kill_state"] in ("watch", "triggered"):
+                lines.append(f"- Kill switch {k['name']} en estado {k['eval']['kill_state']}")
+    return "\n".join(lines) or "(no hay expectativas registradas: primera revisión)"
+
+
 # --- Paso 4: la call ---
 
-def build_call_prompt(thesis, transcript: str, previous_promises: List[Dict[str, Any]]) -> str:
+def build_call_prompt(thesis, transcript: str, previous_promises: List[Dict[str, Any]], expectations: str = "") -> str:
     prev = "\n".join(f"- {p.get('promise')} (plazo: {p.get('deadline') or '-'})" for p in previous_promises) or "(primera revisión: no hay)"
     source = f"TRANSCRIPCIÓN COMPLETA:\n{transcript}" if transcript else \
         "No se ha podido descargar la transcripción: BUSCA la conference call más reciente y trabaja con lo que encuentres."
@@ -191,6 +221,9 @@ def build_call_prompt(thesis, transcript: str, previous_promises: List[Dict[str,
 
 PROMESAS DE LA DIRECCIÓN EN LA CALL ANTERIOR (evalúa si se han cumplido):
 {prev}
+
+LO QUE SE ESPERABA ANTES DE LOS RESULTADOS (compara la guía nueva con la anterior):
+{expectations or "(sin datos)"}
 
 Queremos lo que NO dicen las cifras: sé concreto, cita frases literales cuando sea útil y no te dejes llevar por el tono de la dirección.
 DEVUELVE ÚNICAMENTE UN JSON VÁLIDO:
@@ -207,7 +240,8 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO:
 
 # --- Paso 5: juez de la tesis ---
 
-def build_judge_prompt(thesis, ev, kpi_items, call: Dict[str, Any], consensus: Optional[Dict[str, Any]]) -> str:
+def build_judge_prompt(thesis, ev, kpi_items, call: Dict[str, Any], consensus: Optional[Dict[str, Any]],
+                       expectations: str = "") -> str:
     kpis_by_id = {k["id"]: k for p in ev["pillars"] for k in p["kpis"]}
     kpi_txt = "\n".join(
         f"- {kpis_by_id[i['kpi_id']]['name']}: {i['value'] if i['value'] is not None else 's/d'}"
@@ -238,6 +272,9 @@ KPIs DEL TRIMESTRE (verificados):
 
 RESULTADO VS CONSENSO (BPA, yfinance): {json.dumps(consensus) if consensus else 'no disponible'}
 
+LO QUE SE ESPERABA ANTES DE LOS RESULTADOS (consenso, guía anterior, promesas, últimos valores, kill switches):
+{expectations or "(sin datos)"}
+
 ANÁLISIS DE LA CALL:
 {json.dumps(call, ensure_ascii=False)}
 
@@ -251,6 +288,7 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO:
 {{"headline": "1 frase: qué ha pasado este trimestre para la tesis",
   "results_summary": ["5-8 puntos con las cifras clave, cambios frente al trimestre anterior y la guía"],
   "vs_consensus": "1-2 frases",
+  "vs_expectations": [{{"expectation": "qué se esperaba", "outcome": "supera|cumple|decepciona|sin datos", "detail": "…"}}],
   "steps": [{{"step": 1, "answer": "respuesta breve a la pregunta del paso"}}],
   "master_answers": [{{"question": "…", "answer": "2-3 frases con datos"}}],
   "hypotheses": [{{"id": "H1", "status": "refuerza|neutral|debilita", "reason": "…"}}],
@@ -270,6 +308,7 @@ def normalize_judgement(data: Dict[str, Any]) -> Dict[str, Any]:
         "headline": (data.get("headline") or "").strip(),
         "results_summary": [str(x).strip() for x in _list("results_summary") if str(x).strip()],
         "vs_consensus": (data.get("vs_consensus") or "").strip(),
+        "vs_expectations": [e for e in _list("vs_expectations") if isinstance(e, dict) and e.get("expectation")],
         "steps": [{"step": s.get("step"), "answer": (s.get("answer") or "").strip()} for s in _list("steps") if isinstance(s, dict)],
         "master_answers": [{"question": (m.get("question") or "").strip(), "answer": (m.get("answer") or "").strip()}
                            for m in _list("master_answers") if isinstance(m, dict)],
@@ -305,6 +344,7 @@ def run_review(thesis: Dict[str, Any], previous_reports: List[Dict[str, Any]]) -
     ref_by_kpi = _reference_by_kpi(ev, reference)
     consensus = fetch_last_earnings(thesis["ticker"])
     prev_promises = next(((r.get("call") or {}).get("promises") or [] for r in previous_reports if r.get("call")), [])
+    expectations = build_expectations(ev, previous_reports, consensus, (thesis.get("extra") or {}).get("watchlist"))
 
     client = _client()
     with llm_usage.track_usage(f"{thesis['ticker']}/results-review") as tracker:
@@ -327,11 +367,11 @@ def run_review(thesis: Dict[str, Any], previous_reports: List[Dict[str, Any]]) -
         for it in items:  # el semáforo de los numéricos lo decide la regla de la tesis, no el modelo
             it["status"] = classify(kpis[it["kpi_id"]], it["value"]) or it["status"]
 
-        call_resp = _generate(client, JUDGE_MODEL, build_call_prompt(thesis, tr_text, prev_promises))
+        call_resp = _generate(client, JUDGE_MODEL, build_call_prompt(thesis, tr_text, prev_promises, expectations))
         calls.append(call_resp)
         call_analysis = extract_json(call_resp["text"])
 
-        judge_resp = _generate(client, JUDGE_MODEL, build_judge_prompt(thesis, ev, items, call_analysis, consensus))
+        judge_resp = _generate(client, JUDGE_MODEL, build_judge_prompt(thesis, ev, items, call_analysis, consensus, expectations))
         calls.append(judge_resp)
         judgement = normalize_judgement(extract_json(judge_resp["text"]))
 
@@ -342,6 +382,7 @@ def run_review(thesis: Dict[str, Any], previous_reports: List[Dict[str, Any]]) -
         "period_end": final.get("period_end") or meta.get("period_end"),
         "report_date": final.get("report_date") or meta.get("report_date") or (consensus or {}).get("date"),
         "items": items, "verified": verified, "consensus": consensus, "call": call_analysis, **judgement,
+        "expectations": expectations,
         "docs": {
             "press_release_url": (docs["press_release"] or {}).get("url"),
             "transcript_url": (docs["transcript"] or {}).get("url"),
@@ -401,10 +442,25 @@ def start_review(thesis_id: int) -> Optional[int]:
     return review_id
 
 
-def compute_notices(repo) -> List[Dict[str, Any]]:
-    """Avisos: resultados publicados sin revisar y revisiones listas para mirar."""
+def compute_notices(repo, weights: Optional[Dict[str, float]] = None) -> List[Dict[str, Any]]:
+    """Avisos: resultados publicados sin revisar, revisiones listas para mirar y posiciones relevantes
+    cuya tesis se deteriora (si se pasan los pesos de la cartera)."""
+    from app.application.services.thesis_service import decision_outcome, exposure_risk, unlogged_transactions
     notices = []
     for t in repo.list_theses():
+        risk = exposure_risk(t, evaluate_thesis(t), (weights or {}).get(t["ticker"]))
+        if risk:
+            notices.append({"thesis_id": t["id"], "ticker": t["ticker"], "type": "portfolio_risk", "text": risk})
+        decisions = repo.list_decisions(t["id"])
+        for tx in unlogged_transactions(repo.transactions_for(t["ticker"], t["created_at"][:10]), decisions, t["created_at"][:10]):
+            verb = "compra" if tx["type"] == "BUY" else "venta"
+            notices.append({"thesis_id": t["id"], "ticker": t["ticker"], "type": "decision_missing", "transaction_ref": tx["ref"],
+                            "text": f"Anota el motivo de tu {verb} del {tx['date']} ({tx['shares']:g} acc. a {tx['price']:g})"})
+        for d in decisions:
+            due = decision_outcome(d, None)["review_due"]
+            if due:
+                notices.append({"thesis_id": t["id"], "ticker": t["ticker"], "type": "decision_review",
+                                "text": f"Revisa tu decisión de {d['action']} del {d['date']} ({due // 30} meses después)"})
         reviews = repo.list_reviews(t["id"])
         ready = [r for r in reviews if r["status"] == "ready"]
         for r in ready:

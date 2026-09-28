@@ -1,0 +1,17 @@
+# Secretos
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Base de datos y copias: datos locales, no código (las copias van en data/backups/)
+data/alpha_flow.db
+data/alpha_flow.db.bak
+data/backups/
+data/llm_usage.jsonl
+
+# Versiones anteriores de las tesis que guarda la app (git ya versiona los YAML)
+config/theses/history/

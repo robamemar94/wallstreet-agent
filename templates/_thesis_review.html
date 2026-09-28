@@ -71,6 +71,20 @@
             </div>
         </div>
 
+        {% if rp.vs_expectations %}
+        {% set OUT = {'supera': ('bi-arrow-up-circle-fill', 'st-green'), 'cumple': ('bi-check-circle', 'text-muted'), 'decepciona': ('bi-arrow-down-circle-fill', 'st-red')} %}
+        <div class="card mb-3"><div class="card-header bg-transparent fw-bold"><i class="bi bi-bullseye me-1"></i>Frente a lo esperado</div>
+            <ul class="list-group list-group-flush small">
+            {% for e in rp.vs_expectations %}{% set m = OUT.get(e.outcome, ('bi-question-circle', 'text-muted')) %}
+                <li class="list-group-item"><i class="bi {{ m[0] }} {{ m[1] }} me-1"></i><strong>{{ e.expectation }}</strong>
+                    <span class="{{ m[1] }}">— {{ e.outcome }}</span><div class="text-muted">{{ e.detail }}</div></li>
+            {% endfor %}
+            </ul>
+            {% if rp.expectations %}<details class="small text-muted p-2"><summary>Qué se le pasó a la IA como expectativa previa</summary>
+                <div style="white-space: pre-line;">{{ rp.expectations }}</div></details>{% endif %}
+        </div>
+        {% endif %}
+
         <div class="card mb-3"><div class="card-header bg-transparent fw-bold"><i class="bi bi-list-check me-1"></i>KPIs propuestos</div>
             <div class="table-responsive"><table class="table table-sm mb-0 tbl-kpi">
                 <thead><tr><th>KPI</th><th class="text-end">Valor</th><th>Semáforo</th><th>Confianza</th></tr></thead>
@@ -131,11 +145,19 @@
 
         <div class="card mb-3"><div class="card-header bg-transparent fw-bold"><i class="bi bi-lightbulb me-1"></i>Propuestas de cambio en la tesis</div>
             <div class="card-body small">
+            {% set watched = (thesis.extra.watchlist or [])|map(attribute='title')|list %}
             {% for p in rp.proposals %}
-                <div class="mb-2"><span class="badge bg-light text-dark border">{{ p.type|replace('_', ' ') }}</span> <strong>{{ p.title }}</strong>
-                    <div class="text-muted">{{ p.rationale }}</div></div>
+                <div class="mb-2 d-flex justify-content-between gap-2">
+                    <div><span class="badge bg-light text-dark border">{{ p.type|replace('_', ' ') }}</span> <strong>{{ p.title }}</strong>
+                        <div class="text-muted">{{ p.rationale }}</div></div>
+                    <div class="text-nowrap">
+                    {% if p.title in watched %}<span class="text-muted"><i class="bi bi-check2"></i> en vigilancia</span>
+                    {% elif p.type in ('nuevo_kpi', 'umbral') %}<button class="btn btn-outline-primary btn-sm py-0" onclick="draftChange({{ review.id }}, {{ loop.index0 }}, this)"><i class="bi bi-pencil-square me-1"></i>Preparar cambio</button>
+                    {% else %}<button class="btn btn-outline-primary btn-sm py-0" onclick='watchProposal({{ {"type": p.type, "title": p.title, "rationale": p.rationale}|tojson }})'><i class="bi bi-eye me-1"></i>Vigilar</button>{% endif %}
+                    </div>
+                </div>
             {% else %}<div class="text-muted">Ninguna: el cuadro de mando sigue siendo el adecuado.</div>{% endfor %}
-            {% if rp.proposals %}<div class="text-muted border-top pt-2">Para aplicar una propuesta hay que cambiar la tesis (su YAML). Pídemelo o edítalo y pulsa «Reimportar YAML».</div>{% endif %}
+            {% if rp.proposals %}<div class="text-muted border-top pt-2">«Preparar cambio» modifica el cuadro de mando (con copia de la versión anterior); «Vigilar» lo añade a la lista de riesgos y catalizadores. Todo queda en el timeline.</div>{% endif %}
             </div>
         </div>
 

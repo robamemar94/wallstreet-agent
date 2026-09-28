@@ -10,18 +10,25 @@
             <h4 class="fw-bold mb-1"><i class="bi bi-clipboard2-pulse me-2 text-primary"></i>Seguimiento de tesis</h4>
             <p class="text-muted small mb-0">Cada tesis se mide con sus KPIs. El score solo cuenta los KPIs con dato; la cobertura indica cuántos lo tienen.</p>
         </div>
-        <button class="btn btn-outline-secondary btn-sm" id="btnReimport" title="Relee config/theses/*.yaml sin perder observaciones">
-            <i class="bi bi-arrow-repeat me-1"></i>Reimportar YAML
-        </button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#pdfModal"><i class="bi bi-file-earmark-arrow-up me-1"></i>Nueva tesis desde PDF</button>
+            <button class="btn btn-outline-secondary btn-sm" id="btnReimport" title="Relee config/theses/*.yaml sin perder observaciones">
+                <i class="bi bi-arrow-repeat me-1"></i>Reimportar YAML
+            </button>
+        </div>
     </div>
 
     {% for n in notices %}
-    <a href="/tesis/{{ n.thesis_id }}#resultados" class="alert alert-primary d-flex align-items-center gap-2 py-2 text-decoration-none">
-        <i class="bi {{ 'bi-bell' if n.type == 'new_results' else 'bi-check2-square' }}"></i>
+    <a href="/tesis/{{ n.thesis_id }}{{ '' if n.type == 'portfolio_risk' else '#resultados' }}" class="alert {{ 'alert-danger' if n.type == 'portfolio_risk' else 'alert-primary' }} d-flex align-items-center gap-2 py-2 text-decoration-none">
+        <i class="bi {{ {'new_results': 'bi-bell', 'review_ready': 'bi-check2-square', 'portfolio_risk': 'bi-exclamation-triangle', 'decision_missing': 'bi-journal-plus', 'decision_review': 'bi-journal-check'}.get(n.type, 'bi-bell') }}"></i>
         <span><strong>{{ n.ticker }}</strong>: {{ n.text }}</span>
-        <span class="ms-auto small">{{ 'Analizar →' if n.type == 'new_results' else 'Ver revisión →' }}</span>
+        <span class="ms-auto small">{{ {'new_results': 'Analizar →', 'review_ready': 'Ver revisión →', 'portfolio_risk': 'Revisar tesis →', 'decision_missing': 'Anotar →', 'decision_review': 'Revisar →'}.get(n.type, 'Ver →') }}</span>
     </a>
     {% endfor %}
+    {% if uncovered %}
+    <div class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>Posiciones de más del 5% de tu cartera sin tesis:
+        {% for tk, p in uncovered %}<strong>{{ tk }}</strong> ({{ '%.1f'|format(p.weight) }}%){% if not loop.last %}, {% endif %}{% endfor %}</div>
+    {% endif %}
     {% if unread.unread %}
     <a href="/noticias" class="alert {{ 'alert-danger' if unread.critical else 'alert-primary' }} d-flex align-items-center gap-2 py-2 text-decoration-none">
         <i class="bi bi-broadcast"></i>
@@ -102,6 +109,11 @@
                     {% if c.next_earnings %}Resultados {{ c.next_earnings.strftime('%d/%m/%Y') }} ({{ c.days_to_earnings }} d){% else %}Sin fecha de resultados{% endif %}
                 </span>
             </div>
+            <div class="small mt-1">
+                {% if c.position %}<i class="bi bi-briefcase me-1"></i>En cartera: <strong>{{ '%.1f'|format(c.position.weight) }}%</strong>
+                    <span class="text-muted">· {{ format_euro(c.position.value_eur, 0) }} €{% if c.position.pnl_pct is not none %} · <span class="{{ 'text-success' if c.position.pnl_pct >= 0 else 'text-danger' }}">{{ '%+.1f'|format(c.position.pnl_pct) }}%</span>{% endif %}</span>
+                {% else %}<span class="text-muted"><i class="bi bi-briefcase me-1"></i>No está en cartera</span>{% endif %}
+            </div>
             {% if c.news.digest %}
             {% set critical = c.news.digest['items']|selectattr('materiality', 'ge', 5)|list %}
             <div class="small {{ 'st-amber' if c.news.digest['items'] else 'text-muted' }} mt-1"><i class="bi bi-broadcast me-1"></i>Radar {{ c.news.digest.created_at[:10] }}:
@@ -117,7 +129,64 @@
     </div>
 </div>
 
+<!-- MODAL: NUEVA TESIS DESDE PDF -->
+<div class="modal fade" id="pdfModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Nueva tesis desde PDF</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body small">
+        <p class="text-muted">La IA lee la tesis y propone su cuadro de mando con <strong>solo los KPIs cuantificables</strong> de la propia tesis, sus umbrales y su valoración.
+            Revísalo y edítalo antes de crearla. Tarda 1-2 minutos y cuesta unos céntimos.</p>
+        <div class="row g-2 align-items-end mb-3">
+            <div class="col-md-2"><label class="form-label">Ticker</label><input id="pdfTicker" class="form-control form-control-sm" placeholder="MSFT"></div>
+            <div class="col-md-7"><label class="form-label">PDF de la tesis</label><input id="pdfFile" type="file" accept="application/pdf" class="form-control form-control-sm"></div>
+            <div class="col-md-3"><button class="btn btn-primary btn-sm w-100" id="btnPdfDraft"><i class="bi bi-stars me-1"></i>Preparar cuadro de mando</button></div>
+        </div>
+        <div id="pdfStatus" class="text-muted"></div>
+        <div id="pdfResult" class="d-none">
+            <div id="pdfProblems" class="alert alert-warning d-none"></div>
+            <div id="pdfExists" class="alert alert-info d-none">Ya existe una tesis con este ticker: al crearla se sustituirá (la versión anterior se guarda en config/theses/history/).</div>
+            <label class="form-label">YAML de seguimiento (editable)</label>
+            <textarea id="pdfYaml" rows="22" class="form-control form-control-sm font-monospace" spellcheck="false"></textarea>
+            <details class="mt-2"><summary>Documento de la tesis por apartados (editable)</summary>
+                <textarea id="pdfMd" rows="14" class="form-control form-control-sm font-monospace mt-2" spellcheck="false"></textarea></details>
+        </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-success btn-sm d-none" id="btnPdfConfirm"><i class="bi bi-check2 me-1"></i>Crear tesis</button></div>
+</div></div></div>
+
 <script>
+document.getElementById('btnPdfDraft').addEventListener('click', async (e) => {
+    const btn = e.currentTarget, status = document.getElementById('pdfStatus');
+    const ticker = document.getElementById('pdfTicker').value.trim(), file = document.getElementById('pdfFile').files[0];
+    if (!ticker || !file) { status.textContent = 'Indica el ticker y el PDF.'; return; }
+    const fd = new FormData(); fd.append('ticker', ticker); fd.append('file', file);
+    btn.disabled = true; status.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Leyendo la tesis y preparando el cuadro de mando…';
+    try {
+        const r = await fetch('/api/theses/from-pdf', {method: 'POST', body: fd});
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.statusText);
+        document.getElementById('pdfYaml').value = d.yaml_text;
+        document.getElementById('pdfMd').value = d.md_text;
+        const pb = document.getElementById('pdfProblems');
+        pb.textContent = d.problems ? 'Revisa el YAML: ' + d.problems : ''; pb.classList.toggle('d-none', !d.problems);
+        document.getElementById('pdfExists').classList.toggle('d-none', !d.exists);
+        document.getElementById('pdfResult').classList.remove('d-none');
+        document.getElementById('btnPdfConfirm').classList.remove('d-none');
+        document.getElementById('btnPdfConfirm').dataset.ticker = d.ticker;
+        status.textContent = 'Propuesta lista. Comprueba sobre todo los umbrales y que solo haya KPIs cuantificables.';
+    } catch (err) { status.textContent = 'Error: ' + err.message; }
+    btn.disabled = false;
+});
+document.getElementById('btnPdfConfirm').addEventListener('click', async (e) => {
+    const status = document.getElementById('pdfStatus');
+    try {
+        const r = await fetch('/api/theses/from-pdf/confirm', {method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ticker: e.currentTarget.dataset.ticker, yaml_text: document.getElementById('pdfYaml').value,
+                                  md_text: document.getElementById('pdfMd').value})});
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.statusText);
+        location.href = `/tesis/${d.thesis_id}`;
+    } catch (err) { status.textContent = 'Error: ' + err.message; }
+});
 document.getElementById('btnReimport').addEventListener('click', async (e) => {
     const btn = e.currentTarget; btn.disabled = true;
     try {

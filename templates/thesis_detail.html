@@ -27,10 +27,11 @@
     </div>
 
     {% for n in thesis_notices %}
-    <div class="alert alert-primary small py-2 d-flex align-items-center gap-2">
-        <i class="bi {{ 'bi-bell' if n.type == 'new_results' else 'bi-check2-square' }}"></i><span>{{ n.text }}</span>
+    <div class="alert {{ 'alert-danger' if n.type == 'portfolio_risk' else 'alert-primary' }} small py-2 d-flex align-items-center gap-2">
+        <i class="bi {{ {'new_results': 'bi-bell', 'review_ready': 'bi-check2-square', 'portfolio_risk': 'bi-exclamation-triangle', 'decision_missing': 'bi-journal-plus', 'decision_review': 'bi-journal-check'}.get(n.type, 'bi-bell') }}"></i><span>{{ n.text }}</span>
         {% if n.type == 'new_results' %}<button class="btn btn-primary btn-sm py-0 ms-auto" onclick="startReview()"><i class="bi bi-stars me-1"></i>Analizar con IA</button>
-        {% else %}<a href="#resultados" class="ms-auto" onclick="showReviewTab()">Ver revisión →</a>{% endif %}
+        {% elif n.type == 'review_ready' %}<a href="#resultados" class="ms-auto" onclick="showReviewTab()">Ver revisión →</a>
+        {% elif n.type == 'decision_missing' %}<button class="btn btn-outline-primary btn-sm py-0 ms-auto" onclick='openDecision({{ n.transaction_ref|tojson }})'>Anotar decisión</button>{% endif %}
     </div>
     {% endfor %}
 
@@ -74,6 +75,12 @@
             <div class="small font-monospace-data {{ 'text-success' if price.pct >= 0 else 'text-danger' }}">{{ '%+.2f'|format(price.pct) }}% hoy
                 {% if vs_reference is not none %}<span class="text-muted">· {{ '%+.1f'|format(vs_reference) }}% vs ref. ${{ thesis.reference_price }}</span>{% endif %}</div>
             {% else %}<div class="text-muted">Sin cotización</div>{% endif %}
+            <div class="small mt-1">
+                {% if position %}<i class="bi bi-briefcase me-1"></i>En cartera: <strong>{{ '%.1f'|format(position.weight) }}%</strong>
+                    <span class="text-muted">· {{ position.shares|round(2) }} acc. · {{ format_euro(position.value_eur, 0) }} €{% if position.pnl_pct is not none %} ·
+                    <span class="{{ 'text-success' if position.pnl_pct >= 0 else 'text-danger' }}">{{ '%+.1f'|format(position.pnl_pct) }}%</span>{% endif %}</span>
+                {% else %}<span class="text-muted"><i class="bi bi-briefcase me-1"></i>No está en cartera</span>{% endif %}
+            </div>
             <div class="small text-muted mt-1"><i class="bi bi-calendar-event me-1"></i>
                 {% if next_earnings %}Resultados {{ next_earnings.strftime('%d/%m/%Y') }} ({{ days_to_earnings }} d){% else %}Sin fecha de resultados{% endif %}</div>
         </div></div></div>
@@ -242,6 +249,71 @@
             </table>
             </div>
             {% if scenarios[0].metrics %}<div class="small text-muted p-2">Pasa el ratón por un escenario para ver las métricas que lo confirmarían.</div>{% endif %}
+            {% if live %}
+            <div class="border-top">
+                <div class="px-2 pt-2 small"><strong>Valoración viva</strong>
+                    <span class="text-muted">· FCF/acción TTM ${{ '%.2f'|format(live.fcf_ps) }} · P/FCF {{ live.multiple_now }}x · FCF yield {{ live.fcf_yield }}% · horizonte {{ live.target_year }}</span></div>
+                <div class="table-responsive"><table class="table table-sm mb-0 tbl-kpi">
+                    <thead><tr><th>Escenario</th><th class="text-end">Precio {{ live.target_year }}</th><th class="text-end">CAGR desde hoy</th>
+                        {% for r in live.scenarios[0].entry_prices %}<th class="text-end" title="Precio máximo de compra hoy para obtener un {{ r }}% anual en este escenario">Entrada {{ r }}%</th>{% endfor %}</tr></thead>
+                    <tbody>{% for r in live.scenarios %}<tr>
+                        <td class="fw-semibold">{{ r.name }}</td>
+                        <td class="text-end font-monospace-data">${{ '{:,.0f}'.format(r.price_target) }}</td>
+                        <td class="text-end font-monospace-data fw-bold {{ 'st-green' if r.cagr >= 10 else ('st-red' if r.cagr < 5 else '') }}">{{ '%.1f'|format(r.cagr) }}%</td>
+                        {% for rr, p in r.entry_prices.items() %}<td class="text-end font-monospace-data {{ 'st-green' if price and price.price <= p else 'text-muted' }}">${{ '{:,.0f}'.format(p) }}</td>{% endfor %}
+                    </tr>{% endfor %}</tbody>
+                </table></div>
+                <div class="small text-muted p-2"><strong>DCF inverso:</strong> al precio actual, para ganar
+                    {% for r, g in live.implied_growth.items() %}{{ r }}% anual el FCF/acción debe crecer <strong>{{ '%.1f'|format(g) }}%</strong>{% if not loop.last %} y para {% endif %}{% endfor %}
+                    al año hasta {{ live.target_year }} (múltiplo final {{ live.base_multiple|int }}x del escenario {{ live.base_name }}).
+                    Se recalcula solo con cada trimestre y con el precio del día.</div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- DIARIO DE DECISIONES -->
+        <div class="card mb-3">
+            <div class="card-header bg-transparent d-flex align-items-center">
+                <span class="fw-bold"><i class="bi bi-journal-text me-1"></i>Diario de decisiones</span>
+                <button class="btn btn-outline-primary btn-sm py-0 ms-auto" onclick="openDecision(null)"><i class="bi bi-plus-lg"></i> Decisión</button>
+            </div>
+            {% if decisions %}
+            <ul class="list-group list-group-flush small">
+            {% for d in decisions %}{% set o = d.outcome %}
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between gap-2">
+                        <span><strong class="text-capitalize">{{ d.action }}</strong> · {{ d.date }}{% if d.price %} · a {{ d.price }}{% endif %}{% if d.shares %} · {{ d.shares|round(2) }} acc.{% endif %}</span>
+                        <span class="text-nowrap">
+                            {% if o.price_change is not none %}<span class="{{ 'st-green' if o.good else 'st-red' }}" title="Variación del precio desde la decisión ({{ o.days }} días)">{{ '%+.1f'|format(o.price_change) }}%</span>{% endif %}
+                            <button class="btn btn-link btn-sm p-0 text-muted ms-1" onclick="deleteDecision({{ d.id }})" title="Eliminar"><i class="bi bi-x"></i></button>
+                        </span>
+                    </div>
+                    <div class="text-muted">Tesis {{ d.verdict }}{% if d.health_score is not none %} · score {{ d.health_score }}{% endif %}{% if d.weight is not none %} · peso {{ d.weight }}%{% endif %}</div>
+                    {% if d.reason|length > 160 %}<details class="timeline-body"><summary>{{ d.reason[:140] }}… <span class="text-primary">ver más</span></summary><div style="white-space: pre-line;">{{ d.reason }}</div></details>
+                    {% else %}<div style="white-space: pre-line;">{{ d.reason }}</div>{% endif %}
+                    {% if d.lesson %}<div class="mt-1"><i class="bi bi-lightbulb st-amber me-1"></i><strong>Lección:</strong> {{ d.lesson }}</div>{% endif %}
+                    {% if o.review_due %}<button class="btn btn-sm btn-outline-warning py-0 mt-1" onclick="reviewDecision({{ d.id }})"><i class="bi bi-journal-check me-1"></i>Revisar ({{ o.review_due // 30 }} meses)</button>{% endif %}
+                </li>
+            {% endfor %}
+            </ul>
+            {% else %}<div class="card-body small text-muted">Anota cada compra, venta o «no hago nada» con su motivo. A los 6 y 12 meses te pediremos revisarla: es la mejor forma de detectar sesgos propios.</div>{% endif %}
+        </div>
+
+        {% if thesis.extra.watchlist %}
+        <div class="card mb-3">
+            <div class="card-header bg-transparent fw-bold"><i class="bi bi-eye me-1"></i>En vigilancia</div>
+            <ul class="list-group list-group-flush small">
+            {% for w in thesis.extra.watchlist %}
+                <li class="list-group-item d-flex justify-content-between gap-2">
+                    <div><span class="badge {{ 'text-bg-danger' if w.type == 'riesgo' else 'bg-light text-dark border' }}">{{ w.type }}</span>
+                        <strong>{{ w.title }}</strong> <span class="text-muted">· desde {{ w.added }}</span>
+                        {% if w.rationale %}<div class="text-muted">{{ w.rationale }}</div>{% endif %}</div>
+                    <button class="btn btn-link btn-sm p-0 text-muted" title="Dejar de vigilar" onclick="unwatch({{ loop.index0 }})"><i class="bi bi-x"></i></button>
+                </li>
+            {% endfor %}
+            </ul>
+            <div class="small text-muted p-2">La revisión de resultados y el radar de noticias también los tendrán en cuenta.</div>
         </div>
         {% endif %}
 
@@ -402,6 +474,57 @@
         <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
         <button class="btn btn-primary btn-sm" id="btnSaveObs"><i class="bi bi-save me-1"></i>Guardar</button>
     </div>
+</div></div></div>
+
+<!-- MODAL: CAMBIO EN LA TESIS -->
+<div class="modal fade" id="changeModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="chTitle">Cambio en la tesis</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body small">
+        <p class="text-muted">Revisa y ajusta la propuesta. Al aplicarla se modifica el YAML de la tesis (guardando la versión anterior en <code>config/theses/history/</code>) y se reimporta.</p>
+        <input type="hidden" id="chAction"><input type="hidden" id="chKpiKey">
+        <div class="row g-2">
+            <div class="col-md-6 ch-add"><label class="form-label">Paso del cuadro de mando</label><input id="chStep" class="form-control form-control-sm"></div>
+            <div class="col-md-6 ch-add"><label class="form-label">Pregunta / hipótesis</label><input id="chQuestion" class="form-control form-control-sm"></div>
+            <div class="col-md-6"><label class="form-label">KPI</label><input id="chName" class="form-control form-control-sm"></div>
+            <div class="col-md-2"><label class="form-label">Unidad</label><input id="chUnit" class="form-control form-control-sm"></div>
+            <div class="col-md-4"><label class="form-label">Mejor si</label>
+                <select id="chDirection" class="form-select form-select-sm"><option value="higher">sube</option><option value="lower">baja</option></select></div>
+            <div class="col-md-3"><label class="form-label">Umbral verde</label><input id="chGreen" type="number" step="any" class="form-control form-control-sm"></div>
+            <div class="col-md-3"><label class="form-label">Umbral rojo</label><input id="chRed" type="number" step="any" class="form-control form-control-sm"></div>
+            <div class="col-md-2"><label class="form-label">Texto verde</label><input id="chGreenText" class="form-control form-control-sm"></div>
+            <div class="col-md-2"><label class="form-label">Amarillo</label><input id="chAmberText" class="form-control form-control-sm"></div>
+            <div class="col-md-2"><label class="form-label">Rojo</label><input id="chRedText" class="form-control form-control-sm"></div>
+            <div class="col-12 ch-add"><label class="form-label">Cómo medirlo</label><input id="chHow" class="form-control form-control-sm"></div>
+            <div class="col-12"><label class="form-label">Motivo del cambio (va al timeline)</label><textarea id="chRationale" rows="3" class="form-control form-control-sm"></textarea></div>
+        </div>
+        <div id="chError" class="alert alert-warning mt-2 d-none"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary btn-sm" id="btnApplyChange">Aplicar a la tesis</button></div>
+</div></div></div>
+
+<!-- MODAL: DECISIÓN -->
+<div class="modal fade" id="decisionModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Nueva decisión · {{ thesis.ticker }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body small">
+        {% if recent_transactions %}
+        <label class="form-label">Vincular a una transacción (opcional)</label>
+        <select id="dcTx" class="form-select form-select-sm mb-2" onchange="fillFromTx()">
+            <option value="">—</option>
+            {% for t in recent_transactions %}<option value="{{ t.ref }}" data-date="{{ t.date }}" data-type="{{ t.type }}" data-shares="{{ t.shares }}" data-price="{{ t.price }}">{{ t.date }} · {{ t.type }} {{ t.shares|round(2) }} a {{ t.price }} {{ t.currency }}</option>{% endfor %}
+        </select>
+        {% endif %}
+        <div class="row g-2 mb-2">
+            <div class="col-4"><label class="form-label">Fecha</label><input id="dcDate" type="date" class="form-control form-control-sm" value="{{ today }}"></div>
+            <div class="col-4"><label class="form-label">Acción</label>
+                <select id="dcAction" class="form-select form-select-sm">{% for a in ['comprar', 'aumentar', 'mantener', 'reducir', 'vender'] %}<option>{{ a }}</option>{% endfor %}</select></div>
+            <div class="col-2"><label class="form-label">Precio</label><input id="dcPrice" type="number" step="any" class="form-control form-control-sm" value="{{ '%.2f'|format(price.price) if price else '' }}"></div>
+            <div class="col-2"><label class="form-label">Acciones</label><input id="dcShares" type="number" step="any" class="form-control form-control-sm"></div>
+        </div>
+        <label class="form-label">Motivo: ¿por qué ahora? ¿qué tendría que pasar para equivocarte?</label>
+        <textarea id="dcReason" rows="4" class="form-control form-control-sm"></textarea>
+        <div class="text-muted mt-2">Se guardará con el veredicto ({{ thesis.verdict }}), el health score ({{ ev.health_score }}) y el peso en cartera de hoy.</div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary btn-sm" id="btnSaveDecision">Guardar</button></div>
 </div></div></div>
 
 <!-- MODAL: VEREDICTO -->
@@ -583,6 +706,85 @@ document.getElementById('btnAiLoad')?.addEventListener('click', loadReviewIntoMo
 function openReviewInModal() {
     loadReviewIntoModal();
     bootstrap.Modal.getOrCreateInstance(document.getElementById('obsModal')).show();
+}
+
+async function draftChange(reviewId, index, btn) {
+    btn.disabled = true; const label = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> preparando…';
+    try {
+        const d = await api(`/api/theses/${THESIS_ID}/changes/draft`, 'POST', {review_id: reviewId, index});
+        const c = d.change, k = c.kpi || {}, set = (id, v) => document.getElementById(id).value = v ?? '';
+        set('chAction', c.action); set('chKpiKey', c.kpi_key); set('chStep', c.step_name); set('chQuestion', c.step_question);
+        set('chName', k.name); set('chUnit', k.unit); set('chDirection', k.direction || 'higher');
+        set('chGreen', k.green_threshold); set('chRed', k.red_threshold); set('chGreenText', k.green_text);
+        set('chAmberText', k.amber_text); set('chRedText', k.red_text); set('chHow', k.how_to_measure);
+        set('chRationale', d.rationale);
+        const isAdd = c.action === 'add_kpi';
+        document.querySelectorAll('.ch-add').forEach(el => el.classList.toggle('d-none', !isAdd));
+        document.getElementById('chName').disabled = !isAdd;
+        document.getElementById('chTitle').textContent = isAdd ? `Nuevo KPI: ${d.title}` : `Cambio de umbral: ${d.title}`;
+        document.getElementById('chError').classList.add('d-none');
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('changeModal')).show();
+    } catch (err) { alert(err.message); }
+    btn.disabled = false; btn.innerHTML = label;
+}
+
+document.getElementById('btnApplyChange').addEventListener('click', async () => {
+    const v = id => document.getElementById(id).value.trim();
+    const num = id => v(id) === '' ? null : parseFloat(v(id));
+    const action = v('chAction');
+    const kpi = {name: v('chName'), unit: v('chUnit') || null, direction: v('chDirection'), kind: 'numeric',
+                 green_threshold: num('chGreen'), red_threshold: num('chRed'), green_text: v('chGreenText'),
+                 amber_text: v('chAmberText'), red_text: v('chRedText')};
+    if (action === 'add_kpi') kpi.how_to_measure = v('chHow');
+    if (action === 'change_threshold') delete kpi.name;
+    try {
+        await api(`/api/theses/${THESIS_ID}/changes/apply`, 'POST', {action, kpi_key: v('chKpiKey') || null,
+            step_name: v('chStep'), step_question: v('chQuestion'), kpi, rationale: v('chRationale')});
+        location.reload();
+    } catch (err) { const e = document.getElementById('chError'); e.textContent = err.message; e.classList.remove('d-none'); }
+});
+
+async function watchProposal(p) {
+    try { await api(`/api/theses/${THESIS_ID}/watchlist`, 'POST', p); location.hash = 'resultados'; location.reload(); }
+    catch (err) { alert(err.message); }
+}
+
+async function unwatch(index) {
+    if (!confirm('¿Dejar de vigilar este punto?')) return;
+    try { await api(`/api/theses/${THESIS_ID}/watchlist/${index}`, 'DELETE'); location.reload(); } catch (err) { alert(err.message); }
+}
+
+function openDecision(txRef) {
+    const sel = document.getElementById('dcTx');
+    if (sel) { sel.value = txRef || ''; fillFromTx(); }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('decisionModal')).show();
+}
+function fillFromTx() {
+    const opt = document.getElementById('dcTx')?.selectedOptions[0];
+    if (!opt || !opt.value) return;
+    document.getElementById('dcDate').value = opt.dataset.date;
+    document.getElementById('dcAction').value = opt.dataset.type === 'SELL' ? 'reducir' : 'aumentar';
+    document.getElementById('dcPrice').value = opt.dataset.price;
+    document.getElementById('dcShares').value = opt.dataset.shares;
+}
+document.getElementById('btnSaveDecision').addEventListener('click', async () => {
+    const v = id => document.getElementById(id)?.value.trim() || '';
+    try {
+        await api(`/api/theses/${THESIS_ID}/decisions`, 'POST', {date: v('dcDate'), action: v('dcAction'), reason: v('dcReason'),
+            price: v('dcPrice') ? parseFloat(v('dcPrice')) : null, shares: v('dcShares') ? parseFloat(v('dcShares')) : null,
+            transaction_ref: v('dcTx') || null});
+        location.reload();
+    } catch (err) { alert(err.message); }
+});
+async function reviewDecision(id) {
+    const lesson = prompt('Con lo que sabes hoy, ¿qué aprendes de esta decisión? (¿acertaste por las razones que diste?)');
+    if (!lesson) return;
+    try { await api(`/api/theses/decisions/${id}/review`, 'POST', {lesson}); location.reload(); } catch (err) { alert(err.message); }
+}
+async function deleteDecision(id) {
+    if (!confirm('¿Eliminar esta decisión del diario?')) return;
+    try { await api(`/api/theses/decisions/${id}`, 'DELETE'); location.reload(); } catch (err) { alert(err.message); }
 }
 
 async function setReviewStatus(id, status) {

@@ -1,17 +1,18 @@
 import glob
 import logging
+import os
 from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from app.application.services.thesis_service import (
-    AUTO_METRICS, EVENT_TYPES, STATUSES, VERDICTS, classify, evaluate_thesis, fetch_auto_metrics,
+    AUTO_METRICS, DECISION_ACTIONS, EVENT_TYPES, STATUSES, VERDICTS, classify, evaluate_thesis, fetch_auto_metrics,
     load_thesis_yaml,
 )
-from app.application.services import thesis_ai_service, thesis_news_runner, thesis_review_service
-from app.infrastructure.dependencies import get_thesis_repository
+from app.application.services import thesis_ai_service, thesis_changes_service, thesis_news_runner, thesis_review_service
+from app.infrastructure.dependencies import get_asset_repository, get_portfolio_service, get_thesis_repository
 from app.infrastructure.repositories.sqlalchemy_thesis_repository import SqlAlchemyThesisRepository
 
 logger = logging.getLogger(__name__)
@@ -76,9 +77,12 @@ def list_theses(repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository
 
 
 @router.get("/theses/notices")
-def thesis_notices(repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository)):
-    """Avisos para la barra lateral: resultados sin revisar y revisiones listas."""
-    notices = thesis_review_service.compute_notices(repo)
+def thesis_notices(repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository),
+                   asset_repo=Depends(get_asset_repository), portfolio_service=Depends(get_portfolio_service)):
+    """Avisos para la barra lateral: resultados sin revisar, revisiones listas y posiciones con la tesis deteriorándose."""
+    from app.interfaces.views.thesis_views import portfolio_exposure
+    weights = {tk: p["weight"] for tk, p in portfolio_exposure(portfolio_service, asset_repo)["positions"].items()}
+    notices = thesis_review_service.compute_notices(repo, weights)
     return {"count": len(notices), "notices": notices}
 
 
@@ -279,3 +283,221 @@ def news_to_timeline(news_id: int, repo: SqlAlchemyThesisRepository = Depends(ge
         repo.add_event(n["thesis_id"], n["date"] or date.today().isoformat(), "news", n["title"], body, n["impact"])
         repo.mark_news_in_timeline(news_id)
     return {"status": "success"}
+
+
+# --- Cambios en la tesis a partir de propuestas ---
+
+class ProposalRef(BaseModel):
+    review_id: int
+    index: int
+
+
+class ThesisChange(BaseModel):
+    action: str                       # 'add_kpi' | 'change_threshold'
+    kpi_key: Optional[str] = None
+    step_name: Optional[str] = None
+    step_question: Optional[str] = None
+    kpi: dict
+    rationale: str
+
+
+class WatchItem(BaseModel):
+    type: str                         # 'riesgo' | 'catalizador' | 'otro'
+    title: str
+    rationale: Optional[str] = None
+
+
+def _proposal(repo, thesis_id: int, ref: ProposalRef) -> dict:
+    review = repo.get_review(ref.review_id)
+    if not review or review["thesis_id"] != thesis_id:
+        raise HTTPException(status_code=404, detail="La revisión no existe")
+    proposals = review["report"].get("proposals") or []
+    if not 0 <= ref.index < len(proposals):
+        raise HTTPException(status_code=404, detail="La propuesta no existe")
+    return proposals[ref.index]
+
+
+@router.post("/theses/{thesis_id}/changes/draft")
+def draft_thesis_change(thesis_id: int, ref: ProposalRef, repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository)):
+    """La IA convierte la propuesta en un cambio concreto (umbrales, zonas…) para que el usuario lo revise."""
+    thesis = _get_or_404(repo, thesis_id)
+    proposal = _proposal(repo, thesis_id, ref)
+    try:
+        change = thesis_changes_service.draft_change(thesis, proposal)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"No se pudo preparar el cambio: {e}")
+    return {"change": change, "rationale": proposal.get("rationale") or "", "title": proposal.get("title")}
+
+
+@router.post("/theses/{thesis_id}/changes/apply")
+def apply_thesis_change(thesis_id: int, payload: ThesisChange, repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository)):
+    """Escribe el cambio en el YAML de la tesis (con copia de la versión anterior), reimporta y lo anota en el timeline."""
+    thesis = _get_or_404(repo, thesis_id)
+    spec_path = thesis["extra"].get("spec_path")
+    if not spec_path or not os.path.exists(spec_path):
+        raise HTTPException(status_code=400, detail="No se encuentra el YAML de la tesis; reimpórtala primero")
+    if payload.action not in ("add_kpi", "change_threshold"):
+        raise HTTPException(status_code=400, detail="Acción no válida")
+    keys = {k["key"] for p in thesis["pillars"] for k in p["kpis"]} | {p["key"] for p in thesis["pillars"]}
+    try:
+        backup = thesis_changes_service.apply_to_yaml(spec_path, payload.model_dump(), keys)
+        repo.import_spec(load_thesis_yaml(spec_path))
+    except (ValueError, KeyError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    what = (f"Nuevo KPI: {payload.kpi.get('name')}" if payload.action == "add_kpi"
+            else f"Umbrales de {payload.kpi_key} actualizados")
+    repo.add_event(thesis_id, date.today().isoformat(), "thesis", f"Cambio en la tesis · {what}",
+                   f"Motivo: {payload.rationale}\nVersión anterior guardada en {backup}", "neutral")
+    return {"status": "success", "backup": backup}
+
+
+@router.post("/theses/{thesis_id}/watchlist")
+def add_watch_item(thesis_id: int, payload: WatchItem, repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository)):
+    thesis = _get_or_404(repo, thesis_id)
+    items = list(thesis["extra"].get("watchlist") or [])
+    items.append({"type": payload.type, "title": payload.title.strip(), "rationale": payload.rationale,
+                  "added": date.today().isoformat()})
+    repo.set_extra(thesis_id, "watchlist", items)
+    label = {"riesgo": "Nuevo riesgo", "catalizador": "Nuevo catalizador"}.get(payload.type, "Nuevo punto a vigilar")
+    repo.add_event(thesis_id, date.today().isoformat(), "thesis", f"{label}: {payload.title.strip()}", payload.rationale,
+                   "negative" if payload.type == "riesgo" else "neutral")
+    return {"status": "success"}
+
+
+@router.delete("/theses/{thesis_id}/watchlist/{index}")
+def remove_watch_item(thesis_id: int, index: int, repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository)):
+    thesis = _get_or_404(repo, thesis_id)
+    items = list(thesis["extra"].get("watchlist") or [])
+    if not 0 <= index < len(items):
+        raise HTTPException(status_code=404, detail="El punto no existe")
+    removed = items.pop(index)
+    repo.set_extra(thesis_id, "watchlist", items)
+    repo.add_event(thesis_id, date.today().isoformat(), "thesis", f"Deja de vigilarse: {removed['title']}", None, "neutral")
+    return {"status": "success"}
+
+
+# --- Diario de decisiones ---
+
+class DecisionCreate(BaseModel):
+    date: str
+    action: str
+    reason: str
+    price: Optional[float] = None
+    shares: Optional[float] = None
+    transaction_ref: Optional[str] = None
+
+
+class DecisionReview(BaseModel):
+    lesson: str
+
+
+@router.post("/theses/{thesis_id}/decisions")
+def add_decision(thesis_id: int, payload: DecisionCreate, repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository),
+                 asset_repo=Depends(get_asset_repository), portfolio_service=Depends(get_portfolio_service)):
+    """Anota una decisión con la fotografía de la tesis en ese momento (veredicto, health score y peso en cartera)."""
+    from app.interfaces.views.thesis_views import portfolio_exposure
+    thesis = _get_or_404(repo, thesis_id)
+    if payload.action not in DECISION_ACTIONS:
+        raise HTTPException(status_code=400, detail=f"Acción no válida. Opciones: {', '.join(DECISION_ACTIONS)}")
+    if not payload.reason.strip():
+        raise HTTPException(status_code=400, detail="El motivo es obligatorio: es lo que da valor al diario")
+    position = portfolio_exposure(portfolio_service, asset_repo)["positions"].get(thesis["ticker"])
+    decision = repo.add_decision(thesis_id, {
+        **payload.model_dump(), "reason": payload.reason.strip(), "verdict": thesis["verdict"],
+        "health_score": evaluate_thesis(thesis)["health_score"], "weight": round(position["weight"], 2) if position else None})
+    repo.add_event(thesis_id, payload.date, "decision", f"Decisión: {payload.action}"
+                   + (f" a {payload.price:g}" if payload.price else ""), payload.reason.strip(), "neutral")
+    return {"status": "success", "decision": decision}
+
+
+@router.post("/theses/decisions/{decision_id}/review")
+def review_decision(decision_id: int, payload: DecisionReview, repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository)):
+    if not payload.lesson.strip():
+        raise HTTPException(status_code=400, detail="Escribe qué has aprendido")
+    if not repo.review_decision(decision_id, payload.lesson.strip()):
+        raise HTTPException(status_code=404, detail="La decisión no existe")
+    return {"status": "success"}
+
+
+@router.delete("/theses/decisions/{decision_id}")
+def delete_decision(decision_id: int, repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository)):
+    if not repo.delete_decision(decision_id):
+        raise HTTPException(status_code=404, detail="La decisión no existe")
+    return {"status": "success"}
+
+
+# --- Tesis nueva desde un PDF ---
+
+class NewThesisConfirm(BaseModel):
+    ticker: str
+    yaml_text: str
+    md_text: str
+
+
+def _safe_ticker(ticker: str) -> str:
+    import re
+    t = (ticker or "").strip().upper()
+    if not re.fullmatch(r"[A-Z0-9.\-]{1,15}", t):
+        raise HTTPException(status_code=400, detail="Ticker no válido")
+    return t
+
+
+@router.post("/theses/from-pdf")
+async def thesis_from_pdf(ticker: str = Form(...), file: UploadFile = File(...)):
+    """Guarda el PDF, lo convierte a Markdown por apartados y la IA propone el YAML. No importa nada todavía."""
+    import yaml as _yaml
+    from app.application.services.thesis_pdf import convert, draft_thesis_yaml
+    from app.application.services.thesis_service import validate_spec
+    from starlette.concurrency import run_in_threadpool
+
+    t = _safe_ticker(ticker)
+    if not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Sube un PDF")
+    os.makedirs("data/theses", exist_ok=True)
+    name = os.path.basename(file.filename).replace(" ", "_")
+    pdf_path = os.path.join("data", "theses", name)
+    with open(pdf_path, "wb") as f:
+        f.write(await file.read())
+    try:
+        md_text = await run_in_threadpool(convert, pdf_path)
+        yaml_text = await run_in_threadpool(draft_thesis_yaml, md_text, t, pdf_path, f"config/theses/{t.lower()}.md")
+    except Exception as e:
+        logger.exception("No se pudo preparar la tesis desde PDF")
+        raise HTTPException(status_code=502, detail=f"No se pudo preparar la tesis: {e}")
+    problems = None
+    try:
+        validate_spec(_yaml.safe_load(yaml_text), "Propuesta")
+    except Exception as e:
+        problems = str(e)
+    return {"ticker": t, "yaml_text": yaml_text, "md_text": md_text, "problems": problems,
+            "exists": os.path.exists(f"config/theses/{t.lower()}.yaml")}
+
+
+@router.post("/theses/from-pdf/confirm")
+def confirm_thesis_from_pdf(payload: NewThesisConfirm, repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository)):
+    """Escribe el YAML y el documento revisados por el usuario y los importa (si ya existía, guarda la versión anterior)."""
+    import shutil
+    import yaml as _yaml
+    from datetime import datetime as _dt
+    from app.application.services.thesis_service import validate_spec
+
+    t = _safe_ticker(payload.ticker)
+    try:
+        spec = validate_spec(_yaml.safe_load(payload.yaml_text), "YAML")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"El YAML no es válido: {e}")
+    if str(spec.get("ticker", "")).upper() != t:
+        raise HTTPException(status_code=400, detail=f"El ticker del YAML ({spec.get('ticker')}) no coincide con {t}")
+    yaml_path, md_path = f"config/theses/{t.lower()}.yaml", f"config/theses/{t.lower()}.md"
+    if os.path.exists(yaml_path):
+        os.makedirs(thesis_changes_service.HISTORY_DIR, exist_ok=True)
+        shutil.copy2(yaml_path, os.path.join(thesis_changes_service.HISTORY_DIR, f"{t.lower()}-{_dt.now():%Y%m%d-%H%M%S}.yaml"))
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write(payload.md_text)
+    with open(yaml_path, "w", encoding="utf-8") as f:
+        f.write(payload.yaml_text)
+    try:
+        thesis = repo.import_spec(load_thesis_yaml(yaml_path))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo importar: {e}")
+    return {"status": "success", "thesis_id": thesis["id"]}

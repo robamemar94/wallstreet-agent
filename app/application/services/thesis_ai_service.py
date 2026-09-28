@@ -122,6 +122,9 @@ def build_news_prompt(thesis: Dict[str, Any], ev: Dict[str, Any], found: str = "
                       today: Optional[str] = None) -> str:
     today = today or datetime.now().strftime("%Y-%m-%d")
     steps = "\n".join(f"{n}. {p['name']}: {p.get('description') or ''}" for n, p in enumerate(ev["pillars"], 1))
+    watch = [w for w in (thesis.get("extra") or {}).get("watchlist") or []]
+    if watch:
+        steps += "\nADEMÁS VIGILAMOS: " + "; ".join(f"{w.get('title')} ({w.get('type')})" for w in watch)
     return f"""Hoy es {today}. Clasifica las noticias recogidas abajo sobre {thesis['ticker']} ({thesis['title']}),
 sus competidores y su sector según su impacto en esta tesis de inversión.
 

@@ -9,9 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.application.services import thesis_news_runner, thesis_review_service
 from app.application.services.thesis_ai_service import NEWS_INTERVAL_DAYS, NEWS_MIN_MATERIALITY, news_due
-from app.application.services.thesis_service import evaluate_thesis, implied_cagr, render_document
+from app.application.services.portfolio_service import PortfolioService
+from app.application.services.thesis_service import (
+    compute_exposure, decision_outcome, evaluate_thesis, fetch_ttm_fcf_per_share, implied_cagr, live_valuation,
+    render_document,
+)
 from app.infrastructure.db.database import get_db
-from app.infrastructure.dependencies import get_asset_repository, get_settings_from_db, get_thesis_repository
+from app.infrastructure.dependencies import get_asset_repository, get_portfolio_service, get_settings_from_db, get_thesis_repository
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
 from app.infrastructure.repositories.sqlalchemy_thesis_repository import SqlAlchemyThesisRepository
 from app.infrastructure.templates import templates
@@ -59,6 +63,22 @@ def _next_earnings(ticker: str) -> Optional[datetime.date]:
         logger.warning("No se pudo obtener el calendario de %s: %s", ticker, e)
     _EARNINGS_CACHE[ticker] = (time.time(), result)
     return result
+
+
+def portfolio_exposure(portfolio_service: PortfolioService, asset_repo: SqlAlchemyAssetRepository) -> Dict[str, Any]:
+    """Valor en EUR y peso de cada posición abierta (precios y FX de la caché de la home)."""
+    try:
+        items = [i for i in portfolio_service.get_active_portfolio() if i.shares > 0]
+        ensure_prices_cached([i.ticker for i in items], asset_repo)
+        data = INDEX_CACHE["data"]
+        prices = {i.ticker: data[i.ticker]["price"] for i in items if i.ticker in data}
+        fx = {c: data[f"{c}EUR=X"]["price"] for c in {"GBP" if i.currency_code == "GBp" else i.currency_code for i in items}
+              if f"{c}EUR=X" in data}
+        return compute_exposure([{"ticker": i.ticker, "shares": i.shares, "currency": i.currency_code,
+                                  "cost_eur": i.total_cost_eur} for i in items], prices, fx)
+    except Exception as e:
+        logger.warning("No se pudo calcular la exposición de la cartera: %s", e)
+        return {"positions": {}, "total_eur": 0.0}
 
 
 def _price(ticker: str) -> Optional[Dict[str, float]]:
@@ -113,13 +133,15 @@ def _news_context(thesis: Dict[str, Any]) -> Dict[str, Any]:
     return {"digest": digest, "due": news_due(digest), "next_run": next_run}
 
 
-def _reviews_context(repo: SqlAlchemyThesisRepository, thesis: Dict[str, Any], selected_id: Optional[int]) -> Dict[str, Any]:
+def _reviews_context(repo: SqlAlchemyThesisRepository, thesis: Dict[str, Any], selected_id: Optional[int],
+                     exposure: Dict[str, Any]) -> Dict[str, Any]:
     reviews = repo.list_reviews(thesis["id"])
     done = [r for r in reviews if r["status"] in ("ready", "applied", "discarded") and r["report"]]
     selected = next((r for r in reviews if r["id"] == selected_id), None) if selected_id else \
         next((r for r in reviews if r["status"] in ("running", "ready", "error", "applied")), None)
     kpis = {k["id"]: k for p in thesis["pillars"] for k in p["kpis"]}
-    notices = [n for n in thesis_review_service.compute_notices(repo) if n["thesis_id"] == thesis["id"]]
+    weights = {tk: p["weight"] for tk, p in exposure["positions"].items()}
+    notices = [n for n in thesis_review_service.compute_notices(repo, weights) if n["thesis_id"] == thesis["id"]]
     return {
         "reviews": reviews,
         "review": selected,
@@ -128,6 +150,10 @@ def _reviews_context(repo: SqlAlchemyThesisRepository, thesis: Dict[str, Any], s
         "kpi_names": {i: k["name"] for i, k in kpis.items()},
         "kpi_units": {i: k.get("unit") or "" for i, k in kpis.items()},
         "thesis_notices": notices,
+        "position": exposure["positions"].get(thesis["ticker"]),
+        "decisions": [{**d, "outcome": decision_outcome(d, (_price(thesis["ticker"]) or {}).get("price"))}
+                      for d in repo.list_decisions(thesis["id"])],
+        "recent_transactions": repo.transactions_for(thesis["ticker"])[:10],
     }
 
 
@@ -136,17 +162,24 @@ def theses_page(
     request: Request,
     repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository),
     asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
     db_session: Session = Depends(get_db),
 ):
     theses = repo.list_theses()
     thesis_news_runner.trigger_due_news()
     ensure_prices_cached([t["ticker"] for t in theses], asset_repo)
-    cards = [_card(t) for t in theses]
+    exposure = portfolio_exposure(portfolio_service, asset_repo)
+    positions = exposure["positions"]
+    cards = [{**_card(t), "position": positions.get(t["ticker"])} for t in theses]
+    with_thesis = {t["ticker"] for t in theses}
+    uncovered = sorted(([tk, p] for tk, p in positions.items() if tk not in with_thesis and p["weight"] >= 5),
+                       key=lambda x: -x[1]["weight"])
     return templates.TemplateResponse("theses.html", {
         "request": request,
         "cards": cards,
+        "uncovered": uncovered,
         "unread": repo.unread_news_count(),
-        "notices": thesis_review_service.compute_notices(repo),
+        "notices": thesis_review_service.compute_notices(repo, {tk: p["weight"] for tk, p in positions.items()}),
         "radar_running": thesis_news_runner.is_running(),
         "settings": get_settings_from_db(db_session),
     })
@@ -159,6 +192,7 @@ def thesis_detail_page(
     review: Optional[int] = None,
     repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository),
     asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
     db_session: Session = Depends(get_db),
 ):
     thesis = repo.get_thesis(thesis_id)
@@ -179,12 +213,13 @@ def thesis_detail_page(
         **card,
         "valuation": valuation,
         "scenarios": scenarios,
+        "live": live_valuation(valuation, fetch_ttm_fcf_per_share(thesis["ticker"]), current),
         "grid": _periods_grid(card["ev"]),
         "document": render_document(thesis["extra"].get("document_md")),
         "news": _news_context(thesis),
         "news_items": repo.list_news(thesis_id=thesis_id, limit=15),
         "radar_running": thesis_news_runner.is_running(),
-        **_reviews_context(repo, thesis, review),
+        **_reviews_context(repo, thesis, review, portfolio_exposure(portfolio_service, asset_repo)),
         "today": datetime.date.today().isoformat(),
         "settings": get_settings_from_db(db_session),
     })

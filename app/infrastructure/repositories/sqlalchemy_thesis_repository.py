@@ -2,14 +2,14 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 
 from app.domain.repositories.thesis_repository import ThesisRepositoryInterface
-from app.infrastructure.db.models import DBThesis, DBThesisPillar, DBThesisKPI, DBKPIObservation, DBThesisEvent, DBThesisNews, DBThesisReview
+from app.infrastructure.db.models import DBThesis, DBThesisPillar, DBThesisKPI, DBKPIObservation, DBThesisEvent, DBThesisNews, DBThesisReview, DBThesisDecision, DBTransaction
 from app.application.services.thesis_service import classify, now_iso
 
 KPI_FIELDS = ["name", "how_to_measure", "baseline", "kind", "unit", "direction", "green_threshold",
               "red_threshold", "green_text", "amber_text", "red_text", "frequency", "source",
               "auto_metric", "weight", "is_kill_switch", "kill_rule"]
 # Datos generados en la app (IA) que no vienen del YAML y deben sobrevivir a una reimportación
-RUNTIME_EXTRA_KEYS = ("ai_review", "news_digest")
+RUNTIME_EXTRA_KEYS = ("ai_review", "news_digest", "watchlist")
 THESIS_FIELDS = ["title", "summary", "status", "verdict", "version", "reference_price",
                  "reference_date", "source_document"]
 
@@ -79,7 +79,7 @@ class SqlAlchemyThesisRepository(ThesisRepositoryInterface):
                 setattr(thesis, f, spec[f])
         runtime = {k: v for k, v in (thesis.extra or {}).items() if k in RUNTIME_EXTRA_KEYS}
         thesis.extra = {**{k: spec[k] for k in ("ratings", "rules", "valuation", "hypothesis", "hypotheses",
-                                                "master_questions", "final_question", "document", "document_md") if k in spec}, **runtime}
+                                                "master_questions", "final_question", "document", "document_md", "spec_path") if k in spec}, **runtime}
         thesis.updated_at = ts
         self.db.flush()
 
@@ -306,3 +306,44 @@ class SqlAlchemyThesisRepository(ThesisRepositoryInterface):
         r.status = status
         self.db.commit()
         return True
+
+    # --- Diario de decisiones ---
+
+    @staticmethod
+    def _decision_dict(d: DBThesisDecision) -> Dict[str, Any]:
+        return {c: getattr(d, c) for c in ("id", "thesis_id", "date", "action", "price", "shares", "reason", "verdict",
+                                           "health_score", "weight", "transaction_ref", "lesson", "reviewed_at", "created_at")}
+
+    def add_decision(self, thesis_id: int, fields: Dict[str, Any]) -> Dict[str, Any]:
+        d = DBThesisDecision(thesis_id=thesis_id, created_at=now_iso(), **fields)
+        self.db.add(d)
+        self.db.commit()
+        return self._decision_dict(d)
+
+    def list_decisions(self, thesis_id: int) -> List[Dict[str, Any]]:
+        rows = self.db.query(DBThesisDecision).filter(DBThesisDecision.thesis_id == thesis_id)
+        return [self._decision_dict(d) for d in rows.order_by(DBThesisDecision.date.desc(), DBThesisDecision.id.desc())]
+
+    def review_decision(self, decision_id: int, lesson: str) -> bool:
+        d = self.db.get(DBThesisDecision, decision_id)
+        if not d:
+            return False
+        d.lesson, d.reviewed_at = lesson, now_iso()
+        self.db.commit()
+        return True
+
+    def delete_decision(self, decision_id: int) -> bool:
+        d = self.db.get(DBThesisDecision, decision_id)
+        if not d:
+            return False
+        self.db.delete(d)
+        self.db.commit()
+        return True
+
+    def transactions_for(self, ticker: str, since: Optional[str] = None) -> List[Dict[str, Any]]:
+        q = self.db.query(DBTransaction).filter(DBTransaction.ticker == ticker)
+        if since:
+            q = q.filter(DBTransaction.date >= since)
+        return [{"date": t.date, "type": getattr(t.type, "value", str(t.type)), "shares": t.shares, "price": t.price,
+                 "currency": t.currency, "ref": f"{t.date}|{getattr(t.type, 'value', t.type)}|{t.shares:g}|{t.price:g}"}
+                for t in q.order_by(DBTransaction.date.desc())]

@@ -299,3 +299,103 @@ def test_stale_running_reviews_fail_on_startup(repo):
     assert repo.fail_stale_reviews() == 1
     assert repo.get_review(rid)["status"] == "error"
     assert repo.fail_stale_reviews() == 0
+
+
+def test_expectations_include_consensus_guidance_promises_and_last_values():
+    from app.application.services.thesis_review_service import build_expectations
+    ev = evaluate_thesis(_thesis([(1, [{"id": 1, "name": "Gross margin", "unit": "%", "observations": _obs("green")}])]))
+    ev["pillars"][0]["kpis"][0]["observations"][0]["value"] = 75.0
+    ev = evaluate_thesis({"pillars": [{**ev["pillars"][0], "kpis": [dict(ev["pillars"][0]["kpis"][0])]}]})
+    prev = [{"period": "Q2 FY27", "call": {"guidance": [{"metric": "Revenue", "period": "Q3 FY27", "value": "$108B ±2%"}],
+                                             "promises": [{"promise": "Rubin 20% del DC", "deadline": "Q3 FY27"}]}}]
+    txt = build_expectations(ev, prev, {"eps_estimate": 2.47, "eps_reported": 2.6})
+    assert "Consenso de BPA para el trimestre: 2.47" in txt
+    assert "Revenue (Q3 FY27): $108B ±2%" in txt and "Rubin 20% del DC" in txt
+    assert "Gross margin: 75.0%" in txt
+    assert "primera revisión" in build_expectations({"pillars": []}, [], None)
+
+
+def test_live_valuation_scenarios_and_reverse_dcf():
+    from app.application.services.thesis_service import live_valuation
+    val = {"scenarios": [{"name": "Base", "fcf_ps_cagr": 10, "multiple": "20x"}]}
+    v = live_valuation(val, fcf_ps=5.0, price=100.0, today=datetime.datetime(2026, 1, 1))
+    sc = v["scenarios"][0]
+    assert v["years"] == 10 and v["target_year"] == 2036
+    assert sc["price_target"] == pytest.approx(5 * 1.1 ** 10 * 20, rel=1e-4)            # ≈259,37
+    assert sc["cagr"] == pytest.approx(100 * ((sc["price_target"] / 100) ** 0.1 - 1), abs=0.01)
+    assert sc["entry_prices"][10] == pytest.approx(sc["price_target"] / 1.1 ** 10, rel=1e-4)
+    # DCF inverso: crecimiento que iguala precio*(1+r)^n = fcf*(1+g)^n*m
+    g = v["implied_growth"][10] / 100
+    assert 5 * (1 + g) ** 10 * 20 == pytest.approx(100 * 1.1 ** 10, rel=1e-3)
+    assert live_valuation(val, None, 100) is None
+
+
+
+# --- Cambios en la tesis desde la app ---
+
+def test_add_kpi_and_change_threshold_in_yaml(tmp_path):
+    from app.application.services.thesis_changes_service import add_kpi_to_yaml, change_threshold_in_yaml
+    text = open("config/theses/nvda.yaml", encoding="utf-8").read()
+    new_text = add_kpi_to_yaml(text, {"step_name": "Vendor financing", "step_question": "¿Crece la exposición?",
+                                      "kpi": {"name": "Garantías / revenue", "unit": "%", "direction": "lower",
+                                              "green_threshold": 5, "red_threshold": 15, "green_text": "<5%"}}, {"dc_yoy"})
+    new_text = change_threshold_in_yaml(new_text, "gross_margin", {"green_threshold": 70, "green_text": "≥70%, «nuevo»"})
+    path = tmp_path / "t.yaml"
+    path.write_text(new_text, encoding="utf-8")
+    spec = load_thesis_yaml(str(path).replace("t.yaml", "t.yaml"))
+    kpis = {k["key"]: k for p in spec["pillars"] for k in p["kpis"]}
+    assert kpis["garantias_revenue"]["direction"] == "lower" and kpis["garantias_revenue"]["red_threshold"] == 15
+    assert spec["pillars"][-1]["name"] == "Vendor financing"
+    assert kpis["gross_margin"]["green_threshold"] == 70 and kpis["gross_margin"]["green_text"] == "≥70%, «nuevo»"
+    assert kpis["gross_margin"]["red_threshold"] == 65                      # lo no tocado se conserva
+    with pytest.raises(ValueError):
+        change_threshold_in_yaml(text, "no_existe", {"green_threshold": 1})
+
+
+def test_compute_exposure_and_risk_notice():
+    from app.application.services.thesis_service import compute_exposure, exposure_risk
+    exp = compute_exposure([{"ticker": "NVDA", "shares": 30, "currency": "USD", "cost_eur": 5000},
+                            {"ticker": "BARC.L", "shares": 1000, "currency": "GBp", "cost_eur": 2000},
+                            {"ticker": "XX", "shares": 5, "currency": "JPY"}],
+                           {"NVDA": 225.0, "BARC.L": 300.0, "XX": 10.0}, {"USD": 0.9, "GBP": 1.2})
+    nv, barc = exp["positions"]["NVDA"], exp["positions"]["BARC.L"]
+    assert nv["value_eur"] == pytest.approx(30 * 225 * 0.9) and barc["value_eur"] == pytest.approx(10 * 300 * 1.2)
+    assert "XX" not in exp["positions"]                                   # sin FX: no se inventa
+    assert nv["weight"] + barc["weight"] == pytest.approx(100)
+    ok = {"verdict": "INTACTA"}
+    assert exposure_risk(ok, {"kill_triggered": [], "health_status": "green"}, 60) is None
+    assert exposure_risk({"verdict": "DEBILITADA"}, {"kill_triggered": []}, 3) is None      # posición pequeña
+    assert "tesis DEBILITADA" in exposure_risk({"verdict": "DEBILITADA"}, {"kill_triggered": []}, 12)
+
+
+def test_decision_outcome_and_review_schedule():
+    from app.application.services.thesis_service import decision_outcome
+    buy = {"date": "2026-01-01", "action": "comprar", "price": 100.0}
+    o = decision_outcome(buy, 120.0, today=datetime.date(2026, 7, 5))
+    assert o["days"] == 185 and o["price_change"] == 20.0 and o["good"] is True and o["review_due"] == 180
+    sell = {"date": "2026-01-01", "action": "vender", "price": 100.0}
+    assert decision_outcome(sell, 120.0, today=datetime.date(2026, 2, 1))["good"] is False   # vendió y siguió subiendo
+    reviewed = {**buy, "reviewed_at": "2026-07-06T10:00:00"}
+    assert decision_outcome(reviewed, None, today=datetime.date(2026, 9, 1))["review_due"] is None
+    assert decision_outcome(reviewed, None, today=datetime.date(2027, 1, 2))["review_due"] == 365
+
+
+def test_unlogged_transactions_since_thesis(repo):
+    from app.application.services.thesis_service import unlogged_transactions
+    txs = [{"date": "2026-10-02", "type": "BUY", "shares": 3, "price": 190, "ref": "2026-10-02|BUY|3|190"},
+           {"date": "2026-10-05", "type": "DIVIDEND", "shares": 0, "price": 1, "ref": "d"},
+           {"date": "2026-07-01", "type": "BUY", "shares": 1, "price": 180, "ref": "old"}]
+    assert [t["ref"] for t in unlogged_transactions(txs, [], "2026-09-28")] == ["2026-10-02|BUY|3|190"]
+    assert unlogged_transactions(txs, [{"transaction_ref": "2026-10-02|BUY|3|190"}], "2026-09-28") == []
+
+
+def test_validate_spec_and_strip_fences():
+    from app.application.services.thesis_service import validate_spec
+    from app.application.services.thesis_pdf import _strip_fences
+    assert _strip_fences("Aquí va:\n```yaml\nticker: X\n```\nfin") == "ticker: X\n"
+    ok = {"ticker": "X", "title": "t", "pillars": [{"key": "a", "name": "A", "kpis": [{"key": "k", "name": "K", "green_threshold": 1}]}]}
+    assert validate_spec(ok)["ticker"] == "X"
+    with pytest.raises(ValueError):
+        validate_spec({**ok, "pillars": [{"key": "a", "name": "A", "kpis": [{"key": "k", "name": "K"}]}]})
+    with pytest.raises(ValueError):
+        validate_spec("no es un dict")

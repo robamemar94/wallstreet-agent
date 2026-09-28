@@ -10,7 +10,7 @@ Reglas (tomadas de las propias tesis):
 """
 import math
 import os
-from datetime import datetime
+from datetime import date as date_cls, datetime
 from typing import Any, Dict, List, Optional
 
 import yaml
@@ -177,6 +177,153 @@ def implied_cagr(current_price: Optional[float], target_price: Optional[float], 
     return (target_price / current_price) ** (1 / years) - 1
 
 
+# --- Valoración viva (se recalcula con el FCF/acción TTM y el precio del día) ---
+
+REQUIRED_RETURNS = (10, 15)   # rentabilidades anuales para el DCF inverso y el precio de entrada
+DEFAULT_HORIZON_YEARS = 10
+
+
+def _multiple(value) -> Optional[float]:
+    try:
+        return float(str(value).lower().replace("x", "").replace(",", ".").strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def live_valuation(valuation: Dict[str, Any], fcf_ps: Optional[float], price: Optional[float],
+                   today: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
+    """Recalcula los escenarios de la tesis (FCF/share CAGR + múltiplo terminal) con datos actuales.
+    Devuelve por escenario el precio al final del horizonte y el CAGR implícito desde hoy, más el DCF inverso."""
+    if not valuation or not fcf_ps or fcf_ps <= 0 or not price or price <= 0:
+        return None
+    today = today or datetime.now()
+    now_year = today.year + (today.timetuple().tm_yday - 1) / 365.0
+    if valuation.get("target_year"):
+        target_year = valuation["target_year"]
+        years = target_year - now_year
+    else:  # la tesis no fija año: horizonte de DEFAULT_HORIZON_YEARS desde hoy
+        years = float(DEFAULT_HORIZON_YEARS)
+        target_year = int(round(now_year + years))
+    if years <= 0:
+        return None
+    rows = []
+    for sc in valuation.get("scenarios", []):
+        g, m = sc.get("fcf_ps_cagr"), _multiple(sc.get("multiple"))
+        if g is None or not m:
+            continue
+        future_price = fcf_ps * (1 + g / 100) ** years * m
+        rows.append({"name": sc.get("name"), "fcf_ps_cagr": g, "multiple": m, "price_target": round(future_price, 2),
+                     "cagr": round(100 * ((future_price / price) ** (1 / years) - 1), 2),
+                     "entry_prices": {r: round(future_price / (1 + r / 100) ** years, 2) for r in REQUIRED_RETURNS}})
+    if not rows:
+        return None
+    base = next((r for r in rows if str(r["name"]).lower() == "base"), rows[len(rows) // 2])
+    implied = {r: round(100 * ((price * (1 + r / 100) ** years / (fcf_ps * base["multiple"])) ** (1 / years) - 1), 2)
+               for r in REQUIRED_RETURNS}
+    return {"fcf_ps": round(fcf_ps, 4), "price": price, "target_year": target_year, "years": round(years, 2),
+            "fcf_yield": round(100 * fcf_ps / price, 2), "multiple_now": round(price / fcf_ps, 1),
+            "scenarios": rows, "base_name": base["name"], "base_multiple": base["multiple"], "implied_growth": implied}
+
+
+def ttm_fcf_per_share(quarterly_cashflow, quarterly_income) -> Optional[float]:
+    fcfs = [_row(quarterly_cashflow, "Free Cash Flow", i) for i in range(4)]
+    shares = _row(quarterly_income, "Diluted Average Shares", 0)
+    if any(f is None for f in fcfs) or not shares:
+        return None
+    return sum(fcfs) / shares
+
+
+_TTM_CACHE: Dict[str, Any] = {}
+
+
+def fetch_ttm_fcf_per_share(ticker: str) -> Optional[float]:
+    import time
+    cached = _TTM_CACHE.get(ticker)
+    if cached and time.time() - cached[0] < 12 * 3600:
+        return cached[1]
+    value = None
+    try:
+        import yfinance as yf
+        stock = yf.Ticker(ticker)
+        value = ttm_fcf_per_share(stock.quarterly_cashflow, stock.quarterly_income_stmt)
+    except Exception:
+        pass
+    _TTM_CACHE[ticker] = (time.time(), value)
+    return value
+
+
+# --- Exposición en cartera ---
+
+WEIGHT_ALERT_PCT = 5.0   # a partir de este peso, una tesis que se deteriora genera aviso
+
+
+def compute_exposure(positions: List[Dict[str, Any]], prices: Dict[str, float], fx_to_eur: Dict[str, float]) -> Dict[str, Any]:
+    """positions: [{ticker, shares, average_price, currency, cost_eur}] -> valor en EUR, peso y P&L por ticker."""
+    rows, total = {}, 0.0
+    for p in positions:
+        price = prices.get(p["ticker"])
+        cur = p.get("currency") or "USD"
+        if price is None or not p.get("shares"):
+            continue
+        if cur == "GBp":            # cotiza en peniques
+            price, cur = price / 100, "GBP"
+        fx = 1.0 if cur == "EUR" else fx_to_eur.get(cur)
+        if fx is None:
+            continue
+        value = p["shares"] * price * fx
+        total += value
+        cost = p.get("cost_eur") or 0.0
+        rows[p["ticker"]] = {"shares": p["shares"], "value_eur": value, "cost_eur": cost,
+                             "pnl_pct": (100 * (value / cost - 1)) if cost else None}
+    for r in rows.values():
+        r["weight"] = 100 * r["value_eur"] / total if total else 0.0
+    return {"positions": rows, "total_eur": total}
+
+
+def exposure_risk(thesis: Dict[str, Any], ev: Dict[str, Any], weight: Optional[float]) -> Optional[str]:
+    """Motivo del aviso si una posición relevante tiene la tesis deteriorándose; None si no hay aviso."""
+    if weight is None or weight < WEIGHT_ALERT_PCT:
+        return None
+    reasons = []
+    if thesis.get("verdict") in ("DEBILITADA", "ROTA"):
+        reasons.append(f"tesis {thesis['verdict']}")
+    if ev.get("kill_triggered"):
+        reasons.append("kill switch disparado: " + ", ".join(k["name"] for k in ev["kill_triggered"]))
+    if ev.get("health_status") == "red":
+        reasons.append(f"health score {ev.get('health_score')}")
+    if not reasons:
+        return None
+    return f"Pesa el {weight:.1f}% de tu cartera y " + "; ".join(reasons)
+
+
+# --- Diario de decisiones ---
+
+DECISION_ACTIONS = ("comprar", "aumentar", "mantener", "reducir", "vender")
+DECISION_REVIEW_DAYS = (180, 365)
+
+
+def decision_outcome(decision: Dict[str, Any], current_price: Optional[float], today: Optional[date_cls] = None) -> Dict[str, Any]:
+    """Qué ha pasado desde la decisión: días, variación del precio y si toca revisarla (6 y 12 meses)."""
+    today = today or date_cls.today()
+    days = (today - date_cls.fromisoformat(decision["date"][:10])).days
+    change = None
+    if current_price and decision.get("price"):
+        change = 100 * (current_price / decision["price"] - 1)
+    # para una venta o reducción, que el precio caiga después es acertar
+    good = None if change is None else (change >= 0 if decision["action"] in ("comprar", "aumentar", "mantener") else change <= 0)
+    reviewed_days = None
+    if decision.get("reviewed_at"):
+        reviewed_days = (date_cls.fromisoformat(decision["reviewed_at"][:10]) - date_cls.fromisoformat(decision["date"][:10])).days
+    due = next((m for m in DECISION_REVIEW_DAYS if days >= m and (reviewed_days is None or reviewed_days < m)), None)
+    return {"days": days, "price_change": round(change, 1) if change is not None else None, "good": good, "review_due": due}
+
+
+def unlogged_transactions(transactions: List[Dict[str, Any]], decisions: List[Dict[str, Any]], since: str) -> List[Dict[str, Any]]:
+    """Compras/ventas posteriores a la creación de la tesis que no tienen una decisión anotada."""
+    linked = {d.get("transaction_ref") for d in decisions if d.get("transaction_ref")}
+    return [t for t in transactions if t["date"] >= since and t["ref"] not in linked and t["type"] in ("BUY", "SELL")]
+
+
 # --- Métricas automáticas (yfinance) ---
 
 def _row(df, name, idx) -> Optional[float]:
@@ -291,23 +438,36 @@ def fetch_auto_metrics(ticker: str, needed: Optional[set] = None) -> Dict[str, A
 
 # --- Importación desde YAML ---
 
+def validate_spec(spec: Dict[str, Any], origin: str = "YAML") -> Dict[str, Any]:
+    if not isinstance(spec, dict):
+        raise ValueError(f"{origin}: no es un documento YAML de tesis")
+    for field in ("ticker", "title", "pillars"):
+        if field not in spec:
+            raise ValueError(f"{origin}: falta el campo obligatorio '{field}'")
+    for pillar in spec["pillars"]:
+        for field in ("key", "name"):
+            if field not in pillar:
+                raise ValueError(f"{origin}: un paso no tiene '{field}'")
+        for kpi in pillar.get("kpis", []):
+            if "key" not in kpi or "name" not in kpi:
+                raise ValueError(f"{origin}: un KPI no tiene 'key' o 'name'")
+            if kpi.get("kind", "numeric") == "numeric" and kpi.get("green_threshold") is None:
+                raise ValueError(f"{origin}: KPI numérico '{kpi.get('key')}' sin green_threshold")
+            if kpi.get("auto_metric") and kpi["auto_metric"] not in AUTO_METRICS:
+                raise ValueError(f"{origin}: auto_metric desconocida '{kpi['auto_metric']}'")
+    return spec
+
+
 def load_thesis_yaml(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         spec = yaml.safe_load(f)
-    for field in ("ticker", "title", "pillars"):
-        if field not in spec:
-            raise ValueError(f"{path}: falta el campo obligatorio '{field}'")
+    validate_spec(spec, path)
+    spec["spec_path"] = path[:-4] + ".yaml" if path.endswith(".yaml.tmp") else path
     if spec.get("document"):
         if not os.path.exists(spec["document"]):
             raise ValueError(f"{path}: no existe el documento '{spec['document']}'")
         with open(spec["document"], "r", encoding="utf-8") as f:
             spec["document_md"] = f.read()
-    for pillar in spec["pillars"]:
-        for kpi in pillar.get("kpis", []):
-            if kpi.get("kind", "numeric") == "numeric" and kpi.get("green_threshold") is None:
-                raise ValueError(f"{path}: KPI numérico '{kpi.get('key')}' sin green_threshold")
-            if kpi.get("auto_metric") and kpi["auto_metric"] not in AUTO_METRICS:
-                raise ValueError(f"{path}: auto_metric desconocida '{kpi['auto_metric']}'")
     return spec
 
 

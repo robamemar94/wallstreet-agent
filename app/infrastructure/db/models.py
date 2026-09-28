@@ -240,3 +240,24 @@ class DBThesisReview(Base):
     finished_at = Column(String, nullable=True)
 
     thesis = relationship("DBThesis")
+
+class DBThesisDecision(Base):
+    __tablename__ = "thesis_decisions"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    thesis_id = Column(Integer, ForeignKey("theses.id", ondelete="CASCADE"), nullable=False, index=True)
+    date = Column(String, nullable=False)
+    action = Column(String, nullable=False)          # 'comprar', 'aumentar', 'mantener', 'reducir', 'vender'
+    price = Column(Float, nullable=True)
+    shares = Column(Float, nullable=True)
+    reason = Column(String, nullable=False)
+    # fotografía de la tesis en el momento de decidir
+    verdict = Column(String, nullable=True)
+    health_score = Column(Integer, nullable=True)
+    weight = Column(Float, nullable=True)
+    transaction_ref = Column(String, nullable=True)  # 'fecha|tipo|acciones|precio' de la transacción vinculada
+    lesson = Column(String, nullable=True)           # lo aprendido al revisarla a 6/12 meses
+    reviewed_at = Column(String, nullable=True)
+    created_at = Column(String, nullable=False)
+
+    thesis = relationship("DBThesis")
