@@ -444,22 +444,29 @@ def _safe_ticker(ticker: str) -> str:
 
 @router.post("/theses/from-pdf")
 async def thesis_from_pdf(ticker: str = Form(...), file: UploadFile = File(...)):
-    """Guarda el PDF, lo convierte a Markdown por apartados y la IA propone el YAML. No importa nada todavía."""
+    """Guarda la tesis (PDF o Markdown), la deja en Markdown por apartados y la IA propone el YAML. No importa nada todavía."""
     import yaml as _yaml
     from app.application.services.thesis_pdf import convert, draft_thesis_yaml
     from app.application.services.thesis_service import validate_spec
     from starlette.concurrency import run_in_threadpool
 
+    from app.application.services.thesis_md import normalize_pandoc_markdown
+
     t = _safe_ticker(ticker)
-    if not (file.filename or "").lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Sube un PDF")
+    fname = (file.filename or "").lower()
+    if not fname.endswith((".pdf", ".md")):
+        raise HTTPException(status_code=400, detail="Sube un PDF o un Markdown (.md)")
     os.makedirs("data/theses", exist_ok=True)
     name = os.path.basename(file.filename).replace(" ", "_")
     pdf_path = os.path.join("data", "theses", name)
+    content = await file.read()
     with open(pdf_path, "wb") as f:
-        f.write(await file.read())
+        f.write(content)
     try:
-        md_text = await run_in_threadpool(convert, pdf_path)
+        if fname.endswith(".md"):   # Markdown: no hay que reconstruir tablas desde un PDF
+            md_text = normalize_pandoc_markdown(content.decode("utf-8", errors="replace"))
+        else:
+            md_text = await run_in_threadpool(convert, pdf_path)
         yaml_text = await run_in_threadpool(draft_thesis_yaml, md_text, t, pdf_path, f"config/theses/{t.lower()}.md")
     except Exception as e:
         logger.exception("No se pudo preparar la tesis desde PDF")
@@ -501,3 +508,34 @@ def confirm_thesis_from_pdf(payload: NewThesisConfirm, repo: SqlAlchemyThesisRep
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"No se pudo importar: {e}")
     return {"status": "success", "thesis_id": thesis["id"]}
+
+
+
+class MasterQuestionChange(BaseModel):
+    action: str                    # 'add' | 'remove'
+    question: str
+    rationale: Optional[str] = None
+
+
+@router.post("/theses/{thesis_id}/master-questions")
+def change_master_question(thesis_id: int, payload: MasterQuestionChange,
+                           repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository)):
+    """Añade o retira una pregunta maestra (en el YAML, con copia de la versión anterior) y lo anota en el timeline."""
+    thesis = _get_or_404(repo, thesis_id)
+    spec_path = thesis["extra"].get("spec_path")
+    if not spec_path or not os.path.exists(spec_path):
+        raise HTTPException(status_code=400, detail="No se encuentra el YAML de la tesis; reimpórtala primero")
+    if payload.action not in ("add", "remove"):
+        raise HTTPException(status_code=400, detail="Acción no válida")
+    fn = (thesis_changes_service.add_master_question_to_yaml if payload.action == "add"
+          else thesis_changes_service.remove_master_question_from_yaml)
+    try:
+        backup = thesis_changes_service.apply_text_change(spec_path, lambda text: fn(text, payload.question))
+        repo.import_spec(load_thesis_yaml(spec_path))
+    except (ValueError, KeyError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    title = ("Nueva pregunta maestra: " if payload.action == "add" else "Pregunta maestra retirada: ") + payload.question.strip()
+    body = "\n".join(x for x in (f"Motivo: {payload.rationale}" if payload.rationale else "",
+                                  f"Versión anterior guardada en {backup}") if x)
+    repo.add_event(thesis_id, date.today().isoformat(), "thesis", title, body, "neutral")
+    return {"status": "success"}

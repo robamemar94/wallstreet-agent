@@ -11,9 +11,20 @@
     <div class="d-flex gap-2 align-items-center">
         {% if credibility %}<span class="small" title="Promesas de la dirección evaluadas en revisiones anteriores (cumplida 1, parcial 0,5, incumplida 0)">
             <i class="bi bi-person-check me-1"></i>Credibilidad dirección: <strong>{{ credibility.score }}%</strong> <span class="text-muted">({{ credibility.evaluated }} promesas)</span></span>{% endif %}
-        <button class="btn btn-primary btn-sm" id="btnStartReview" {% if review_running %}disabled{% endif %}>
-            {% if review_running %}<span class="spinner-border spinner-border-sm me-1"></span>Analizando…{% else %}<i class="bi bi-stars me-1"></i>Analizar resultados con IA{% endif %}
-        </button>
+        {% set pending = thesis_notices|selectattr('type', 'equalto', 'new_results')|list %}
+        {% set last_done = reviews|selectattr('status', 'in', ['ready', 'applied', 'discarded'])|first %}
+        {% if review_running %}
+            <button class="btn btn-primary btn-sm" disabled><span class="spinner-border spinner-border-sm me-1"></span>Analizando…</button>
+        {% elif pending %}
+            <button class="btn btn-primary btn-sm" onclick="startReview(false)"><i class="bi bi-stars me-1"></i>Analizar los resultados nuevos con IA</button>
+        {% else %}
+            <span class="small text-muted text-end">
+                <i class="bi bi-check2-circle st-green me-1"></i>Sin resultados pendientes de analizar
+                {% if last_done %}· último analizado: {{ last_done.report.period or last_done.created_at[:10] }}{% endif %}
+                {% if next_earnings %}· próximos resultados {{ next_earnings.strftime('%d/%m/%Y') }} ({{ days_to_earnings }} d){% endif %}
+                <br><a href="#" class="text-muted" onclick="startReview(true); return false;">{{ 'Volver a analizar' if last_done else 'Analizar los últimos resultados publicados' }}</a>
+            </span>
+        {% endif %}
     </div>
 </div>
 
@@ -151,13 +162,20 @@
                     <div><span class="badge bg-light text-dark border">{{ p.type|replace('_', ' ') }}</span> <strong>{{ p.title }}</strong>
                         <div class="text-muted">{{ p.rationale }}</div></div>
                     <div class="text-nowrap">
-                    {% if p.title in watched %}<span class="text-muted"><i class="bi bi-check2"></i> en vigilancia</span>
+                    {% set mq = thesis.extra.master_questions or [] %}
+                    {% if p.type == 'pregunta_maestra' %}
+                        {% if p.title in mq %}<span class="text-muted"><i class="bi bi-check2"></i> añadida</span>
+                        {% else %}<button class="btn btn-outline-primary btn-sm py-0" onclick='addMasterQuestion({{ p.title|tojson }}, {{ (p.rationale or "")|tojson }})'><i class="bi bi-question-circle me-1"></i>Añadir pregunta</button>{% endif %}
+                    {% elif p.type == 'retirar_pregunta' %}
+                        {% if p.title in mq %}<button class="btn btn-outline-secondary btn-sm py-0" onclick='removeMasterQuestion({{ p.title|tojson }}, {{ (p.rationale or "")|tojson }})'><i class="bi bi-dash-circle me-1"></i>Retirar pregunta</button>
+                        {% else %}<span class="text-muted"><i class="bi bi-check2"></i> ya no está</span>{% endif %}
+                    {% elif p.title in watched %}<span class="text-muted"><i class="bi bi-check2"></i> en vigilancia</span>
                     {% elif p.type in ('nuevo_kpi', 'umbral') %}<button class="btn btn-outline-primary btn-sm py-0" onclick="draftChange({{ review.id }}, {{ loop.index0 }}, this)"><i class="bi bi-pencil-square me-1"></i>Preparar cambio</button>
                     {% else %}<button class="btn btn-outline-primary btn-sm py-0" onclick='watchProposal({{ {"type": p.type, "title": p.title, "rationale": p.rationale}|tojson }})'><i class="bi bi-eye me-1"></i>Vigilar</button>{% endif %}
                     </div>
                 </div>
             {% else %}<div class="text-muted">Ninguna: el cuadro de mando sigue siendo el adecuado.</div>{% endfor %}
-            {% if rp.proposals %}<div class="text-muted border-top pt-2">«Preparar cambio» modifica el cuadro de mando (con copia de la versión anterior); «Vigilar» lo añade a la lista de riesgos y catalizadores. Todo queda en el timeline.</div>{% endif %}
+            {% if rp.proposals %}<div class="text-muted border-top pt-2">«Preparar cambio» modifica el cuadro de mando y «Añadir/Retirar pregunta» las preguntas maestras (con copia de la versión anterior); «Vigilar» lo añade a la lista de riesgos y catalizadores. Todo queda en el timeline.</div>{% endif %}
             </div>
         </div>
 

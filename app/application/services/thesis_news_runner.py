@@ -42,7 +42,7 @@ def _run_due() -> None:
     try:
         repo = SqlAlchemyThesisRepository(db)
         for thesis in repo.list_theses():
-            if not thesis_ai_service.news_due(thesis["extra"].get("news_digest")):
+            if not radar_due(thesis):
                 continue
             try:
                 digest = run_news_for_thesis(repo, thesis)
@@ -56,10 +56,31 @@ def _run_due() -> None:
             _running = False
 
 
+def radar_due(thesis: dict) -> bool:
+    """Toca radar si han pasado 7 días y no es la semana de resultados (entonces lo cubre la revisión de resultados)."""
+    from app.application.services.thesis_review_service import in_results_week
+    if not thesis_ai_service.news_due(thesis["extra"].get("news_digest")):
+        return False
+    if in_results_week(thesis["ticker"]):
+        logger.info("Radar de %s aplazado: semana de resultados", thesis["ticker"])
+        return False
+    return True
+
+
+def any_due() -> bool:
+    """¿Hay alguna tesis a la que le toque radar? (base de datos + calendario cacheado; sin llamar a la IA)"""
+    db = SessionLocal()
+    try:
+        return any(radar_due(t) for t in SqlAlchemyThesisRepository(db).list_theses())
+    finally:
+        db.close()
+
+
 def trigger_due_news() -> bool:
-    """Lanza en segundo plano el radar de las tesis pendientes. Devuelve True si se ha lanzado."""
+    """Lanza en segundo plano el radar de las tesis pendientes. Devuelve True si se ha lanzado.
+    Si no hay ninguna pendiente no se lanza nada (y la web no muestra «radar en curso»)."""
     global _running
-    if not auto_enabled():
+    if not auto_enabled() or _running or not any_due():
         return False
     with _lock:
         if _running:

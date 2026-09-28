@@ -141,3 +141,68 @@ def apply_to_yaml(spec_path: str, change: Dict[str, Any], existing_keys: set) ->
     shutil.copy2(spec_path, backup)
     os.replace(tmp, spec_path)
     return backup
+
+
+
+# --- Preguntas maestras ---
+
+def add_master_question_to_yaml(text: str, question: str) -> str:
+    question = " ".join((question or "").split())
+    if not question:
+        raise ValueError("La pregunta está vacía")
+    line = f"  - {_yaml_value(question)}\n"
+    m = re.search(r"^master_questions:\s*\n((?:[ \t]+-.*\n?)*)", text, re.M)
+    if m:
+        block = m.group(1)
+        if question in block:
+            raise ValueError("Esa pregunta ya está en la tesis")
+        insert_at = m.end(1)
+        if block and not block.endswith("\n"):
+            line = "\n" + line
+        return text[:insert_at] + line + text[insert_at:]
+    # la tesis aún no tiene preguntas maestras: se crea el bloque antes de 'pillars'
+    p = re.search(r"^pillars:", text, re.M)
+    if not p:
+        raise ValueError("El YAML no tiene bloque 'pillars'")
+    return text[:p.start()] + "master_questions:\n" + line + "\n" + text[p.start():]
+
+
+def remove_master_question_from_yaml(text: str, question: str) -> str:
+    m = re.search(r"^master_questions:\s*\n((?:[ \t]+-.*\n?)*)", text, re.M)
+    if not m:
+        raise ValueError("La tesis no tiene preguntas maestras")
+    import yaml
+    kept, removed = [], False
+    for raw in m.group(1).splitlines(keepends=True):
+        value = yaml.safe_load(raw.strip()[1:].strip() or '""')
+        if not removed and str(value).strip() == question.strip():
+            removed = True
+            continue
+        kept.append(raw)
+    if not removed:
+        raise ValueError("No se encuentra esa pregunta en la tesis")
+    new_block = "".join(kept)
+    if not new_block.strip():   # sin preguntas: se quita también la clave
+        return text[:m.start()] + text[m.end():]
+    return text[:m.start(1)] + new_block + text[m.end(1):]
+
+
+def apply_text_change(spec_path: str, transform) -> str:
+    """Aplica una transformación de texto al YAML con la misma seguridad que apply_to_yaml
+    (valida el resultado y guarda la versión anterior). Devuelve la ruta de la copia."""
+    with open(spec_path, encoding="utf-8") as f:
+        original = f.read()
+    updated = transform(original)
+    tmp = spec_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(updated)
+    try:
+        load_thesis_yaml(tmp)
+    except Exception:
+        os.remove(tmp)
+        raise
+    os.makedirs(HISTORY_DIR, exist_ok=True)
+    backup = os.path.join(HISTORY_DIR, f"{os.path.splitext(os.path.basename(spec_path))[0]}-{datetime.now():%Y%m%d-%H%M%S}.yaml")
+    shutil.copy2(spec_path, backup)
+    os.replace(tmp, spec_path)
+    return backup

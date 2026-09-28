@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_thesis_macros.html" import status_icon, verdict_badge, thesis_styles %}
+{% from "_thesis_macros.html" import status_icon, verdict_badge, thesis_styles, money %}
 {% block title %}Tesis · Alpha-Flow{% endblock %}
 
 {% block content %}
@@ -11,7 +11,7 @@
             <p class="text-muted small mb-0">Cada tesis se mide con sus KPIs. El score solo cuenta los KPIs con dato; la cobertura indica cuántos lo tienen.</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#pdfModal"><i class="bi bi-file-earmark-arrow-up me-1"></i>Nueva tesis desde PDF</button>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#pdfModal"><i class="bi bi-file-earmark-arrow-up me-1"></i>Nueva tesis (PDF o MD)</button>
             <button class="btn btn-outline-secondary btn-sm" id="btnReimport" title="Relee config/theses/*.yaml sin perder observaciones">
                 <i class="bi bi-arrow-repeat me-1"></i>Reimportar YAML
             </button>
@@ -61,7 +61,7 @@
                 </div>
                 <div class="text-end">
                     {% if c.price %}
-                    <div class="fw-bold font-monospace-data">${{ '%.2f'|format(c.price.price) }}</div>
+                    <div class="fw-bold font-monospace-data">{{ money(c.price.price, c.cur) }}</div>
                     <div class="small font-monospace-data {{ 'text-success' if c.price.pct >= 0 else 'text-danger' }}">{{ '%+.2f'|format(c.price.pct) }}%</div>
                     {% endif %}
                 </div>
@@ -131,13 +131,13 @@
 
 <!-- MODAL: NUEVA TESIS DESDE PDF -->
 <div class="modal fade" id="pdfModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title">Nueva tesis desde PDF</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-header"><h5 class="modal-title">Nueva tesis desde PDF o Markdown</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body small">
         <p class="text-muted">La IA lee la tesis y propone su cuadro de mando con <strong>solo los KPIs cuantificables</strong> de la propia tesis, sus umbrales y su valoración.
             Revísalo y edítalo antes de crearla. Tarda 1-2 minutos y cuesta unos céntimos.</p>
         <div class="row g-2 align-items-end mb-3">
             <div class="col-md-2"><label class="form-label">Ticker</label><input id="pdfTicker" class="form-control form-control-sm" placeholder="MSFT"></div>
-            <div class="col-md-7"><label class="form-label">PDF de la tesis</label><input id="pdfFile" type="file" accept="application/pdf" class="form-control form-control-sm"></div>
+            <div class="col-md-7"><label class="form-label">Tesis (PDF o Markdown)</label><input id="pdfFile" type="file" accept="application/pdf,.md,text/markdown" class="form-control form-control-sm"></div>
             <div class="col-md-3"><button class="btn btn-primary btn-sm w-100" id="btnPdfDraft"><i class="bi bi-stars me-1"></i>Preparar cuadro de mando</button></div>
         </div>
         <div id="pdfStatus" class="text-muted"></div>
@@ -157,7 +157,7 @@
 document.getElementById('btnPdfDraft').addEventListener('click', async (e) => {
     const btn = e.currentTarget, status = document.getElementById('pdfStatus');
     const ticker = document.getElementById('pdfTicker').value.trim(), file = document.getElementById('pdfFile').files[0];
-    if (!ticker || !file) { status.textContent = 'Indica el ticker y el PDF.'; return; }
+    if (!ticker || !file) { status.textContent = 'Indica el ticker y el fichero de la tesis.'; return; }
     const fd = new FormData(); fd.append('ticker', ticker); fd.append('file', file);
     btn.disabled = true; status.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Leyendo la tesis y preparando el cuadro de mando…';
     try {

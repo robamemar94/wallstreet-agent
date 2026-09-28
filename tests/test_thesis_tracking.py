@@ -399,3 +399,112 @@ def test_validate_spec_and_strip_fences():
         validate_spec({**ok, "pillars": [{"key": "a", "name": "A", "kpis": [{"key": "k", "name": "K"}]}]})
     with pytest.raises(ValueError):
         validate_spec("no es un dict")
+
+
+def test_yoy_uses_year_ago_date_even_with_missing_quarter():
+    from app.application.services.thesis_service import year_ago_index, consecutive_quarters, ttm_fcf_per_share
+    # yfinance a veces se salta un trimestre (Evolution: falta 2025-09-30)
+    cols = pd.to_datetime(["2026-06-30", "2026-03-31", "2025-12-31", "2025-06-30", "2025-03-31"])
+    assert year_ago_index(list(cols)) == 3                      # 2025-06-30, no la quinta columna
+    assert not consecutive_quarters(list(cols))
+    income = pd.DataFrame({c: [100.0 + i, 10.0] for i, c in enumerate(cols)}, index=["Total Revenue", "Diluted Average Shares"])
+    cashflow = pd.DataFrame({c: [20.0] for c in cols}, index=["Free Cash Flow"])
+    m = compute_auto_metrics(income, cashflow)["metrics"]
+    assert m["revenue_yoy"] == pytest.approx(100 * (100 / 103 - 1), abs=0.01)
+    y = pd.to_datetime(["2025-12-31"])
+    annual_cf = pd.DataFrame({y[0]: [90.0]}, index=["Free Cash Flow"])
+    assert ttm_fcf_per_share(cashflow, income, annual_cf, None) == pytest.approx(9.0)   # con hueco: último ejercicio
+
+
+def test_pandoc_tables_to_gfm_and_heading_levels():
+    from app.application.services.thesis_md import normalize_pandoc_markdown
+    md = """# ACME (ACM)
+
+# 0. RESUMEN
+
+  ------------------------------------------------
+  Elemento          Estado        Interpretación
+  --------------- ------------ -------------------
+  Recurrencia        VERDE      Pilar central de la
+                                tesis
+
+  Escala             VERDE      Ventaja estructural
+  ------------------------------------------------
+
+# 1. NEGOCIO
+
+## 1.1 Mercado
+
+  KPI                     Actual Objetivo/alerta
+  ------------ ----------------- ---------------
+  Organic growth        +5,7% Q2 \\>\\~7% deseable
+
+# 2. RIESGOS
+"""
+    out = normalize_pandoc_markdown(md)
+    assert "| Recurrencia | VERDE | Pilar central de la tesis |" in out
+    assert "| Organic growth | +5,7% Q2 | >~7% deseable |" in out
+    assert "# ACME (ACM)" in out and "## 0. RESUMEN" in out and "### 1.1 Mercado" in out
+
+
+def test_news_radar_uses_free_key_and_falls_back_to_paid(monkeypatch):
+    calls = []
+    def fake_run(client, model, thesis, ev, days):
+        calls.append(model)
+        if model == ai.FREE_NEWS_MODEL and fake_run.fail_free:
+            raise RuntimeError("429 RESOURCE_EXHAUSTED")
+        return {"items": [], "summary": "", "usage": None, "grounded": True, "model": model}
+    monkeypatch.setattr(ai, "_run_news", fake_run)
+    monkeypatch.setattr(ai, "_client", lambda key=None: key)
+    thesis = {"ticker": "X", "extra": {}}
+    monkeypatch.delenv("GEMINI_FREE_API_KEY", raising=False)
+    fake_run.fail_free = False
+    assert ai.run_news_digest(thesis, {"pillars": []})["free_tier"] is False and calls == [ai.GEMINI_MODEL]
+    monkeypatch.setenv("GEMINI_FREE_API_KEY", "gratis")
+    calls.clear()
+    assert ai.run_news_digest(thesis, {"pillars": []})["free_tier"] is True and calls == [ai.FREE_NEWS_MODEL]
+    fake_run.fail_free = True
+    calls.clear()
+    d = ai.run_news_digest(thesis, {"pillars": []})
+    assert d["free_tier"] is False and calls == [ai.FREE_NEWS_MODEL, ai.GEMINI_MODEL]
+
+
+def test_master_questions_add_and_remove_in_yaml(tmp_path):
+    from app.application.services.thesis_changes_service import add_master_question_to_yaml, remove_master_question_from_yaml
+    import yaml
+    evo = open("config/theses/evo.yaml", encoding="utf-8").read()
+    added = add_master_question_to_yaml(evo, "¿Cuánto revenue pierde Evolution por la prohibición en Brasil?")
+    qs = yaml.safe_load(added)["master_questions"]
+    assert qs[-1] == "¿Cuánto revenue pierde Evolution por la prohibición en Brasil?" and len(qs) == 9
+    with pytest.raises(ValueError):
+        add_master_question_to_yaml(added, "¿Cuánto revenue pierde Evolution por la prohibición en Brasil?")
+    removed = remove_master_question_from_yaml(added, qs[0])
+    assert yaml.safe_load(removed)["master_questions"] == qs[1:]
+    # una tesis sin preguntas: se crea el bloque y el YAML sigue siendo válido
+    dsgx = open("config/theses/dsgx.yaml", encoding="utf-8").read()
+    new = add_master_question_to_yaml(dsgx, "¿Crece la GLN en conexiones?")
+    spec = yaml.safe_load(new)
+    assert spec["master_questions"] == ["¿Crece la GLN en conexiones?"] and len(spec["pillars"]) == 7
+    assert "master_questions" not in yaml.safe_load(remove_master_question_from_yaml(new, "¿Crece la GLN en conexiones?"))
+
+
+def test_radar_not_started_when_nothing_is_due(monkeypatch):
+    from app.application.services import thesis_news_runner as runner
+    started = []
+    monkeypatch.setattr(runner, "auto_enabled", lambda: True)
+    monkeypatch.setattr(runner.threading, "Thread", lambda **kw: started.append(kw) or type("T", (), {"start": lambda self: None})())
+    monkeypatch.setattr(runner, "any_due", lambda: False)
+    assert runner.trigger_due_news() is False and not started and not runner.is_running()
+    monkeypatch.setattr(runner, "any_due", lambda: True)
+    assert runner.trigger_due_news() is True and len(started) == 1
+    runner._running = False
+
+
+def test_radar_skips_results_week(monkeypatch):
+    from app.application.services import thesis_review_service as rs
+    monkeypatch.setattr(rs, "_earnings_info", lambda t: {"last": {"date": "2026-10-23"}, "next": "2027-01-29"})
+    d = datetime.date
+    assert rs.in_results_week("EVO.ST", d(2026, 10, 22))        # el día antes
+    assert rs.in_results_week("EVO.ST", d(2026, 10, 27))        # 4 días después
+    assert not rs.in_results_week("EVO.ST", d(2026, 10, 28))
+    assert rs.in_results_week("EVO.ST", d(2027, 1, 28)) and not rs.in_results_week("EVO.ST", d(2027, 1, 20))

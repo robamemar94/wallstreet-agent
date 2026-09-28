@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_thesis_macros.html" import status_icon, verdict_badge, fmt_value, trend_icon, thesis_styles %}
+{% from "_thesis_macros.html" import status_icon, verdict_badge, fmt_value, trend_icon, thesis_styles, money %}
 {% block title %}{{ thesis.ticker }} · Tesis{% endblock %}
 
 {% block content %}
@@ -29,7 +29,7 @@
     {% for n in thesis_notices %}
     <div class="alert {{ 'alert-danger' if n.type == 'portfolio_risk' else 'alert-primary' }} small py-2 d-flex align-items-center gap-2">
         <i class="bi {{ {'new_results': 'bi-bell', 'review_ready': 'bi-check2-square', 'portfolio_risk': 'bi-exclamation-triangle', 'decision_missing': 'bi-journal-plus', 'decision_review': 'bi-journal-check'}.get(n.type, 'bi-bell') }}"></i><span>{{ n.text }}</span>
-        {% if n.type == 'new_results' %}<button class="btn btn-primary btn-sm py-0 ms-auto" onclick="startReview()"><i class="bi bi-stars me-1"></i>Analizar con IA</button>
+        {% if n.type == 'new_results' %}<button class="btn btn-primary btn-sm py-0 ms-auto" onclick="startReview(false)"><i class="bi bi-stars me-1"></i>Analizar con IA</button>
         {% elif n.type == 'review_ready' %}<a href="#resultados" class="ms-auto" onclick="showReviewTab()">Ver revisión →</a>
         {% elif n.type == 'decision_missing' %}<button class="btn btn-outline-primary btn-sm py-0 ms-auto" onclick='openDecision({{ n.transaction_ref|tojson }})'>Anotar decisión</button>{% endif %}
     </div>
@@ -71,9 +71,9 @@
         <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body">
             <div class="kpi-label">Precio</div>
             {% if price %}
-            <div class="health-num font-monospace-data" style="font-size: 1.8rem;">${{ '%.2f'|format(price.price) }}</div>
+            <div class="health-num font-monospace-data" style="font-size: 1.8rem;">{{ money(price.price, cur) }}</div>
             <div class="small font-monospace-data {{ 'text-success' if price.pct >= 0 else 'text-danger' }}">{{ '%+.2f'|format(price.pct) }}% hoy
-                {% if vs_reference is not none %}<span class="text-muted">· {{ '%+.1f'|format(vs_reference) }}% vs ref. ${{ thesis.reference_price }}</span>{% endif %}</div>
+                {% if vs_reference is not none %}<span class="text-muted">· {{ '%+.1f'|format(vs_reference) }}% vs ref. {{ money(thesis.reference_price, cur) }}</span>{% endif %}</div>
             {% else %}<div class="text-muted">Sin cotización</div>{% endif %}
             <div class="small mt-1">
                 {% if position %}<i class="bi bi-briefcase me-1"></i>En cartera: <strong>{{ '%.1f'|format(position.weight) }}%</strong>
@@ -235,7 +235,7 @@
                     {% set v = s[col.key] %}
                     <td class="{{ 'fw-semibold' if loop.first else 'font-monospace-data' }}">
                         {%- if v is none -%}–
-                        {%- elif col.format == 'usd' -%}${{ '{:,.0f}'.format(v) }}
+                        {%- elif col.format == 'usd' -%}{{ money(v, cur, 'int') }}
                         {%- elif col.format == 'pct' -%}{{ v }}%
                         {%- else -%}{{ v }}{%- endif -%}
                     </td>
@@ -252,15 +252,15 @@
             {% if live %}
             <div class="border-top">
                 <div class="px-2 pt-2 small"><strong>Valoración viva</strong>
-                    <span class="text-muted">· FCF/acción TTM ${{ '%.2f'|format(live.fcf_ps) }} · P/FCF {{ live.multiple_now }}x · FCF yield {{ live.fcf_yield }}% · horizonte {{ live.target_year }}</span></div>
+                    <span class="text-muted">· FCF/acción TTM {{ money(live.fcf_ps, cur) }} · P/FCF {{ live.multiple_now }}x · FCF yield {{ live.fcf_yield }}% · horizonte {{ live.target_year }}</span></div>
                 <div class="table-responsive"><table class="table table-sm mb-0 tbl-kpi">
                     <thead><tr><th>Escenario</th><th class="text-end">Precio {{ live.target_year }}</th><th class="text-end">CAGR desde hoy</th>
                         {% for r in live.scenarios[0].entry_prices %}<th class="text-end" title="Precio máximo de compra hoy para obtener un {{ r }}% anual en este escenario">Entrada {{ r }}%</th>{% endfor %}</tr></thead>
                     <tbody>{% for r in live.scenarios %}<tr>
                         <td class="fw-semibold">{{ r.name }}</td>
-                        <td class="text-end font-monospace-data">${{ '{:,.0f}'.format(r.price_target) }}</td>
+                        <td class="text-end font-monospace-data">{{ money(r.price_target, cur, 'int') }}</td>
                         <td class="text-end font-monospace-data fw-bold {{ 'st-green' if r.cagr >= 10 else ('st-red' if r.cagr < 5 else '') }}">{{ '%.1f'|format(r.cagr) }}%</td>
-                        {% for rr, p in r.entry_prices.items() %}<td class="text-end font-monospace-data {{ 'st-green' if price and price.price <= p else 'text-muted' }}">${{ '{:,.0f}'.format(p) }}</td>{% endfor %}
+                        {% for rr, p in r.entry_prices.items() %}<td class="text-end font-monospace-data {{ 'st-green' if price and price.price <= p else 'text-muted' }}">{{ money(p, cur, 'int') }}</td>{% endfor %}
                     </tr>{% endfor %}</tbody>
                 </table></div>
                 <div class="small text-muted p-2"><strong>DCF inverso:</strong> al precio actual, para ganar
@@ -317,15 +317,21 @@
         </div>
         {% endif %}
 
-        {% if thesis.extra.master_questions %}
         <div class="card mb-3">
-            <div class="card-header bg-transparent fw-bold"><i class="bi bi-question-circle me-1"></i>Preguntas maestras para la próxima actualización</div>
+            <div class="card-header bg-transparent d-flex align-items-center">
+                <span class="fw-bold"><i class="bi bi-question-circle me-1"></i>Preguntas maestras</span>
+                <button class="btn btn-outline-primary btn-sm py-0 ms-auto" onclick="addMasterQuestion('', '')" title="Añadir una pregunta"><i class="bi bi-plus-lg"></i> pregunta</button>
+            </div>
+            {% if thesis.extra.master_questions %}
             <ol class="list-group list-group-flush list-group-numbered small">
-                {% for q in thesis.extra.master_questions %}<li class="list-group-item">{{ q }}</li>{% endfor %}
+                {% for q in thesis.extra.master_questions %}<li class="list-group-item d-flex gap-2">
+                    <span class="flex-grow-1">{{ q }}</span>
+                    <button class="btn btn-link btn-sm p-0 text-muted" title="Retirar pregunta" onclick='removeMasterQuestion({{ q|tojson }}, "")'><i class="bi bi-x"></i></button>
+                </li>{% endfor %}
             </ol>
-            <div class="small text-muted p-2">La revisión con IA las responde en el resumen de cada resultado.</div>
+            <div class="small text-muted p-2">La revisión con IA las responde en cada resultado y puede proponer añadir o retirar preguntas.</div>
+            {% else %}<div class="card-body small text-muted">Esta tesis no tiene preguntas maestras. Añádelas tú o deja que la revisión de resultados las proponga.</div>{% endif %}
         </div>
-        {% endif %}
 
         <!-- RADAR SEMANAL -->
         <div class="card mb-3">
@@ -333,7 +339,7 @@
                 <span class="fw-bold"><i class="bi bi-broadcast me-1"></i>Radar semanal</span>
                 <span class="small text-muted ms-auto">
                     {% if radar_running %}<span class="spinner-border spinner-border-sm"></span> en curso · {% endif %}
-                    {% if news.digest %}{{ news.digest.created_at[:10] }}{% if news.digest.window_days %} · últimos {{ news.digest.window_days }} días{% endif %}{% if news.digest.usage %} · ${{ '%.3f'|format(news.digest.usage.cost_usd) }}{% endif %}{% else %}sin consultar{% endif %}
+                    {% if news.digest %}{{ news.digest.created_at[:10] }}{% if news.digest.window_days %} · últimos {{ news.digest.window_days }} días{% endif %}{% if news.digest.free_tier %} · gratis{% elif news.digest.usage %} · ${{ '%.3f'|format(news.digest.usage.cost_usd) }}{% endif %}{% else %}sin consultar{% endif %}
                 </span>
                 <button class="btn btn-sm {{ 'btn-outline-primary' if news.due else 'btn-outline-secondary' }} py-0" id="btnNews" data-force="{{ 'false' if news.due else 'true' }}"
                         title="{{ 'Consultar noticias de los últimos 7 días' if news.due else 'Ya se consultó esta semana (próxima: ' ~ news.next_run.strftime('%d/%m') ~ '). Pulsa para forzar.' }}">
@@ -346,18 +352,22 @@
                 {% if news.digest.summary %}<p class="small mb-2">{{ news.digest.summary }}</p>{% endif %}
             {% endif %}
                 {% for n in news_items %}
-                <div class="timeline-item imp-{{ n.impact }}">
+                <div class="timeline-item imp-{{ n.impact }}" data-news="{{ n.id }}">
                     <div class="d-flex justify-content-between gap-2">
                         <span class="small text-muted">{{ n.date }}{% if n.step_name %} · Paso {{ n.step }}: {{ n.step_name }}{% endif %} · {{ n.materiality }}/5
-                            {% if not n.seen %}<span class="badge text-bg-primary">NUEVA</span>{% endif %}</span>
+                            {% if not n.seen %}<span class="badge text-bg-primary badge-new" role="button" title="Marcar como leída" onclick="markNewsRead([{{ n.id }}])">NUEVA ✓</span>{% endif %}</span>
                         {% if not n.in_timeline %}<button class="btn btn-link btn-sm p-0 text-muted text-nowrap" title="Añadir al timeline"
                                 onclick="newsToTimeline({{ n.id }})"><i class="bi bi-plus-circle"></i></button>{% endif %}
                     </div>
-                    <div class="fw-semibold small">{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>
+                    <div class="fw-semibold small">{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" onclick="markNewsRead([{{ n.id }}])">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>
                     <div class="small text-muted">{{ n.summary }}</div>
                 </div>
                 {% else %}{% if news.digest %}<div class="small text-muted">Ninguna noticia muy relevante (materialidad ≥4/5) por ahora.</div>{% endif %}{% endfor %}
-                {% if news_items %}<a href="/noticias?ticker={{ thesis.ticker }}" class="small">Ver todas en Noticias →</a>{% endif %}
+                {% if news_items %}<div class="d-flex justify-content-between small">
+                    <a href="/noticias?ticker={{ thesis.ticker }}">Ver todas en Noticias →</a>
+                    {% set unread_news = news_items|rejectattr('seen')|map(attribute='id')|list %}
+                    {% if unread_news %}<a href="#" id="lnkNewsRead" onclick='markNewsRead({{ unread_news|tojson }}); return false;'><i class="bi bi-check2-all"></i> marcar leídas</a>{% endif %}
+                </div>{% endif %}
             {% if not news.digest %}
                 <div class="small text-muted">Automático, una vez por semana: solo noticias muy relevantes (materialidad ≥4/5) desde el último radar (la primera vez, los últimos 7 días).</div>
             {% endif %}
@@ -533,7 +543,7 @@
     <div class="modal-body">
         <label class="form-label small">Veredicto</label>
         <select id="vdVerdict" class="form-select form-select-sm mb-2">
-            {% for v in ['REFORZADA', 'INTACTA', 'DEBILITADA', 'ROTA'] %}<option {% if v == thesis.verdict %}selected{% endif %}>{{ v }}</option>{% endfor %}
+            {% for v in ['REFORZADA', 'INTACTA', 'VIGILANCIA', 'DEBILITADA', 'ROTA'] %}<option {% if v == thesis.verdict %}selected{% endif %}>{{ v }}</option>{% endfor %}
         </select>
         <label class="form-label small">Estado</label>
         <select id="vdStatus" class="form-select form-select-sm mb-2">
@@ -787,6 +797,18 @@ async function deleteDecision(id) {
     try { await api(`/api/theses/decisions/${id}`, 'DELETE'); location.reload(); } catch (err) { alert(err.message); }
 }
 
+async function addMasterQuestion(prefill, rationale) {
+    const question = prompt('Pregunta maestra (se responderá en cada revisión de resultados):', prefill || '');
+    if (!question || !question.trim()) return;
+    try { await api(`/api/theses/${THESIS_ID}/master-questions`, 'POST', {action: 'add', question, rationale: rationale || null}); location.reload(); }
+    catch (err) { alert(err.message); }
+}
+async function removeMasterQuestion(question, rationale) {
+    if (!confirm(`¿Retirar esta pregunta maestra?\n\n«${question}»`)) return;
+    try { await api(`/api/theses/${THESIS_ID}/master-questions`, 'POST', {action: 'remove', question, rationale: rationale || null}); location.reload(); }
+    catch (err) { alert(err.message); }
+}
+
 async function setReviewStatus(id, status) {
     if (status === 'discarded' && !confirm('¿Descartar esta revisión? No se guardará ningún KPI.')) return;
     try { await api(`/api/theses/reviews/${id}/status`, 'POST', {status}); location.reload(); } catch (err) { alert(err.message); }
@@ -797,15 +819,17 @@ function showReviewTab() {
     if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
 }
 
-async function startReview() {
-    if (!confirm('Lanzar la revisión de resultados con IA (3-6 min, unos céntimos). ¿Continuar?')) return;
+async function startReview(again) {
+    const msg = again
+        ? 'No hay resultados nuevos: se volverán a analizar los últimos publicados (otros ~$0,20). Solo merece la pena si la revisión anterior salió incompleta o has cambiado la tesis. ¿Continuar?'
+        : 'Lanzar la revisión de los resultados nuevos con IA (3-6 min, unos céntimos). ¿Continuar?';
+    if (!confirm(msg)) return;
     try {
         await api(`/api/theses/${THESIS_ID}/reviews`, 'POST');
         location.hash = 'resultados';
         location.reload();
     } catch (err) { alert(err.message); }
 }
-document.getElementById('btnStartReview')?.addEventListener('click', startReview);
 
 {% if review_running %}
 // Revisión en curso: comprobar cada 20 s y recargar cuando termine
@@ -825,6 +849,13 @@ document.getElementById('btnNews').addEventListener('click', async (e) => {
     try { await api(`/api/theses/${THESIS_ID}/news?force=${btn.dataset.force}`, 'POST'); location.reload(); }
     catch (err) { info.textContent = 'Error: ' + err.message; btn.disabled = false; }
 });
+
+async function markNewsRead(ids) {
+    try { await api('/api/theses/news/seen', 'POST', {ids}); } catch (e) { return; }
+    ids.forEach(id => document.querySelector(`[data-news="${id}"] .badge-new`)?.remove());
+    if (!document.querySelector('.timeline-item .badge-new')) document.getElementById('lnkNewsRead')?.remove();
+    window.refreshSidebarNewsBadge && window.refreshSidebarNewsBadge();
+}
 
 async function newsToTimeline(id) {
     try { await api(`/api/theses/news/${id}/timeline`, 'POST'); location.reload(); } catch (err) { alert(err.message); }

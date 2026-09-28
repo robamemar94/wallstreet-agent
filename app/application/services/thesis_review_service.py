@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional
 from app.application.services import earnings_docs
 from app.application.services.thesis_ai_service import (
     GEMINI_MODEL, STATUS_VALUES, _client, _generate, _generate_searched, _kpi_lines, _merge_grounding, extract_json,
+    parse_json_or_repair,
 )
 from app.application.services.thesis_service import classify, evaluate_thesis, fetch_auto_metrics
 from utils import llm_usage
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 EXTRACT_MODEL = os.getenv("THESIS_REVIEW_MODEL", GEMINI_MODEL)
 JUDGE_MODEL = os.getenv("THESIS_JUDGE_MODEL", "gemini-3.1-pro-preview")
-VERDICTS = ("REFORZADA", "INTACTA", "DEBILITADA", "ROTA")
+VERDICTS = ("REFORZADA", "INTACTA", "VIGILANCIA", "DEBILITADA", "ROTA")
 PROMISE_RESULTS = {"cumplida": 1.0, "parcial": 0.5, "incumplida": 0.0}
 DOC_CHARS_FOR_EXTRACTION = 120_000
 EARNINGS_TTL = 12 * 3600
@@ -42,12 +43,12 @@ _earnings_cache: Dict[str, Any] = {}
 
 # --- Paso 0: datos gratuitos ---
 
-def fetch_last_earnings(ticker: str) -> Optional[Dict[str, Any]]:
-    """Última presentación de resultados ya publicada (fecha + BPA real vs consenso). Cacheado 12h."""
+def _earnings_info(ticker: str) -> Dict[str, Any]:
+    """Última presentación publicada (fecha + BPA real vs consenso) y próxima fecha prevista. Cacheado 12h."""
     cached = _earnings_cache.get(ticker)
     if cached and time.time() - cached[0] < EARNINGS_TTL:
         return cached[1]
-    result = None
+    info: Dict[str, Any] = {"last": None, "next": None}
     try:
         import math
         import yfinance as yf
@@ -55,16 +56,29 @@ def fetch_last_earnings(ticker: str) -> Optional[Dict[str, Any]]:
         for ts, row in df.iterrows():  # más reciente primero
             reported = row.get("Reported EPS")
             if reported is None or (isinstance(reported, float) and math.isnan(reported)):
+                info["next"] = ts.date().isoformat()        # aún sin publicar: la más cercana queda la última vista
                 continue
             est, surprise = row.get("EPS Estimate"), row.get("Surprise(%)")
-            result = {"date": ts.date().isoformat(), "eps_reported": float(reported),
-                      "eps_estimate": None if est is None or math.isnan(est) else float(est),
-                      "surprise_pct": None if surprise is None or math.isnan(surprise) else float(surprise)}
+            info["last"] = {"date": ts.date().isoformat(), "eps_reported": float(reported),
+                            "eps_estimate": None if est is None or math.isnan(est) else float(est),
+                            "surprise_pct": None if surprise is None or math.isnan(surprise) else float(surprise)}
             break
     except Exception as e:
         logger.warning("Sin calendario de resultados para %s: %s", ticker, e)
-    _earnings_cache[ticker] = (time.time(), result)
-    return result
+    _earnings_cache[ticker] = (time.time(), info)
+    return info
+
+
+def fetch_last_earnings(ticker: str) -> Optional[Dict[str, Any]]:
+    return _earnings_info(ticker)["last"]
+
+
+def in_results_week(ticker: str, today: Optional[date] = None) -> bool:
+    """Del día antes al 4.º día después de publicar resultados: la revisión de resultados ya cubre las noticias."""
+    today = today or date.today()
+    info = _earnings_info(ticker)
+    dates = [d for d in ((info.get("last") or {}).get("date"), info.get("next")) if d]
+    return any(-1 <= (today - date.fromisoformat(d)).days <= 4 for d in dates)
 
 
 def company_terms(thesis: Dict[str, Any]) -> List[str]:
@@ -281,6 +295,14 @@ ANÁLISIS DE LA CALL:
 PREGUNTAS MAESTRAS:
 {masters}
 
+CRONOLOGÍA: distingue los hechos DEL TRIMESTRE analizado de los hechos POSTERIORES (noticias, cambios regulatorios, puntos
+en vigilancia surgidos después del cierre). Un buen dato del trimestre NO desmiente ni resuelve un riesgo aparecido después:
+en ese caso di explícitamente que el trimestre todavía no lo recoge y márcalo "sin datos" en vs_expectations.
+
+Preguntas maestras: propón una NUEVA (type "pregunta_maestra", title = la pregunta tal cual) cuando aparezca una incógnita
+material que haya que seguir trimestre a trimestre y ninguna pregunta actual cubra; propón RETIRAR una (type "retirar_pregunta",
+title = el texto EXACTO de la pregunta actual) si ya está resuelta o ha perdido sentido.
+
 Propuestas de cambio: SOLO si hay un motivo económico nuevo (p.ej. la empresa empieza a publicar una métrica clave, cambia el
 modelo de negocio, aparece un riesgo material). No propongas KPIs por el mero hecho de que haya datos. Pocas y bien justificadas.
 
@@ -294,8 +316,8 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO:
   "hypotheses": [{{"id": "H1", "status": "refuerza|neutral|debilita", "reason": "…"}}],
   "devil_advocate": "3-4 frases: qué de este trimestre favorece la contra-tesis",
   "kill_switch_watch": [{{"kill_switch": "…", "comment": "¿se acerca? por qué"}}],
-  "proposals": [{{"type": "nuevo_kpi|umbral|riesgo|catalizador|otro", "title": "…", "rationale": "…"}}],
-  "verdict": "REFORZADA|INTACTA|DEBILITADA|ROTA",
+  "proposals": [{{"type": "nuevo_kpi|umbral|riesgo|catalizador|pregunta_maestra|retirar_pregunta|otro", "title": "…", "rationale": "…"}}],
+  "verdict": "REFORZADA|INTACTA|VIGILANCIA|DEBILITADA|ROTA  (= Strengthening / Intact / Watch / Weakening / Broken)",
   "verdict_rationale": "2-4 frases"}}"""
 
 
@@ -353,11 +375,11 @@ def run_review(thesis: Dict[str, Any], previous_reports: List[Dict[str, Any]]) -
         tr_text = (docs["transcript"] or {}).get("text", "")
 
         draft_call = _generate(client, EXTRACT_MODEL, build_kpi_prompt(thesis, ev, ref_by_kpi, pr_text, tr_text))
-        draft = extract_json(draft_call["text"])
+        draft = parse_json_or_repair(client, draft_call["text"])
         calls = [docs["call"], draft_call]
         try:
             verify_call = _generate(client, EXTRACT_MODEL, build_verify_prompt(thesis, ev, draft, ref_by_kpi, pr_text))
-            final, verified = extract_json(verify_call["text"]), True
+            final, verified = parse_json_or_repair(client, verify_call["text"]), True
             calls.append(verify_call)
         except Exception as e:
             logger.warning("Verificación de %s falló, se usa el borrador: %s", thesis["ticker"], e)
@@ -369,11 +391,11 @@ def run_review(thesis: Dict[str, Any], previous_reports: List[Dict[str, Any]]) -
 
         call_resp = _generate(client, JUDGE_MODEL, build_call_prompt(thesis, tr_text, prev_promises, expectations))
         calls.append(call_resp)
-        call_analysis = extract_json(call_resp["text"])
+        call_analysis = parse_json_or_repair(client, call_resp["text"])
 
         judge_resp = _generate(client, JUDGE_MODEL, build_judge_prompt(thesis, ev, items, call_analysis, consensus, expectations))
         calls.append(judge_resp)
-        judgement = normalize_judgement(extract_json(judge_resp["text"]))
+        judgement = normalize_judgement(parse_json_or_repair(client, judge_resp["text"]))
 
     grounding = _merge_grounding(*calls)
     meta = docs["meta"]

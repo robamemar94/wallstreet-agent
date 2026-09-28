@@ -1,0 +1,136 @@
+# Transcrito de data/theses/Booking_Holdings_Tesis_Definitiva_Framework_v2.6.md (septiembre 2026)
+# Cuadro de mando: KPIs de prioridad CRÍTICA y ALTA del «8. Dashboard maestro». La tesis es direccional (¿se mantiene?
+# ¿sube estructuralmente?) y solo fija cifra para FCF/share (señal Bear: <~7–8% estructural), así que el resto registra
+# el valor con semáforo MANUAL según las reglas de la tesis. SEO/organic y tráfico de AI no se publican (N/D ≠ positivo
+# ni negativo): van a la lista de vigilancia. Los KPIs de prioridad MEDIA quedan en el documento.
+# El documento completo está en config/theses/bkng.md.
+ticker: BKNG
+title: Booking Holdings · Tesis definitiva
+version: "framework v2.6"
+reference_date: "2026-09"
+source_document: data/theses/Booking_Holdings_Tesis_Definitiva_Framework_v2.6.md
+document: config/theses/bkng.md
+verdict: INTACTA
+summary: >-
+  Plataforma global de intermediación de viajes, extraordinariamente asset-light: escala de oferta, liquidez del
+  marketplace, marca, demanda directa, loyalty, datos, pagos e infraestructura transaccional. Más oferta → mejor producto
+  → más demanda → más reservas → mayor monetización → más productos por viajero → más FCF → recompras → más FCF/acción.
+  Principal riesgo: la desintermediación de la demanda por Google y los agentes de IA.
+hypothesis: "Booking no necesita conquistar un mercado nuevo; necesita seguir aumentando la participación económica que captura de cada viaje mientras conserva la relación con el viajero."
+hypotheses:
+  H1: "Booking mantiene una posición competitiva fuerte en alojamiento (INTACT)"
+  H2: "Merchant aumenta la monetización sin destruir economics (STRENGTHENING)"
+  H3: "Connected Trip aumenta el wallet share (WATCH / POSITIVE)"
+  H4: "Booking mantiene una adquisición de clientes eficiente (WATCH)"
+  H5: "AI no destruye la relación económica con el viajero (WATCH)"
+  H6: "Asia proporciona runway suficiente (INTACT / POSITIVE)"
+  H7: "FCF/share crece más rápido que el volumen (INTACT)"
+rules:
+  - "Por el riesgo de desintermediación, los KPIs de relación con el viajero y eficiencia de adquisición pesan más que las métricas de volumen aisladas."
+  - "WEAKENING si durante varios trimestres: Direct Mix ↓ + Marketing/GB ↑ + room nights/revenue growth ↓ + FCF/share growth ↓. BROKEN si hay evidencia estructural de que AI/search desplaza a Booking de la relación económica con el consumidor."
+  - "Cuando un dato no exista: N/D ≠ positivo ni negativo."
+  - "No extrapolar automáticamente el FCF de un solo año ni capitalizar todo el ahorro del Transformation Program como crecimiento estructural."
+  - "Asia se monitoriza como runway de crecimiento, no como un dashboard geográfico independiente."
+master_questions:
+  - "¿Ha cambiado la trayectoria del crecimiento?"
+  - "¿Ha cambiado el moat?"
+  - "¿Booking conserva la relación con el viajero?"
+  - "¿Está aumentando o disminuyendo el coste de adquirir demanda?"
+  - "¿Está mejorando Merchant realmente los economics?"
+  - "¿Connected Trip está generando economics incrementales?"
+  - "¿AI está siendo canal o amenaza?"
+  - "¿Está creciendo FCF/share?"
+  - "¿Las recompras están creando valor por acción?"
+  - "¿Qué evidencia nueva favorece a Bull y qué evidencia favorece a Bear?"
+valuation:
+  question: "Parte del FCF/share normalizado; lo relevante es el CAGR del precio a 5 y 10 años, no el crecimiento del FCF."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: fcf_ps_cagr, label: FCF/share CAGR, format: pct}
+    - {key: multiple, label: Múltiplo terminal}
+    - {key: cagr_doc, label: CAGR 10a (tesis), format: pct}
+  scenarios:
+    - {name: Bear, fcf_ps_cagr: 7, multiple: "18x", cagr_doc: 9.6}
+    - {name: Base, fcf_ps_cagr: 10, multiple: "23x", cagr_doc: 15.4}
+    - {name: Bull, fcf_ps_cagr: 13, multiple: "28x", cagr_doc: 21.0}
+events:
+  - date: "2026-06-30"
+    type: earnings
+    impact: positive
+    title: "Resultados Q2 2026 (trimestre cerrado jun-2026)"
+    body: "Revenue +8%, opex +7%, adjusted EBITDA +9% (margen ~36,0%). Merchant = 73% del Gross Bookings (69% un año antes); en H1 Merchant GB +19,3% y Agency -3,2%. Recompras H1 ~$7,76B (autorización restante ~$14,5B); SBC H1 ~$281M. Net debt ~$2,6B."
+  - date: "2026-09-28"
+    type: thesis
+    impact: neutral
+    title: "Tesis definitiva (framework v2.6) · estado INTACT"
+    body: "Vigilancia especial sobre distribución/demanda directa, SEO/Google, AI/desintermediación, Connected Trip y economics de Merchant."
+
+pillars:
+  - key: direct_mix
+    name: B2C Direct Mix
+    description: "🔴 CRÍTICA · H4/H5 — ¿Booking sigue teniendo la relación directa con el viajero? Si cae estructuralmente: MOAT EN RIESGO."
+    kpis:
+      - {key: direct_mix, name: B2C Direct Mix, kind: qualitative, unit: "%",
+         how_to_measure: "Definición que Booking publica cada trimestre: % de las room nights TOTALES reservadas por canal directo, últimos 12 meses (lo da en rangos). La tesis cita el B2C Direct Mix (~mid-60%), que no se publica con la misma regularidad",
+         green_text: "Se mantiene o sube", amber_text: "Baja un trimestre", red_text: "Cae varios trimestres (moat en riesgo)",
+         baseline: "Total room nights: «mid-fifties» TTM (Q2 2026, similar al año anterior) · B2C: ~mid-60% (tesis)", frequency: Trimestral, source: Booking,
+         is_kill_switch: true, kill_rule: "Señal Bear 1: el Direct Mix cae varios trimestres (el primer eslabón de la cadena se rompe)"}
+
+  - key: marketing_gb
+    name: Marketing / Gross Bookings
+    description: "🔴 CRÍTICA · H4 — ¿Cuánto cuesta generar demanda? Si sube persistentemente: CAC ↑ → margen ↓."
+    kpis:
+      - {key: marketing_gb, name: Marketing / Gross Bookings, kind: qualitative, unit: "%",
+         how_to_measure: "Gastos de marketing (performance + brand) / Gross Bookings del trimestre",
+         green_text: "Estable o baja", amber_text: "Sube puntualmente", red_text: "Sube estructuralmente (CAC ↑)",
+         frequency: Trimestral, source: Booking 10-Q,
+         is_kill_switch: true, kill_rule: "Señal Bear 2: Marketing/GB aumenta estructuralmente"}
+
+  - key: fcf_share
+    name: FCF/share growth
+    description: "🔴 CRÍTICA · H7 — ¿Todo el modelo acaba generando más valor económico por acción? El KPI financiero definitivo."
+    kpis:
+      - {key: fcf_per_share_growth, name: FCF/share growth, unit: "%", green_threshold: 10, red_threshold: 7,
+         how_to_measure: "CAGR del FCF por acción a 3 años (autocompletado). Caso base de la valoración: 10%",
+         green_text: "≥10% (caso base)", amber_text: "7–10%", red_text: "Cae hacia crecimiento estructural <~7–8%",
+         baseline: "FCF 2025 ~$9,1B (FCF margin ~34%); recompras H1 2026 ~$7,76B", auto_metric: fcf_per_share_cagr_3y,
+         is_kill_switch: true, kill_rule: "Señal Bear 7: FCF/share cae hacia un crecimiento estructural inferior a ~7–8%"}
+
+  - key: merchant
+    name: Merchant GB Mix + economics
+    description: "🟠 ALTA · H2 — ¿Aumenta la monetización y el control transaccional sin destruir margen?"
+    kpis:
+      - {key: merchant_mix, name: Merchant GB Mix, kind: qualitative, unit: "%",
+         how_to_measure: "Merchant Gross Bookings / Gross Bookings totales, junto con su margen incremental (pagos, fraude, customer service)",
+         green_text: "Sube y mejora economics", amber_text: "Sube sin mejorar economics", red_text: "Sube pero empeora economics (Señal Bear 5)",
+         baseline: "73% Q2 2026 (69% un año antes)", frequency: Trimestral, source: Booking,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 73, status: green,
+                         note: "73% vs 69% en Q2 2025; H1 Merchant GB +19,3%, Agency -3,2%. H2 en STRENGTHENING (tesis)"}]}
+
+  - key: connected_trip
+    name: Connected Trip
+    description: "🟠 ALTA · H3 — ¿Booking captura más wallet share y convierte ese crecimiento en FCF?"
+    kpis:
+      - {key: connected_trip_mix, name: Connected Trip mix, kind: qualitative, unit: "%",
+         how_to_measure: "Peso de las transacciones Connected Trip y su efecto en revenue/FCF por cliente",
+         green_text: "Crece y aumenta monetización", amber_text: "Crece sin efecto visible", red_text: "Crece pero no aumenta monetización/FCF (Señal Bear 6)",
+         baseline: "low double-digit % de las transacciones", frequency: Trimestral, source: Booking}
+
+  - key: take_rate
+    name: Revenue / Gross Bookings
+    description: "🟠 ALTA — ¿Está aumentando la monetización?"
+    kpis:
+      - {key: revenue_gb, name: Revenue / Gross Bookings, kind: qualitative, unit: "%",
+         how_to_measure: "Revenue / Gross Bookings (take rate) del trimestre frente al mismo trimestre del año anterior",
+         green_text: "Estable o sube", amber_text: "Baja puntualmente", red_text: "Room nights crecen pero la monetización empeora (Señal Bear 4)",
+         baseline: "2025: revenue +13,4% vs Gross Bookings +12,4%", frequency: Trimestral, source: Booking}
+
+  - key: room_nights
+    name: Room nights growth
+    description: "🟠 ALTA · H1 — ¿El core sigue creciendo?"
+    kpis:
+      - {key: room_nights_growth, name: Room nights growth, kind: qualitative, unit: "%",
+         how_to_measure: "Crecimiento YoY de las room nights (junto con Gross Bookings)",
+         green_text: "Crecimiento sostenible", amber_text: "Se desacelera", red_text: "Estancamiento sin causa cíclica",
+         baseline: "2025: 1.235M room nights (+8%)", frequency: Trimestral, source: Booking,
+         observations: [{period: FY2025, date: "2025-12-31", value: 8, status: green, note: "1.235M room nights; H1 en INTACT (tesis)"}]}

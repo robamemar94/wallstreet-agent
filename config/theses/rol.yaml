@@ -1,0 +1,144 @@
+# Transcrito de data/theses/ROLLINS_Master_Thesis_Framework_v2.7_CORREGIDA.md (septiembre 2026)
+# Se monitorizan los KPIs CUANTIFICABLES del «7.2 KPI Dashboard maestro». Umbrales: los del dashboard y, donde el
+# dashboard solo dice «recuperación»/«monitorizar», las cifras explícitas de 8.2 Thesis breakers, 9.1 Bull evidence,
+# 9.2 Bear evidence y 6.3. Leads, CAC, clientes nuevos, retención y ROIC M&A están N/D en la tesis: van a vigilancia.
+# El documento completo está en config/theses/rol.md.
+ticker: ROL
+title: Rollins · Master Thesis
+version: "v2.7"
+reference_date: "2026-09"
+reference_price: 30
+source_document: data/theses/ROLLINS_Master_Thesis_Framework_v2.7_CORREGIDA.md
+document: config/theses/rol.md
+verdict: VIGILANCIA
+summary: >-
+  Plataforma de control de plagas con una gran base de clientes recurrentes: marca + densidad de rutas + escala operativa
+  + distribución + M&A en un mercado fragmentado. La tesis es que puede seguir componiendo el FCF por acción durante años.
+  Estado WATCH: la cuestión de 2026 es si el cambio en búsqueda/AI altera de forma estructural la economía de captación
+  de nuevos clientes residenciales, no si ha tenido un trimestre peor.
+hypothesis: "Algoritmo de management: 7–8% orgánico + 2–3% M&A ≈ 9–11% total (objetivo de medio plazo, no una certeza para valorar)."
+hypotheses:
+  H1: "Recurrencia: la base recurrente mantiene una economía atractiva (VERDE/AMARILLO)"
+  H2: "Densidad: mayor escala genera mayor densidad y productividad (AMARILLO, falta disclosure)"
+  H3: "Organic growth: puede sostener ~7–8% a medio plazo (AMARILLO)"
+  H4: "AI/search: es un problema de canal, no una destrucción permanente del economics (AMARILLO/ROJO)"
+  H5: "M&A: las adquisiciones generan ROIC superior al coste de capital (AMARILLO)"
+  H6: "Operating leverage: el crecimiento vuelve a producir expansión de margen (AMARILLO)"
+  H7: "Moat: escala + marca + densidad + recurrencia mantienen economics superiores (VERDE/AMARILLO)"
+rules:
+  - "No actualizar la tesis por titulares. Actualizarla por mecanismos. Un trimestre malo no rompe el moat; un trimestre bueno tampoco lo demuestra."
+  - "La tesis cambia cuando cambia la cadena económica: cliente → adquisición → recurrencia → densidad → productividad → margen → FCF/share → reinversión."
+  - "La debilidad residencial puede ser estacional, climática, cíclica, de canal o estructural: no clasificarla como thesis breaker hasta observar duración."
+  - "No asumir que M&A o recompras crean valor sin analizar precio, integración, dilución y retornos. No usar el beneficio neto anualizado como ROIC."
+  - "No inventar KPIs, umbrales ni precisión que la evidencia no permita. Separar hechos, inferencias, hipótesis y supuestos."
+master_questions:
+  - "¿Ha cambiado la trayectoria del crecimiento?"
+  - "¿Ha cambiado la economía de adquisición de clientes (leads, CAC, clientes nuevos)?"
+  - "¿Ha cambiado el moat?"
+  - "¿M&A sigue creando valor?"
+  - "¿Está aumentando o disminuyendo el FCF/share?"
+  - "¿Management está asignando capital correctamente?"
+  - "¿El problema actual es ruido, headwind, material o thesis breaker?"
+  - "¿Qué evidencia resolvería la incertidumbre?"
+valuation:
+  target_year: 2031
+  question: "Base normalizada: FCF ~$600–625M, ~481M acciones, FCF/share ~$1,25–1,30; EBITA 2026 ~$780–790M. Zona central actual ~$34–36."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: growth, label: Crecimiento total}
+    - {key: ebita_margin, label: EBITA margin}
+    - {key: multiple, label: EV/EBITA terminal}
+    - {key: price, label: Valor 2031, format: usd}
+    - {key: cagr_doc, label: CAGR 5a (tesis)}
+  scenarios:
+    - {name: Bear, growth: "~5%", ebita_margin: "~19%", multiple: "18x", price: 36, cagr_doc: "~3–4%"}
+    - {name: Base, growth: "~7%", ebita_margin: "~21%", multiple: "21x", price: 52, cagr_doc: "~11–12%"}
+    - {name: Bull, growth: "~9%", ebita_margin: "~22,5%", multiple: "24x", price: 70, cagr_doc: "~18–19%"}
+events:
+  - date: "2026-06-30"
+    type: earnings
+    impact: negative
+    title: "Resultados Q2 2026 (trimestre cerrado jun-2026)"
+    body: "Revenue +7,9%, organic +5,7%; operating margin 18,7% (-110 pb); adjusted EBITDA margin 21,9% (-120 pb); adjusted EPS +6,7%; OCF -1,5%, FCF -1,2%. Organic por categoría: residential +3,6%, commercial +7,2%, termite/ancillary +8,9%. Incremental EBITDA margin ~6,5% vs ≥10% objetivo 2026."
+  - date: "2026-09-28"
+    type: thesis
+    impact: negative
+    title: "Journal de tesis (septiembre 2026) · estado WATCH"
+    body: "Debilidad residencial + caída de leads en determinados canales + fuerte reacción del mercado. Hipótesis afectadas: H3, H4, H6. Próximo punto crítico: Q3 2026."
+
+pillars:
+  - key: organic
+    name: Organic growth
+    description: "H3 — ¿Puede sostener ~7–8% a medio plazo? Guía 2026: ≥6% orgánico."
+    kpis:
+      - {key: organic_growth, name: Organic growth, unit: "%", green_threshold: 7, red_threshold: 5,
+         green_text: ">~7% deseable", amber_text: "5–7%", red_text: "<5% durante 2–3 años (TB1)",
+         baseline: "Q2 2026 +5,7%; H1 +6,1%", frequency: Trimestral, source: Rollins,
+         is_kill_switch: true, kill_rule: "TB1: organic growth <5% durante 2–3 años sin explicación cíclica",
+         observations: [{period: Q1 2026, date: "2026-03-31", value: 6.6},
+                        {period: Q2 2026, date: "2026-06-30", value: 5.7}]}
+
+  - key: residential
+    name: Residential organic
+    description: "H4 — Principal foco de investigación: ¿el problema de captación es de canal o estructural?"
+    kpis:
+      # 9.1 bull: vuelve a ~6–8%; 9.2 bear: <4–5% durante varios trimestres
+      - {key: residential_organic, name: Residential organic, unit: "%", green_threshold: 6, red_threshold: 4,
+         green_text: "Recupera ~6–8%", amber_text: "4–6%", red_text: "<4–5% durante varios trimestres",
+         baseline: "Q2 2026 +3,6% (H1 +3,9%)", frequency: Trimestral, source: Rollins,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 3.6}]}
+
+  - key: commercial
+    name: Commercial organic
+    description: "La diversificación defiende la tesis si commercial mantiene high-single-digit mientras residential se debilita."
+    kpis:
+      - {key: commercial_organic, name: Commercial organic, unit: "%", green_threshold: 7,
+         green_text: ">7%", amber_text: "<7%", red_text: "También desacelera",
+         baseline: "Q2 2026 +7,2%", frequency: Trimestral, source: Rollins,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 7.2}]}
+
+  - key: termite
+    name: Termite/ancillary organic
+    description: "Categorías que amplían revenue por cliente y reducen la dependencia de un solo motor."
+    kpis:
+      - {key: termite_organic, name: Termite/ancillary organic, unit: "%", green_threshold: 8,
+         green_text: ">8%", amber_text: "<8%", red_text: "Pierde el diferencial frente a residential",
+         baseline: "Q2 2026 +8,9% (H1 total +11,9%)", frequency: Trimestral, source: Rollins,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 8.9}]}
+
+  - key: operating_leverage
+    name: Incremental EBITDA margin
+    description: "H6 — Operating leverage: referencia de management ≥10% en 2026 y ~30–35% a medio plazo."
+    kpis:
+      - {key: incremental_ebitda_margin, name: Incremental EBITDA margin, unit: "%", green_threshold: 10,
+         green_text: "≥10% (2026)", amber_text: "<10%", red_text: "Muy por debajo del objetivo durante varios años (TB5)",
+         baseline: "Q2 2026 ~6,5%", frequency: Trimestral, source: Rollins,
+         is_kill_switch: true, kill_rule: "TB5: incremental EBITDA margin muy por debajo del objetivo durante varios años",
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 6.5}]}
+
+  - key: mna
+    name: M&A growth
+    description: "H5 — Segundo motor: ~2–3% de crecimiento por M&A. Vigilar que no se acelere para tapar debilidad orgánica."
+    kpis:
+      - {key: mna_growth, name: M&A growth, unit: "%", green_threshold: 2,
+         green_text: "~2–3%", amber_text: "<2%", red_text: "Se acelera para compensar la debilidad orgánica",
+         baseline: "H1 2026 +2,8%", frequency: Trimestral, source: Rollins,
+         observations: [{period: H1 2026, date: "2026-06-30", value: 2.8}]}
+
+  - key: shares
+    name: Share count
+    description: "El crecimiento debe medirse por acción: ¿recompras reducen de verdad el número de acciones?"
+    kpis:
+      - {key: share_count, name: Share count, unit: "% YoY", direction: lower, green_threshold: 0,
+         how_to_measure: "Acciones diluidas YoY (autocompletado)",
+         green_text: "↓ neto", amber_text: "Sube", red_text: "Dilución sostenida", auto_metric: diluted_shares_yoy}
+
+  - key: fcf_share
+    name: FCF/share
+    description: "El dato relevante para el accionista es el FCF por acción, no solo el FCF total."
+    kpis:
+      # 9.1 bull: FCF/share crece a doble dígito; 9.2 bear: FCF/share se estanca
+      - {key: fcf_per_share_growth, name: FCF/share growth, unit: "%", green_threshold: 10, red_threshold: 0,
+         how_to_measure: "CAGR del FCF por acción a 3 años (autocompletado)",
+         green_text: "Crece a doble dígito", amber_text: "0–10%", red_text: "Se estanca",
+         baseline: "FCF/share normalizado ~$1,25–1,30; H1 2026 FCF ~10% inferior", auto_metric: fcf_per_share_cagr_3y}

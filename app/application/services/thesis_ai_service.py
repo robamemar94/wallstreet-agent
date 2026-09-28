@@ -31,13 +31,41 @@ def extract_json(text: str) -> Dict[str, Any]:
     return json.loads(text[start:end + 1])
 
 
-def _client():
+def parse_json_or_repair(client, text: str, model: Optional[str] = None) -> Dict[str, Any]:
+    """Parsea el JSON de una respuesta; si está mal formado (p.ej. comillas sin escapar al citar una transcripción),
+    una llamada barata (Flash, sin búsqueda) lo corrige sin cambiar el contenido."""
+    try:
+        return extract_json(text)
+    except ValueError as first_error:
+        from google.genai import types
+        logger.warning("JSON mal formado (%s); reparando", first_error)
+        fixed = client.models.generate_content(
+            model=model or GEMINI_MODEL,
+            contents=("Este JSON no es válido. Corrige SOLO el formato (escapa comillas internas, comas, llaves) sin cambiar "
+                      f"ni resumir el contenido y devuelve ÚNICAMENTE el JSON:\n\n{text}"),
+            config=types.GenerateContentConfig(temperature=0),
+        )
+        return extract_json(fixed.text)
+
+
+def _client(api_key: Optional[str] = None):
     from google import genai
 
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    api_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY no configurada")
     return genai.Client(api_key=api_key)
+
+
+# --- Radar con la clave gratuita (opcional) ---
+# Si hay GEMINI_FREE_API_KEY (proyecto de AI Studio SIN facturación), el radar semanal la usa con un modelo cuya
+# búsqueda de Google es gratis en el nivel gratuito (2.5 Flash: hasta 500 búsquedas/día). Si falla (cuota, límite
+# diario…) se repite con la clave de pago. Ojo: en el nivel gratuito Google usa los datos para mejorar sus productos.
+FREE_NEWS_MODEL = os.getenv("THESIS_NEWS_FREE_MODEL", "gemini-2.5-flash")
+
+
+def free_news_key() -> Optional[str]:
+    return os.environ.get("GEMINI_FREE_API_KEY") or None
 
 
 def _generate(client, model: str, prompt: str) -> Dict[str, Any]:
@@ -182,15 +210,29 @@ def news_due(last_digest: Optional[Dict[str, Any]], now: Optional[datetime] = No
     return now - datetime.fromisoformat(last_digest["created_at"]) >= timedelta(days=NEWS_INTERVAL_DAYS)
 
 
-def run_news_digest(thesis: Dict[str, Any], ev: Dict[str, Any]) -> Dict[str, Any]:
-    days = news_window_days(thesis["extra"].get("news_digest"))
-    client = _client()
+def _run_news(client, model: str, thesis: Dict[str, Any], ev: Dict[str, Any], days: int) -> Dict[str, Any]:
     with llm_usage.track_usage(f"{thesis['ticker']}/thesis-news") as tracker:
         # 1) búsqueda con un prompt sencillo (el modelo tiende a no buscar si el prompt es largo y exigente)
-        found = _generate_searched(client, GEMINI_MODEL, build_news_search_prompt(thesis, days), f"{thesis['ticker']}/news-search")
+        found = _generate_searched(client, model, build_news_search_prompt(thesis, days), f"{thesis['ticker']}/news-search")
         # 2) clasificación por materialidad frente al checklist
-        call = _generate(client, GEMINI_MODEL, build_news_prompt(thesis, ev, found["text"], days))
-    digest = parse_news(extract_json(call["text"]), len(ev["pillars"]))
-    digest.update({"usage": tracker.result, "grounded": bool(found["queries"] or call["queries"]), "window_days": days,
-                   "created_at": datetime.now().isoformat(timespec="seconds")})
+        call = _generate(client, model, build_news_prompt(thesis, ev, found["text"], days))
+        data = parse_json_or_repair(client, call["text"], model)
+    digest = parse_news(data, len(ev["pillars"]))
+    digest.update({"usage": tracker.result, "grounded": bool(found["queries"] or call["queries"]), "model": model})
+    return digest
+
+
+def run_news_digest(thesis: Dict[str, Any], ev: Dict[str, Any]) -> Dict[str, Any]:
+    days = news_window_days(thesis["extra"].get("news_digest"))
+    digest = None
+    if free_news_key():
+        try:
+            digest = _run_news(_client(free_news_key()), FREE_NEWS_MODEL, thesis, ev, days)
+            digest["free_tier"] = True
+        except Exception as e:
+            logger.warning("Radar de %s con la clave gratuita falló (%s); se repite con la de pago", thesis["ticker"], e)
+    if digest is None:
+        digest = _run_news(_client(), GEMINI_MODEL, thesis, ev, days)
+        digest["free_tier"] = False
+    digest.update({"window_days": days, "created_at": datetime.now().isoformat(timespec="seconds")})
     return digest

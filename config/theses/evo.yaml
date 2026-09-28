@@ -1,0 +1,194 @@
+# Transcrito de data/theses/Evolution_Tesis_Maestra_v5.1_Framework_v2.8_KPIs_27-09-2026.pdf (27/09/2026)
+# Se monitorizan los KPIs CUANTIFICABLES del «Dashboard maestro de EVO» (H1–H6, H8–H10) y las geografías de la tabla
+# «KPIs de producto y geografía» (Europa, Asia, LatAm). H7 moat cualitativo y H11 regulación van a la lista de vigilancia
+# (junto al lado cualitativo de Brasil y Asia) y H12 a la valoración.
+# Umbrales: los del dashboard; donde el dashboard solo da una referencia verbal se usa la cifra explícita de la propia
+# tesis (6.5 «Qué cambiaría nuestra interpretación», 8.3 «Thesis breakers», 1.7 «Tesis central»). Ver comentarios.
+# El documento completo está en config/theses/evo.md.
+ticker: EVO.ST
+title: Evolution AB · Tesis Maestra
+version: "v5.1 (framework v2.8)"
+reference_date: "2026-09-27"
+reference_price: 816
+source_document: data/theses/Evolution_Tesis_Maestra_v5.1_Framework_v2.8_KPIs_27-09-2026.pdf
+document: config/theses/evo.md
+verdict: INTACTA
+summary: >-
+  Contenido diferencial → distribución amplia → utilización por jugadores → ingresos de alta contribución → FCF elevado
+  → reinversión + recompras → FCF/share. Evolution puede seguir siendo un compounder aunque ya no crezca como en
+  2021–2023 si el moat mantiene la economía del Live, RNG crece, Norteamérica compensa la madurez, Brasil no se convierte
+  en un agujero estructural y el FCF se transforma en FCF/share con recompras a precios razonables. Estado: WATCH / INTACT.
+hypothesis: "Caso base: ~3–4% de crecimiento del FCF del negocio y ~1,5–2% anual de reducción de acciones → ~5–6% de crecimiento de FCF/share. No exige volver al 10–15%."
+hypotheses:
+  H1: Live mantiene el moat
+  H2: El margen sigue siendo estructural
+  H3: RNG vuelve a aportar crecimiento
+  H4: Norteamérica es runway real
+  H5: LatAm crece sin dependencia excesiva de Brasil
+  H6: Asia se estabiliza
+  H7: El moat se conserva
+  H8: La caja se convierte bien
+  H9: Las recompras crean valor por acción
+  H10: El balance permite flexibilidad
+  H11: Regulación no destruye economics
+  H12: La valoración sigue ofreciendo retorno
+rules:
+  - "No todos los KPIs tienen un umbral numérico rígido. Cuando no existe una relación económica suficientemente estable, se utiliza tendencia + contexto."
+  - "Un KPI rojo no rompe automáticamente la tesis: primero hay que identificar si es temporal, cíclico, regulatorio o estructural. Un solo trimestre negativo no es un thesis breaker."
+  - "La tesis se debilita cuando varios KPIs de la misma hipótesis se deterioran simultáneamente o cuando cambia la relación económica que sustentaba la hipótesis."
+  - "La valoración se actualiza cuando cambia la trayectoria del FCF/acción, la reinversión, el número de acciones o el múltiplo terminal razonable; no por cualquier movimiento trimestral."
+  - "No se convierte una ausencia de disclosure en una señal positiva o negativa; cuando el dato no permite precisión suficiente se marca como incertidumbre."
+master_questions:
+  - "¿Siguen estabilizando Live y Europa? ¿Cuál es el efecto cuantificado de Brasil?"
+  - "¿Cuál es el impacto real de la MP brasileña desde el 6/10/2026 y su evolución jurídica/regulatoria?"
+  - "¿Cómo evoluciona Asia y qué evidencia hay sobre la redistribución ilegal/cyber?"
+  - "RNG: ¿se mantiene un crecimiento >7–9%?"
+  - "Norteamérica: ¿crecimiento y monetización de los nuevos estudios/estados?"
+  - "¿Cuántas acciones quedan tras la cancelación y las nuevas recompras? ¿A qué precio se recompra frente al valor intrínseco?"
+  - "FCF 2026 completo: ¿se normalizan el working capital y el capex?"
+  - "Competencia: ¿qué señales económicas hay frente a Pragmatic y Playtech?"
+valuation:
+  question: "Base normalizada: FCF ~€1,10B, EUR/SEK ~11,2, ~183,1M acciones → ~67,3 SEK de FCF/acción; a 816 SEK ≈12,1x FCF y ≈8,2% FCF yield."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: fcf_ps_cagr, label: FCF/share CAGR, format: pct}
+    - {key: multiple, label: Múltiplo terminal}
+    - {key: cagr_doc, label: CAGR 10a (tesis), format: pct}
+    - {key: note, label: Fuente}
+  scenarios:
+    - {name: Bear, fcf_ps_cagr: 2, multiple: "15x", cagr_doc: 4, note: "«Si el FCF/share solo crece 2% y el múltiplo termina en 15x, el CAGR a 10 años cae hacia ~4%»"}
+    - {name: Base, fcf_ps_cagr: 5.5, multiple: "18x", cagr_doc: 10, note: "Matriz estructural (g 5,5%, terminal 18x); estimación central ~10% a 10 años"}
+    - {name: Bull, fcf_ps_cagr: 7.5, multiple: "22x", cagr_doc: 14, note: "«Si FCF/share crece 7,5% y el múltiplo alcanza 22x, el CAGR supera 14%»"}
+events:
+  - date: "2026-07-17"
+    type: earnings
+    impact: neutral
+    title: "Resultados Q2 2026 (Interim Report enero–junio)"
+    body: "Revenue -1,2%; EBITDA margin 65,9% (igual que en Q2 2025); 1H 65,6% frente a 65,8%. ~870 operadores clientes y 22.880 empleados a cierre de Q2."
+  - date: "2026-09-22"
+    type: news
+    impact: positive
+    title: "Cancelación de 16.168.492 acciones (junta extraordinaria)"
+    body: "~183,1M acciones tras la cancelación. Parte de las recompras de septiembre se ejecutó cerca de 890–907 SEK."
+  - date: "2026-09-25"
+    type: news
+    impact: negative
+    title: "Medida Provisória nº 1.394 en Brasil"
+    body: "Shock regulatorio en LatAm; impacto real desde el 6/10/2026. Pendiente de cuantificar."
+  - date: "2026-09-27"
+    type: thesis
+    impact: neutral
+    title: "Tesis Maestra v5.1 (framework v2.8) · precio de referencia 816 SEK"
+    body: "Estado WATCH / INTACT. Estimación central: ~14% CAGR precio a 5 años y ~10% a 10 años. «La tesis sigue intacta, pero debe ganarse trimestre a trimestre.»"
+
+pillars:
+  - key: live
+    name: Live revenue growth
+    description: "H1 — Live mantiene el moat: estabilización y vuelta a crecimiento."
+    kpis:
+      - {key: live_growth, name: Live revenue growth, unit: "%", green_threshold: 0,
+         how_to_measure: "Crecimiento YoY del revenue de Live Casino (dato por segmento del informe trimestral)",
+         green_text: ">0% sostenido", amber_text: "Negativo puntual", red_text: "Deterioro si cae de forma persistente",
+         baseline: "Revenue del grupo -1,2% en Q2 2026; falta una recuperación sostenida de Live", frequency: Trimestral, source: Evolution,
+         is_kill_switch: true, kill_rule: "Live permanece estructuralmente negativo durante 2–3 años y pierde posición económica frente a competidores"}
+
+  - key: margin
+    name: EBITDA margin
+    description: "H2 — El margen sigue siendo estructural: capacidad de conservar pricing/escala."
+    kpis:
+      - {key: ebitda_margin, name: EBITDA margin, unit: "%", green_threshold: 60,
+         green_text: "≈≥60%", amber_text: "<60% puntual", red_text: "Caída persistente sin explicación",
+         baseline: "65,9% en Q2 2026 (65,6% en 1H)", frequency: Trimestral, source: Evolution,
+         is_kill_switch: true, kill_rule: "EBITDA margin cae de forma persistente por debajo de ~60–62% sin inversión claramente explicativa",
+         observations: [{period: Q2 2025, date: "2025-06-30", value: 65.9},
+                        {period: Q2 2026, date: "2026-06-30", value: 65.9}]}
+
+  - key: rng
+    name: RNG revenue growth
+    description: "H3 — RNG vuelve a aportar crecimiento por encima del grupo."
+    kpis:
+      # Dashboard: «crecimiento alto de un dígito o superior»; 6.5: RNG >8% refuerza la tesis; 8.3: RNG que no crece es breaker
+      - {key: rng_growth, name: RNG revenue growth, unit: "%", green_threshold: 8, red_threshold: 0,
+         how_to_measure: "Crecimiento YoY del revenue de RNG/slots (dato por segmento)",
+         green_text: "Alto de un dígito o superior (>8% refuerza)", amber_text: "0–8%", red_text: "No crece",
+         frequency: Trimestral, source: Evolution,
+         is_kill_switch: true, kill_rule: "RNG no consigue crecer y no compensa el estancamiento de Live"}
+
+  - key: north_america
+    name: NA revenue growth
+    description: "H4 — Norteamérica es runway real: crecimiento sostenido con expansión de contenido/studios."
+    kpis:
+      # Dashboard: «un dígito alto mientras escala»; 6.5: Norteamérica >8% refuerza; 8.3: que deje de crecer es breaker
+      - {key: na_growth, name: NA revenue growth, unit: "%", green_threshold: 8, red_threshold: 0,
+         how_to_measure: "Crecimiento YoY del revenue de Norteamérica",
+         green_text: "Dígito alto (>8% refuerza)", amber_text: "0–8%", red_text: "Deja de crecer",
+         frequency: Trimestral, source: Evolution,
+         is_kill_switch: true, kill_rule: "Norteamérica deja de crecer y no sustituye la madurez de Europa/Asia"}
+
+  # Geografías: Europa y Asia son ~3/4 del revenue (1.4). La tesis pide su «estabilización» (tabla «KPIs de producto y
+  # geografía», H6 y 6.5) sin fijar cifra: se interpreta como crecimiento ≥0%; por debajo, amarillo y el rojo es manual.
+  - key: europe
+    name: Europa revenue growth
+    description: "¿El mercado maduro se estabiliza? Europa y Asia explican ~3/4 del revenue: Norteamérica sola no compensa su debilidad."
+    kpis:
+      - {key: europe_growth, name: Europa revenue growth, unit: "%", green_threshold: 0,
+         how_to_measure: "Crecimiento YoY del revenue de Europa (dato por región del informe trimestral)",
+         green_text: "Se estabiliza (≥0%)", amber_text: "Sigue cayendo", red_text: "Caída persistente/estructural",
+         frequency: Trimestral, source: Evolution}
+
+  - key: asia
+    name: Asia revenue growth
+    description: "H6 — Asia se estabiliza: menor impacto de cybercrime/redistribución ilegal. Estabilización antes de exigir recuperación."
+    kpis:
+      - {key: asia_growth, name: Asia revenue growth, unit: "%", green_threshold: 0,
+         how_to_measure: "Crecimiento YoY del revenue de Asia",
+         green_text: "Se estabiliza (≥0%)", amber_text: "Sigue cayendo", red_text: "Sigue deteriorándose tras normalizar redistribución/cyber",
+         frequency: Trimestral, source: Evolution,
+         is_kill_switch: true, kill_rule: "Asia continúa deteriorándose aun después de normalizar los problemas de redistribución/cyber"}
+
+  - key: latam
+    name: LatAm revenue growth
+    description: "H5 — LatAm crece sin dependencia excesiva de Brasil. La tesis no fija umbral y Brasil distorsiona la cifra: semáforo manual."
+    kpis:
+      - {key: latam_growth, name: LatAm revenue growth, kind: qualitative, unit: "%",
+         how_to_measure: "Crecimiento YoY del revenue de LatAm y peso de Brasil",
+         green_text: "Crece diversificado", amber_text: "Crece concentrado en Brasil", red_text: "Cae por el efecto regulatorio de Brasil",
+         frequency: Trimestral, source: Evolution}
+
+  - key: cash_conversion
+    name: FCF margin
+    description: "H8 — La caja se convierte bien: alta conversión con CapEx controlado. La tesis no fija un umbral: semáforo manual."
+    kpis:
+      - {key: fcf_margin, name: FCF margin, kind: qualitative, unit: "%",
+         how_to_measure: "FCF / revenue (autocompletado). La tesis valora con un FCF normalizado de ~€1,10B",
+         green_text: "Alto y estable", amber_text: "Baja por working capital/capex", red_text: "Deterioro estructural de la conversión",
+         auto_metric: fcf_margin}
+
+  - key: fcf_share
+    name: FCF/share growth
+    description: "H9 — Las recompras crean valor por acción: FCF/share debe crecer más que el FCF agregado. KPI financiero principal."
+    kpis:
+      # 1.7: el caso base necesita ~5–6%; 6.5: FCF/share >5% refuerza; 8.7: la amenaza es que se acerque a 0–2%
+      - {key: fcf_per_share_growth, name: FCF/share growth, unit: "%", green_threshold: 5, red_threshold: 2,
+         how_to_measure: "CAGR del FCF por acción a 3 años (autocompletado); la tesis usa ~67,3 SEK normalizado",
+         green_text: ">5% (caso base 5–6%)", amber_text: "2–5%", red_text: "Se acerca a 0–2%",
+         auto_metric: fcf_per_share_cagr_3y,
+         is_kill_switch: true, kill_rule: "FCF/share estancado (0–2%) junto con Live débil y margen <60–62%: la contra-narrativa gana"}
+
+  - key: shares
+    name: Shares outstanding
+    description: "H9 — Acciones ↓ y FCF/share ↑: el caso base asume ~1,5–2% de reducción anual."
+    kpis:
+      - {key: shares_outstanding, name: Shares outstanding, unit: "% YoY", direction: lower, green_threshold: -1.5, red_threshold: 0,
+         how_to_measure: "Acciones diluidas YoY (autocompletado)",
+         green_text: "↓ ≥1,5% anual (caso base)", amber_text: "↓ menos de 1,5%", red_text: "Dilución",
+         baseline: "~183,1M acciones tras cancelar 16,17M el 22/09/2026", auto_metric: diluted_shares_yoy}
+
+  - key: balance
+    name: Net cash / debt
+    description: "H10 — El balance permite flexibilidad: mantener caja neta / deuda controlada."
+    kpis:
+      - {key: net_cash, name: Caja neta, unit: " M€", green_threshold: 0,
+         how_to_measure: "Caja menos deuda financiera (M€, informe trimestral)",
+         green_text: "Caja neta", amber_text: "Deuda neta controlada", red_text: "Apalancamiento problemático",
+         baseline: "Liquidez relevante y deuda limitada a jun-2026; la recompra de septiembre consume una parte importante"}

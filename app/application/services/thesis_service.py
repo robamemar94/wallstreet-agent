@@ -19,7 +19,8 @@ STATUS_SCORE = {"green": 100.0, "amber": 50.0, "red": 0.0}
 STATUS_RANK = {"green": 2, "amber": 1, "red": 0}
 KILL_SWITCH_PERIODS = 2
 
-VERDICTS = ["REFORZADA", "INTACTA", "DEBILITADA", "ROTA"]
+# Estados del framework: Strengthening / Intact / Watch / Weakening / Broken
+VERDICTS = ["REFORZADA", "INTACTA", "VIGILANCIA", "DEBILITADA", "ROTA"]
 STATUSES = ["ACTIVA", "EN_REVISION", "CERRADA"]
 EVENT_TYPES = ["earnings", "news", "verdict", "decision", "note", "thesis"]
 
@@ -225,12 +226,18 @@ def live_valuation(valuation: Dict[str, Any], fcf_ps: Optional[float], price: Op
             "scenarios": rows, "base_name": base["name"], "base_multiple": base["multiple"], "implied_growth": implied}
 
 
-def ttm_fcf_per_share(quarterly_cashflow, quarterly_income) -> Optional[float]:
-    fcfs = [_row(quarterly_cashflow, "Free Cash Flow", i) for i in range(4)]
+def ttm_fcf_per_share(quarterly_cashflow, quarterly_income, annual_cashflow=None, annual_income=None) -> Optional[float]:
+    """FCF por acción de los últimos 12 meses (4 trimestres seguidos); si hay huecos, el del último ejercicio."""
     shares = _row(quarterly_income, "Diluted Average Shares", 0)
-    if any(f is None for f in fcfs) or not shares:
-        return None
-    return sum(fcfs) / shares
+    if quarterly_cashflow is not None and consecutive_quarters(list(quarterly_cashflow.columns)):
+        fcfs = [_row(quarterly_cashflow, "Free Cash Flow", i) for i in range(4)]
+        if all(f is not None for f in fcfs) and shares:
+            return sum(fcfs) / shares
+    fcf_y = _row(annual_cashflow, "Free Cash Flow", 0) if annual_cashflow is not None else None
+    shares_y = _row(annual_income, "Diluted Average Shares", 0) if annual_income is not None else None
+    if fcf_y is not None and (shares or shares_y):
+        return fcf_y / (shares or shares_y)
+    return None
 
 
 _TTM_CACHE: Dict[str, Any] = {}
@@ -245,9 +252,15 @@ def fetch_ttm_fcf_per_share(ticker: str) -> Optional[float]:
     try:
         import yfinance as yf
         stock = yf.Ticker(ticker)
-        value = ttm_fcf_per_share(stock.quarterly_cashflow, stock.quarterly_income_stmt)
+        value = ttm_fcf_per_share(stock.quarterly_cashflow, stock.quarterly_income_stmt, stock.cashflow, stock.income_stmt)
+        info = stock.info or {}
+        fin, trade = info.get("financialCurrency"), info.get("currency")
+        if value is not None and fin and trade and fin != trade:
+            # p.ej. Evolution reporta en EUR y cotiza en SEK: el FCF/acción debe ir en la divisa del precio
+            fx = yf.Ticker(f"{fin}{trade}=X").fast_info["last_price"]
+            value = value * float(fx)
     except Exception:
-        pass
+        value = None
     _TTM_CACHE[ticker] = (time.time(), value)
     return value
 
@@ -334,6 +347,27 @@ def _row(df, name, idx) -> Optional[float]:
         return None
 
 
+def year_ago_index(dates) -> Optional[int]:
+    """Posición de la columna de hace ~1 año respecto a la primera (yfinance a veces se salta trimestres,
+    así que no vale suponer que es la quinta)."""
+    try:
+        first = dates[0]
+        for i, d in enumerate(dates[1:], 1):
+            if 330 <= (first - d).days <= 400:
+                return i
+    except Exception:
+        pass
+    return None
+
+
+def consecutive_quarters(dates, n: int = 4) -> bool:
+    """True si las n primeras columnas son trimestres seguidos (sin huecos)."""
+    try:
+        return len(dates) >= n and all(60 <= (dates[i] - dates[i + 1]).days <= 120 for i in range(n - 1))
+    except Exception:
+        return False
+
+
 def _pct(num: Optional[float], den: Optional[float]) -> Optional[float]:
     if num is None or not den:
         return None
@@ -359,11 +393,13 @@ def _fcf_per_share_cagr(annual_income, annual_cashflow, years: int = 3) -> Optio
 
 def compute_auto_metrics(income, cashflow, annual_income=None, annual_cashflow=None) -> Dict[str, Any]:
     """Calcula métricas del último trimestre a partir de los estados trimestrales de yfinance (columnas: más reciente primero)."""
-    rev0, rev4 = _row(income, "Total Revenue", 0), _row(income, "Total Revenue", 4)
-    sh0, sh4 = _row(income, "Diluted Average Shares", 0), _row(income, "Diluted Average Shares", 4)
-    fcf0, fcf4 = _row(cashflow, "Free Cash Flow", 0), _row(cashflow, "Free Cash Flow", 4)
+    yi = year_ago_index(list(income.columns)) if income is not None else None
+    yc = year_ago_index(list(cashflow.columns)) if cashflow is not None else None
+    rev0, rev4 = _row(income, "Total Revenue", 0), (_row(income, "Total Revenue", yi) if yi else None)
+    sh0, sh4 = _row(income, "Diluted Average Shares", 0), (_row(income, "Diluted Average Shares", yi) if yi else None)
+    fcf0, fcf4 = _row(cashflow, "Free Cash Flow", 0), (_row(cashflow, "Free Cash Flow", yc) if yc else None)
     capex0 = _row(cashflow, "Capital Expenditure", 0)
-    cfo0, cfo4 = _row(cashflow, "Operating Cash Flow", 0), _row(cashflow, "Operating Cash Flow", 4)
+    cfo0, cfo4 = _row(cashflow, "Operating Cash Flow", 0), (_row(cashflow, "Operating Cash Flow", yc) if yc else None)
     sbc0 = _row(cashflow, "Stock Based Compensation", 0)
 
     fcfps0 = fcf0 / sh0 if fcf0 is not None and sh0 else None
@@ -401,7 +437,10 @@ def aggregate_capex_yoy(capex_by_ticker: Dict[str, Any]) -> Optional[Dict[str, A
     cur_total, prev_total, parts = 0.0, 0.0, []
     for ticker, series in capex_by_ticker.items():
         try:
-            cur, prev = abs(float(series.iloc[0])), abs(float(series.iloc[4]))
+            idx = year_ago_index(list(series.index))
+            if idx is None:
+                continue
+            cur, prev = abs(float(series.iloc[0])), abs(float(series.iloc[idx]))
             if math.isnan(cur) or math.isnan(prev) or prev == 0:
                 continue
         except Exception:

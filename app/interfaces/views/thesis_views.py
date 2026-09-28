@@ -19,7 +19,7 @@ from app.infrastructure.dependencies import get_asset_repository, get_portfolio_
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
 from app.infrastructure.repositories.sqlalchemy_thesis_repository import SqlAlchemyThesisRepository
 from app.infrastructure.templates import templates
-from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached
+from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached, get_currency_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +89,9 @@ def _price(ticker: str) -> Optional[Dict[str, float]]:
     return {"price": d["price"], "pct": pct}
 
 
-def _card(thesis: Dict[str, Any]) -> Dict[str, Any]:
+def _card(thesis: Dict[str, Any], asset_repo: Optional[SqlAlchemyAssetRepository] = None) -> Dict[str, Any]:
     ev = evaluate_thesis(thesis)
+    currency = (asset_repo.get_asset_data(thesis["ticker"]).get("currency") if asset_repo else None) or "USD"
     price = _price(thesis["ticker"])
     ref = thesis.get("reference_price")
     nxt = _next_earnings(thesis["ticker"])
@@ -102,6 +103,7 @@ def _card(thesis: Dict[str, Any]) -> Dict[str, Any]:
         "next_earnings": nxt,
         "days_to_earnings": (nxt - datetime.date.today()).days if nxt else None,
         "last_event": thesis["events"][0] if thesis["events"] else None,
+        "cur": get_currency_symbol(currency, thesis["ticker"]),
         "news": _news_context(thesis),
     }
 
@@ -170,7 +172,7 @@ def theses_page(
     ensure_prices_cached([t["ticker"] for t in theses], asset_repo)
     exposure = portfolio_exposure(portfolio_service, asset_repo)
     positions = exposure["positions"]
-    cards = [{**_card(t), "position": positions.get(t["ticker"])} for t in theses]
+    cards = [{**_card(t, asset_repo), "position": positions.get(t["ticker"])} for t in theses]
     with_thesis = {t["ticker"] for t in theses}
     uncovered = sorted(([tk, p] for tk, p in positions.items() if tk not in with_thesis and p["weight"] >= 5),
                        key=lambda x: -x[1]["weight"])
@@ -199,7 +201,7 @@ def thesis_detail_page(
     if not thesis:
         raise HTTPException(status_code=404, detail="La tesis no existe")
     ensure_prices_cached([thesis["ticker"]], asset_repo)
-    card = _card(thesis)
+    card = _card(thesis, asset_repo)
 
     valuation = thesis["extra"].get("valuation") or {}
     current = card["price"]["price"] if card["price"] else None

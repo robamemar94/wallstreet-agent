@@ -122,7 +122,7 @@ class DBThesis(Base):
     title = Column(String, nullable=False)
     summary = Column(String, nullable=True)
     status = Column(String, default="ACTIVA")        # 'ACTIVA', 'EN_REVISION', 'CERRADA'
-    verdict = Column(String, default="INTACTA")      # 'REFORZADA', 'INTACTA', 'DEBILITADA', 'ROTA'
+    verdict = Column(String, default="INTACTA")      # 'REFORZADA', 'INTACTA', 'VIGILANCIA', 'DEBILITADA', 'ROTA'
     version = Column(String, nullable=True)
     reference_price = Column(Float, nullable=True)
     reference_date = Column(String, nullable=True)

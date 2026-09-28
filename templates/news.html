@@ -15,6 +15,7 @@
             <p class="text-muted small mb-0">Radar semanal automático. Solo noticias muy relevantes (materialidad ≥{{ min_materiality }}/5) que afectan a algún paso del cuadro de mando.</p>
         </div>
         <div class="d-flex gap-2 align-items-center">
+            {% if unread_ids %}<button class="btn btn-outline-secondary btn-sm" id="btnAllRead" onclick="markRead(null)"><i class="bi bi-check2-all me-1"></i>Marcar todas como leídas</button>{% endif %}
             {% if radar_running %}<span class="small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Radar en curso…</span>{% endif %}
             <div class="btn-group btn-group-sm">
                 <a href="/noticias" class="btn btn-outline-secondary {{ 'active' if not selected }}">Todas</a>
@@ -26,13 +27,13 @@
     <div class="row g-3">
         <div class="col-12 col-xl-8">
         {% for n in items %}
-            <div class="card news-card {{ 'unread' if not n.seen }} mb-2"><div class="card-body py-2">
+            <div class="card news-card {{ 'unread' if not n.seen }} mb-2" data-news="{{ n.id }}"><div class="card-body py-2">
                 <div class="d-flex justify-content-between gap-2 flex-wrap">
                     <div class="small text-muted">
                         <a href="/tesis/{{ n.thesis_id }}" class="fw-bold text-decoration-none">{{ n.ticker }}</a>
                         · {{ n.date or '¿fecha?' }}
                         {% if n.step_name %}· Paso {{ n.step }}: {{ n.step_name }}{% endif %}
-                        {% if not n.seen %}<span class="badge text-bg-primary ms-1">NUEVA</span>{% endif %}
+                        {% if not n.seen %}<span class="badge text-bg-primary ms-1 badge-new">NUEVA</span>{% endif %}
                     </div>
                     <div class="d-flex gap-2 align-items-center">
                         <span class="mat-badge {{ 'st-red' if n.materiality >= 5 else 'st-amber' }}" title="{{ 'Puede cambiar la tesis' if n.materiality >= 5 else 'Cambia un KPI de forma concreta' }}">
@@ -42,12 +43,15 @@
                         {% else %}<span class="small text-muted"><i class="bi bi-dash"></i> neutral</span>{% endif %}
                     </div>
                 </div>
-                <div class="fw-semibold mt-1">{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>
+                <div class="fw-semibold mt-1">{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" onclick="markRead([{{ n.id }}])">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>
                 <div class="small text-muted">{{ n.summary }}</div>
                 <div class="d-flex justify-content-between align-items-center mt-1">
                     <span class="small text-muted">Detectada por el radar el {{ n.found_at[:10] }}</span>
+                    <span class="d-flex gap-3">
+                    {% if not n.seen %}<button class="btn btn-link btn-sm p-0 btn-read" onclick="markRead([{{ n.id }}])"><i class="bi bi-check2 me-1"></i>Leída</button>{% endif %}
                     {% if n.in_timeline %}<span class="small text-muted"><i class="bi bi-check2"></i> en el timeline</span>
                     {% else %}<button class="btn btn-link btn-sm p-0" onclick="toTimeline({{ n.id }}, this)"><i class="bi bi-plus-circle me-1"></i>Añadir al timeline</button>{% endif %}
+                    </span>
                 </div>
             </div></div>
         {% else %}
@@ -80,15 +84,25 @@
 
 <script>
 const UNREAD_IDS = {{ unread_ids|tojson }};
-// Al abrir la sección se marcan como leídas (siguen resaltadas hasta recargar)
-if (UNREAD_IDS.length) {
-    fetch('/api/theses/news/seen', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: UNREAD_IDS})})
-        .then(() => window.refreshSidebarNewsBadge && window.refreshSidebarNewsBadge());
+// Marca como leídas (ids = null: todas las que se ven en la página) y quita el resaltado al momento
+async function markRead(ids) {
+    ids = ids || UNREAD_IDS;
+    try {
+        await fetch('/api/theses/news/seen', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids})});
+    } catch (e) { return; }
+    ids.forEach(id => {
+        const card = document.querySelector(`[data-news="${id}"]`);
+        if (!card) return;
+        card.classList.remove('unread');
+        card.querySelectorAll('.badge-new, .btn-read').forEach(el => el.remove());
+    });
+    if (!document.querySelector('.news-card.unread')) document.getElementById('btnAllRead')?.remove();
+    window.refreshSidebarNewsBadge && window.refreshSidebarNewsBadge();
 }
 async function toTimeline(id, btn) {
     btn.disabled = true;
     const r = await fetch(`/api/theses/news/${id}/timeline`, {method: 'POST'});
-    if (r.ok) btn.outerHTML = '<span class="small text-muted"><i class="bi bi-check2"></i> en el timeline</span>';
+    if (r.ok) { btn.outerHTML = '<span class="small text-muted"><i class="bi bi-check2"></i> en el timeline</span>'; markRead([id]); }
     else { btn.disabled = false; alert('No se pudo añadir al timeline'); }
 }
 {% if radar_running %}setTimeout(() => location.reload(), 30000);{% endif %}
