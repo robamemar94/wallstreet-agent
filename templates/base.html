@@ -565,6 +565,24 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/tesis') %} active{% endif %}" href="/tesis" title="Seguimiento de tesis">
+                        <span class="nav-icon-wrap position-relative d-inline-block">
+                            <i class="bi bi-clipboard2-pulse"></i>
+                            <span id="sidebarThesisBadge" class="sidebar-notif-badge d-none">0</span>
+                        </span>
+                        <span>Tesis</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/noticias') %} active{% endif %}" href="/noticias" title="Noticias de las tesis">
+                        <span class="nav-icon-wrap position-relative d-inline-block">
+                            <i class="bi bi-broadcast"></i>
+                            <span id="sidebarNewsBadge" class="sidebar-notif-badge d-none">0</span>
+                        </span>
+                        <span>Noticias</span>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link {% if _path.startswith('/database') %} active{% endif %}" href="/database" title="Base de Datos">
                         <i class="bi bi-database"></i>
                         <span>BBDD</span>
@@ -730,6 +748,24 @@
                 badge.classList.add('d-none');
             }
         };
+        // Noticias nuevas del radar de tesis (solo materialidad >=4)
+        window.refreshSidebarNewsBadge = () => fetch('/api/theses/news/unread-count').then(r => r.json()).then(d => {
+            const b = document.getElementById('sidebarNewsBadge');
+            if (!b) return;
+            b.textContent = d.unread > 99 ? '99+' : d.unread;
+            b.classList.toggle('d-none', !d.unread);
+            b.title = d.critical ? `${d.critical} pueden cambiar la tesis` : '';
+        }).catch(() => {});
+        window.refreshSidebarNewsBadge();
+        // Resultados nuevos sin revisar / revisiones con IA listas
+        fetch('/api/theses/notices').then(r => r.json()).then(d => {
+            const b = document.getElementById('sidebarThesisBadge');
+            if (!b) return;
+            b.textContent = d.count;
+            b.classList.toggle('d-none', !d.count);
+            b.title = (d.notices || []).map(n => `${n.ticker}: ${n.text}`).join('\n');
+        }).catch(() => {});
+
         fetch('/api/alerts/keys').then(r => r.json()).then(data => {
             window._alertKeysCache = data.keys || [];
             window.refreshSidebarAlertBadge();

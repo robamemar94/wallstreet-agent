@@ -1,0 +1,120 @@
+# Transcrito de data/theses/DSGX_Tesis_Definitiva_Investment_Research.pdf (24/09/2026)
+# Se monitorizan solo los KPIs CUANTIFICABLES del «11. KPIs: nuestro cuadro de mando» (7 de 10).
+# Retention/churn, cross-sell y M&A ROIC no tienen cifra publicada: se leen en el documento (config/theses/dsgx.md).
+# Las preguntas de cada paso vienen del «17. Como leer un earnings en 10 minutos».
+# Donde la tesis solo define el objetivo (sin umbral de alerta numérico), red_threshold se deja vacío:
+# por debajo del objetivo el KPI queda en amarillo y el rojo se decide a mano.
+# Reimportar tras editar:  python scripts/import_theses.py config/theses/dsgx.yaml
+ticker: DSGX
+title: Descartes Systems Group · Tesis definitiva
+version: "definitiva"
+reference_date: "2026-09-24"
+reference_price: 80.24
+source_document: data/theses/DSGX_Tesis_Definitiva_Investment_Research.pdf
+document: config/theses/dsgx.md
+final_question: "¿Se rompe alguna hipótesis?"
+verdict: INTACTA
+summary: >-
+  Descartes es una infraestructura software para la logística global. Su activo estratégico no es un único producto,
+  sino la combinación de red interempresarial (GLN), software especializado, datos logísticos, contenido regulatorio
+  e integración en workflows críticos. Moat: switching costs + red + datos + domain expertise.
+hypothesis: "Organic growth 8–10%, services >90%, EBITDA 45–48%, FCF/share CAGR 10–11% y M&A disciplinado."
+rules:
+  - "Pregunta nº1: ¿la GLN se está convirtiendo en una red cada vez más difícil de sustituir, o solo vemos una colección de buenos negocios adquiridos?"
+  - "El M&A debe acelerar el compounder, no esconder una desaceleración orgánica."
+  - "No damos prima de valoración por IA hasta ver monetización real: más revenue, ARPU, retención, productividad o nuevos productos."
+  - "Si no ha cambiado ninguna hipótesis maestra, no cambiamos la tesis por ruido."
+valuation:
+  columns:
+    - {key: name, label: Escenario}
+    - {key: fcf_ps_cagr, label: FCF/share CAGR, format: pct}
+    - {key: multiple, label: Múltiplo terminal}
+    - {key: note, label: Interpretación}
+  scenarios:
+    - {name: Bear, fcf_ps_cagr: 7, multiple: "22x", note: "Desaceleración significativa"}
+    - {name: Conservador, fcf_ps_cagr: 10, multiple: "25x", note: "Buen negocio, menor crecimiento"}
+    - {name: Base, fcf_ps_cagr: 11, multiple: "28x", note: "Compounder funcionando bien"}
+    - {name: Bull, fcf_ps_cagr: 14, multiple: "32x", note: "Ejecución excelente + moat reforzado"}
+events:
+  - date: "2026-01-31"
+    type: earnings
+    impact: neutral
+    title: "FY26 (ejercicio cerrado ene-2026)"
+    body: "Revenue $729.0M, services revenue $677.2M (93%), CFO $266.2M, EBITDA ajustado $329.5M (45%), net income $163.8M."
+  - date: "2026-07-31"
+    type: earnings
+    impact: positive
+    title: "Resultados Q2 FY27 (trimestre cerrado 31-jul-2026)"
+    body: "Revenue $201.1M (+12%), services $188.6M (94%), CFO $81.3M (+28%), operating income $65.5M (+36%), net income $50.0M (+32%), EBITDA ajustado $94.4M (47%). 1H FY27: revenue +13%, services +14%, CFO +34%."
+  - date: "2026-07-31"
+    type: news
+    impact: neutral
+    title: "M&A FY27: Idelic, Drivin, TAI y Extensiv"
+    body: "Idelic (seguridad de flotas + datos/IA), Drivin (última milla LATAM), TAI (TMS para freight brokers), Extensiv (WMS/fulfillment para 3PL y ecommerce). Comprobar cross-sell, retención y ROIC."
+  - date: "2026-09-24"
+    type: thesis
+    impact: neutral
+    title: "Tesis definitiva (precio de referencia ~$80)"
+    body: "Hipótesis financiera: organic growth 8–10%, services >90%, EBITDA 45–48%, FCF/share CAGR 10–11%."
+
+pillars:
+  - key: organic
+    name: Organic services growth
+    description: "¿Services organicos siguen >=8%? Si no, ¿por que?"
+    kpis:
+      - {key: organic_services_growth, name: Organic services growth, unit: "%", green_threshold: 8, red_threshold: 5,
+         how_to_measure: "Crecimiento de services sin M&A", green_text: ">8% sostenible", amber_text: "5–8%", red_text: "<5–6% varios años",
+         frequency: Trimestral, source: Descartes,
+         is_kill_switch: true, kill_rule: "Kill switch 1: servicios orgánicos <5–6% durante varios años (deterioro de mercado, producto o competencia)"}
+
+  - key: services
+    name: Services revenue %
+    description: "¿Services revenue sigue >90%?"
+    kpis:
+      - {key: services_pct, name: Services revenue %, unit: "%", green_threshold: 90,
+         how_to_measure: "Calidad / recurrencia", green_text: ">90%", amber_text: "<90%", red_text: "Caída estructural",
+         frequency: Trimestral, source: Descartes,
+         observations: [{period: FY26, date: "2026-01-31", value: 93},
+                        {period: Q2 FY27, date: "2026-07-31", value: 94}]}
+
+  - key: gross_margin
+    name: Gross margin
+    description: "Economía del software: objetivo >75%."
+    kpis:
+      - {key: gross_margin, name: Gross margin, unit: "%", green_threshold: 75,
+         how_to_measure: "Economía del software", green_text: ">75%", amber_text: "<75%", red_text: "Deterioro persistente",
+         auto_metric: gross_margin}
+
+  - key: ebitda
+    name: Adjusted EBITDA margin
+    description: "¿EBITDA margin sube, se mantiene o cae? ¿Es inversion temporal o deterioro?"
+    kpis:
+      - {key: adj_ebitda_margin, name: Adjusted EBITDA margin, unit: "%", green_threshold: 45, red_threshold: 43,
+         how_to_measure: "Apalancamiento operativo", green_text: "45–48%", amber_text: "43–45%", red_text: "<43–45% sin explicación",
+         observations: [{period: FY26, date: "2026-01-31", value: 45},
+                        {period: Q2 FY27, date: "2026-07-31", value: 47}]}
+
+  - key: cash
+    name: CFO / FCF
+    description: "¿CFO y FCF crecen en linea con el negocio? (Conversión a caja; la tesis no fija umbral numérico: semáforo manual)"
+    kpis:
+      - {key: cfo_fcf, name: CFO / FCF, kind: qualitative, unit: "% YoY",
+         how_to_measure: "Crecimiento del CFO YoY (autocompletado)", green_text: "Muy elevada", amber_text: "Se modera", red_text: "Deterioro",
+         baseline: "Q2 FY27 CFO $81.3M (+28%); 1H +34%", auto_metric: cfo_yoy}
+
+  - key: fcf_share
+    name: FCF/share growth
+    description: "La métrica reina: ~10–11% CAGR a largo plazo."
+    kpis:
+      - {key: fcf_per_share_growth, name: FCF/share growth, unit: "%", green_threshold: 10, red_threshold: 8,
+         how_to_measure: "CAGR del FCF por acción a 3 años con datos anuales (autocompletado)",
+         green_text: "10–11% largo plazo", amber_text: "8–10%", red_text: "<8% persistente",
+         auto_metric: fcf_per_share_cagr_3y}
+
+  - key: shares
+    name: Shares outstanding
+    description: "¿Las acciones cambian el resultado por accion?"
+    kpis:
+      - {key: shares_outstanding, name: Shares outstanding, unit: "% YoY", direction: lower, green_threshold: 0,
+         how_to_measure: "Acciones diluidas YoY (autocompletado). Verde si estable o ↓; por encima de 0 queda en amarillo y la «dilución sostenida» (rojo) la decides tú",
+         green_text: "Estable o ↓", amber_text: "Sube", red_text: "Dilución sostenida", auto_metric: diluted_shares_yoy}

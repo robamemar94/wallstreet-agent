@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% from "_thesis_macros.html" import status_icon, verdict_badge, thesis_styles %}
+{% block title %}Tesis · Alpha-Flow{% endblock %}
+
+{% block content %}
+{{ thesis_styles() }}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+        <div>
+            <h4 class="fw-bold mb-1"><i class="bi bi-clipboard2-pulse me-2 text-primary"></i>Seguimiento de tesis</h4>
+            <p class="text-muted small mb-0">Cada tesis se mide con sus KPIs. El score solo cuenta los KPIs con dato; la cobertura indica cuántos lo tienen.</p>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" id="btnReimport" title="Relee config/theses/*.yaml sin perder observaciones">
+            <i class="bi bi-arrow-repeat me-1"></i>Reimportar YAML
+        </button>
+    </div>
+
+    {% for n in notices %}
+    <a href="/tesis/{{ n.thesis_id }}#resultados" class="alert alert-primary d-flex align-items-center gap-2 py-2 text-decoration-none">
+        <i class="bi {{ 'bi-bell' if n.type == 'new_results' else 'bi-check2-square' }}"></i>
+        <span><strong>{{ n.ticker }}</strong>: {{ n.text }}</span>
+        <span class="ms-auto small">{{ 'Analizar →' if n.type == 'new_results' else 'Ver revisión →' }}</span>
+    </a>
+    {% endfor %}
+    {% if unread.unread %}
+    <a href="/noticias" class="alert {{ 'alert-danger' if unread.critical else 'alert-primary' }} d-flex align-items-center gap-2 py-2 text-decoration-none">
+        <i class="bi bi-broadcast"></i>
+        <span><strong>{{ unread.unread }} noticia{{ 's' if unread.unread > 1 }} nueva{{ 's' if unread.unread > 1 }}</strong> del radar{% if unread.critical %} · {{ unread.critical }} puede{{ 'n' if unread.critical > 1 }} cambiar la tesis{% endif %}</span>
+        <span class="ms-auto small">Ver noticias →</span>
+    </a>
+    {% elif radar_running %}<div class="small text-muted mb-3"><span class="spinner-border spinner-border-sm me-1"></span>Radar semanal de noticias en curso…</div>{% endif %}
+
+    {% if not cards %}
+    <div class="card"><div class="card-body text-center text-muted py-5">
+        <i class="bi bi-clipboard2 fs-2 d-block mb-2"></i>
+        No hay tesis. Añade un fichero en <code>config/theses/</code> y pulsa «Reimportar YAML».
+    </div></div>
+    {% endif %}
+
+    <div class="row g-3">
+    {% for c in cards %}
+        {% set t = c.thesis %}{% set ev = c.ev %}
+        <div class="col-12 col-lg-6 col-xxl-4">
+        <a href="/tesis/{{ t.id }}" class="text-decoration-none text-body">
+        <div class="card thesis-card h-100"><div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="min-w-0">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="fs-5 fw-bold">{{ t.ticker }}</span>
+                        {{ verdict_badge(t.verdict) }}
+                        {% if t.status == 'EN_REVISION' %}<span class="badge text-bg-warning">EN REVISIÓN</span>{% endif %}
+                    </div>
+                    <div class="text-muted small text-truncate">{{ t.title }}{% if t.version %} · {{ t.version }}{% endif %}</div>
+                </div>
+                <div class="text-end">
+                    {% if c.price %}
+                    <div class="fw-bold font-monospace-data">${{ '%.2f'|format(c.price.price) }}</div>
+                    <div class="small font-monospace-data {{ 'text-success' if c.price.pct >= 0 else 'text-danger' }}">{{ '%+.2f'|format(c.price.pct) }}%</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="d-flex align-items-end gap-3 mb-2">
+                <div>
+                    <div class="kpi-label">Health score</div>
+                    <div class="health-num {{ 'st-' ~ ev.health_status if ev.health_status else 'st-none' }}">{{ ev.health_score if ev.health_score is not none else '–' }}</div>
+                </div>
+                <div class="flex-grow-1 pb-1">
+                    <div class="d-flex justify-content-between small text-muted mb-1">
+                        <span>Cobertura {{ ev.coverage }}%</span>
+                        <span class="font-monospace-data">
+                            {{ status_icon('green') }} {{ ev.counts.green }}&nbsp;
+                            {{ status_icon('amber') }} {{ ev.counts.amber }}&nbsp;
+                            {{ status_icon('red') }} {{ ev.counts.red }}&nbsp;
+                            {{ status_icon(None) }} {{ ev.counts.none }}
+                        </span>
+                    </div>
+                    <div class="health-bar"><div class="bg-primary" style="width: {{ ev.coverage }}%"></div></div>
+                </div>
+            </div>
+
+            {% if ev.review_recommended %}
+            <div class="alert alert-danger py-1 px-2 small mb-2"><i class="bi bi-shield-exclamation me-1"></i>
+                Kill switch disparado: {{ ev.kill_triggered|map(attribute='name')|join(', ') }}. Revisión recomendada.</div>
+            {% endif %}
+
+            <div class="border-top pt-2 mt-2">
+                {% for p in ev.pillars %}
+                <div class="pillar-row">
+                    {{ status_icon(p.status) }}
+                    <span class="pname">{{ p.name }}{% if p.weight == 0 %} <span class="text-muted small">(no puntúa)</span>{% endif %}</span>
+                    <span class="text-muted small font-monospace-data">{{ p.measured }}/{{ p.total }}</span>
+                    <span class="font-monospace-data small text-end" style="width: 2.2rem;">{{ p.score|round|int if p.score is not none else '–' }}</span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="border-top pt-2 mt-2 d-flex justify-content-between small text-muted flex-wrap gap-1">
+                {% set watch = ev.kill_switches|selectattr('state', 'equalto', 'watch')|list %}
+                <span><i class="bi bi-shield-check me-1"></i>Kill switches: {{ ev.kill_triggered|length }} disparados · {{ watch|length }} en vigilancia</span>
+                <span><i class="bi bi-calendar-event me-1"></i>
+                    {% if c.next_earnings %}Resultados {{ c.next_earnings.strftime('%d/%m/%Y') }} ({{ c.days_to_earnings }} d){% else %}Sin fecha de resultados{% endif %}
+                </span>
+            </div>
+            {% if c.news.digest %}
+            {% set critical = c.news.digest['items']|selectattr('materiality', 'ge', 5)|list %}
+            <div class="small {{ 'st-amber' if c.news.digest['items'] else 'text-muted' }} mt-1"><i class="bi bi-broadcast me-1"></i>Radar {{ c.news.digest.created_at[:10] }}:
+                {% if c.news.digest['items'] %}{{ c.news.digest['items']|length }} noticia{{ 's' if c.news.digest['items']|length > 1 }} muy relevante{{ 's' if c.news.digest['items']|length > 1 }}{% if critical %} · {{ critical|length }} puede{{ 'n' if critical|length > 1 }} cambiar la tesis{% endif %}{% else %}sin noticias muy relevantes{% endif %}</div>
+            {% endif %}
+            {% if c.last_event %}
+            <div class="small text-muted mt-1 text-truncate"><i class="bi bi-clock-history me-1"></i>{{ c.last_event.date }} · {{ c.last_event.title }}</div>
+            {% endif %}
+        </div></div>
+        </a>
+        </div>
+    {% endfor %}
+    </div>
+</div>
+
+<script>
+document.getElementById('btnReimport').addEventListener('click', async (e) => {
+    const btn = e.currentTarget; btn.disabled = true;
+    try {
+        const r = await fetch('/api/theses/import', {method: 'POST'});
+        const d = await r.json();
+        if (d.errors && d.errors.length) alert('Errores:\n' + d.errors.join('\n'));
+        location.reload();
+    } catch (err) { alert('Error al reimportar: ' + err); btn.disabled = false; }
+});
+</script>
+{% endblock %}

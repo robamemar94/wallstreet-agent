@@ -1,0 +1,163 @@
+# Transcrito de data/theses/NVIDIA_Investment_Research_Framework_v2.7_Dashboard_Medible.pdf (28/09/2026)
+# Se monitorizan los 10 KPIs cuantificables de «13.6 Umbrales operativos del dashboard» (= «Cuadro de mando —
+# especificación operativa»), cada uno con la hipótesis H1–H7 que confirma o refuta.
+# El documento completo está en config/theses/nvda.md.
+# Reimportar tras editar:  python scripts/import_theses.py config/theses/nvda.yaml
+ticker: NVDA
+title: NVIDIA · Investment Research Framework
+version: "v2.7"
+reference_date: "2026-09-28"
+reference_price: 225
+source_document: data/theses/NVIDIA_Investment_Research_Framework_v2.7_Dashboard_Medible.pdf
+document: config/theses/nvda.md
+verdict: INTACTA
+summary: >-
+  NVIDIA evoluciona de líder de GPUs para AI a plataforma completa de infraestructura de computación AI (GPU, CPU,
+  networking, interconexión, sistemas y software). La tesis no depende de que la AI crezca, sino de que NVIDIA conserve
+  una posición económicamente dominante y capture una parte elevada del valor creado. Estado: tesis empresarial
+  INTACT/STRONG; valoración en WATCH. Variable crítica: NVIDIA frente a ASICs en TCO, cuota, margen y FCF por acción.
+ratings:
+  Negocio: Strengthening
+  Moat: Intact / Strengthening
+  ASICs: Watch
+  Calidad financiera: Strengthening
+  Capital allocation: Watch
+  Valoración: Watch
+hypotheses:
+  H1: La demanda de AI compute sigue creciendo estructuralmente
+  H2: NVIDIA mantiene posición dominante
+  H3: CUDA mantiene switching costs
+  H4: ASICs no destruyen la economía de NVIDIA
+  H5: NVIDIA aumenta wallet share
+  H6: Rubin mantiene liderazgo tecnológico
+  H7: El crecimiento se convierte en FCF/share
+rules:
+  - "Un KPI rojo no rompe automáticamente la tesis. Primero se comprueba la cadena KPI → mecanismo económico → hipótesis → impacto en FCF/share → valoración. Un rojo aislado puede ser un headwind; varios KPIs relacionados en rojo y una confirmación del mecanismo pueden llevar el estado a Weakening o Broken."
+  - "No añadiremos KPIs por disponibilidad de datos ni eliminaremos KPIs porque sean incómodos. El conjunto cambia solo si cambia la tesis."
+  - "Los umbrales son operativos y deben revisarse si cambia la economía del negocio, la estructura competitiva o la tesis."
+  - "Las afirmaciones sobre rendimiento de Rubin deben contrastarse con benchmarks independientes."
+master_questions:
+  - "¿Ha cambiado la trayectoria de Data Center y sus motores?"
+  - "¿Está cambiando la cuota económica frente a AMD y ASICs?"
+  - "¿Se mantiene el switching cost de CUDA?"
+  - "¿Rubin mantiene ventaja real en TCO, performance/$ y cost/token?"
+  - "¿Está aumentando NVIDIA su wallet share mediante networking, CPU y sistemas?"
+  - "¿FCF/share crece al ritmo esperado después de SBC y recompras?"
+  - "¿Las inversiones del ecosistema generan retornos económicos?"
+  - "¿Ha cambiado el retorno sobre el capex AI de los clientes?"
+  - "¿Qué evidencia nueva favorece la narrativa principal y cuál favorece la contra-narrativa?"
+valuation:
+  target_year: 2036
+  question: "Base: H1 FY27 FCF ~$69,9B anualizado ≈ $139,8B; ~24,34B acciones → FCF/share ≈ $5,74. A ~$225, ≈39x FCF."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: fcf_ps_cagr, label: FCF/share CAGR, format: pct}
+    - {key: multiple, label: Múltiplo terminal}
+    - {key: price, label: Precio 2036, format: usd}
+    - {key: cagr_doc, label: CAGR precio (tesis), format: pct}
+  scenarios:
+    - {name: Bear, fcf_ps_cagr: 8, multiple: "22x", price: 273, cagr_doc: 1.9}
+    - {name: Base, fcf_ps_cagr: 15, multiple: "30x", price: 697, cagr_doc: 12.0}
+    - {name: Bull, fcf_ps_cagr: 20, multiple: "35x", price: 1245, cagr_doc: 18.7}
+events:
+  - date: "2026-07-26"
+    type: earnings
+    impact: positive
+    title: "Resultados Q2 FY27 (trimestre cerrado 26-jul-2026)"
+    body: "Revenue $96,2B (+106% YoY), Data Center $89,0B (+117%), gross margin 75,0%, operating income $63,7B, net income $59,7B. H1 FY27: FCF $69,9B, CFO $74,4B. Recompras ~$26B en Q2 ($99B de autorización restante); SBC $2,03B en Q2 y $3,95B en H1."
+  - date: "2026-09-28"
+    type: thesis
+    impact: neutral
+    title: "Tesis v2.7: Dashboard Medible (sustituye a la Tesis Maestra v2)"
+    body: "Cuadro de mando de 10 KPIs cuantificables ligados a las hipótesis H1–H7. Estado: tesis empresarial INTACT/STRONG; valoración en WATCH. Cotización de referencia ~$225."
+
+pillars:
+  - key: fcf_share
+    name: FCF/share CAGR
+    description: "H7 — El crecimiento se convierte en FCF/share. KPI maestro: creación de valor por acción."
+    kpis:
+      - {key: fcf_per_share, name: FCF/share CAGR, unit: "%", green_threshold: 15, red_threshold: 8,
+         how_to_measure: "CAGR del FCF por acción a 3 años con datos anuales (autocompletado). Ojo: FY23 fue un año muy bajo e infla el CAGR",
+         green_text: ">15%", amber_text: "8–15%", red_text: "<8% sostenido", baseline: "FCF/share anualizado ≈ $5,74 (H1 FY27)",
+         auto_metric: fcf_per_share_cagr_3y,
+         is_kill_switch: true, kill_rule: "FCF/share se estanca: estancamiento estructural pese a crecimiento del mercado"}
+
+  - key: data_center
+    name: Data Center revenue growth
+    description: "H1 — La demanda de AI compute sigue creciendo estructuralmente. KPI maestro: demanda estructural de AI."
+    kpis:
+      - {key: dc_yoy, name: Data Center revenue growth, unit: "%", green_threshold: 25, red_threshold: 10,
+         green_text: ">25%", amber_text: "10–25%", red_text: "<10% estructural", baseline: "+117% Q2 FY27 ($89,0B)",
+         frequency: Trimestral, source: NVIDIA,
+         observations: [{period: Q2 FY27, date: "2026-07-26", value: 117}]}
+
+  - key: gross_margin
+    name: Gross margin
+    description: "H2/H4/H6 — Pricing power, mix y presión competitiva. KPI maestro."
+    kpis:
+      - {key: gross_margin, name: Gross margin, unit: "%", green_threshold: 72, red_threshold: 65,
+         green_text: "≥72%", amber_text: "65–72%", red_text: "<65%", baseline: "~75% (75,0% Q2 FY27)",
+         auto_metric: gross_margin,
+         observations: [{period: Q2 FY27, date: "2026-07-26", value: 75.0}]}
+
+  - key: accelerator_share
+    name: AI accelerator share
+    description: "H2 — NVIDIA mantiene posición dominante. KPI maestro: posición competitiva."
+    kpis:
+      - {key: accelerator_share, name: AI accelerator share, unit: "%", green_threshold: 60, red_threshold: 50,
+         how_to_measure: "Cuota de NVIDIA en aceleradores / AI compute (fuente sectorial)",
+         green_text: "≥60%", amber_text: "50–60%", red_text: "<50% + deterioro económico", baseline: "Actualizar"}
+
+  - key: asic_share
+    name: ASIC share of AI compute
+    description: "H4 — ASICs no destruyen la economía de NVIDIA. Riesgo de sustitución."
+    kpis:
+      - {key: asic_compute_share, name: ASIC share of AI compute, unit: "%", direction: lower, green_threshold: 35, red_threshold: 45,
+         how_to_measure: "Penetración de soluciones especializadas (fuente sectorial)",
+         green_text: "<35%", amber_text: "35–45%", red_text: ">45% + mejor TCO", baseline: "Actualizar"}
+
+  - key: cost_token
+    name: Cost/token vs alternatives
+    description: "H4/H6 — ASIC economics: coste por token / TCO frente a NVIDIA. KPI maestro."
+    kpis:
+      - {key: cost_token, name: Cost/token vs alternatives, unit: "% peor", direction: lower, green_threshold: 0, red_threshold: 20,
+         how_to_measure: "Cuánto más caro por token es NVIDIA que la mejor alternativa (0 o negativo = NVIDIA igual o mejor). Benchmarks independientes",
+         green_text: "NVIDIA ≤ alternativa", amber_text: "0–20% peor", red_text: ">20% peor + migración", baseline: "Benchmark",
+         is_kill_switch: true, kill_rule: "Pérdida tecnológica: dos generaciones con desventaja económica sostenida"}
+
+  - key: networking
+    name: Networking revenue growth
+    description: "H5 — NVIDIA aumenta wallet share: crecimiento alrededor del acelerador."
+    kpis:
+      - {key: networking_revenue_growth, name: Networking revenue growth, unit: "%", green_threshold: 20, red_threshold: 10,
+         green_text: ">20%", amber_text: "10–20%", red_text: "<10% + pérdida de wallet", baseline: "Actualizar"}
+
+  - key: dilution
+    name: Share count / dilution
+    description: "H7 — Efecto neto de SBC y recompras sobre el número de acciones."
+    kpis:
+      - {key: share_dilution, name: Share count / dilution, unit: "% YoY", direction: lower, green_threshold: 0, red_threshold: 2,
+         how_to_measure: "Acciones diluidas YoY (autocompletado)",
+         green_text: "Estable o ↓", amber_text: "0–2% ↑", red_text: ">2–3% ↑ sostenido", baseline: "~24,3B diluidas",
+         auto_metric: diluted_shares_yoy,
+         observations: [{period: Q2 FY27, date: "2026-07-26", value: -1.0, source: yfinance,
+                         note: "24,285B acciones diluidas medias vs 24,532B en Q2 FY26"}]}
+
+  - key: sbc_fcf
+    name: SBC / FCF
+    description: "H7 — Calidad del FCF frente a remuneración basada en acciones."
+    kpis:
+      - {key: sbc_fcf, name: SBC / FCF, unit: "%", direction: lower, green_threshold: 20, red_threshold: 30,
+         how_to_measure: "Stock-based compensation / free cash flow (autocompletado con el trimestre)",
+         green_text: "<15–20%", amber_text: "20–30%", red_text: ">30% sostenido", baseline: "Actualizar", auto_metric: sbc_to_fcf,
+         observations: [{period: H1 FY27, date: "2026-07-26", value: 5.7,
+                         note: "SBC H1 $3,95B / FCF H1 $69,9B (cifras de la tesis)"}]}
+
+  - key: hyperscaler_capex
+    name: Hyperscaler capex growth
+    description: "H1 — Demanda futura de infraestructura AI."
+    kpis:
+      - {key: hyperscaler_capex_growth, name: Hyperscaler capex growth, unit: "%", green_threshold: 15, red_threshold: 5,
+         how_to_measure: "Capex agregado de Microsoft, Alphabet, Amazon y Meta, último trimestre de cada una vs un año antes (autocompletado)",
+         auto_metric: hyperscaler_capex_yoy,
+         green_text: ">15%", amber_text: "5–15%", red_text: "<5% + demanda debilitándose", baseline: "Actualizar"}

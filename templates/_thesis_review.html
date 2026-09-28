@@ -1,0 +1,151 @@
+{# Pestaña «Resultados»: revisión de resultados con IA (informe + propuesta de KPIs). Variables: review, reviews, review_running, credibility #}
+{% from "_thesis_macros.html" import status_icon, verdict_badge %}
+{% set HYP = {'refuerza': ('bi-arrow-up-circle-fill', 'st-green', 'Refuerza'), 'neutral': ('bi-dash-circle', 'text-muted', 'Neutral'), 'debilita': ('bi-arrow-down-circle-fill', 'st-red', 'Debilita')} %}
+{% set PROMISE = {'cumplida': ('bi-check-circle-fill', 'st-green'), 'parcial': ('bi-circle-half', 'st-amber'), 'incumplida': ('bi-x-circle-fill', 'st-red'), 'pendiente': ('bi-hourglass-split', 'text-muted')} %}
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div class="small text-muted" style="max-width: 760px;">
+        La IA localiza el comunicado y la <strong>transcripción completa</strong> de la call, completa los KPIs que faltan,
+        verifica cada cifra, analiza a la dirección y evalúa la tesis. Tarda 3-6 minutos. Es una propuesta: nada se guarda hasta que la revisas.
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        {% if credibility %}<span class="small" title="Promesas de la dirección evaluadas en revisiones anteriores (cumplida 1, parcial 0,5, incumplida 0)">
+            <i class="bi bi-person-check me-1"></i>Credibilidad dirección: <strong>{{ credibility.score }}%</strong> <span class="text-muted">({{ credibility.evaluated }} promesas)</span></span>{% endif %}
+        <button class="btn btn-primary btn-sm" id="btnStartReview" {% if review_running %}disabled{% endif %}>
+            {% if review_running %}<span class="spinner-border spinner-border-sm me-1"></span>Analizando…{% else %}<i class="bi bi-stars me-1"></i>Analizar resultados con IA{% endif %}
+        </button>
+    </div>
+</div>
+
+{% if reviews|length > 1 %}
+<div class="small mb-3">Revisiones:
+    {% for r in reviews %}<a href="?review={{ r.id }}#resultados" class="me-2 {{ 'fw-bold' if review and r.id == review.id }}">{{ r.period or r.created_at[:10] }}
+        <span class="text-muted">({{ {'running': 'en curso', 'ready': 'pendiente', 'applied': 'aplicada', 'discarded': 'descartada', 'error': 'error'}[r.status] }})</span></a>{% endfor %}
+</div>
+{% endif %}
+
+{% if not review %}
+    <div class="card"><div class="card-body text-center text-muted py-5">
+        <i class="bi bi-file-earmark-bar-graph fs-2 d-block mb-2"></i>Todavía no hay revisiones. Cuando haya resultados nuevos te avisaremos aquí y en la barra lateral.
+    </div></div>
+{% elif review.status == 'running' %}
+    <div class="card"><div class="card-body text-center py-5">
+        <span class="spinner-border mb-2"></span><div>Analizando resultados… (iniciado {{ review.created_at[11:16] }}). La página se actualizará sola.</div>
+    </div></div>
+{% elif review.status == 'error' %}
+    <div class="alert alert-danger small"><i class="bi bi-exclamation-octagon me-1"></i>La revisión falló: {{ review.error }}</div>
+{% else %}
+{% set rp = review.report %}
+<div class="card mb-3"><div class="card-body">
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+        <div>
+            <div class="kpi-label">{{ rp.period or 'Periodo ?' }}{% if rp.report_date %} · publicado {{ rp.report_date }}{% endif %}
+                · {{ {'ready': 'pendiente de revisar', 'applied': 'KPIs guardados', 'discarded': 'descartada'}[review.status] }}</div>
+            <h5 class="fw-bold mt-1 mb-1">{{ rp.headline }}</h5>
+            {% if rp.verdict %}<div class="small">Veredicto propuesto: {{ verdict_badge(rp.verdict) }} <span class="text-muted">{{ rp.verdict_rationale }}</span></div>{% endif %}
+        </div>
+        <div class="d-flex gap-2 align-items-start">
+            {% if review.status == 'ready' %}
+            <button class="btn btn-primary btn-sm" onclick="openReviewInModal()"><i class="bi bi-clipboard-check me-1"></i>Revisar KPIs y guardar</button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="setReviewStatus({{ review.id }}, 'discarded')">Descartar</button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="small text-muted mt-2">
+        {% if rp.docs %}
+            {% if rp.docs.transcript_url %}<i class="bi bi-mic me-1"></i><a href="{{ rp.docs.transcript_url }}" target="_blank" rel="noopener">Transcripción</a> ({{ '{:,}'.format(rp.docs.transcript_words).replace(',', '.') }} palabras){% else %}<span class="st-red"><i class="bi bi-mic-mute me-1"></i>Sin transcripción completa: el análisis de la call es parcial</span>{% endif %}
+            · {% if rp.docs.press_release_url %}<a href="{{ rp.docs.press_release_url }}" target="_blank" rel="noopener">Comunicado</a>{% else %}<span class="st-amber">sin comunicado descargado</span>{% endif %}
+        {% endif %}
+        {% if rp.grounded == false %}· <span class="st-red">no usó la búsqueda</span>{% endif %}
+        {% if rp.usage %}· {{ rp.model }} · ${{ '%.3f'|format(rp.usage.cost_usd) }}{% endif %}
+    </div>
+</div></div>
+
+<div class="row g-3">
+    <div class="col-12 col-xl-6">
+        <div class="card mb-3"><div class="card-header bg-transparent fw-bold"><i class="bi bi-bar-chart-line me-1"></i>Resumen de resultados</div>
+            <div class="card-body small">
+                <ul class="mb-2">{% for x in rp.results_summary %}<li>{{ x }}</li>{% endfor %}</ul>
+                {% if rp.vs_consensus %}<div><strong>Vs consenso:</strong> {{ rp.vs_consensus }}
+                    {% if rp.consensus and rp.consensus.surprise_pct is not none %}<span class="text-muted">(BPA {{ rp.consensus.eps_reported }} vs {{ rp.consensus.eps_estimate }} estimado, {{ '%+.1f'|format(rp.consensus.surprise_pct) }}%)</span>{% endif %}</div>{% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-3"><div class="card-header bg-transparent fw-bold"><i class="bi bi-list-check me-1"></i>KPIs propuestos</div>
+            <div class="table-responsive"><table class="table table-sm mb-0 tbl-kpi">
+                <thead><tr><th>KPI</th><th class="text-end">Valor</th><th>Semáforo</th><th>Confianza</th></tr></thead>
+                <tbody>
+                {% for it in rp['items'] %}
+                <tr title="{{ it.evidence }}{% if it.check %} — Verificación: {{ it.check }}{% endif %}">
+                    <td>{{ kpi_names.get(it.kpi_id, it.kpi_id) }}</td>
+                    <td class="text-end font-monospace-data">{{ it.value if it.value is not none else '–' }}{% if it.value is not none %}<span class="text-muted small">{{ kpi_units.get(it.kpi_id, '')|replace(' YoY','') }}</span>{% endif %}</td>
+                    <td>{{ status_icon(it.status, true) }}</td>
+                    <td class="small {{ 'st-red' if it.confidence == 'low' else ('st-amber' if it.confidence == 'medium' else 'text-muted') }}">{{ {'high': 'alta', 'medium': 'media', 'low': 'baja'}.get(it.confidence, '–') }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table></div>
+            <div class="small text-muted p-2">Pasa el ratón por una fila para ver la evidencia y la verificación.</div>
+        </div>
+
+        {% if rp.hypotheses %}
+        <div class="card mb-3"><div class="card-header bg-transparent fw-bold"><i class="bi bi-diagram-3 me-1"></i>Hipótesis</div>
+            <ul class="list-group list-group-flush small">
+            {% for h in rp.hypotheses %}{% set m = HYP[h.status] %}
+                <li class="list-group-item"><i class="bi {{ m[0] }} {{ m[1] }} me-1"></i><strong>{{ h.id }}</strong> <span class="{{ m[1] }}">{{ m[2] }}</span> — {{ h.reason }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="col-12 col-xl-6">
+        {% set call = rp.call or {} %}
+        <div class="card mb-3"><div class="card-header bg-transparent fw-bold"><i class="bi bi-mic me-1"></i>La call y la dirección
+            {% if call.tone_change %}<span class="badge bg-light text-dark border ms-1">{{ call.tone_change }}</span>{% endif %}</div>
+            <div class="card-body small">
+                {% if call.tone %}<p class="mb-2">{{ call.tone }}</p>{% endif %}
+                {% if call.guidance %}<div class="fw-semibold">Guía</div>
+                <ul class="mb-2">{% for g in call.guidance %}<li><strong>{{ g.metric }}{% if g.period %} ({{ g.period }}){% endif %}:</strong> {{ g.value }} <span class="text-muted">{{ g.comment }}</span></li>{% endfor %}</ul>{% endif %}
+                {% if call.key_messages %}<div class="fw-semibold">Mensajes clave</div>
+                <ul class="mb-2">{% for x in call.key_messages %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
+                {% if call.analyst_concerns %}<div class="fw-semibold">Qué preocupa a los analistas</div>
+                <ul class="mb-2">{% for x in call.analyst_concerns %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}
+                {% if call.evasive_answers %}<div class="fw-semibold st-amber"><i class="bi bi-eye-slash me-1"></i>Respuestas evasivas</div>
+                <ul class="mb-2">{% for x in call.evasive_answers %}<li><strong>{{ x.topic }}:</strong> {{ x.detail }}</li>{% endfor %}</ul>{% endif %}
+                {% if call.promises_check %}<div class="fw-semibold">¿Cumplieron lo prometido?</div>
+                <ul class="mb-2 list-unstyled">{% for p in call.promises_check %}{% set m = PROMISE.get(p.result, PROMISE['pendiente']) %}
+                    <li><i class="bi {{ m[0] }} {{ m[1] }} me-1"></i>{{ p.promise }} <span class="text-muted">— {{ p.result }}. {{ p.evidence }}</span></li>{% endfor %}</ul>{% endif %}
+                {% if call.promises %}<div class="fw-semibold">Promesas nuevas (se comprobarán el próximo trimestre)</div>
+                <ul class="mb-2">{% for p in call.promises %}<li>{{ p.promise }}{% if p.deadline %} <span class="text-muted">({{ p.deadline }})</span>{% endif %}</li>{% endfor %}</ul>{% endif %}
+                {% if call.credibility_note %}<div class="text-muted">{{ call.credibility_note }}</div>{% endif %}
+            </div>
+        </div>
+
+        <div class="card mb-3"><div class="card-header bg-transparent fw-bold"><i class="bi bi-emoji-dizzy me-1"></i>Abogado del diablo</div>
+            <div class="card-body small">
+                <p class="mb-2">{{ rp.devil_advocate }}</p>
+                {% for k in rp.kill_switch_watch %}<div><i class="bi bi-shield-exclamation text-muted me-1"></i><strong>{{ k.kill_switch }}:</strong> {{ k.comment }}</div>{% endfor %}
+            </div>
+        </div>
+
+        <div class="card mb-3"><div class="card-header bg-transparent fw-bold"><i class="bi bi-lightbulb me-1"></i>Propuestas de cambio en la tesis</div>
+            <div class="card-body small">
+            {% for p in rp.proposals %}
+                <div class="mb-2"><span class="badge bg-light text-dark border">{{ p.type|replace('_', ' ') }}</span> <strong>{{ p.title }}</strong>
+                    <div class="text-muted">{{ p.rationale }}</div></div>
+            {% else %}<div class="text-muted">Ninguna: el cuadro de mando sigue siendo el adecuado.</div>{% endfor %}
+            {% if rp.proposals %}<div class="text-muted border-top pt-2">Para aplicar una propuesta hay que cambiar la tesis (su YAML). Pídemelo o edítalo y pulsa «Reimportar YAML».</div>{% endif %}
+            </div>
+        </div>
+
+        {% if rp.master_answers %}
+        <div class="card mb-3"><div class="card-header bg-transparent fw-bold"><i class="bi bi-question-circle me-1"></i>Preguntas maestras</div>
+            <ul class="list-group list-group-flush small">
+            {% for m in rp.master_answers %}<li class="list-group-item"><strong>{{ m.question }}</strong><div class="text-muted">{{ m.answer }}</div></li>{% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

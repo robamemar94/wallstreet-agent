@@ -1,0 +1,738 @@
+{% extends "base.html" %}
+{% from "_thesis_macros.html" import status_icon, verdict_badge, fmt_value, trend_icon, thesis_styles %}
+{% block title %}{{ thesis.ticker }} · Tesis{% endblock %}
+
+{% block content %}
+{{ thesis_styles() }}
+{% set ev_types = {'earnings': ('bi-bar-chart-line', 'Resultados'), 'news': ('bi-newspaper', 'Noticia'), 'verdict': ('bi-flag', 'Veredicto'),
+                   'decision': ('bi-cash-coin', 'Decisión'), 'note': ('bi-journal-text', 'Nota'), 'thesis': ('bi-file-earmark-text', 'Tesis')} %}
+<div class="container-fluid py-4">
+    <!-- CABECERA -->
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div>
+            <a href="/tesis" class="small text-muted text-decoration-none"><i class="bi bi-arrow-left"></i> Tesis</a>
+            <div class="d-flex align-items-center gap-2 mt-1">
+                <h4 class="fw-bold mb-0">{{ thesis.ticker }}</h4>
+                {{ verdict_badge(thesis.verdict) }}
+                {% if thesis.status != 'ACTIVA' %}<span class="badge text-bg-warning">{{ thesis.status|replace('_', ' ') }}</span>{% endif %}
+            </div>
+            <div class="text-muted small">{{ thesis.title }}{% if thesis.version %} · {{ thesis.version }}{% endif %}{% if thesis.reference_date %} · {{ thesis.reference_date }}{% endif %}
+                {% if thesis.source_document %}· <code class="small">{{ thesis.source_document }}</code>{% endif %}</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#obsModal"><i class="bi bi-clipboard-data me-1"></i>Registrar resultados</button>
+            <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#verdictModal"><i class="bi bi-flag me-1"></i>Veredicto</button>
+            <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#eventModal"><i class="bi bi-plus-lg me-1"></i>Evento</button>
+        </div>
+    </div>
+
+    {% for n in thesis_notices %}
+    <div class="alert alert-primary small py-2 d-flex align-items-center gap-2">
+        <i class="bi {{ 'bi-bell' if n.type == 'new_results' else 'bi-check2-square' }}"></i><span>{{ n.text }}</span>
+        {% if n.type == 'new_results' %}<button class="btn btn-primary btn-sm py-0 ms-auto" onclick="startReview()"><i class="bi bi-stars me-1"></i>Analizar con IA</button>
+        {% else %}<a href="#resultados" class="ms-auto" onclick="showReviewTab()">Ver revisión →</a>{% endif %}
+    </div>
+    {% endfor %}
+
+    {% if ev.review_recommended %}
+    <div class="alert alert-danger small"><i class="bi bi-shield-exclamation me-1"></i>
+        <strong>Revisión recomendada.</strong> Kill switch en rojo 2+ periodos seguidos:
+        {% for k in ev.kill_triggered %}<strong>{{ k.name }}</strong> ({{ k.rule }}){% if not loop.last %}; {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- CIFRAS CLAVE -->
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body">
+            <div class="kpi-label">Health score</div>
+            <div class="health-num {{ 'st-' ~ ev.health_status if ev.health_status else 'st-none' }}">{{ ev.health_score if ev.health_score is not none else '–' }}<span class="fs-6 text-muted">/100</span></div>
+            <div class="small text-muted mt-1">Media ponderada por pilar · verde 100, amarillo 50, rojo 0</div>
+        </div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body">
+            <div class="kpi-label">Cobertura</div>
+            <div class="health-num">{{ ev.coverage }}<span class="fs-6 text-muted">%</span></div>
+            <div class="small text-muted mt-1 font-monospace-data">
+                {{ status_icon('green') }} {{ ev.counts.green }} · {{ status_icon('amber') }} {{ ev.counts.amber }} ·
+                {{ status_icon('red') }} {{ ev.counts.red }} · {{ status_icon(None) }} {{ ev.counts.none }} sin dato</div>
+        </div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body">
+            <div class="kpi-label">Kill switches</div>
+            {% for k in ev.kill_switches %}
+            <div class="small d-flex gap-1 align-items-center" title="{{ k.rule }}">
+                {% if k.state == 'triggered' %}<i class="bi bi-shield-fill-x st-red"></i>
+                {% elif k.state == 'watch' %}<i class="bi bi-shield-fill-exclamation st-amber"></i>
+                {% elif k.status %}<i class="bi bi-shield-fill-check st-green"></i>
+                {% else %}<i class="bi bi-shield st-none"></i>{% endif %}
+                <span class="text-truncate">{{ k.name }}</span>
+            </div>
+            {% endfor %}
+        </div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body">
+            <div class="kpi-label">Precio</div>
+            {% if price %}
+            <div class="health-num font-monospace-data" style="font-size: 1.8rem;">${{ '%.2f'|format(price.price) }}</div>
+            <div class="small font-monospace-data {{ 'text-success' if price.pct >= 0 else 'text-danger' }}">{{ '%+.2f'|format(price.pct) }}% hoy
+                {% if vs_reference is not none %}<span class="text-muted">· {{ '%+.1f'|format(vs_reference) }}% vs ref. ${{ thesis.reference_price }}</span>{% endif %}</div>
+            {% else %}<div class="text-muted">Sin cotización</div>{% endif %}
+            <div class="small text-muted mt-1"><i class="bi bi-calendar-event me-1"></i>
+                {% if next_earnings %}Resultados {{ next_earnings.strftime('%d/%m/%Y') }} ({{ days_to_earnings }} d){% else %}Sin fecha de resultados{% endif %}</div>
+        </div></div></div>
+    </div>
+
+    <!-- TESIS -->
+    <div class="card mb-3"><div class="card-body">
+        <p class="mb-2">{{ thesis.summary }}</p>
+        {% if thesis.extra.hypothesis %}<p class="small mb-2"><strong>Hipótesis financiera:</strong> {{ thesis.extra.hypothesis }}</p>{% endif %}
+        {% if thesis.extra.ratings %}
+        <div class="d-flex flex-wrap gap-2 mb-2">
+            {% for k, v in thesis.extra.ratings.items() %}<span class="badge bg-light text-dark border">{{ k }}: <strong>{{ v }}</strong></span>{% endfor %}
+        </div>
+        {% endif %}
+        {% if thesis.extra.hypotheses %}
+        <details class="small mb-1"><summary class="text-muted">Hipótesis críticas ({{ thesis.extra.hypotheses|length }})</summary>
+            <ul class="mb-0 mt-2 list-unstyled">{% for h, text in thesis.extra.hypotheses.items() %}<li><strong>{{ h }}</strong> — {{ text }}</li>{% endfor %}</ul>
+        </details>
+        {% endif %}
+        {% if thesis.extra.rules %}
+        <details class="small"><summary class="text-muted">Reglas de interpretación ({{ thesis.extra.rules|length }})</summary>
+            <ul class="mb-0 mt-2">{% for r in thesis.extra.rules %}<li>{{ r }}</li>{% endfor %}</ul>
+        </details>
+        {% endif %}
+    </div></div>
+
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-dashboard" type="button" data-hash="">
+            <i class="bi bi-speedometer2 me-1"></i>Cuadro de mando</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-review" type="button" data-hash="resultados">
+            <i class="bi bi-stars me-1"></i>Resultados
+            {% if review_running %}<span class="spinner-border spinner-border-sm ms-1"></span>
+            {% elif thesis_notices %}<span class="badge text-bg-primary ms-1">{{ thesis_notices|length }}</span>{% endif %}</button></li>
+        {% if document.html %}
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-doc" type="button" data-hash="tesis">
+            <i class="bi bi-file-earmark-text me-1"></i>Tesis completa <span class="text-muted small">({{ document.sections|length }} apartados)</span></button></li>
+        {% endif %}
+    </ul>
+
+    <div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-dashboard">
+    <div class="row g-3">
+    <div class="col-12 col-xxl-8">
+        <!-- CUADRO DE MANDO (checklist trimestral de la tesis) -->
+        <div class="card mb-3">
+            <div class="card-header d-flex align-items-center gap-2 bg-transparent">
+                <span class="fw-bold"><i class="bi bi-list-check me-1"></i>Checklist trimestral</span>
+                <span class="text-muted small">{{ ev.pillars|length }} pasos · {{ ev.counts.values()|sum }} KPIs · pulsa un KPI para ver su historial</span>
+            </div>
+            <div class="table-responsive">
+            <table class="table table-sm mb-0 tbl-kpi">
+                <thead><tr>
+                    <th style="min-width: 220px;">Paso</th><th>KPI</th><th style="width: 90px;">Estado</th><th class="text-end">Último</th><th></th>
+                    <th class="zone"><i class="bi bi-check-circle-fill st-green"></i> Verde</th>
+                    <th class="zone"><i class="bi bi-exclamation-triangle-fill st-amber"></i> Amarillo</th>
+                    <th class="zone"><i class="bi bi-x-octagon-fill st-red"></i> Rojo</th>
+                </tr></thead>
+                {% for p in ev.pillars %}
+                {% set step_no = loop.index %}
+                <tbody class="border-top">
+                {% for k in p.kpis %}
+                <tr>
+                    {% if loop.first %}
+                    <td rowspan="{{ p.kpis|length }}" class="align-top pt-2">
+                        <div class="d-flex gap-2">
+                            <span class="text-muted font-monospace-data">{{ step_no }}</span>
+                            <div>
+                                <div class="fw-bold">{{ status_icon(p.status) }} {{ p.name }}
+                                    {% if p.weight == 0 %}<span class="text-muted small fw-normal">(no puntúa)</span>{% endif %}</div>
+                                {% if p.description %}<div class="small text-muted">{{ p.description }}</div>{% endif %}
+                            </div>
+                        </div>
+                    </td>
+                    {% endif %}
+                    <td role="button" onclick="openKpi({{ k.id }})">
+                        {% if k.name != p.name %}<span class="fw-semibold">{{ k.name }}</span>{% endif %}
+                        {% if k.is_kill_switch %}<i class="bi bi-shield-exclamation text-muted ms-1" title="Kill switch: {{ k.kill_rule }}"></i>{% endif %}
+                        {% if k.auto_metric %}<i class="bi bi-lightning-charge text-muted ms-1" title="Autocompletable desde yfinance"></i>{% endif %}
+                        {% if k.kind == 'qualitative' %}<span class="badge bg-light text-dark border ms-1" style="font-size: .6rem;">cualitativo</span>{% endif %}
+                        {% if k.how_to_measure %}<div class="small text-muted">{{ k.how_to_measure }}</div>{% endif %}
+                        {% if k.baseline %}<div class="small text-muted">Baseline: {{ k.baseline }}</div>{% endif %}
+                    </td>
+                    <td>{{ status_icon(k.eval.status, true) }}</td>
+                    <td class="text-end font-monospace-data text-nowrap">
+                        {% if k.eval.last %}{{ fmt_value(k.eval.last.value, k.unit) if k.eval.last.value is not none else '' }}
+                            <div class="small text-muted">{{ k.eval.last.period }}</div>
+                        {% else %}<span class="text-muted">–</span>{% endif %}
+                    </td>
+                    <td>{{ trend_icon(k.eval.trend) }}</td>
+                    <td class="zone">{{ k.green_text or '' }}</td>
+                    <td class="zone">{{ k.amber_text or '' }}</td>
+                    <td class="zone">{{ k.red_text or '' }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+                {% endfor %}
+                {% if thesis.extra.final_question %}
+                <tbody class="border-top"><tr>
+                    <td class="fw-bold pt-2">{{ thesis.extra.final_question }}</td>
+                    <td colspan="7" class="pt-2">Veredicto actual: {{ verdict_badge(thesis.verdict) }}
+                        <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#verdictModal">cambiar</button></td>
+                </tr></tbody>
+                {% endif %}
+            </table>
+            </div>
+        </div>
+
+        <!-- EVOLUCIÓN -->
+        <div class="card mb-3">
+            <div class="card-header bg-transparent fw-bold"><i class="bi bi-grid-3x3 me-1"></i>Evolución del semáforo por periodo</div>
+            <div class="card-body">
+            {% if grid.rows %}
+            <div class="table-responsive">
+            <table class="table table-sm table-borderless mb-0 tbl-kpi">
+                <thead><tr><th>KPI</th>{% for per in grid.periods %}<th class="text-center small text-nowrap">{{ per }}</th>{% endfor %}</tr></thead>
+                <tbody>
+                {% for row in grid.rows %}
+                <tr>
+                    <td class="text-nowrap">{{ row.kpi.name }} <span class="text-muted small">· {{ row.pillar }}</span></td>
+                    {% for cell in row.cells %}
+                    <td class="text-center">
+                        {% if cell %}<div class="grid-cell bg-st-{{ cell.status }} mx-auto" title="{{ row.kpi.name }} · {{ cell.period }}{% if cell.value is not none %}: {{ cell.value }}{{ row.kpi.unit or '' }}{% endif %}{% if cell.note %} — {{ cell.note }}{% endif %}">{{ status_icon(cell.status) }}</div>
+                        {% else %}<span class="text-muted">·</span>{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% else %}<div class="text-muted small">Aún no hay observaciones.</div>{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-xxl-4">
+        <!-- VALORACIÓN -->
+        {% if scenarios %}
+        <div class="card mb-3">
+            <div class="card-header bg-transparent"><span class="fw-bold"><i class="bi bi-calculator me-1"></i>Valoración vinculada a la tesis</span>
+                {% if valuation.question %}<div class="small text-muted">{{ valuation.question }}</div>{% endif %}</div>
+            <div class="table-responsive">
+            <table class="table table-sm mb-0 tbl-kpi">
+                <thead><tr>
+                    {% for col in valuation.columns %}<th>{{ col.label }}</th>{% endfor %}
+                    {% if valuation.target_year %}<th title="CAGR desde el precio actual hasta el precio {{ valuation.target_year }} del escenario">CAGR al precio actual</th>{% endif %}
+                </tr></thead>
+                <tbody>
+                {% for s in scenarios %}
+                <tr {% if s.metrics %}title="Métricas que lo confirmarían: {{ s.metrics }}"{% endif %}>
+                    {% for col in valuation.columns %}
+                    {% set v = s[col.key] %}
+                    <td class="{{ 'fw-semibold' if loop.first else 'font-monospace-data' }}">
+                        {%- if v is none -%}–
+                        {%- elif col.format == 'usd' -%}${{ '{:,.0f}'.format(v) }}
+                        {%- elif col.format == 'pct' -%}{{ v }}%
+                        {%- else -%}{{ v }}{%- endif -%}
+                    </td>
+                    {% endfor %}
+                    {% if valuation.target_year %}
+                    <td class="font-monospace-data fw-bold">{{ '%.1f'|format(s.implied_cagr) ~ '%' if s.implied_cagr is not none else '–' }}</td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% if scenarios[0].metrics %}<div class="small text-muted p-2">Pasa el ratón por un escenario para ver las métricas que lo confirmarían.</div>{% endif %}
+        </div>
+        {% endif %}
+
+        {% if thesis.extra.master_questions %}
+        <div class="card mb-3">
+            <div class="card-header bg-transparent fw-bold"><i class="bi bi-question-circle me-1"></i>Preguntas maestras para la próxima actualización</div>
+            <ol class="list-group list-group-flush list-group-numbered small">
+                {% for q in thesis.extra.master_questions %}<li class="list-group-item">{{ q }}</li>{% endfor %}
+            </ol>
+            <div class="small text-muted p-2">La revisión con IA las responde en el resumen de cada resultado.</div>
+        </div>
+        {% endif %}
+
+        <!-- RADAR SEMANAL -->
+        <div class="card mb-3">
+            <div class="card-header bg-transparent d-flex align-items-center gap-2">
+                <span class="fw-bold"><i class="bi bi-broadcast me-1"></i>Radar semanal</span>
+                <span class="small text-muted ms-auto">
+                    {% if radar_running %}<span class="spinner-border spinner-border-sm"></span> en curso · {% endif %}
+                    {% if news.digest %}{{ news.digest.created_at[:10] }}{% if news.digest.window_days %} · últimos {{ news.digest.window_days }} días{% endif %}{% if news.digest.usage %} · ${{ '%.3f'|format(news.digest.usage.cost_usd) }}{% endif %}{% else %}sin consultar{% endif %}
+                </span>
+                <button class="btn btn-sm {{ 'btn-outline-primary' if news.due else 'btn-outline-secondary' }} py-0" id="btnNews" data-force="{{ 'false' if news.due else 'true' }}"
+                        title="{{ 'Consultar noticias de los últimos 7 días' if news.due else 'Ya se consultó esta semana (próxima: ' ~ news.next_run.strftime('%d/%m') ~ '). Pulsa para forzar.' }}">
+                    <i class="bi bi-arrow-repeat"></i>{% if not news.due %} forzar{% endif %}
+                </button>
+            </div>
+            <div class="card-body">
+            {% if news.digest %}
+                {% if news.digest.grounded == false %}<div class="small st-red mb-2"><i class="bi bi-exclamation-octagon me-1"></i>Gemini no llegó a buscar en internet: este radar no es fiable. Fuérzalo de nuevo.</div>{% endif %}
+                {% if news.digest.summary %}<p class="small mb-2">{{ news.digest.summary }}</p>{% endif %}
+            {% endif %}
+                {% for n in news_items %}
+                <div class="timeline-item imp-{{ n.impact }}">
+                    <div class="d-flex justify-content-between gap-2">
+                        <span class="small text-muted">{{ n.date }}{% if n.step_name %} · Paso {{ n.step }}: {{ n.step_name }}{% endif %} · {{ n.materiality }}/5
+                            {% if not n.seen %}<span class="badge text-bg-primary">NUEVA</span>{% endif %}</span>
+                        {% if not n.in_timeline %}<button class="btn btn-link btn-sm p-0 text-muted text-nowrap" title="Añadir al timeline"
+                                onclick="newsToTimeline({{ n.id }})"><i class="bi bi-plus-circle"></i></button>{% endif %}
+                    </div>
+                    <div class="fw-semibold small">{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>
+                    <div class="small text-muted">{{ n.summary }}</div>
+                </div>
+                {% else %}{% if news.digest %}<div class="small text-muted">Ninguna noticia muy relevante (materialidad ≥4/5) por ahora.</div>{% endif %}{% endfor %}
+                {% if news_items %}<a href="/noticias?ticker={{ thesis.ticker }}" class="small">Ver todas en Noticias →</a>{% endif %}
+            {% if not news.digest %}
+                <div class="small text-muted">Automático, una vez por semana: solo noticias muy relevantes (materialidad ≥4/5) desde el último radar (la primera vez, los últimos 7 días).</div>
+            {% endif %}
+            <div id="newsInfo" class="small text-muted"></div>
+            </div>
+        </div>
+
+        <!-- TIMELINE -->
+        <div class="card mb-3">
+            <div class="card-header bg-transparent fw-bold"><i class="bi bi-clock-history me-1"></i>Timeline</div>
+            <div class="card-body">
+            {% for e in thesis.events %}
+            {% set meta = ev_types.get(e.type, ('bi-dot', e.type)) %}
+            <div class="timeline-item imp-{{ e.impact or 'neutral' }}">
+                <div class="d-flex justify-content-between">
+                    <span class="small text-muted"><i class="bi {{ meta[0] }} me-1"></i>{{ e.date }} · {{ meta[1] }}</span>
+                    <button class="btn btn-link btn-sm p-0 text-muted" onclick="deleteEvent({{ e.id }})" title="Eliminar"><i class="bi bi-x"></i></button>
+                </div>
+                <div class="fw-semibold small">{{ e.title }}</div>
+                {% if e.body %}
+                    {% if e.body|length > 220 %}
+                    <details class="small text-muted timeline-body">
+                        <summary>{{ e.body[:180]|replace('\n', ' ') }}… <span class="text-primary">ver más</span></summary>
+                        <div style="white-space: pre-line;">{{ e.body }}</div>
+                    </details>
+                    {% else %}<div class="small text-muted" style="white-space: pre-line;">{{ e.body }}</div>{% endif %}
+                {% endif %}
+            </div>
+            {% else %}<div class="text-muted small">Sin eventos.</div>{% endfor %}
+            </div>
+        </div>
+    </div>
+    </div>
+    </div>
+
+    <div class="tab-pane fade" id="tab-review">
+        {% include "_thesis_review.html" %}
+    </div>
+
+    {% if document.html %}
+    <div class="tab-pane fade" id="tab-doc">
+        <div class="row g-3">
+            <div class="col-12 col-lg-3">
+                <div class="card doc-toc"><div class="card-body p-2">
+                    <div class="kpi-label px-2 pb-1">Apartados</div>
+                    <nav class="nav flex-column">
+                        {% for sec in document.sections %}<a class="nav-link py-1 px-2 small" href="#{{ sec.id }}">{{ sec.name|safe }}</a>{% endfor %}
+                    </nav>
+                    {% if thesis.source_document %}<div class="small text-muted px-2 pt-2 border-top mt-2">Fuente: <code>{{ thesis.source_document }}</code></div>{% endif %}
+                </div></div>
+            </div>
+            <div class="col-12 col-lg-9">
+                <div class="card"><div class="card-body"><div class="report-content thesis-doc">{{ document.html|safe }}</div></div></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    </div>
+</div>
+
+<!-- MODAL: REGISTRAR RESULTADOS -->
+<div class="modal fade" id="obsModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header">
+        <h5 class="modal-title">Registrar resultados · {{ thesis.ticker }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    </div>
+    <div class="modal-body">
+        <div class="row g-2 mb-3 align-items-end">
+            <div class="col-md-3"><label class="form-label small">Periodo</label><input id="obsPeriod" class="form-control form-control-sm" placeholder="Q3 FY27"></div>
+            <div class="col-md-3"><label class="form-label small">Fecha de cierre del periodo</label><input id="obsDate" type="date" class="form-control form-control-sm" value="{{ today }}"></div>
+            <div class="col-md-6 text-md-end">
+                <div class="d-flex gap-2 justify-content-md-end flex-wrap">
+                    <button class="btn btn-outline-primary btn-sm" id="btnAutofill"><i class="bi bi-lightning-charge me-1"></i>Autocompletar desde yfinance</button>
+                    {% if review and review.status in ('ready', 'applied') %}<button class="btn btn-primary btn-sm" id="btnAiLoad" title="Carga la propuesta de la revisión con IA (sin coste)">
+                        <i class="bi bi-stars me-1"></i>Cargar revisión IA ({{ review.report.period or '?' }})</button>{% endif %}
+                </div>
+                <div class="small text-muted mt-1" id="autofillInfo"></div>
+            </div>
+        </div>
+        <p class="small text-muted">Los KPIs numéricos se clasifican solos con sus umbrales. En los cualitativos (o sin umbral rojo) elige tú el semáforo. Las filas vacías se ignoran; si el periodo ya existe, se sobrescribe.</p>
+        <table class="table table-sm tbl-kpi">
+            <thead><tr><th>KPI</th><th style="width: 130px;">Valor</th><th style="width: 150px;">Semáforo</th><th>Nota</th></tr></thead>
+            <tbody>
+            {% for p in ev.pillars %}
+            <tr><td colspan="4" class="fw-bold small pt-3">{{ p.name }}</td></tr>
+            {% for k in p.kpis %}
+            <tr data-kpi="{{ k.id }}">
+                <td>{{ k.name }}
+                    <div class="zone small text-muted">
+                        <i class="bi bi-check-circle-fill st-green"></i> {{ k.green_text or '–' }} ·
+                        <i class="bi bi-x-octagon-fill st-red"></i> {{ k.red_text or '–' }}
+                    </div></td>
+                <td><div class="input-group input-group-sm">
+                    <input type="number" step="any" class="form-control obs-value" oninput="previewStatus({{ k.id }})">
+                    {% if k.unit %}<span class="input-group-text">{{ k.unit }}</span>{% endif %}
+                </div></td>
+                <td>
+                    <select class="form-select form-select-sm obs-status">
+                        <option value="">–</option><option value="green">Verde</option><option value="amber">Amarillo</option><option value="red">Rojo</option>
+                    </select>
+                    <div class="small obs-auto"></div>
+                </td>
+                <td><input class="form-control form-control-sm obs-note" placeholder="Evidencia / fuente"></td>
+            </tr>
+            {% endfor %}
+            {% endfor %}
+            </tbody>
+        </table>
+        <label class="form-label small">Resumen de la revisión (opcional, se añade al timeline)</label>
+        <textarea id="obsSummary" class="form-control form-control-sm" rows="3" placeholder="¿Ha cambiado alguna hipótesis maestra?"></textarea>
+        <div id="obsErrors" class="alert alert-warning small mt-2 d-none"></div>
+    </div>
+    <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary btn-sm" id="btnSaveObs"><i class="bi bi-save me-1"></i>Guardar</button>
+    </div>
+</div></div></div>
+
+<!-- MODAL: VEREDICTO -->
+<div class="modal fade" id="verdictModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Veredicto de la tesis</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <label class="form-label small">Veredicto</label>
+        <select id="vdVerdict" class="form-select form-select-sm mb-2">
+            {% for v in ['REFORZADA', 'INTACTA', 'DEBILITADA', 'ROTA'] %}<option {% if v == thesis.verdict %}selected{% endif %}>{{ v }}</option>{% endfor %}
+        </select>
+        <label class="form-label small">Estado</label>
+        <select id="vdStatus" class="form-select form-select-sm mb-2">
+            {% for s in ['ACTIVA', 'EN_REVISION', 'CERRADA'] %}<option value="{{ s }}" {% if s == thesis.status %}selected{% endif %}>{{ s|replace('_', ' ') }}</option>{% endfor %}
+        </select>
+        <label class="form-label small">Motivo (va al timeline)</label>
+        <textarea id="vdNote" class="form-control form-control-sm" rows="3"></textarea>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary btn-sm" id="btnSaveVerdict">Guardar</button></div>
+</div></div></div>
+
+<!-- MODAL: EVENTO -->
+<div class="modal fade" id="eventModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title">Nuevo evento</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <div class="row g-2 mb-2">
+            <div class="col-5"><label class="form-label small">Fecha</label><input id="evDate" type="date" class="form-control form-control-sm" value="{{ today }}"></div>
+            <div class="col-4"><label class="form-label small">Tipo</label>
+                <select id="evType" class="form-select form-select-sm">
+                    <option value="news">Noticia</option><option value="decision">Decisión</option><option value="note">Nota</option><option value="earnings">Resultados</option>
+                </select></div>
+            <div class="col-3"><label class="form-label small">Impacto</label>
+                <select id="evImpact" class="form-select form-select-sm">
+                    <option value="neutral">Neutral</option><option value="positive">Positivo</option><option value="negative">Negativo</option>
+                </select></div>
+        </div>
+        <label class="form-label small">Título</label><input id="evTitle" class="form-control form-control-sm mb-2">
+        <label class="form-label small">Detalle</label><textarea id="evBody" class="form-control form-control-sm" rows="4"></textarea>
+    </div>
+    <div class="modal-footer"><button class="btn btn-primary btn-sm" id="btnSaveEvent">Guardar</button></div>
+</div></div></div>
+
+<!-- MODAL: HISTORIAL KPI -->
+<div class="modal fade" id="kpiModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="kpiTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+    <div class="modal-body">
+        <div id="kpiMeta" class="small text-muted mb-2"></div>
+        <div id="kpiChart" style="height: 280px;"></div>
+        <table class="table table-sm tbl-kpi mt-2">
+            <thead><tr><th>Periodo</th><th>Fecha</th><th class="text-end">Valor</th><th>Semáforo</th><th>Nota</th><th>Fuente</th><th></th></tr></thead>
+            <tbody id="kpiObs"></tbody>
+        </table>
+    </div>
+</div></div></div>
+
+<script>
+document.querySelectorAll('[data-bs-toggle="tab"][data-hash]').forEach(btn => btn.addEventListener('shown.bs.tab', () => {
+    history.replaceState(null, '', btn.dataset.hash ? '#' + btn.dataset.hash : location.pathname);
+}));
+// bootstrap.bundle se carga después del contenido: abrir la pestaña cuando ya está disponible
+document.addEventListener('DOMContentLoaded', () => {
+    const hashTarget = location.hash.length > 1 ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+    if (location.hash === '#resultados') showReviewTab();
+    const docBtn = document.querySelector('[data-bs-target="#tab-doc"]');
+    if (docBtn && (location.hash === '#tesis' || (hashTarget && hashTarget.closest('.thesis-doc')))) {
+        bootstrap.Tab.getOrCreateInstance(docBtn).show();
+        if (hashTarget) setTimeout(() => hashTarget.scrollIntoView({block: 'start'}), 200);
+    }
+});
+document.querySelectorAll('.doc-toc a').forEach(a => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    document.querySelector(a.getAttribute('href')).scrollIntoView({behavior: 'smooth', block: 'start'});
+}));
+const THESIS_ID = {{ thesis.id }};
+const KPIS = {};
+{% for p in ev.pillars %}{% for k in p.kpis %}KPIS[{{ k.id }}] = {{ k|tojson }};
+{% endfor %}{% endfor %}
+const ST_LABEL = {green: 'Verde', amber: 'Amarillo', red: 'Rojo'};
+const ST_ICON = {green: 'bi-check-circle-fill st-green', amber: 'bi-exclamation-triangle-fill st-amber', red: 'bi-x-octagon-fill st-red'};
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+
+// Misma regla que thesis_service.classify
+function classify(k, v) {
+    if (v === null || isNaN(v) || k.kind !== 'numeric' || k.green_threshold === null) return null;
+    const g = k.green_threshold, r = k.red_threshold;
+    if (k.direction === 'lower') {
+        if (v <= g) return 'green';
+        if (r !== null && v > r) return 'red';
+        return 'amber';
+    }
+    if (v >= g) return 'green';
+    if (r !== null && v < r) return 'red';
+    return 'amber';
+}
+
+function previewStatus(kpiId) {
+    const row = document.querySelector(`tr[data-kpi="${kpiId}"]`);
+    const raw = row.querySelector('.obs-value').value;
+    const st = classify(KPIS[kpiId], raw === '' ? null : parseFloat(raw));
+    const sel = row.querySelector('.obs-status'), info = row.querySelector('.obs-auto');
+    if (st) { sel.value = st; sel.disabled = true; info.innerHTML = `<i class="bi ${ST_ICON[st]}"></i> auto`; }
+    else { sel.disabled = false; info.innerHTML = ''; }
+}
+
+async function api(url, method, body) {
+    const r = await fetch(url, {method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.detail || r.statusText);
+    return d;
+}
+
+document.getElementById('btnAutofill').addEventListener('click', async (e) => {
+    const btn = e.currentTarget, info = document.getElementById('autofillInfo');
+    btn.disabled = true; info.textContent = 'Consultando yfinance…';
+    try {
+        const d = await api(`/api/theses/${THESIS_ID}/autofill`, 'GET');
+        for (const s of d.suggestions) {
+            const row = document.querySelector(`tr[data-kpi="${s.kpi_id}"]`);
+            row.querySelector('.obs-value').value = s.value;
+            if (!row.querySelector('.obs-note').value) row.querySelector('.obs-note').value = `yfinance: ${s.metric}${s.detail ? ' · ' + s.detail : ''}`;
+            previewStatus(s.kpi_id);
+        }
+        if (d.period_end) document.getElementById('obsDate').value = d.period_end;
+        info.textContent = `${d.suggestions.length} KPIs rellenados (trimestre cerrado ${d.period_end}). Revisa antes de guardar.`;
+    } catch (err) { info.textContent = 'Error: ' + err.message; }
+    btn.disabled = false;
+});
+
+const CONF_LABEL = {high: 'alta', medium: 'media', low: 'baja'};
+const STEP_NAMES = {{ ev.pillars|map(attribute='name')|list|tojson }};
+
+function applyReview(r) {
+    let filled = 0;
+    for (const it of r.items) {
+        const row = document.querySelector(`#obsModal tr[data-kpi="${it.kpi_id}"]`);
+        if (!row) continue;
+        if (it.value !== null) row.querySelector('.obs-value').value = it.value;
+        previewStatus(it.kpi_id);
+        const sel = row.querySelector('.obs-status');
+        if (!sel.disabled && it.status) sel.value = it.status;
+        const src = it.source_url ? ` [${it.source_url}]` : '';
+        row.querySelector('.obs-note').value = `IA: ${it.evidence}${src}`.slice(0, 500);
+        const conf = it.confidence ? ` · confianza ${CONF_LABEL[it.confidence]}` : '';
+        const cls = it.confidence === 'low' ? 'st-red' : (it.confidence === 'medium' ? 'st-amber' : 'text-muted');
+        row.querySelector('.obs-auto').innerHTML += `<div class="${cls}" title="${esc(it.check)}"><i class="bi bi-stars"></i> IA${conf}</div>`;
+        if (it.value !== null || it.status) filled++;
+    }
+    if (r.period) document.getElementById('obsPeriod').value = r.period;
+    if (r.period_end) document.getElementById('obsDate').value = r.period_end;
+    const steps = r.steps.filter(s => s.answer).map(s => `${s.step}. ${STEP_NAMES[s.step - 1] || ''}: ${s.answer}`).join('\n');
+    const verdict = r.verdict ? `\n\nVeredicto propuesto por la IA: ${r.verdict}. ${r.verdict_rationale}` : '';
+    const master = (r.master_answers || []).filter(m => m.answer).map(m => `- ${m.question}\n  ${m.answer}`).join('\n');
+    document.getElementById('obsSummary').value = (steps + (master ? `\n\nPreguntas maestras:\n${master}` : '') + verdict).trim();
+    const cost = r.usage ? ` · coste $${r.usage.cost_usd.toFixed(3)}` : '';
+    const check = r.verified ? 'verificada' : 'SIN verificar (falló la 2ª pasada)';
+    const grounded = r.grounded === false
+        ? '<div class="st-red"><i class="bi bi-exclamation-octagon"></i> Gemini no usó la búsqueda: las cifras pueden venir de su memoria. Compruébalas.</div>' : '';
+    const sources = (r.sources || []).length
+        ? `<details class="text-start"><summary>${r.sources.length} fuentes consultadas</summary>${r.sources.map(x =>
+            `<div><a href="${esc(x.uri)}" target="_blank" rel="noopener">${esc(x.title || x.uri)}</a></div>`).join('')}</details>` : '';
+    document.getElementById('autofillInfo').innerHTML =
+        `Propuesta IA ${check} (${esc(r.model)}${cost}): ${filled} KPIs. Revisa sobre todo los de confianza media/baja antes de guardar.${grounded}${sources}`;
+}
+
+const REVIEW = {{ (review if review and review.status in ('ready', 'applied') else none)|tojson }};
+let loadedReviewId = null;
+
+function loadReviewIntoModal() {
+    if (!REVIEW) return;
+    const r = REVIEW.report;
+    applyReview(r);
+    const head = [r.headline, ...(r.results_summary || []).map(x => '- ' + x)].filter(Boolean).join('\n');
+    const summary = document.getElementById('obsSummary');
+    summary.value = (head ? head + '\n\n' : '') + summary.value;
+    loadedReviewId = REVIEW.status === 'ready' ? REVIEW.id : null;
+}
+document.getElementById('btnAiLoad')?.addEventListener('click', loadReviewIntoModal);
+
+function openReviewInModal() {
+    loadReviewIntoModal();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('obsModal')).show();
+}
+
+async function setReviewStatus(id, status) {
+    if (status === 'discarded' && !confirm('¿Descartar esta revisión? No se guardará ningún KPI.')) return;
+    try { await api(`/api/theses/reviews/${id}/status`, 'POST', {status}); location.reload(); } catch (err) { alert(err.message); }
+}
+
+function showReviewTab() {
+    const btn = document.querySelector('[data-bs-target="#tab-review"]');
+    if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
+}
+
+async function startReview() {
+    if (!confirm('Lanzar la revisión de resultados con IA (3-6 min, unos céntimos). ¿Continuar?')) return;
+    try {
+        await api(`/api/theses/${THESIS_ID}/reviews`, 'POST');
+        location.hash = 'resultados';
+        location.reload();
+    } catch (err) { alert(err.message); }
+}
+document.getElementById('btnStartReview')?.addEventListener('click', startReview);
+
+{% if review_running %}
+// Revisión en curso: comprobar cada 20 s y recargar cuando termine
+setInterval(async () => {
+    try {
+        const d = await api(`/api/theses/reviews/{{ review.id if review else 0 }}`, 'GET');
+        if (d.status !== 'running') { location.hash = 'resultados'; location.reload(); }
+    } catch (e) {}
+}, 20000);
+{% endif %}
+
+document.getElementById('btnNews').addEventListener('click', async (e) => {
+    const btn = e.currentTarget, info = document.getElementById('newsInfo');
+    if (btn.dataset.force === 'true' && !confirm('El radar ya se consultó esta semana. ¿Volver a consultar ahora?')) return;
+    btn.disabled = true;
+    info.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Buscando noticias de los últimos 7 días…';
+    try { await api(`/api/theses/${THESIS_ID}/news?force=${btn.dataset.force}`, 'POST'); location.reload(); }
+    catch (err) { info.textContent = 'Error: ' + err.message; btn.disabled = false; }
+});
+
+async function newsToTimeline(id) {
+    try { await api(`/api/theses/news/${id}/timeline`, 'POST'); location.reload(); } catch (err) { alert(err.message); }
+}
+
+document.getElementById('btnSaveObs').addEventListener('click', async () => {
+    const period = document.getElementById('obsPeriod').value.trim();
+    const errBox = document.getElementById('obsErrors');
+    if (!period) { errBox.textContent = 'Indica el periodo (ej: Q3 FY27).'; errBox.classList.remove('d-none'); return; }
+    const items = [...document.querySelectorAll('#obsModal tr[data-kpi]')].map(row => {
+        const raw = row.querySelector('.obs-value').value;
+        return {kpi_id: parseInt(row.dataset.kpi), value: raw === '' ? null : parseFloat(raw),
+                status: row.querySelector('.obs-status').value || null, note: row.querySelector('.obs-note').value || null};
+    }).filter(i => i.value !== null || i.status);
+    if (!items.length) { errBox.textContent = 'No hay ningún KPI rellenado.'; errBox.classList.remove('d-none'); return; }
+    const notes = [...document.querySelectorAll('.obs-note')].map(n => n.value).join(' ');
+    const sources = ['manual', /yfinance/.test(notes) && 'yfinance', /IA:/.test(notes) && 'ia'].filter(Boolean);
+    try {
+        const d = await api(`/api/theses/${THESIS_ID}/observations`, 'POST', {
+            period, date: document.getElementById('obsDate').value, items,
+            source: sources.join('+'),
+            summary: document.getElementById('obsSummary').value.trim() || null});
+        if (d.errors.length) { errBox.innerHTML = d.errors.map(esc).join('<br>'); errBox.classList.remove('d-none'); if (!d.saved) return; }
+        if (loadedReviewId) await api(`/api/theses/reviews/${loadedReviewId}/status`, 'POST', {status: 'applied'});
+        location.reload();
+    } catch (err) { errBox.textContent = err.message; errBox.classList.remove('d-none'); }
+});
+
+document.getElementById('btnSaveVerdict').addEventListener('click', async () => {
+    try {
+        await api(`/api/theses/${THESIS_ID}`, 'PATCH', {verdict: document.getElementById('vdVerdict').value,
+            status: document.getElementById('vdStatus').value, note: document.getElementById('vdNote').value || null});
+        location.reload();
+    } catch (err) { alert(err.message); }
+});
+
+document.getElementById('btnSaveEvent').addEventListener('click', async () => {
+    try {
+        await api(`/api/theses/${THESIS_ID}/events`, 'POST', {date: document.getElementById('evDate').value,
+            type: document.getElementById('evType').value, impact: document.getElementById('evImpact').value,
+            title: document.getElementById('evTitle').value, body: document.getElementById('evBody').value || null});
+        location.reload();
+    } catch (err) { alert(err.message); }
+});
+
+async function deleteEvent(id) {
+    if (!confirm('¿Eliminar este evento?')) return;
+    try { await api(`/api/theses/events/${id}`, 'DELETE'); location.reload(); } catch (err) { alert(err.message); }
+}
+
+async function deleteObs(id) {
+    if (!confirm('¿Eliminar esta observación?')) return;
+    try { await api(`/api/theses/observations/${id}`, 'DELETE'); location.reload(); } catch (err) { alert(err.message); }
+}
+
+function openKpi(kpiId) {
+    const k = KPIS[kpiId];
+    document.getElementById('kpiTitle').textContent = k.name;
+    document.getElementById('kpiMeta').innerHTML = [
+        k.how_to_measure && esc(k.how_to_measure),
+        k.baseline && `Baseline: ${esc(k.baseline)}`,
+        k.frequency && `Frecuencia: ${esc(k.frequency)}`, k.source && `Fuente: ${esc(k.source)}`,
+        k.is_kill_switch && `<i class="bi bi-shield-exclamation"></i> Kill switch: ${esc(k.kill_rule)}`,
+    ].filter(Boolean).join(' · ');
+    const obs = k.observations;
+    document.getElementById('kpiObs').innerHTML = obs.length ? [...obs].reverse().map(o => `<tr>
+        <td>${esc(o.period)}</td><td>${esc(o.date)}</td>
+        <td class="text-end font-monospace-data">${o.value === null ? '–' : o.value + (k.unit || '')}</td>
+        <td><i class="bi ${ST_ICON[o.status]}"></i> ${ST_LABEL[o.status]}</td>
+        <td class="small">${esc(o.note)}</td><td class="small text-muted">${esc(o.source)}</td>
+        <td><button class="btn btn-link btn-sm p-0 text-muted" onclick="deleteObs(${o.id})" title="Eliminar"><i class="bi bi-trash"></i></button></td>
+    </tr>`).join('') : '<tr><td colspan="7" class="text-muted">Sin observaciones. Regístralas con «Registrar resultados».</td></tr>';
+
+    const chartEl = document.getElementById('kpiChart');
+    const points = obs.filter(o => o.value !== null);
+    chartEl.style.display = points.length ? 'block' : 'none';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('kpiModal')).show();
+    if (points.length) setTimeout(() => drawKpiChart(chartEl, k, points), 200);
+}
+
+function drawKpiChart(el, k, points) {
+    const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const ink = dark ? '#c9d1d9' : '#343a40', grid = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+    const stColor = {green: cssVar('--fin-green') || '#089981', amber: '#d4a015', red: cssVar('--fin-red') || '#f23645'};
+    const vals = points.map(p => p.value);
+    const g = k.green_threshold, r = k.red_threshold;
+    const refs = [g, r].filter(v => v !== null && v !== undefined);
+    let lo = Math.min(...vals, ...refs), hi = Math.max(...vals, ...refs);
+    const pad = (hi - lo) * 0.15 || Math.abs(hi) * 0.2 || 1;
+    lo -= pad; hi += pad;
+
+    // Bandas de fondo verde/amarillo/rojo según umbrales y dirección
+    const shapes = [], band = (y0, y1, c) => shapes.push({type: 'rect', xref: 'paper', x0: 0, x1: 1, y0, y1, fillcolor: c, opacity: 0.09, line: {width: 0}, layer: 'below'});
+    if (k.kind === 'numeric' && g !== null) {
+        const lower = k.direction === 'lower', edge = r ?? g;
+        if (lower) { band(lo, g, stColor.green); band(g, edge, stColor.amber); if (r !== null) band(r, hi, stColor.red); else band(g, hi, stColor.amber); }
+        else { band(g, hi, stColor.green); band(edge, g, stColor.amber); if (r !== null) band(lo, r, stColor.red); else band(lo, g, stColor.amber); }
+    }
+    Plotly.newPlot(el, [{
+        x: points.map(p => p.period), y: vals, type: 'scatter', mode: 'lines+markers+text',
+        line: {width: 2, color: ink}, marker: {size: 10, color: points.map(p => stColor[p.status]), line: {width: 2, color: dark ? '#11131b' : '#fff'}},
+        text: points.map((p, i) => i === points.length - 1 ? p.value + (k.unit || '') : ''), textposition: 'top center', textfont: {color: ink, size: 11},
+        customdata: points.map(p => [ST_LABEL[p.status], p.note || '']),
+        hovertemplate: '<b>%{x}</b><br>%{y}' + esc(k.unit || '') + ' · %{customdata[0]}<br>%{customdata[1]}<extra></extra>',
+    }], {
+        margin: {l: 45, r: 15, t: 15, b: 35}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+        font: {color: ink, size: 11}, shapes, showlegend: false,
+        xaxis: {type: 'category', gridcolor: grid, zeroline: false},
+        yaxis: {range: [lo, hi], gridcolor: grid, zeroline: false, ticksuffix: k.unit && k.unit.startsWith('%') ? '%' : ''},
+    }, {displayModeBar: false, responsive: true});
+}
+</script>
+{% endblock %}

@@ -1,0 +1,70 @@
+{# Semáforo y badges compartidos por las vistas de tesis. El estado nunca se comunica solo con color: icono + texto. #}
+{% set STATUS_META = {
+    'green': {'icon': 'bi-check-circle-fill', 'label': 'Verde', 'cls': 'st-green'},
+    'amber': {'icon': 'bi-exclamation-triangle-fill', 'label': 'Amarillo', 'cls': 'st-amber'},
+    'red':   {'icon': 'bi-x-octagon-fill', 'label': 'Rojo', 'cls': 'st-red'},
+    None:    {'icon': 'bi-circle', 'label': 'Sin dato', 'cls': 'st-none'}
+} %}
+{% set VERDICT_CLS = {'REFORZADA': 'vd-strong', 'INTACTA': 'vd-intact', 'DEBILITADA': 'vd-weak', 'ROTA': 'vd-broken'} %}
+
+{% macro status_icon(status, with_label=false) -%}
+{%- set m = STATUS_META.get(status, STATUS_META[None]) -%}
+<span class="{{ m.cls }} text-nowrap" title="{{ m.label }}"><i class="bi {{ m.icon }}"></i>{% if with_label %} <span class="small">{{ m.label }}</span>{% endif %}</span>
+{%- endmacro %}
+
+{% macro verdict_badge(verdict) -%}
+<span class="verdict-badge {{ VERDICT_CLS.get(verdict, 'vd-intact') }}">{{ verdict }}</span>
+{%- endmacro %}
+
+{% macro fmt_value(value, unit) -%}
+{%- if value is none -%}–{%- else -%}{{ '%.1f'|format(value) }}{% if unit %}<span class="text-muted small">{{ unit|replace(' YoY','') }}</span>{% endif %}{%- endif -%}
+{%- endmacro %}
+
+{% macro trend_icon(trend) -%}
+{%- if trend == 'up' -%}<i class="bi bi-arrow-up-right st-green" title="Mejora vs periodo anterior"></i>
+{%- elif trend == 'down' -%}<i class="bi bi-arrow-down-right st-red" title="Empeora vs periodo anterior"></i>
+{%- elif trend == 'flat' -%}<i class="bi bi-arrow-right text-muted" title="Sin cambio de semáforo"></i>
+{%- else -%}<span class="text-muted">·</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro thesis_styles() %}
+<style>
+    :root { --st-amber: #d4a015; }
+    .st-green { color: var(--fin-green); }
+    .st-amber { color: var(--st-amber); }
+    .st-red { color: var(--fin-red); }
+    .st-none { color: var(--bs-secondary-color); }
+    .bg-st-green { background-color: rgba(8,153,129,.16); }
+    .bg-st-amber { background-color: rgba(212,160,21,.16); }
+    .bg-st-red { background-color: rgba(242,54,69,.16); }
+    .verdict-badge { font-size: .68rem; font-weight: 700; letter-spacing: .06em; padding: 3px 8px; border-radius: 4px; border: 1px solid currentColor; }
+    .vd-strong { color: var(--fin-green); }
+    .vd-intact { color: #58a6ff; }
+    .vd-weak { color: var(--st-amber); }
+    .vd-broken { color: var(--fin-red); }
+    .health-num { font-size: 2.4rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+    .health-bar { height: 6px; border-radius: 3px; background: var(--bs-secondary-bg); overflow: hidden; }
+    .health-bar > div { height: 100%; border-radius: 3px; }
+    .kpi-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--bs-secondary-color); }
+    .thesis-card { transition: border-color .15s; }
+    .thesis-card:hover { border-color: #58a6ff !important; }
+    .pillar-row { display: flex; align-items: center; gap: .5rem; padding: 3px 0; font-size: .82rem; }
+    .pillar-row .pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tbl-kpi td, .tbl-kpi th { font-size: .8rem; vertical-align: middle; }
+    .tbl-kpi .zone { font-size: .72rem; color: var(--bs-secondary-color); max-width: 150px; }
+    .grid-cell { width: 34px; height: 22px; border-radius: 3px; text-align: center; font-size: .75rem; }
+    .timeline-item { border-left: 2px solid var(--bs-border-color); padding: 0 0 1rem 1rem; position: relative; }
+    .timeline-item::before { content: ''; position: absolute; left: -6px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--bs-secondary-color); }
+    .timeline-item.imp-positive::before { background: var(--fin-green); }
+    .timeline-item.imp-negative::before { background: var(--fin-red); }
+    .doc-toc { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
+    .doc-toc .nav-link { color: var(--bs-secondary-color); border-radius: 4px; }
+    .doc-toc .nav-link:hover { color: var(--bs-body-color); background: var(--bs-secondary-bg); }
+    .thesis-doc h2 { scroll-margin-top: 1rem; }
+    .timeline-body summary { cursor: pointer; list-style: none; }
+    .timeline-body summary::-webkit-details-marker { display: none; }
+    .timeline-body[open] summary { display: none; }
+    .thesis-doc blockquote { border-left: 3px solid #58a6ff; padding: .25rem 0 .25rem 1rem; margin: 1rem 0; }
+    .thesis-doc blockquote p { margin-bottom: 0; }
+</style>
+{% endmacro %}

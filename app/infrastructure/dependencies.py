@@ -5,6 +5,7 @@ from app.infrastructure.db.database import get_db
 from app.infrastructure.db.models import DBSetting
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
 from app.infrastructure.repositories.sqlalchemy_portfolio_repository import SqlAlchemyPortfolioRepository
+from app.infrastructure.repositories.sqlalchemy_thesis_repository import SqlAlchemyThesisRepository
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.performance_service import PerformanceService
 
@@ -109,3 +110,7 @@ def get_performance_service(
     portfolio_service: PortfolioService = Depends(get_portfolio_service),
 ) -> PerformanceService:
     return PerformanceService(portfolio_service)
+
+
+def get_thesis_repository(db: Session = Depends(get_db)) -> SqlAlchemyThesisRepository:
+    return SqlAlchemyThesisRepository(db)

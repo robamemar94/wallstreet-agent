@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% from "_thesis_macros.html" import thesis_styles %}
+{% block title %}Noticias · Alpha-Flow{% endblock %}
+
+{% block content %}
+{{ thesis_styles() }}
+<style>
+    .news-card.unread { border-left: 3px solid #58a6ff !important; }
+    .mat-badge { font-size: .68rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid currentColor; }
+</style>
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div>
+            <h4 class="fw-bold mb-1"><i class="bi bi-broadcast me-2 text-primary"></i>Noticias de las tesis</h4>
+            <p class="text-muted small mb-0">Radar semanal automático. Solo noticias muy relevantes (materialidad ≥{{ min_materiality }}/5) que afectan a algún paso del cuadro de mando.</p>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            {% if radar_running %}<span class="small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Radar en curso…</span>{% endif %}
+            <div class="btn-group btn-group-sm">
+                <a href="/noticias" class="btn btn-outline-secondary {{ 'active' if not selected }}">Todas</a>
+                {% for t in tickers %}<a href="/noticias?ticker={{ t }}" class="btn btn-outline-secondary {{ 'active' if selected == t }}">{{ t }}</a>{% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-8">
+        {% for n in items %}
+            <div class="card news-card {{ 'unread' if not n.seen }} mb-2"><div class="card-body py-2">
+                <div class="d-flex justify-content-between gap-2 flex-wrap">
+                    <div class="small text-muted">
+                        <a href="/tesis/{{ n.thesis_id }}" class="fw-bold text-decoration-none">{{ n.ticker }}</a>
+                        · {{ n.date or '¿fecha?' }}
+                        {% if n.step_name %}· Paso {{ n.step }}: {{ n.step_name }}{% endif %}
+                        {% if not n.seen %}<span class="badge text-bg-primary ms-1">NUEVA</span>{% endif %}
+                    </div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <span class="mat-badge {{ 'st-red' if n.materiality >= 5 else 'st-amber' }}" title="{{ 'Puede cambiar la tesis' if n.materiality >= 5 else 'Cambia un KPI de forma concreta' }}">
+                            {{ n.materiality }}/5 {{ 'puede cambiar la tesis' if n.materiality >= 5 else 'afecta a un KPI' }}</span>
+                        {% if n.impact == 'positive' %}<span class="small st-green"><i class="bi bi-arrow-up-right"></i> positiva</span>
+                        {% elif n.impact == 'negative' %}<span class="small st-red"><i class="bi bi-arrow-down-right"></i> negativa</span>
+                        {% else %}<span class="small text-muted"><i class="bi bi-dash"></i> neutral</span>{% endif %}
+                    </div>
+                </div>
+                <div class="fw-semibold mt-1">{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>
+                <div class="small text-muted">{{ n.summary }}</div>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <span class="small text-muted">Detectada por el radar el {{ n.found_at[:10] }}</span>
+                    {% if n.in_timeline %}<span class="small text-muted"><i class="bi bi-check2"></i> en el timeline</span>
+                    {% else %}<button class="btn btn-link btn-sm p-0" onclick="toTimeline({{ n.id }}, this)"><i class="bi bi-plus-circle me-1"></i>Añadir al timeline</button>{% endif %}
+                </div>
+            </div></div>
+        {% else %}
+            <div class="card"><div class="card-body text-center text-muted py-5">
+                <i class="bi bi-broadcast fs-2 d-block mb-2"></i>Todavía no hay noticias muy relevantes{% if selected %} para {{ selected }}{% endif %}.
+            </div></div>
+        {% endfor %}
+        </div>
+
+        <div class="col-12 col-xl-4">
+            <div class="card"><div class="card-header bg-transparent fw-bold"><i class="bi bi-calendar-week me-1"></i>Estado del radar</div>
+            <ul class="list-group list-group-flush small">
+                {% for r in radars %}
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between">
+                        <a href="/tesis/{{ r.id }}" class="fw-bold text-decoration-none">{{ r.ticker }}</a>
+                        <span class="text-muted">{% if r.digest %}último {{ r.digest.created_at[:10] }}{% if r.digest.window_days %} ({{ r.digest.window_days }} días){% endif %}{% else %}sin consultar{% endif %}</span>
+                    </div>
+                    <div class="text-muted">
+                        {% if r.due %}Pendiente: se consultará automáticamente{% else %}Próxima consulta: {{ r.next_run.strftime('%d/%m/%Y') }}{% endif %}
+                        {% if r.digest and r.digest.grounded == false %}<div class="st-red"><i class="bi bi-exclamation-octagon"></i> El último radar no llegó a buscar en internet</div>{% endif %}
+                    </div>
+                    {% if r.digest and r.digest.summary %}<div class="mt-1">{{ r.digest.summary }}</div>{% endif %}
+                </li>
+                {% endfor %}
+            </ul></div>
+        </div>
+    </div>
+</div>
+
+<script>
+const UNREAD_IDS = {{ unread_ids|tojson }};
+// Al abrir la sección se marcan como leídas (siguen resaltadas hasta recargar)
+if (UNREAD_IDS.length) {
+    fetch('/api/theses/news/seen', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: UNREAD_IDS})})
+        .then(() => window.refreshSidebarNewsBadge && window.refreshSidebarNewsBadge());
+}
+async function toTimeline(id, btn) {
+    btn.disabled = true;
+    const r = await fetch(`/api/theses/news/${id}/timeline`, {method: 'POST'});
+    if (r.ok) btn.outerHTML = '<span class="small text-muted"><i class="bi bi-check2"></i> en el timeline</span>';
+    else { btn.disabled = false; alert('No se pudo añadir al timeline'); }
+}
+{% if radar_running %}setTimeout(() => location.reload(), 30000);{% endif %}
+</script>
+{% endblock %}
