@@ -15,9 +15,12 @@ from app.interfaces.api.thesis_api import router as thesis_api_router
 from app.infrastructure.db.database import SessionLocal
 from app.infrastructure.dependencies import get_settings_from_db
 from fastapi.staticfiles import StaticFiles
+from utils import llm_usage
+import json
 import os
 
 load_dotenv()
+llm_usage.install()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +46,18 @@ async def settings_middleware(request, call_next):
     finally:
         db.close()
     return await call_next(request)
+
+
+@app.middleware("http")
+async def llm_usage_middleware(request, call_next):
+    # Contabiliza los tokens/coste de Gemini de cada petición y los expone en la cabecera X-LLM-Usage
+    if request.url.path.startswith(("/static", "/logos")):
+        return await call_next(request)
+    with llm_usage.track_usage(f"{request.method} {request.url.path}") as tracker:
+        response = await call_next(request)
+    if tracker.result:
+        response.headers["X-LLM-Usage"] = json.dumps(tracker.result)
+    return response
 
 
 app.include_router(market_views_router)

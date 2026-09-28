@@ -72,7 +72,7 @@ REGLAS CRÍTICAS:
                     contents.append(types.Part.from_bytes(data=b64_data, mime_type='image/png'))
 
         response = client.models.generate_content(
-            model='gemini-flash-latest',
+            model=GEMINI_MODEL,
             contents=contents,
             config=types.GenerateContentConfig(temperature=0.1)
         )

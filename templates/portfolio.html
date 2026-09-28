@@ -4,6 +4,14 @@
 {% block content %}
 <style>
     /* Estilos ultra-compactos y profesionales para la página de Mi Portfolio */
+    /* Tarjetas resumen: todas en una línea desde 1200px (8 tarjetas: Bootstrap solo llega a row-cols-6) */
+    @media (min-width: 1200px) {
+        .kpi-row > .col { flex: 1 1 0; width: auto; max-width: none; min-width: 0; }
+        .kpi-row .card-body { padding: .45rem .55rem !important; }
+        .kpi-row h4 { font-size: .95rem !important; white-space: nowrap; }
+        .kpi-row h4 small { display: block; margin-left: 0 !important; }
+        .kpi-row h6 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    }
     .tab-content {
         font-size: 0.78rem;
     }
@@ -159,7 +167,7 @@
     </div>
 
     <!-- Resumen Global de Tarjetas -->
-    <div class="row mb-4 row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-6 g-2">
+    <div class="row mb-4 row-cols-2 row-cols-md-4 g-2 kpi-row">
         <!-- Valor Invertido -->
         <div class="col">
             <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
@@ -196,6 +204,38 @@
             </div>
         </div>
         
+        <!-- Var. Semanal -->
+        {% set pc = period_changes.get('wtd') %}
+        <div class="col">
+            <div class="card border-0 h-100 {% if pc and pc.abs_eur > 0 %}bg-success text-white{% elif pc and pc.abs_eur < 0 %}bg-danger text-white{% else %}bg-light{% endif %}" style="background-color: var(--fin-card-bg);" title="Desde el cierre del viernes anterior; se reinicia cada lunes. Con las posiciones actuales.">
+                <div class="card-body d-flex flex-column justify-content-between p-2.5">
+                    <h6 class="fw-bold mb-0 {% if not pc or pc.abs_eur == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Var. Semanal</h6>
+                    {% if pc and pc.pct is not none %}
+                    <h4 class="mb-0 num-font mt-1 {% if pc.abs_eur > 0 %}text-success{% elif pc.abs_eur < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
+                        {% if pc.abs_eur > 0 %}+{% endif %}{{ "{:,.2f}".format(pc.abs_eur) }} €
+                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if pc.pct > 0 %}+{% endif %}{{ "{:.2f}%".format(pc.pct) }})</small>
+                    </h4>
+                    {% else %}<h4 class="mb-0 num-font mt-1 text-muted" style="font-size: 1.05rem;">–</h4>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Var. Mensual -->
+        {% set pc = period_changes.get('mtd') %}
+        <div class="col">
+            <div class="card border-0 h-100 {% if pc and pc.abs_eur > 0 %}bg-success text-white{% elif pc and pc.abs_eur < 0 %}bg-danger text-white{% else %}bg-light{% endif %}" style="background-color: var(--fin-card-bg);" title="Desde el cierre del último día del mes anterior; se reinicia cada día 1. Con las posiciones actuales.">
+                <div class="card-body d-flex flex-column justify-content-between p-2.5">
+                    <h6 class="fw-bold mb-0 {% if not pc or pc.abs_eur == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Var. Mensual</h6>
+                    {% if pc and pc.pct is not none %}
+                    <h4 class="mb-0 num-font mt-1 {% if pc.abs_eur > 0 %}text-success{% elif pc.abs_eur < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
+                        {% if pc.abs_eur > 0 %}+{% endif %}{{ "{:,.2f}".format(pc.abs_eur) }} €
+                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if pc.pct > 0 %}+{% endif %}{{ "{:.2f}%".format(pc.pct) }})</small>
+                    </h4>
+                    {% else %}<h4 class="mb-0 num-font mt-1 text-muted" style="font-size: 1.05rem;">–</h4>{% endif %}
+                </div>
+            </div>
+        </div>
+
         <!-- Rentabilidad Latente -->
         <div class="col">
             <div class="card border-0 h-100 {% if total_return_abs > 0 %}bg-success text-white{% elif total_return_abs < 0 %}bg-danger text-white{% else %}bg-light{% endif %}" style="background-color: var(--fin-card-bg);">

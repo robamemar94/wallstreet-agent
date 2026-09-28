@@ -1,6 +1,7 @@
 import datetime
 
 import pandas as pd
+import numpy as np
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -508,3 +509,69 @@ def test_radar_skips_results_week(monkeypatch):
     assert rs.in_results_week("EVO.ST", d(2026, 10, 27))        # 4 días después
     assert not rs.in_results_week("EVO.ST", d(2026, 10, 28))
     assert rs.in_results_week("EVO.ST", d(2027, 1, 28)) and not rs.in_results_week("EVO.ST", d(2027, 1, 20))
+
+
+# --- Centro de mando y monitor de precios ---
+
+def test_calendar_periods_week_from_monday_month_from_day_one():
+    from app.application.services.price_monitor_service import period_starts
+    idx = pd.bdate_range("2025-12-15", "2026-09-30")          # miércoles 30/09/2026
+    st = period_starts(idx)
+    assert st["1d"].date().isoformat() == "2026-09-29"
+    assert st["wtd"].date().isoformat() == "2026-09-25"        # viernes anterior al lunes 28/09
+    assert st["mtd"].date().isoformat() == "2026-08-31"
+    assert st["ytd"].date().isoformat() == "2025-12-31"
+    monday = period_starts(pd.bdate_range("2026-08-01", "2026-09-28"))
+    assert monday["wtd"] == monday["1d"]                        # el lunes la semana acaba de reiniciarse
+
+
+def test_portfolio_changes_respect_purchase_dates_and_splits():
+    from app.application.services.price_monitor_service import portfolio_changes
+    idx = pd.bdate_range("2025-12-01", "2026-09-30")
+    df = pd.DataFrame({"AAA": 100.0, "BBB": 50.0, "USDEUR=X": 0.9}, index=idx)
+    df.loc["2026-09-29":, "AAA"] = 110.0                                   # AAA sube un 10% el martes
+    txs = [{"ticker": "AAA", "date": "2025-06-01", "type": "BUY", "shares": 1, "price": 1000, "currency": "USD"},
+           {"ticker": "BBB", "date": "2026-09-29", "type": "BUY", "shares": 20, "price": 50, "currency": "EUR"}]  # compra esta semana
+    splits = {"AAA": [("2026-04-02", 10.0)]}                                # 1 acción → 10 tras el split
+    out = portfolio_changes(df, txs, splits)
+    w = out["periods"]["wtd"]
+    assert w["abs_eur"] == pytest.approx(10 * 10 * 0.9)                    # solo la subida de AAA; comprar BBB no es ganancia
+    assert out["positions"]["BBB"]["contribution"]["wtd"] == pytest.approx(0.0)
+    y = out["periods"]["ytd"]                                              # en el año: igual, BBB se compró en septiembre
+    assert y["abs_eur"] == pytest.approx(90.0)
+    assert sum(p["weight"] for p in out["positions"].values()) == pytest.approx(100)
+
+
+def test_next_results_fallback_only_when_missing_or_far():
+    from app.application.services.results_calendar import needs_fallback
+    today = datetime.date(2026, 9, 28)
+    assert needs_fallback(None, today) and needs_fallback("2027-02-11", today)
+    assert not needs_fallback("2026-10-23", today)
+
+
+def test_price_signals_abnormal_own_move_and_thesis_links():
+    from app.application.services.price_monitor_service import price_stats, price_signals
+    idx = pd.bdate_range("2025-03-01", "2026-09-30")
+    rng = np.random.default_rng(0)
+    bench = pd.Series(100 * np.cumprod(1 + rng.normal(0, 0.008, len(idx))), index=idx)
+    stock = pd.Series(100 * np.cumprod(1 + rng.normal(0, 0.01, len(idx))), index=idx)
+    stock.iloc[-5:] = stock.iloc[-6] * np.array([0.96, 0.93, 0.90, 0.88, 0.86])  # -14% en 5 sesiones, mercado normal
+    st = price_stats(stock, bench)
+    sig0 = [x for x in price_signals("X", st) if x["kind"] != "nivel"]
+    assert [x["kind"] for x in sig0] == ["anormal"] and "propio: el mercado" in sig0[0]["text"]   # una sola línea por empresa
+    assert sig0[0]["date"] == "2026-09-30" and sig0[0]["since"] == "2026-09-23"
+    live = {"scenarios": [{"name": "Base", "cagr": 4.0, "entry_prices": {10: st["price"] * 1.5, 15: st["price"] * 1.2}}]}
+    sig = price_signals("X", st, {"verdict": "INTACTA"}, live, weight=18)
+    texts = " ".join(s["text"] for s in sig)
+    assert "entrada al 15%" in texts and "CAGR implícito" in texts and "18.0%" in texts and "10%" not in texts
+    assert not {"mínimo relativo", "media de 200"} & {w for w in ("mínimo relativo", "media de 200") if w in texts}
+    assert not [s for s in price_signals("X", st, {"verdict": "DEBILITADA"}, live) if s["kind"] == "oportunidad"]
+
+
+def test_big_absolute_move_shows_even_in_volatile_stock():
+    from app.application.services.price_monitor_service import price_signals
+    st = {"change": {"1d": -1.6}, "z_day": -0.9, "r5": -7.4, "z_week": -1.9, "z_own_week": -1.8, "bench_week_pct": -0.7,
+          "beta": 0.3, "date": "2026-09-28", "r5_from": "2026-09-21"}
+    sig = price_signals("EVO.ST", st)
+    assert len(sig) == 1 and sig[0]["kind"] == "anormal" and "-7.4% en 5 sesiones" in sig[0]["text"]
+    assert not price_signals("X", {**st, "r5": -5.0, "change": {"1d": -1.0}})

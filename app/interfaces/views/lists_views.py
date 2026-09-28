@@ -24,6 +24,27 @@ class ListUpdate(BaseModel):
 class TickerPayload(BaseModel):
     ticker: str
 
+def _parse_score(raw) -> Optional[float]:
+    s = str(raw or "-").split("/")[0].strip()
+    if s in ("-", "N/A", ""):
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+def _compute_media_score(db_d: dict) -> Optional[float]:
+    # Normas de Calidad: nota global o suma de los 5 pilares (cada uno sobre 2.0)
+    rules = _parse_score(db_d.get("rules_score"))
+    if rules is None:
+        pilares = [_parse_score(db_d.get(f"rules_pilar{i}_score")) for i in range(1, 6)]
+        pilares = [p for p in pilares if p is not None]
+        if pilares:
+            rules = round(sum(pilares), 1)
+    verdict = _parse_score(db_d.get("verdict_score"))
+    valid = [v for v in (rules, verdict) if v is not None]
+    return sum(valid) / len(valid) if valid else None
+
 @router.get("/lists", response_class=HTMLResponse)
 async def lists_page(
     request: Request,
@@ -58,8 +79,12 @@ async def lists_page(
                 change = p_price - p_prev
                 pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
             
+            # Nota media de calidad (Normas + Veredicto), igual que en la tabla BBDD
+            media = _compute_media_score(db_d)
+
             assets_data.append({
                 "ticker": asset.ticker,
+                "media": media,
                 "company_name": db_d.get("company_name", asset.company_name or "-"),
                 "price": p_price,
                 "pct": pct,

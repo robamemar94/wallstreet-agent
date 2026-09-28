@@ -114,6 +114,10 @@
             <i class="bi bi-stars me-1"></i>Resultados
             {% if review_running %}<span class="spinner-border spinner-border-sm ms-1"></span>
             {% elif thesis_notices %}<span class="badge text-bg-primary ms-1">{{ thesis_notices|length }}</span>{% endif %}</button></li>
+        {% if scenarios %}
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-valuation" type="button" data-hash="valoracion">
+            <i class="bi bi-calculator me-1"></i>Valoración</button></li>
+        {% endif %}
         {% if document.html %}
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-doc" type="button" data-hash="tesis">
             <i class="bi bi-file-earmark-text me-1"></i>Tesis completa <span class="text-muted small">({{ document.sections|length }} apartados)</span></button></li>
@@ -217,61 +221,6 @@
     </div>
 
     <div class="col-12 col-xxl-4">
-        <!-- VALORACIÓN -->
-        {% if scenarios %}
-        <div class="card mb-3">
-            <div class="card-header bg-transparent"><span class="fw-bold"><i class="bi bi-calculator me-1"></i>Valoración vinculada a la tesis</span>
-                {% if valuation.question %}<div class="small text-muted">{{ valuation.question }}</div>{% endif %}</div>
-            <div class="table-responsive">
-            <table class="table table-sm mb-0 tbl-kpi">
-                <thead><tr>
-                    {% for col in valuation.columns %}<th>{{ col.label }}</th>{% endfor %}
-                    {% if valuation.target_year %}<th title="CAGR desde el precio actual hasta el precio {{ valuation.target_year }} del escenario">CAGR al precio actual</th>{% endif %}
-                </tr></thead>
-                <tbody>
-                {% for s in scenarios %}
-                <tr {% if s.metrics %}title="Métricas que lo confirmarían: {{ s.metrics }}"{% endif %}>
-                    {% for col in valuation.columns %}
-                    {% set v = s[col.key] %}
-                    <td class="{{ 'fw-semibold' if loop.first else 'font-monospace-data' }}">
-                        {%- if v is none -%}–
-                        {%- elif col.format == 'usd' -%}{{ money(v, cur, 'int') }}
-                        {%- elif col.format == 'pct' -%}{{ v }}%
-                        {%- else -%}{{ v }}{%- endif -%}
-                    </td>
-                    {% endfor %}
-                    {% if valuation.target_year %}
-                    <td class="font-monospace-data fw-bold">{{ '%.1f'|format(s.implied_cagr) ~ '%' if s.implied_cagr is not none else '–' }}</td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-            </div>
-            {% if scenarios[0].metrics %}<div class="small text-muted p-2">Pasa el ratón por un escenario para ver las métricas que lo confirmarían.</div>{% endif %}
-            {% if live %}
-            <div class="border-top">
-                <div class="px-2 pt-2 small"><strong>Valoración viva</strong>
-                    <span class="text-muted">· FCF/acción TTM {{ money(live.fcf_ps, cur) }} · P/FCF {{ live.multiple_now }}x · FCF yield {{ live.fcf_yield }}% · horizonte {{ live.target_year }}</span></div>
-                <div class="table-responsive"><table class="table table-sm mb-0 tbl-kpi">
-                    <thead><tr><th>Escenario</th><th class="text-end">Precio {{ live.target_year }}</th><th class="text-end">CAGR desde hoy</th>
-                        {% for r in live.scenarios[0].entry_prices %}<th class="text-end" title="Precio máximo de compra hoy para obtener un {{ r }}% anual en este escenario">Entrada {{ r }}%</th>{% endfor %}</tr></thead>
-                    <tbody>{% for r in live.scenarios %}<tr>
-                        <td class="fw-semibold">{{ r.name }}</td>
-                        <td class="text-end font-monospace-data">{{ money(r.price_target, cur, 'int') }}</td>
-                        <td class="text-end font-monospace-data fw-bold {{ 'st-green' if r.cagr >= 10 else ('st-red' if r.cagr < 5 else '') }}">{{ '%.1f'|format(r.cagr) }}%</td>
-                        {% for rr, p in r.entry_prices.items() %}<td class="text-end font-monospace-data {{ 'st-green' if price and price.price <= p else 'text-muted' }}">{{ money(p, cur, 'int') }}</td>{% endfor %}
-                    </tr>{% endfor %}</tbody>
-                </table></div>
-                <div class="small text-muted p-2"><strong>DCF inverso:</strong> al precio actual, para ganar
-                    {% for r, g in live.implied_growth.items() %}{{ r }}% anual el FCF/acción debe crecer <strong>{{ '%.1f'|format(g) }}%</strong>{% if not loop.last %} y para {% endif %}{% endfor %}
-                    al año hasta {{ live.target_year }} (múltiplo final {{ live.base_multiple|int }}x del escenario {{ live.base_name }}).
-                    Se recalcula solo con cada trimestre y con el precio del día.</div>
-            </div>
-            {% endif %}
-        </div>
-        {% endif %}
-
         <!-- DIARIO DE DECISIONES -->
         <div class="card mb-3">
             <div class="card-header bg-transparent d-flex align-items-center">
@@ -405,6 +354,66 @@
 
     <div class="tab-pane fade" id="tab-review">
         {% include "_thesis_review.html" %}
+    </div>
+
+    <div class="tab-pane fade" id="tab-valuation">
+        <div class="row g-3"><div class="col-12 col-xxl-9">
+        <!-- VALORACIÓN (valoración del momento: se recalcula con el precio del día y el FCF/acción TTM) -->
+        {% if scenarios %}
+        <div class="card mb-3">
+            <div class="card-header bg-transparent"><span class="fw-bold"><i class="bi bi-calculator me-1"></i>Valoración vinculada a la tesis</span>
+                {% if valuation.question %}<div class="small text-muted">{{ valuation.question }}</div>{% endif %}</div>
+            <div class="table-responsive">
+            <table class="table table-sm mb-0 tbl-kpi">
+                <thead><tr>
+                    {% for col in valuation.columns %}<th>{{ col.label }}</th>{% endfor %}
+                    {% if valuation.target_year %}<th title="CAGR desde el precio actual hasta el precio {{ valuation.target_year }} del escenario">CAGR al precio actual</th>{% endif %}
+                </tr></thead>
+                <tbody>
+                {% for s in scenarios %}
+                <tr {% if s.metrics %}title="Métricas que lo confirmarían: {{ s.metrics }}"{% endif %}>
+                    {% for col in valuation.columns %}
+                    {% set v = s[col.key] %}
+                    <td class="{{ 'fw-semibold' if loop.first else 'font-monospace-data' }}">
+                        {%- if v is none -%}–
+                        {%- elif col.format == 'usd' -%}{{ money(v, cur, 'int') }}
+                        {%- elif col.format == 'pct' -%}{{ v }}%
+                        {%- else -%}{{ v }}{%- endif -%}
+                    </td>
+                    {% endfor %}
+                    {% if valuation.target_year %}
+                    <td class="font-monospace-data fw-bold">{{ '%.1f'|format(s.implied_cagr) ~ '%' if s.implied_cagr is not none else '–' }}</td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% if scenarios[0].metrics %}<div class="small text-muted p-2">Pasa el ratón por un escenario para ver las métricas que lo confirmarían.</div>{% endif %}
+            {% if live %}
+            <div class="border-top">
+                <div class="px-2 pt-2 small"><strong>Valoración viva</strong>
+                    <span class="text-muted">· FCF/acción TTM {{ money(live.fcf_ps, cur) }} · P/FCF {{ live.multiple_now }}x · FCF yield {{ live.fcf_yield }}% · horizonte {{ live.target_year }}</span></div>
+                <div class="table-responsive"><table class="table table-sm mb-0 tbl-kpi">
+                    <thead><tr><th>Escenario</th><th class="text-end">Precio {{ live.target_year }}</th><th class="text-end">CAGR desde hoy</th>
+                        {% for r in live.scenarios[0].entry_prices %}<th class="text-end" title="Precio máximo de compra hoy para obtener un {{ r }}% anual en este escenario">Entrada {{ r }}%</th>{% endfor %}</tr></thead>
+                    <tbody>{% for r in live.scenarios %}<tr>
+                        <td class="fw-semibold">{{ r.name }}</td>
+                        <td class="text-end font-monospace-data">{{ money(r.price_target, cur, 'int') }}</td>
+                        <td class="text-end font-monospace-data fw-bold {{ 'st-green' if r.cagr >= 10 else ('st-red' if r.cagr < 5 else '') }}">{{ '%.1f'|format(r.cagr) }}%</td>
+                        {% for rr, p in r.entry_prices.items() %}<td class="text-end font-monospace-data {{ 'st-green' if price and price.price <= p else 'text-muted' }}">{{ money(p, cur, 'int') }}</td>{% endfor %}
+                    </tr>{% endfor %}</tbody>
+                </table></div>
+                <div class="small text-muted p-2"><strong>DCF inverso:</strong> al precio actual, para ganar
+                    {% for r, g in live.implied_growth.items() %}{{ r }}% anual el FCF/acción debe crecer <strong>{{ '%.1f'|format(g) }}%</strong>{% if not loop.last %} y para {% endif %}{% endfor %}
+                    al año hasta {{ live.target_year }} (múltiplo final {{ live.base_multiple|int }}x del escenario {{ live.base_name }}).
+                    Se recalcula solo con cada trimestre y con el precio del día.</div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        </div></div>
     </div>
 
     {% if document.html %}
@@ -597,6 +606,7 @@ document.querySelectorAll('[data-bs-toggle="tab"][data-hash]').forEach(btn => bt
 document.addEventListener('DOMContentLoaded', () => {
     const hashTarget = location.hash.length > 1 ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
     if (location.hash === '#resultados') showReviewTab();
+    if (location.hash === '#valoracion') { const vb = document.querySelector('[data-bs-target="#tab-valuation"]'); if (vb) bootstrap.Tab.getOrCreateInstance(vb).show(); }
     const docBtn = document.querySelector('[data-bs-target="#tab-doc"]');
     if (docBtn && (location.hash === '#tesis' || (hashTarget && hashTarget.closest('.thesis-doc')))) {
         bootstrap.Tab.getOrCreateInstance(docBtn).show();

@@ -493,22 +493,37 @@
         }
         .btn-mark-seen:hover { color: #ffc107; }
 
+        /* Anula ".sidebar .nav-link span { display:block; width:100% }" para el wrapper
+           del icono y el badge: si no, el badge se estira a todo el ancho del botón
+           en vez de quedar como círculo sobre la campana. */
+        .sidebar .nav-link .nav-icon-wrap {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+        }
+
         /* Badge de notificaciones estilo "burbuja" Android sobre el icono del sidebar:
-           círculo perfecto para 1-2 dígitos, se estira a píldora solo si hace falta (99+). */
+           círculo perfecto para 1-2 dígitos, se estira a píldora solo si hace falta (99+).
+           Tamaño par (18px) y offsets enteros para que el radio caiga en píxel exacto
+           y no se vea "mordido" por antialiasing en una esquina. */
+        .sidebar .nav-link .sidebar-notif-badge,
         .sidebar-notif-badge {
             position: absolute;
             top: -6px;
-            right: -10px;
+            right: -6px;
+            z-index: 2;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-width: 16px;
-            height: 16px;
-            padding: 0 3px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 4px;
             background: #dc3545;
             color: #fff;
             border-radius: 999px;
-            font-size: 0.6rem;
+            font-size: 0.62rem;
             font-weight: 700;
             line-height: 1;
             box-shadow: 0 0 0 2px var(--fin-card-bg, #fff);
@@ -538,6 +553,12 @@
                     <a class="nav-link {% if _path == '/' %} active{% endif %}" href="/" title="Inicio">
                         <i class="bi bi-house-door"></i>
                         <span>Inicio</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/centro') %} active{% endif %}" href="/centro" title="Centro de mando">
+                        <i class="bi bi-grid-1x2"></i>
+                        <span>Centro</span>
                     </a>
                 </li>
                 <li class="nav-item">
@@ -596,7 +617,7 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if _path.startswith('/alerts') %} active{% endif %}" href="/alerts" title="Alertas">
-                        <span class="position-relative d-inline-block">
+                        <span class="nav-icon-wrap position-relative d-inline-block">
                             <i class="bi bi-bell"></i>
                             <span id="sidebarAlertBadge" class="sidebar-notif-badge d-none">0</span>
                         </span>
@@ -938,6 +959,60 @@
             toast.show();
             toastEl.addEventListener('hidden.bs.toast', () => { toastEl.remove(); });
         }
+
+        // Aviso de tokens y coste de cada consulta a Gemini.
+        // El backend lo envía en la cabecera X-LLM-Usage (peticiones síncronas)
+        // o en el campo "usage" de /api/generate_status (agentes en background).
+        function showUsageToast(u) {
+            if (!u || !u.calls) return;
+            const fmt = n => Number(n || 0).toLocaleString('es-ES');
+            const cost = Number(u.cost_usd || 0);
+            const costStr = cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2);
+            const models = (u.models || []).join(', ');
+            let html = `<div class="small">${models} · ${fmt(u.calls)} llamadas</div>
+                <div class="font-monospace small mt-1">
+                    Entrada: ${fmt(u.input_tokens)}${u.cached_tokens ? ` (+${fmt(u.cached_tokens)} caché)` : ''}<br>
+                    Salida: ${fmt(u.output_tokens)} · Thinking: ${fmt(u.thinking_tokens)}<br>
+                    Total: <strong>${fmt(u.total_tokens)}</strong> tokens
+                    ${u.search_queries ? `<br>Búsquedas Google: ${fmt(u.search_queries)} (mes: ${fmt(u.search_queries_month)}/5.000 gratis)` : ''}
+                </div>
+                <div class="mt-1 fw-bold">Coste: $${costStr}</div>`;
+            if (u.unpriced_models && u.unpriced_models.length) {
+                html += `<div class="small opacity-75">Sin precio para: ${u.unpriced_models.join(', ')}</div>`;
+            }
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toastId = 'usage-toast-' + Date.now();
+            container.insertAdjacentHTML('beforeend', `
+                <div id="${toastId}" class="toast text-white border-0 shadow" role="status" aria-live="polite" aria-atomic="true" style="background-color: #343a40;">
+                  <div class="d-flex">
+                    <div class="toast-body"><strong><i class="bi bi-cpu me-1 text-warning"></i>Consumo IA</strong>${html}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                  </div>
+                </div>`);
+            const toastEl = document.getElementById(toastId);
+            new bootstrap.Toast(toastEl, { delay: 15000 }).show();
+            toastEl.addEventListener('hidden.bs.toast', () => { toastEl.remove(); });
+            console.info('[Consumo IA]', u);
+        }
+
+        (function () {
+            const originalFetch = window.fetch;
+            window.fetch = async function (...args) {
+                const response = await originalFetch.apply(this, args);
+                try {
+                    const header = response.headers.get('X-LLM-Usage');
+                    if (header) {
+                        showUsageToast(JSON.parse(header));
+                    } else if (String(args[0]).includes('/api/generate_status/')) {
+                        response.clone().json().then(d => {
+                            if (d && d.status === 'success') showUsageToast(d.usage);
+                        }).catch(() => {});
+                    }
+                } catch (e) {}
+                return response;
+            };
+        })();
 
         // Persistencia Automática de Pestañas (Tabs) en sessionStorage
         document.addEventListener('DOMContentLoaded', () => {

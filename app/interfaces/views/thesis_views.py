@@ -250,3 +250,86 @@ def news_page(
         "min_materiality": NEWS_MIN_MATERIALITY,
         "settings": get_settings_from_db(db_session),
     })
+
+
+# --- Centro de mando ---
+
+@router.get("/centro", response_class=HTMLResponse)
+def command_center_page(
+    request: Request,
+    repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository),
+    asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
+    db_session: Session = Depends(get_db),
+):
+    from app.application.services import price_monitor_service as pm, results_calendar
+    from app.application.services.thesis_review_service import _earnings_info
+
+    settings = get_settings_from_db(db_session)
+    benchmark = (settings.get("performance") or {}).get("benchmark_ticker") or "URTH"
+    txs, splits = pm.load_transactions(portfolio_service, db_session)
+    theses = {t["ticker"]: t for t in repo.list_theses()}
+    open_tickers = {i.ticker for i in portfolio_service.get_active_portfolio() if i.shares > 0}
+    tickers = sorted({t["ticker"] for t in txs} | set(theses))
+    currencies = {("GBP" if t.get("currency") == "GBp" else t.get("currency") or "USD") for t in txs} - {"EUR"}
+
+    error, df = None, None
+    try:
+        df = pm.download_history(tickers + [benchmark] + [f"{c}EUR=X" for c in currencies])
+    except Exception as e:
+        logger.exception("Centro de mando: fallo al descargar precios")
+        error = str(e)
+
+    changes = pm.portfolio_changes(df, txs, splits, benchmark) if df is not None else {"periods": {}, "positions": {}, "total_eur": 0}
+    weights = {t: p["weight"] for t, p in changes["positions"].items()}
+    rows, signals = [], []
+    for t in sorted(open_tickers | set(theses)):
+        st = pm.price_stats(df[t], df[benchmark] if benchmark in df.columns else None) if df is not None and t in df.columns else None
+        thesis, data = theses.get(t), asset_repo.get_asset_data(t)
+        live = live_valuation(thesis["extra"].get("valuation") or {}, fetch_ttm_fcf_per_share(t), st["price"]) if thesis and st else None
+        base = next((s for s in (live or {}).get("scenarios", []) if str(s["name"]).lower() == "base"), None)
+        cagr, cagr_src = (base["cagr"], "Tesis: escenario Base (FCF/acción TTM y precio de hoy)") if base else (None, None)
+        if cagr is None and thesis and st:   # tesis que valora por precio objetivo (p.ej. Rollins, EV/EBITA 2031)
+            val = thesis["extra"].get("valuation") or {}
+            sc = next((x for x in val.get("scenarios", []) if str(x.get("name")).lower() == "base"), None)
+            c = implied_cagr(st["price"], (sc or {}).get("price"), val.get("target_year"))
+            if c is not None:
+                cagr, cagr_src = 100 * c, f"Tesis: escenario Base (valor {val.get('target_year')} frente al precio de hoy)"
+        row_signals = pm.price_signals(t, st, thesis, live, weights.get(t)) if st else []
+        signals += row_signals
+        company = data.get("company_name") or t
+        rows.append({
+            "ticker": t, "name": company, "thesis_id": (thesis or {}).get("id"),
+            "cur": get_currency_symbol(data.get("currency", "USD"), t), "stats": st, "position": changes["positions"].get(t),
+            "cagr": cagr, "cagr_src": cagr_src,
+            "next": results_calendar.next_results(t, company, _earnings_info(t).get("next")),
+        })
+    rows.sort(key=lambda r: -(r["position"] or {}).get("weight", -1))
+
+    # «Requiere tu atención»: lo accionable, ordenado por prioridad
+    notices = thesis_review_service.compute_notices(repo, weights)
+    prio = {"portfolio_risk": 0, "new_results": 1, "review_ready": 2, "decision_missing": 3, "decision_review": 4}
+    attention = [{"prio": prio.get(n["type"], 5), "ticker": n["ticker"], "text": n["text"], "href": f"/tesis/{n['thesis_id']}",
+                  "type": n["type"]} for n in notices]
+    for n in repo.list_news(unread_only=True, limit=20):
+        attention.append({"prio": 1 if n["materiality"] >= 5 else 3, "ticker": n["ticker"], "type": "news",
+                          "text": f"Noticia {n['materiality']}/5: {n['title']}", "href": "/noticias"})
+    for s in signals:
+        if s["kind"] in ("oportunidad", "cara", "concentración"):
+            th = theses.get(s["ticker"])
+            attention.append({"prio": 2, "ticker": s["ticker"], "type": s["kind"], "text": s["text"],
+                              "href": f"/tesis/{th['id']}#valoracion" if th else "/portfolio"})
+    attention.sort(key=lambda a: a["prio"])
+
+    today = datetime.date.today().isoformat()
+    upcoming = sorted(({"ticker": r["ticker"], "thesis_id": r["thesis_id"], **r["next"]} for r in rows
+                       if r["next"] and r["next"]["date"] >= today), key=lambda u: u["date"])[:10]
+    return templates.TemplateResponse("command_center.html", {
+        "request": request, "settings": settings, "error": error, "benchmark": benchmark,
+        "changes": changes, "rows": rows, "signals": sorted((s for s in signals if s["kind"] in ("anormal", "propio", "nivel")),
+                          key=lambda s: (s.get("date") or "", s["ticker"]), reverse=True),
+        "attention": attention, "news": repo.list_news(limit=8), "upcoming": upcoming,
+        "chart": [{"ticker": r["ticker"], "weight": r["position"]["weight"], "contribution": r["position"]["contribution"],
+                   "change": (r["stats"] or {}).get("change", {})} for r in rows if r["position"]],
+        "theses_ids": {t: th["id"] for t, th in theses.items()},
+    })

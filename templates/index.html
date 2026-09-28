@@ -490,14 +490,23 @@
                 <h6 class="fw-bold text-primary mb-0" style="font-size: 0.82rem;">
                     <i class="bi bi-briefcase-fill"></i> Mi Cartera
                 </h6>
-                <div id="portPagination" class="pagination-small"></div>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-xs btn-outline-secondary py-0 px-1.5 d-flex align-items-center" onclick="togglePortPerformanceSort()" id="btnPortSortToggle" style="font-size: 0.72rem; border-color: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); min-width: 24px; justify-content: center;" title="Alternar orden por rendimiento (Mejor / Peor)">
+                        <i class="bi bi-arrow-down-up"></i>
+                    </button>
+                    <div id="portPagination" class="pagination-small"></div>
+                </div>
             </div>
             <div class="card-body px-0 py-0">
                 <div class="table-responsive" id="portScrollWrapper" style="height: 250px; overflow-y: auto;">
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <tbody id="portListMarket">
                             {% for t in port_all %}
-                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="port-item-market" data-region="{{ t.region }}" data-status="{{ t.status }}">
+                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="port-item-market"
+                                data-ticker="{{ clean_ticker(t.name) }}"
+                                data-price="{{ t.price or 0 }}"
+                                data-pct="{{ t.pct or 0 }}"
+                                data-region="{{ t.region }}" data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
@@ -1021,6 +1030,54 @@
         }
     };
 
+    // Ordenar la lista de "Mi Cartera" de forma dinámica (mismo patrón que favoritos)
+    window.sortPortfolioList = function(criteria, ascending) {
+        const list = document.getElementById('portListMarket');
+        if (!list) return;
+        const items = Array.from(list.getElementsByClassName('port-item-market'));
+        if (items.length === 0) return;
+
+        items.sort((a, b) => {
+            let valA, valB;
+            if (criteria === 'ticker') {
+                valA = a.getAttribute('data-ticker').toLowerCase();
+                valB = b.getAttribute('data-ticker').toLowerCase();
+                return ascending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else if (criteria === 'price') {
+                valA = parseFloat(a.getAttribute('data-price')) || 0;
+                valB = parseFloat(b.getAttribute('data-price')) || 0;
+                return ascending ? valB - valA : valA - valB;
+            } else { // 'pct' / rendimiento
+                valA = parseFloat(a.getAttribute('data-pct')) || 0;
+                valB = parseFloat(b.getAttribute('data-pct')) || 0;
+                return ascending ? valB - valA : valA - valB;
+            }
+        });
+
+        items.forEach(item => list.appendChild(item));
+
+        // Re-inicializar paginación (infinita) con el nuevo orden
+        setupSimplePagination('portListMarket', 'port-item-market', 'portPagination', Infinity, window.activityFilterFn);
+    };
+
+    // Alternar ordenación de "Mi Cartera" (Mejor rendimiento / Peor rendimiento) con un solo clic
+    let portSortAscending = false; // por defecto empieza mostrando los mejores
+    window.togglePortPerformanceSort = function() {
+        portSortAscending = !portSortAscending;
+        sortPortfolioList('pct', !portSortAscending);
+
+        const btn = document.getElementById('btnPortSortToggle');
+        if (btn) {
+            if (portSortAscending) {
+                btn.innerHTML = '<i class="bi bi-sort-down text-danger fw-bold" style="font-size:0.72rem;"></i>';
+                btn.className = "btn btn-xs btn-outline-danger py-0 px-1.5 d-flex align-items-center";
+            } else {
+                btn.innerHTML = '<i class="bi bi-sort-up text-success fw-bold" style="font-size:0.72rem;"></i>';
+                btn.className = "btn btn-xs btn-outline-success py-0 px-1.5 d-flex align-items-center";
+            }
+        }
+    };
+
     function initAutoScroll(containerId) {
         const container = document.getElementById(containerId);
         if (!container) return;
@@ -1156,7 +1213,7 @@
 
         setupSimplePagination('gainerListMarket', 'gainer-item-market', 'gainerPagination', 10, window.activityFilterFn);
         setupSimplePagination('loserListMarket', 'loser-item-market', 'loserPagination', 10, window.activityFilterFn);
-        setupSimplePagination('portListMarket', 'port-item-market', 'portPagination', 10, window.activityFilterFn);
+        setupSimplePagination('portListMarket', 'port-item-market', 'portPagination', Infinity, window.activityFilterFn);
         setupSimplePagination('portAllList', 'port-all-item', 'portAllPagination', Infinity);
         setupSimplePagination('list-body-fav', 'fav-item', 'favPagination', Infinity, window.activityFilterFn);
         setupSimplePagination('earnList', 'earn-item', 'earnPagination', 7, el => {

@@ -103,6 +103,9 @@
                                      <th class="text-end py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'pct')" title="Ordenar por Cambio Diario" style="cursor: pointer;">
                                          Cambio Diario <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-pct" style="font-size: 0.68rem;"></i>
                                      </th>
+                                     <th class="text-center py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'media')" title="Ordenar por Nota Media (Normas + Veredicto)" style="cursor: pointer;">
+                                         Media <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-media" style="font-size: 0.68rem;"></i>
+                                     </th>
                                      <th class="text-center py-2.5" style="width: 80px;">Acción</th>
                                  </tr>
                              </thead>
@@ -114,7 +117,8 @@
                                      data-name="{{ asset.company_name|lower }}"
                                      data-region="{{ asset.region|lower }}"
                                      data-price="{{ asset.price }}"
-                                     data-pct="{{ asset.pct }}">
+                                     data-pct="{{ asset.pct }}"
+                                     data-media="{{ asset.media if asset.media is not none else -1 }}">
                                      <!-- Ticker -->
                                      <td class="ps-3 py-2.5" onclick="window.location='/ticker/{{ asset.ticker }}'" style="cursor: pointer;">
                                          <span class="fw-bold text-white fs-6">{{ asset.ticker }}</span>
@@ -141,6 +145,14 @@
                                              <span class="opacity-85 small ms-1">({% if asset.pct > 0 %}+{% endif %}{{ "{:,.2f}".format(asset.pct) }}%)</span>
                                          </span>
                                      </td>
+                                     <!-- Nota Media -->
+                                     {% if asset.media is not none %}
+                                     <td class="text-center py-2.5 align-middle fw-bold num-font {% if asset.media >= 8.0 %}text-success{% elif asset.media <= 5.0 %}text-danger{% else %}text-warning{% endif %}">
+                                         {{ "%.2f"|format(asset.media) }}
+                                     </td>
+                                     {% else %}
+                                     <td class="text-center py-2.5 align-middle fw-bold text-muted num-font">-</td>
+                                     {% endif %}
                                      <!-- Acciones de Quitar de la Lista -->
                                      <td class="text-center py-2.5">
                                          <button class="btn btn-xs btn-outline-danger border-0 p-1.5 opacity-60 hover-opacity-100" onclick="removeTickerFromList({{ list.id }}, '{{ asset.ticker }}')" title="Quitar de esta lista">
@@ -151,7 +163,7 @@
                                  {% endfor %}
                                  {% if not list.assets %}
                                  <tr>
-                                     <td colspan="6" class="text-center py-5 text-muted">
+                                     <td colspan="7" class="text-center py-5 text-muted">
                                          <i class="bi bi-folder-symlink fs-3 d-block mb-2 text-secondary"></i>
                                          Esta lista está vacía. Añade tickers usando el buscador de arriba.
                                      </td>
@@ -161,9 +173,9 @@
                         </table>
                     </div>
                 </div>
+                {% endfor %}
             </div>
         </div>
-        {% endfor %}
     </div>
     {% else %}
     <div class="row">
@@ -563,7 +575,7 @@
                 valA = (a.getAttribute(`data-${criteria}`) || "").toLowerCase();
                 valB = (b.getAttribute(`data-${criteria}`) || "").toLowerCase();
                 return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
-            } else { // 'price' o 'pct' (variación porcentual diaria)
+            } else { // 'price', 'pct' o 'media'
                 valA = parseFloat(a.getAttribute(`data-${criteria}`)) || 0;
                 valB = parseFloat(b.getAttribute(`data-${criteria}`)) || 0;
                 return isAscending ? valA - valB : valB - valA;

@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% from "_thesis_macros.html" import status_icon, verdict_badge, thesis_styles %}
+{% block title %}Centro de mando · Alpha-Flow{% endblock %}
+
+{% block content %}
+{{ thesis_styles() }}
+<style>
+    .cc-kpi .val { font-size: 1.9rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+    .period-btns .btn { font-size: .78rem; }
+    .sig-down { color: var(--fin-red); } .sig-up { color: var(--fin-green); } .sig-neutral { color: var(--st-amber); }
+    .att-item { border-left: 3px solid var(--bs-border-color); padding-left: .6rem; margin-bottom: .55rem; }
+    .att-item.p0 { border-color: var(--fin-red); } .att-item.p1 { border-color: var(--st-amber); } .att-item.p2 { border-color: #58a6ff; }
+    .tbl-cc td, .tbl-cc th { font-size: .8rem; vertical-align: middle; white-space: nowrap; }
+    .tbl-cc td.wrap { white-space: normal; min-width: 180px; }
+    .tbl-cc { width: 100%; }
+    .cagr-green { color: var(--fin-green) !important; } .cagr-amber { color: #e3b341 !important; } .cagr-orange { color: #f0883e !important; } .cagr-red { color: var(--fin-red) !important; }
+</style>
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div>
+            <h4 class="fw-bold mb-1"><i class="bi bi-grid-1x2 me-2 text-primary"></i>Centro de mando</h4>
+            <p class="text-muted small mb-0">Cartera, tesis y precios de un vistazo{% if changes.as_of %} · cierre {{ changes.as_of }}{% endif %}.
+                Semana desde el lunes y mes desde el día 1, respetando las fechas de compra y venta. El monitor de precios solo informa: si algo te interesa, pulsa «¿Por qué se mueve?».</p>
+        </div>
+        <div class="btn-group btn-group-sm period-btns" role="group">
+            {% for k, label in [('1d', 'Día'), ('wtd', 'Semana'), ('mtd', 'Mes'), ('ytd', 'Año')] %}
+            <button class="btn btn-outline-secondary {{ 'active' if k == 'wtd' }}" data-period="{{ k }}">{{ label }}</button>
+            {% endfor %}
+        </div>
+    </div>
+    {% if error %}<div class="alert alert-warning small">No se pudieron descargar los precios: {{ error }}</div>{% endif %}
+
+    <!-- CIFRAS -->
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-lg-3"><div class="card h-100 cc-kpi"><div class="card-body">
+            <div class="kpi-label">Valor de la cartera</div>
+            <div class="val">{{ format_euro(changes.total_eur, 0) }} €</div>
+            <div class="small text-muted">{{ changes.positions|length }} posiciones</div>
+        </div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100 cc-kpi"><div class="card-body">
+            <div class="kpi-label">Variación <span class="period-label">de la semana</span></div>
+            <div class="val" id="kpiPct">–</div>
+            <div class="small" id="kpiAbs">–</div>
+        </div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100 cc-kpi"><div class="card-body">
+            <div class="kpi-label">{{ benchmark }} (referencia)</div>
+            <div class="val" id="kpiBench">–</div>
+            <div class="small text-muted" id="kpiDiff">–</div>
+        </div></div></div>
+        <div class="col-6 col-lg-3"><div class="card h-100 cc-kpi"><div class="card-body">
+            <div class="kpi-label">Quién la ha movido</div>
+            <div class="small mt-1" id="kpiMovers">–</div>
+        </div></div></div>
+    </div>
+
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#cc-resumen" type="button"><i class="bi bi-inbox me-1"></i>Resumen</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cc-posiciones" type="button" data-hash="posiciones"><i class="bi bi-briefcase me-1"></i>Posiciones</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cc-mapa" type="button" data-hash="mapa" id="tabMapa"><i class="bi bi-grid-3x3-gap me-1"></i>Mapa de la cartera</button></li>
+    </ul>
+    <div class="tab-content">
+    <div class="tab-pane fade show active" id="cc-resumen">
+    <div class="row g-3 mb-3">
+        <!-- REQUIERE TU ATENCIÓN -->
+        <div class="col-12 col-xl-5"><div class="card h-100">
+            <div class="card-header bg-transparent fw-bold"><i class="bi bi-inbox me-1"></i>Requiere tu atención <span class="badge text-bg-secondary">{{ attention|length }}</span></div>
+            <div class="card-body small">
+            {% for a in attention %}
+                <div class="att-item p{{ [a.prio, 3]|min }}"><a href="{{ a.href }}" class="text-decoration-none"><strong>{{ a.ticker }}</strong></a> · {{ a.text }}</div>
+            {% else %}<div class="text-muted"><i class="bi bi-check2-circle st-green me-1"></i>Nada pendiente: sin resultados por revisar, noticias nuevas ni señales de tesis.</div>{% endfor %}
+            </div>
+        </div></div>
+        <!-- MONITOR DE PRECIOS -->
+        <div class="col-12 col-xl-7"><div class="card h-100">
+            <div class="card-header bg-transparent fw-bold"><i class="bi bi-activity me-1"></i>Monitor de precios
+                <span class="small text-muted fw-normal">· movimientos fuertes o anormales para cada valor (≥2σ o ≥7% en 5 sesiones, ≥2,5σ o ≥5% en un día), movimientos propios frente al mercado y máximos/mínimos de 52 semanas</span></div>
+            <div class="card-body small">
+            {% for s in signals %}
+                <div class="d-flex gap-2 mb-1 align-items-start">
+                    <i class="bi {{ 'bi-arrow-down-right' if s.tone == 'down' else ('bi-arrow-up-right' if s.tone == 'up' else 'bi-dot') }} sig-{{ s.tone }}"></i>
+                    <span class="text-muted font-monospace-data text-nowrap" style="min-width: 5.2rem;" title="{{ 'Del ' ~ s.since ~ ' al ' ~ s.date if s.since else s.date }}">{% if s.since %}{{ s.since[8:10] }}/{{ s.since[5:7] }}–{% endif %}{{ s.date[8:10] }}/{{ s.date[5:7] }}</span>
+                    <span class="flex-grow-1"><strong>{{ s.ticker }}</strong> <span class="badge bg-light text-dark border">{{ s.kind }}</span> {{ s.text }}</span>
+                    {% if theses_ids.get(s.ticker) %}<button class="btn btn-link btn-sm p-0 text-nowrap" onclick="whyMoves({{ theses_ids[s.ticker] }}, '{{ s.ticker }}', this)">¿Por qué se mueve?</button>{% endif %}
+                </div>
+            {% else %}<div class="text-muted">Sin movimientos fuera de lo normal ni niveles relevantes esta semana.</div>{% endfor %}
+            <div id="whyResult" class="mt-2"></div>
+            </div>
+        </div></div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-7"><div class="card h-100">
+            <div class="card-header bg-transparent fw-bold"><i class="bi bi-broadcast me-1"></i>Últimas noticias de las tesis <a href="/noticias" class="small fw-normal ms-2">ver todas →</a></div>
+            <ul class="list-group list-group-flush small">
+            {% for n in news %}<li class="list-group-item">
+                <span class="{{ 'st-red' if n.materiality >= 5 else 'st-amber' }} fw-bold">{{ n.materiality }}/5</span>
+                <strong>{{ n.ticker }}</strong> · {{ n.date }} · {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
+                {% if not n.seen %}<span class="badge text-bg-primary">NUEVA</span>{% endif %}
+            </li>{% else %}<li class="list-group-item text-muted">Todavía no hay noticias del radar.</li>{% endfor %}
+            </ul>
+        </div></div>
+        <div class="col-12 col-xl-5"><div class="card h-100">
+            <div class="card-header bg-transparent fw-bold"><i class="bi bi-calendar-event me-1"></i>Próximos resultados</div>
+            <ul class="list-group list-group-flush small">
+            {% for u in upcoming %}<li class="list-group-item d-flex justify-content-between">
+                <span>{% if u.thesis_id %}<a href="/tesis/{{ u.thesis_id }}" class="text-decoration-none"><strong>{{ u.ticker }}</strong></a>{% else %}<strong>{{ u.ticker }}</strong>{% endif %}
+                    {% if u.source == 'búsqueda' %}<span class="badge bg-light text-dark border" title="{{ u.event ~ ' · ' if u.event }}yfinance no la tenía: encontrada con búsqueda web">web</span>{% endif %}</span>
+                <span class="font-monospace-data">{{ u.date[8:10] }}/{{ u.date[5:7] }}/{{ u.date[:4] }}</span>
+            </li>{% else %}<li class="list-group-item text-muted">Sin fechas disponibles.</li>{% endfor %}
+            </ul>
+        </div></div>
+    </div>
+    </div>
+    <div class="tab-pane fade" id="cc-posiciones">
+    <!-- POSICIONES -->
+    <div class="card mb-3">
+        <div class="card-header bg-transparent fw-bold"><i class="bi bi-briefcase me-1"></i>Posiciones</div>
+        <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 tbl-cc">
+            <thead><tr>
+                <th>Valor</th><th class="text-end">Peso</th><th class="text-end">Precio</th><th class="text-end">Var. <span class="period-label">semana</span></th>
+                <th class="text-end" title="Aportación a la variación de la cartera en el periodo (respeta fechas de compra)">Contribución</th>
+                <th class="text-end" title="Caída desde el máximo de 52 semanas">Desde máx. 52s</th>
+                <th class="text-end" title="Retorno anual esperado al precio actual según el escenario Base de la tesis">CAGR estimado</th>
+                <th>Próx. resultados</th>
+            </tr></thead>
+            <tbody>
+            {% for r in rows %}{% set st = r.stats or {} %}
+            <tr data-ticker="{{ r.ticker }}">
+                <td>{% if r.thesis_id %}<a href="/tesis/{{ r.thesis_id }}" class="text-decoration-none fw-bold" title="Ver la tesis">{{ r.ticker }}</a>{% else %}<a href="/ticker/{{ r.ticker }}" class="text-decoration-none fw-bold text-body">{{ r.ticker }}</a>{% endif %}
+                    <div class="text-muted small text-truncate" style="max-width: 200px;">{{ r.name }}</div></td>
+                <td class="text-end font-monospace-data">{{ '%.1f'|format(r.position.weight) ~ '%' if r.position else '–' }}</td>
+                <td class="text-end font-monospace-data">{{ '%.2f'|format(st.get('price')) if st.get('price') else '–' }} <span class="text-muted">{{ r.cur }}</span></td>
+                <td class="text-end font-monospace-data cell-change">–</td>
+                <td class="text-end font-monospace-data cell-contrib">–</td>
+                {% set fh = st.get('from_high_pct') %}
+                <td class="text-end font-monospace-data {{ 'text-danger' if fh is not none and fh <= -20 else '' }}">{{ '%+.1f'|format(fh) ~ '%' if fh is not none else '–' }}</td>
+                {% set band = none if r.cagr is none else ('green' if r.cagr >= 15 else ('amber' if r.cagr >= 10 else ('orange' if r.cagr >= 6 else 'red'))) %}
+                <td class="text-end font-monospace-data fw-bold {{ 'cagr-' ~ band if band }}" title="{{ (r.cagr_src ~ ' · ' ~ {'green': '≥15%', 'amber': '10–15%', 'orange': '6–10%', 'red': '<6%'}[band]) if band else 'Sin tesis' }}">
+                    {% if band %}<i class="bi bi-circle-fill me-1" style="font-size: .5rem; vertical-align: middle;"></i>{{ '%.1f'|format(r.cagr) }}%{% else %}–{% endif %}</td>
+                <td class="small">{% if r.next %}<span title="{{ r.next.event }}">{{ r.next.date[8:10] }}/{{ r.next.date[5:7] }}/{{ r.next.date[2:4] }}</span>{% if r.next.source == 'búsqueda' %} <span class="badge bg-light text-dark border" title="{{ r.next.event }} (yfinance no la tenía: búsqueda web)">web</span>{% endif %}{% else %}<span class="text-muted">–</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <div class="small text-muted px-2 py-1">CAGR estimado: escenario Base de la tesis al precio de hoy («–» si no hay tesis) ·
+            <span class="cagr-green">● ≥15%</span> <span class="cagr-amber">● 10–15%</span> <span class="cagr-orange">● 6–10%</span> <span class="cagr-red">● &lt;6%</span>.
+            La contribución respeta las fechas de compra y venta.</div>
+    </div>
+
+    </div>
+    <div class="tab-pane fade" id="cc-mapa">
+    <!-- GRÁFICOS -->
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-xl-7"><div class="card h-100">
+            <div class="card-header bg-transparent fw-bold"><i class="bi bi-grid-3x3-gap me-1"></i>Mapa de la cartera <span class="small text-muted fw-normal">· tamaño = peso, color = variación <span class="period-label">de la semana</span></span></div>
+            <div class="card-body p-1"><div id="treemap" style="height: 360px;"></div></div>
+        </div></div>
+        <div class="col-12 col-xl-5"><div class="card h-100">
+            <div class="card-header bg-transparent fw-bold"><i class="bi bi-bar-chart me-1"></i>Contribución a la variación <span class="small text-muted fw-normal">(puntos de %)</span></div>
+            <div class="card-body p-1"><div id="contrib" style="height: 360px;"></div></div>
+        </div></div>
+    </div>
+
+    </div>
+    </div>
+</div>
+
+<script>
+const CC = {{ {'periods': changes.periods, 'chart': chart}|tojson }};
+const LABELS = {'1d': 'del día', 'wtd': 'de la semana (desde el lunes)', 'mtd': 'del mes (desde el día 1)', 'ytd': 'del año'};
+const SHORT = {'1d': 'día', 'wtd': 'semana', 'mtd': 'mes', 'ytd': 'año'};
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmtPct = v => (v === null || v === undefined) ? '–' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+const cls = v => v === null || v === undefined ? '' : (v >= 0 ? 'text-success' : 'text-danger');
+const eur = v => new Intl.NumberFormat('es-ES', {maximumFractionDigits: 0}).format(v) + ' €';
+
+function render(period) {
+    document.querySelectorAll('.period-label').forEach(el => el.textContent = el.closest('th') ? SHORT[period] : LABELS[period]);
+    const p = CC.periods[period] || {};
+    const k = document.getElementById('kpiPct'); k.textContent = fmtPct(p.pct); k.className = 'val ' + cls(p.pct);
+    const a = document.getElementById('kpiAbs'); a.textContent = p.abs_eur === undefined ? '–' : (p.abs_eur >= 0 ? '+' : '') + eur(p.abs_eur); a.className = 'small ' + cls(p.abs_eur);
+    const b = document.getElementById('kpiBench'); b.textContent = fmtPct(p.benchmark_pct); b.className = 'val ' + cls(p.benchmark_pct);
+    const diff = (p.pct !== undefined && p.benchmark_pct !== undefined && p.pct !== null && p.benchmark_pct !== null) ? p.pct - p.benchmark_pct : null;
+    document.getElementById('kpiDiff').textContent = diff === null ? '–' : `Cartera ${diff >= 0 ? 'por encima' : 'por debajo'}: ${fmtPct(diff)}`;
+
+    const contrib = CC.chart.map(c => ({t: c.ticker, v: c.contribution[period], w: c.weight, ch: (c.change || {})[period]}))
+                            .filter(c => c.v !== null && c.v !== undefined).sort((x, y) => x.v - y.v);
+    const movers = [...contrib].sort((x, y) => Math.abs(y.v) - Math.abs(x.v)).slice(0, 3);
+    document.getElementById('kpiMovers').innerHTML = movers.map(m => `<div><strong>${m.t}</strong> <span class="${cls(m.v)}">${m.v >= 0 ? '+' : ''}${m.v.toFixed(2)} pp</span></div>`).join('') || '–';
+
+    document.querySelectorAll('tr[data-ticker]').forEach(tr => {
+        const c = CC.chart.find(x => x.ticker === tr.dataset.ticker);
+        const ch = c ? (c.change || {})[period] : null;
+        const cv = c ? c.contribution[period] : null;
+        const cc = tr.querySelector('.cell-change'); cc.textContent = fmtPct(ch); cc.className = 'text-end font-monospace-data cell-change ' + cls(ch);
+        const ct = tr.querySelector('.cell-contrib'); ct.textContent = cv === null || cv === undefined ? '–' : (cv >= 0 ? '+' : '') + cv.toFixed(2) + ' pp'; ct.className = 'text-end font-monospace-data cell-contrib ' + cls(cv);
+    });
+
+    const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const ink = dark ? '#c9d1d9' : '#343a40', surface = dark ? '#11131b' : '#ffffff', grid = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+    const red = css('--fin-red') || '#f23645', green = css('--fin-green') || '#089981', mid = dark ? '#2b2f3a' : '#e9ecef';
+    // mapa: variación de cada acción en el periodo
+    const tm = CC.chart.map(c => {
+        const v = (c.change || {})[period];
+        return {t: c.ticker, w: c.weight, v: v === null || v === undefined ? 0 : v};
+    });
+    const lim = Math.max(2, ...tm.map(x => Math.abs(x.v)));
+    Plotly.react('treemap', [{
+        type: 'treemap', labels: tm.map(x => x.t), parents: tm.map(() => ''), values: tm.map(x => x.w),
+        text: tm.map(x => fmtPct(x.v)), textinfo: 'label+text', branchvalues: 'total',
+        marker: {colors: tm.map(x => x.v), colorscale: [[0, red], [0.5, mid], [1, green]], cmin: -lim, cmax: lim, line: {width: 2, color: surface}},
+        hovertemplate: '<b>%{label}</b><br>Peso %{value:.1f}%<br>Variación %{text}<extra></extra>', textfont: {color: '#fff', size: 13},
+    }], {margin: {l: 0, r: 0, t: 0, b: 0}, paper_bgcolor: 'rgba(0,0,0,0)'}, {displayModeBar: false, responsive: true});
+    Plotly.react('contrib', [{
+        type: 'bar', orientation: 'h', y: contrib.map(c => c.t), x: contrib.map(c => c.v),
+        marker: {color: contrib.map(c => c.v >= 0 ? green : red)},
+        text: contrib.map(c => (c.v >= 0 ? '+' : '') + c.v.toFixed(2)), textposition: 'auto', insidetextanchor: 'middle', textfont: {size: 11}, cliponaxis: false,
+        hovertemplate: '<b>%{y}</b><br>%{x:+.2f} pp de la variación de la cartera<extra></extra>',
+    }], {margin: {l: 70, r: 40, t: 10, b: 30}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: {color: ink, size: 11},
+         xaxis: {gridcolor: grid, zeroline: true, zerolinecolor: ink, ticksuffix: ' pp'}, yaxis: {automargin: true}, bargap: 0.35},
+        {displayModeBar: false, responsive: true});
+}
+
+document.querySelectorAll('[data-period]').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-period]').forEach(b => b.classList.toggle('active', b === btn));
+    render(btn.dataset.period);
+}));
+render('wtd');
+document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.querySelector(`[data-bs-toggle="tab"][data-hash="${location.hash.slice(1)}"]`);
+    if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
+});
+document.querySelectorAll('[data-bs-toggle="tab"][data-hash]').forEach(btn => btn.addEventListener('shown.bs.tab', () => {
+    history.replaceState(null, '', '#' + btn.dataset.hash);
+}));
+document.getElementById('tabMapa').addEventListener('shown.bs.tab', () => {
+    const active = document.querySelector('[data-period].active');
+    render(active ? active.dataset.period : 'wtd');
+    ['treemap', 'contrib'].forEach(id => Plotly.Plots.resize(document.getElementById(id)));   // se dibujaron con la pestaña oculta
+});
+
+// «¿Por qué se mueve?»: lo lanza el usuario; consulta el radar de noticias de esa tesis (forzado)
+async function whyMoves(thesisId, ticker, btn) {
+    const box = document.getElementById('whyResult');
+    btn.disabled = true;
+    box.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Buscando noticias de ${ticker}…`;
+    try {
+        const r = await fetch(`/api/theses/${thesisId}/news?force=true`, {method: 'POST'});
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.statusText);
+        const g = d.digest, items = g.items || [];
+        box.innerHTML = `<div class="border rounded p-2"><strong>${ticker}</strong>: ${g.summary || ''}` +
+            (items.length ? '<ul class="mb-0 mt-1">' + items.map(i => `<li>${i.materiality}/5 · <a href="${i.url || '#'}" target="_blank" rel="noopener">${i.title}</a></li>`).join('') + '</ul>'
+                          : '<div class="text-muted">Sin noticias muy relevantes: puede ser un movimiento de mercado o de flujos.</div>') +
+            `<div class="text-muted mt-1">Guardado en <a href="/noticias?ticker=${encodeURIComponent(ticker)}">Noticias</a>.</div></div>`;
+        window.refreshSidebarNewsBadge && window.refreshSidebarNewsBadge();
+    } catch (e) { box.textContent = 'Error: ' + e.message; }
+    btn.disabled = false;
+}
+</script>
+{% endblock %}

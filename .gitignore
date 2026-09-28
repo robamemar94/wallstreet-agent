@@ -15,3 +15,4 @@ data/llm_usage.jsonl
 
 # Versiones anteriores de las tesis que guarda la app (git ya versiona los YAML)
 config/theses/history/
+data/next_results_cache.json

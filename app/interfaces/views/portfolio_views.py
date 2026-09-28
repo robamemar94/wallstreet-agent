@@ -1,3 +1,4 @@
+import logging
 import yfinance as yf
 import pandas as pd
 import time
@@ -864,8 +865,20 @@ def portfolio_page(
     benchmark_ann_return = perf_data.get("benchmark_annualized_return", 0.0)
     port_alpha = portfolio_ann_return - (port_beta * benchmark_ann_return)
 
+    # Variación semanal (desde el lunes) y mensual (desde el día 1) con las posiciones actuales
+    period_changes = {}
+    try:
+        from app.application.services import price_monitor_service as pm
+        txs, splits = pm.load_transactions(portfolio_service, db_session)   # respeta fechas de compra/venta y splits
+        ccys = {("GBP" if t.get("currency") == "GBp" else t.get("currency") or "USD") for t in txs} - {"EUR"}
+        hist = pm.download_history(sorted({t["ticker"] for t in txs}) + [f"{c}EUR=X" for c in ccys])
+        period_changes = pm.portfolio_changes(hist, txs, splits)["periods"]
+    except Exception as e:
+        logging.getLogger(__name__).warning("No se pudo calcular la variación semanal/mensual: %s", e)
+
     return templates.TemplateResponse("portfolio.html", {
         "request": request, "portfolio": portfolio_data, "closed_portfolio": closed_portfolio_data,
+        "period_changes": period_changes,
         "total_invested": total_invested_eur,
         "total_current_value": total_current_value_eur,
         "total_daily_abs": total_current_value_eur - total_prev_value_eur,

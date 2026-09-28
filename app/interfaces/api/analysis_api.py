@@ -18,6 +18,7 @@ from utils.parsers import parse_summary, parse_sub_report
 from tools.search_tool import generate_15y_financials_json, generate_fair_pe_json, parse_manual_audit_to_financials, generate_projection_scenarios_json
 
 from app.infrastructure.db.models import DBTask
+from utils.llm_usage import track_usage, month_search_queries
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,11 @@ def get_enriched_audit_context(db_data: dict) -> str:
 
 
 def run_agent_task(task_id: str, ticker: str, report_type: str, company_name: str, db_data: dict, feedback: str):
+    # Contabilizar tokens y coste de toda la ejecución del agente (incluidas sus herramientas)
+    with track_usage(f"{ticker}/{report_type}", background=True) as tracker:
+        _run_agent_task(task_id, ticker, report_type, company_name, db_data, feedback, tracker)
+
+def _run_agent_task(task_id: str, ticker: str, report_type: str, company_name: str, db_data: dict, feedback: str, tracker):
     db_session = SessionLocal()
     asset_repo = SqlAlchemyAssetRepository(db_session)
     
@@ -237,6 +243,8 @@ def run_agent_task(task_id: str, ticker: str, report_type: str, company_name: st
         
         logger.info(f"Reporte '{report_type}' generado exitosamente para {ticker}")
         html_result = markdown.markdown(main_text, extensions=['tables', 'fenced_code'])
+        # Guardar tokens y coste de esta ejecución para mostrarlos en la UI
+        asset_repo.save_asset_data(ticker, f"{report_type}_usage", tracker.summary(month_search_queries()))
         update_task_db(db_session, task_id, "success", result=html_result)
         
     except Exception as e:
@@ -610,6 +618,7 @@ async def get_generate_status(
             "date": task.updated_at,
             "financials_hist_manual": asset_data.get("financials_hist_manual")
         }
+        response["usage"] = asset_data.get(f"{rt}_usage")
 
         if rt == "technical" and asset_data.get(rt):
             import re
