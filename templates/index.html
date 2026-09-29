@@ -134,6 +134,7 @@
 
 </style>
 
+{% include "_prices_banner.html" %}
 <!-- 1. Row: Portfolio, Global Indices, and Heatmap -->
 <div class="row mb-4 g-2">
     <!-- Portfolio Summary KPI -->
@@ -660,139 +661,10 @@
     </div>
 </div>
 
-<!-- 4. Row: Oportunidades de Compra & Alertas de Caída -->
-<div class="row mb-5 g-2">
-    <!-- Oportunidades de Compra -->
-    <div class="col-xl-6 col-lg-12">
-        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
-            <div class="card-header border-0 pt-2 pb-1 d-flex justify-content-between align-items-center" style="background: transparent;">
-                <h6 class="fw-bold text-white mb-0" style="font-size: 0.82rem;">
-                    <i class="bi bi-bullseye text-primary"></i> Oportunidades de Compra
-                    <a href="/oportunidades" class="ms-2 small text-decoration-none text-muted" style="font-size:0.68rem; text-transform: none;">(todas →)</a>
-                </h6>
-                <div id="oppPagination" class="pagination-small"></div>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive" id="oppScrollWrapper" style="height: 250px; overflow-y: auto;">
-                    <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
-                        <thead>
-                            <tr class="text-muted" style="font-size: 0.65rem; background-color: #151821;">
-                                <th class="ps-3 py-1">Activo</th>
-                                <th class="text-end py-1">Precio</th>
-                                <th class="text-end py-1">Hoy</th>
-                                <th class="text-end py-1">P. compra</th>
-                                <th class="text-end pe-3 py-1">Dif.</th>
-                            </tr>
-                        </thead>
-                        <tbody id="oppList">
-                            {% for op in near_opportunities %}
-                            <tr onclick="window.location='/ticker/{{ op.ticker }}'" style="cursor:pointer; display:none;" class="opp-item">
-                                <td class="ps-3 py-1">
-                                    <div class="ticker-info" style="gap: 4px;">
-                                        <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.76rem;">{{ clean_ticker(op.ticker) }}</span>
-                                            <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.62rem; text-transform: uppercase;">{{ op.company_name }}</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="text-end fw-bold align-middle num-font text-white py-1" style="font-size: 0.74rem;">{{ op.currency_symbol }}{{ format_euro(op.current_price, 2) }}</td>
-                                <td class="text-end align-middle num-font py-1 {% if op.change_pct and op.change_pct > 0 %}text-success{% elif op.change_pct and op.change_pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size:0.72rem;">
-                                    {% if op.change_pct is not none %}
-                                        <span class="fw-bold">{% if op.change_abs > 0 %}+{% endif %}{{ format_euro(op.change_abs, 2) }}</span>
-                                        <span class="opacity-85 small">({% if op.change_pct > 0 %}+{% endif %}{{ format_euro(op.change_pct, 1) }}%)</span>
-                                    {% else %}<span class="text-muted">—</span>{% endif %}
-                                </td>
-                                <td class="text-end fw-bold text-success align-middle num-font py-1" style="font-size: 0.74rem;">{{ op.currency_symbol }}{{ format_euro(op.buy_price, 2) }}</td>
-                                <td class="text-end pe-3 fw-bold align-middle num-font py-1 {% if op.drop_needed <= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.74rem;">
-                                    {% if op.drop_needed <= 0 %}✓ en zona{% else %}-{{ format_euro(op.drop_needed, 1) }}%{% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                            {% if not near_opportunities %}
-                            <tr><td colspan="5" class="text-center py-4 text-muted small">No hay oportunidades cercanas</td></tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Alertas de Caída desde ATH -->
-    <div class="col-xl-6 col-lg-12">
-        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
-            <div class="card-header border-0 pt-2 pb-1 d-flex justify-content-between align-items-center" style="background: transparent;">
-                <div>
-                    <h6 class="fw-bold text-white mb-0" style="font-size: 0.82rem;">
-                        <i class="bi bi-graph-down-arrow text-danger"></i> Alertas de Caída desde ATH
-                        <a href="/alerts" class="text-decoration-none ms-1 text-muted" style="font-size:0.68rem; text-transform: none;">(todas →)</a>
-                    </h6>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    {% if drop_alerts %}
-                    <span id="dropAlertCounterBadge" class="badge bg-danger rounded-pill" style="font-size: 0.62rem; padding: 2px 6px;">{{ drop_alerts|length }}</span>
-                    <button type="button" class="btn-mark-seen" title="Marcar todas como leídas" onclick="window.markAllAlertsSeen();">
-                        <i class="bi bi-check2-all"></i>
-                    </button>
-                    {% endif %}
-                    <div id="dropAlertPagination" class="pagination-small"></div>
-                </div>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive" id="dropAlertScrollWrapper" style="height: 250px; overflow-y: auto;">
-                    {% if drop_alerts %}
-                    <table class="table table-modern align-middle mb-0" style="font-size:0.72rem;">
-                        <thead>
-                            <tr class="text-muted" style="font-size: 0.65rem; background-color: #151821;">
-                                <th class="ps-3 py-1">Fecha</th>
-                                <th class="py-1">Activo</th>
-                                <th class="text-center py-1">Escalón</th>
-                                <th class="text-end py-1">ATH</th>
-                                <th class="text-end py-1">Alerta</th>
-                                <th class="text-end py-1">Caída</th>
-                                <th class="text-center pe-3 py-1">Visto</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dropAlertList">
-                            {% for alert in drop_alerts %}
-                            <tr onclick="window.location='/ticker/{{ alert.ticker }}'" style="cursor:pointer; display:none;"
-                                class="drop-alert-item"
-                                data-alert-key="{{ alert.ticker }}_{{ alert.date }}_{{ alert.escalon }}">
-                                <td class="ps-3 text-muted small align-middle num-font py-1">{{ alert.date }}</td>
-                                <td class="py-1">
-                                    <div class="ticker-info" style="gap: 4px;">
-                                        <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.76rem;">{{ clean_ticker(alert.ticker) }}</span>
-                                            <span class="company-name text-truncate text-muted ms-1" style="max-width:80px; font-size: 0.62rem; text-transform: uppercase;">{{ alert.company_name }}</span>
-                                            <span class="alert-new-badge d-none">NUEVO</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="text-center align-middle py-1">
-                                    <span class="badge badge-drop-{{ alert.escalon }} fw-bold" style="font-size: 0.62rem; padding: 2px 4px;">–{{ alert.escalon }}%</span>
-                                </td>
-                                <td class="text-end text-muted align-middle num-font py-1">{{ format_euro(alert.ath, 2) }}</td>
-                                <td class="text-end fw-bold align-middle num-font py-1">{{ format_euro(alert.current_price, 2) }}</td>
-                                <td class="text-end fw-bold align-middle num-font py-1">–{{ format_euro(alert.drop_pct, 1) }}%</td>
-                                <td class="text-center pe-3 align-middle py-1">
-                                    <button type="button" class="btn-mark-seen d-none" title="Marcar como visto" onclick="event.stopPropagation(); markAlertSeen(this);">
-                                        <i class="bi bi-check-circle"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    {% else %}
-                    <div class="text-center py-5 text-muted small" style="background-color: var(--fin-card-bg);">
-                        <i class="bi bi-check-circle text-success d-block mb-1" style="font-size:1.3rem;"></i>
-                        Ninguna acción ha caído un escalón.
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
+<!-- Oportunidades y caídas: ahora en la pestaña Watchlist del Centro de mando y en Alertas -->
+<div class="d-flex gap-3 small mb-4">
+    <a href="/centro#watchlist" class="text-decoration-none"><i class="bi bi-eye me-1"></i>Candidatas y precios de compra → Watchlist</a>
+    <a href="/alerts" class="text-decoration-none"><i class="bi bi-bell me-1"></i>Caídas y cambios de zona → Alertas</a>
 </div>
 
 

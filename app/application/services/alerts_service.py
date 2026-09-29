@@ -1,41 +1,30 @@
-from datetime import datetime
-import pandas as pd
-import yfinance as yf
+import logging
+import threading
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Set
+
 from sqlalchemy.orm import Session
 
 from app.infrastructure.db.models import DBAlerts
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
+from app.application.services import base_valuation_service
 
-ATH_BACKFILL_INTERVAL_DAYS = 30
+logger = logging.getLogger(__name__)
+
+DROP_STEP = 10          # un episodio se abre al caer un 10 % desde el máximo de 52 semanas y avisa de nuevo cada 10 %
+RECOVERY_PCT = 5        # se cierra al volver a menos de un 5 % del máximo (no al primer rebote)
+HIGH_WINDOW_DAYS = 365
+AUTO_CLEAN_DAYS = 180   # las alertas se borran solas a los ~6 meses (las caídas abiertas nunca: siguen activas)
 
 
-def _fetch_historical_ath(tickers: list[str]) -> dict:
-    """
-    Descarga el histórico completo de precios y devuelve el máximo (ATH real)
-    por ticker. No lanza excepción: si falla, devuelve {} y el llamador conserva
-    el ATH auto-trackeado que ya tuviera.
-    """
-    if not tickers:
-        return {}
-    highs = {}
-    try:
-        data = yf.download(" ".join(tickers), period="max", progress=False)
-        if data.empty or "High" not in data:
-            return {}
-        col_high = data["High"]
-        if isinstance(col_high, pd.Series):
-            m = col_high.max()
-            if pd.notna(m):
-                highs[tickers[0]] = float(m)
-        else:
-            for t in tickers:
-                if t in col_high:
-                    m = col_high[t].max()
-                    if pd.notna(m):
-                        highs[t] = float(m)
-    except Exception as e:
-        print(f"Error fetching historical ATH: {e}")
-    return highs
+def alert_when(a: Dict[str, Any]) -> str:
+    """Fecha de referencia de una alerta: cierre, última actualización o creación."""
+    return a.get("closed_date") or a.get("updated") or a.get("date") or ""
+
+
+def purge_old(history: List[Dict[str, Any]], days: int) -> List[Dict[str, Any]]:
+    cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    return [a for a in history if (a.get("episode") and a.get("status") == "abierta") or alert_when(a) >= cutoff]
 
 
 def get_alerts_data(db: Session) -> dict:
@@ -54,11 +43,13 @@ def build_alert_key(alert: dict) -> str:
     ticker = alert.get("ticker")
     date = alert.get("date")
     if alert_type == "CAÍDA":
+        # episodio: fecha de inicio fija; el escalón cambia al empeorar (y vuelve a salir como nuevo) o al cerrarse
         return f"{ticker}_{date}_{alert.get('escalon')}"
     return f"{ticker}_{date}_{alert.get('old_status')}-{alert.get('new_status')}"
 
 
 VALUATION_RANK = {"GANGA": 0, "BARATA": 1, "PRECIO JUSTO": 2, "CARA": 3, "BURBUJA": 4}
+ZONE_STATUS = {"ganga": "GANGA", "barata": "BARATA", "justo": "PRECIO JUSTO", "cara": "CARA"}
 
 
 def valuation_direction(old_status: str, new_status: str) -> str:
@@ -79,157 +70,163 @@ def save_alerts_data(db: Session, data: dict):
     db.commit()
 
 
+def eligible_tickers(db: Session, asset_repo: SqlAlchemyAssetRepository) -> Set[str]:
+    """Empresas que se vigilan: la watchlist (a mano, favoritas y aceptadas) y la cartera."""
+    from app.infrastructure.db.models import DBPortfolioItem, DBWatchlistItem
+    held = {p.ticker for p in db.query(DBPortfolioItem).all() if (p.shares or 0) > 0}
+    manual = {w.ticker for w in db.query(DBWatchlistItem).all()}
+    return held | manual | set(asset_repo.get_watch_candidates())
+
+
+def _drop_entry(t: str, name: str, ep: Dict[str, Any]) -> Dict[str, Any]:
+    return {"type": "CAÍDA", "episode": True, "ticker": t, "company_name": name, **ep}
+
+
 def run_alerts_scan(
     ticker_prices: dict,
     asset_repo: SqlAlchemyAssetRepository,
     db_session: Session,
     settings: dict,
+    watch_tickers: Optional[Set[str]] = None,
 ) -> int:
     """
-    Ejecuta el scan de alertas con precios ya obtenidos.
-    ticker_prices: {ticker: float} — precios actuales.
-    Devuelve el número de alertas nuevas generadas.
+    Escaneo de alertas con precios ya obtenidos ({ticker: precio}); devuelve cuántas son nuevas.
+    · VALORACIÓN: cambio de zona según la valoración base de la ficha.
+    · CAÍDA: episodios de caída desde el máximo de 52 semanas (cierres). Uno por empresa: se actualiza en sitio,
+      vuelve a salir como nuevo solo al empeorar otro 10 % y se cierra al recuperarse a menos de un 5 % del máximo.
     """
-    val_cfg = settings.get("valuation", {
-        "ganga": 0.60, "barata": 0.85, "justo_max": 1.15, "cara_max": 1.40
-    })
-    drop_threshold = float(settings.get("alerts", {}).get("price_drop_threshold", 10))
+    from app.application.services import price_monitor_service as pm
 
-    alerts_data        = get_alerts_data(db_session)
-    last_statuses      = dict(alerts_data.get("last_statuses", {}))
-    history            = list(alerts_data.get("history", []))
-    ath_refs           = dict(alerts_data.get("ath_refs", {}))
-    ath_alerted_levels = dict(alerts_data.get("ath_alerted_levels", {}))
-    ath_source         = dict(alerts_data.get("ath_source", {}))
-    ath_last_backfill  = dict(alerts_data.get("ath_last_backfill", {}))
+    eligible = eligible_tickers(db_session, asset_repo) | set(watch_tickers or ())
+    prices = {t: float(p) for t, p in ticker_prices.items() if p and t in eligible}
+    alerts_data = get_alerts_data(db_session)
+    # last_statuses era la zona por PER justo; las zonas por valoración base van en last_zones
+    # (la primera pasada solo las registra, sin avisar, para no mezclar métodos)
+    last_zones = dict(alerts_data.get("last_zones", {}))
+    history = list(alerts_data.get("history", []))
+    drops = dict(alerts_data.get("drops", {}))
+    migrating = not alerts_data.get("drops_v2")
+    if migrating:   # las caídas antiguas (desde máximo histórico, una alerta por escalón) se sustituyen por episodios
+        history = [h for h in history if not (h.get("type") == "CAÍDA" and not h.get("episode"))]
 
     now = datetime.now()
     today_str = now.strftime("%Y-%m-%d %H:%M:%S")
-    today_date_str = now.strftime("%Y-%m-%d")
     new_count = 0
 
-    # ── 0. Backfill del ATH histórico real (una vez por ticker, refrescado cada
-    #        ATH_BACKFILL_INTERVAL_DAYS días) para que la caída se calcule desde
-    #        el máximo histórico de verdad y no desde "el máximo visto por la app" ──
-    tickers_needing_backfill = []
-    for t in ticker_prices:
-        last_bf = ath_last_backfill.get(t)
-        stale = True
-        if last_bf:
-            try:
-                stale = (now - datetime.strptime(last_bf, "%Y-%m-%d")).days >= ATH_BACKFILL_INTERVAL_DAYS
-            except ValueError:
-                stale = True
-        if ath_source.get(t) != "historical" or stale:
-            tickers_needing_backfill.append(t)
+    benchmark = (settings.get("performance") or {}).get("benchmark_ticker") or "URTH"
+    try:
+        closes = pm.download_history(sorted(prices) + [benchmark], fill=False) if prices else None
+    except Exception as e:
+        logger.warning("Alertas: sin histórico de precios: %s", e)
+        closes = None
+    since = now - timedelta(days=HIGH_WINDOW_DAYS)
 
-    historical_highs = _fetch_historical_ath(tickers_needing_backfill)
-    for t in tickers_needing_backfill:
-        historical_max = historical_highs.get(t)
-        if historical_max is None:
-            continue
-        prev_ath = ath_refs.get(t)
-        new_ath = max(prev_ath, historical_max) if prev_ath is not None else historical_max
-        if prev_ath is None or new_ath > prev_ath:
-            ath_alerted_levels[t] = []
-        ath_refs[t] = new_ath
-        ath_source[t] = "historical"
-        ath_last_backfill[t] = today_date_str
-
-    for t, current_price in ticker_prices.items():
-        if current_price is None:
-            continue
-
+    for t, current_price in prices.items():
         db_data = asset_repo.get_asset_data(t)
-        if db_data.get("status") not in ["ACCEPTED", "STANDBY"]:
-            continue
+        name = db_data.get("company_name", t)
 
-        # ── 1. Alerta de cambio de zona de valoración ──────────────────────
-        fair_pe_data = db_data.get("fair_pe_data", {})
-        fair_pe   = fair_pe_data.get("fair_forward_pe")
-        market_pe = db_data.get("last_market_fwd_pe")
-
-        current_status = None
-        try:
-            if fair_pe and market_pe:
-                ratio = float(market_pe) / float(fair_pe)
-                if   ratio <  val_cfg["ganga"]:     current_status = "GANGA"
-                elif ratio <  val_cfg["barata"]:    current_status = "BARATA"
-                elif ratio <= val_cfg["justo_max"]: current_status = "PRECIO JUSTO"
-                elif ratio <= val_cfg["cara_max"]:  current_status = "CARA"
-                else:                               current_status = "BURBUJA"
-        except (ValueError, TypeError):
-            pass
-
+        # ── 1. Cambio de zona de valoración ──────────────────────────────
+        # Zona de la valoración base de la ficha (la misma que la watchlist): por la rentabilidad estimada
+        # a este precio. Las valoraciones antiguas sin revisar no avisan.
+        val = base_valuation_service.live(t, db_data, current_price)
+        fresh_val = val if val and not val["inputs"].get("legacy") else None
+        current_status = ZONE_STATUS.get(fresh_val["zone"]) if fresh_val else None
         if current_status:
-            old_status = last_statuses.get(t)
+            old_status = last_zones.get(t)
             if old_status and old_status != current_status:
                 history.append({
-                    "type": "VALORACIÓN",
-                    "ticker": t,
-                    "company_name": db_data.get("company_name", t),
-                    "old_status": old_status,
-                    "new_status": current_status,
+                    "type": "VALORACIÓN", "ticker": t, "company_name": name,
+                    "old_status": old_status, "new_status": current_status,
+                    "cagr": fresh_val["cagr"], "buy_price": fresh_val["buy_price"], "price": round(current_price, 2),
                     "date": today_str,
                 })
                 new_count += 1
-            last_statuses[t] = current_status
+            last_zones[t] = current_status
 
-        # ── 2. Alertas de caída desde ATH: una única alerta "viva" por ticker ──
-        # Se actualiza (sustituye) mientras el precio siga cayendo a un escalón
-        # más profundo, y se elimina en cuanto se recupera a un nuevo máximo
-        # (aunque sea intermedio, no hace falta superar el ATH absoluto). Así
-        # no se acumulan en el historial caídas ya resueltas.
+        # ── 2. Episodio de caída desde el máximo de 52 semanas ───────────
+        if closes is None or t not in closes.columns:
+            continue
+        s = closes[t].dropna()
+        s = s[s.index >= since]
+        if s.empty:
+            continue
+        high, high_date = max(float(s.max()), current_price), s.idxmax().date().isoformat()
+        drop = 100 * (1 - current_price / high)
+        ep = drops.get(t)
+        entry_idx = next((i for i, h in enumerate(history) if h.get("episode") and h.get("ticker") == t
+                          and h.get("status") == "abierta"), None)
 
-        ath = ath_refs.get(t)
-        prev_level = ath_alerted_levels.get(t)
-        if isinstance(prev_level, list):
-            # Migración del formato antiguo (lista de escalones alertados)
-            prev_level = max(prev_level) if prev_level else None
+        if ep and drop <= RECOVERY_PCT:   # recuperada: el episodio se cierra y queda en el historial
+            if entry_idx is not None:
+                history.pop(entry_idx)
+            days = (now.date() - datetime.fromisoformat(ep.get("high_date") or ep["date"][:10]).date()).days
+            history.append(_drop_entry(t, name, {**ep, "status": "cerrada", "escalon": "cerrada", "closed_date": today_str,
+                                                 "drop_pct": round(drop, 1), "current_price": round(current_price, 2),
+                                                 "days": days, "date": ep["date"], "silent": False}))
+            del drops[t]
+            new_count += 1
+            continue
+        if not ep and drop < DROP_STEP:
+            continue
 
-        if ath is None:
-            # Primera vez: inicializar ATH al precio actual, sin alertar
-            ath_refs[t] = current_price
-            ath_alerted_levels[t] = None
-        elif current_price > ath:
-            # Nuevo máximo (intermedio o absoluto) → la caída anterior se resuelve
-            ath_refs[t] = current_price
-            ath_alerted_levels[t] = None
-            if prev_level is not None:
-                history = [h for h in history if not (h.get("type") == "CAÍDA" and h.get("ticker") == t)]
+        bench_pct = None
+        if benchmark in closes.columns:
+            b = closes[benchmark].dropna()
+            b_high = b[b.index >= s.idxmax()]
+            if len(b_high) > 1:
+                bench_pct = round(100 * (b_high.iloc[-1] / b_high.iloc[0] - 1), 1)
+        level = int(drop // DROP_STEP) * DROP_STEP
+        ep = ep or {"date": today_str, "escalon": level, "max_drop": 0.0, "silent": migrating}
+        worse = level > ep["escalon"]
+        ep.update({
+            "status": "abierta", "high": round(high, 2), "high_date": high_date,
+            "drop_pct": round(drop, 1), "max_drop": round(max(ep["max_drop"], drop), 1),
+            "current_price": round(current_price, 2),
+            "days": (now.date() - datetime.fromisoformat(high_date).date()).days,   # desde el máximo: lo que dura la caída
+            "bench_pct": bench_pct, "updated": today_str,
+            # distancia al precio de compra al 15 % (≤0: ya está por debajo)
+            "buy_gap": round(100 * (1 - fresh_val["buy_price"] / current_price), 1) if fresh_val else None,
+        })
+        if worse:   # otro 10 % más abajo: mismo episodio, pero vuelve a salir como nuevo (aunque lo ignoraras)
+            ep.update({"escalon": level, "silent": False, "dismissed": False})
+        drops[t] = ep
+        if ep.get("dismissed"):   # lo ignoraste: se sigue el episodio pero no se muestra
+            continue
+        if entry_idx is None or worse:
+            new_count += 0 if ep.get("silent") else 1
+        entry = _drop_entry(t, name, ep)
+        if entry_idx is None:
+            history.append(entry)
         else:
-            deepest_level = None
-            for level in range(10, 61, 10):
-                if current_price <= ath * (1 - level / 100):
-                    deepest_level = level
+            history[entry_idx] = entry
 
-            if deepest_level and (prev_level is None or deepest_level > prev_level):
-                # Ha caído a un escalón más profundo que el último aviso: se
-                # sustituye la alerta anterior de este ticker por la nueva.
-                history = [h for h in history if not (h.get("type") == "CAÍDA" and h.get("ticker") == t)]
-                history.append({
-                    "type": "CAÍDA",
-                    "ticker": t,
-                    "company_name": db_data.get("company_name", t),
-                    "drop_pct": round((ath - current_price) / ath * 100, 1),
-                    "escalon": deepest_level,
-                    "ath": round(ath, 2),
-                    "current_price": round(current_price, 2),
-                    "date": today_str,
-                })
-                new_count += 1
-                prev_level = deepest_level
-
-            ath_alerted_levels[t] = prev_level
-
-    alerts_data["last_statuses"]      = last_statuses
-    alerts_data["history"]            = history
-    alerts_data["ath_refs"]           = ath_refs
-    alerts_data["ath_alerted_levels"] = ath_alerted_levels
-    alerts_data["ath_source"]         = ath_source
-    alerts_data["ath_last_backfill"]  = ath_last_backfill
-    # Mantener price_drop_refs por compatibilidad con datos anteriores
-    alerts_data["price_drop_refs"]    = alerts_data.get("price_drop_refs", {})
+    alerts_data["last_zones"] = last_zones
+    alerts_data["history"] = purge_old(history, AUTO_CLEAN_DAYS)
+    alerts_data["drops"] = drops
+    alerts_data["drops_v2"] = True
+    for old_key in ("ath_refs", "ath_alerted_levels", "ath_source", "ath_last_backfill", "last_statuses"):
+        alerts_data.pop(old_key, None)
     save_alerts_data(db_session, alerts_data)
-
     return new_count
+
+
+_scan_lock = threading.Lock()
+
+
+def scan_in_background(ticker_prices: Dict[str, float], watch_tickers: Optional[Set[str]] = None) -> None:
+    """Lanza el escaneo en un hilo con su propia sesión; si ya hay uno en marcha, no hace nada."""
+    if not _scan_lock.acquire(blocking=False):
+        return
+
+    def run():
+        from app.infrastructure.db.database import SessionLocal
+        from app.infrastructure.dependencies import get_settings_from_db
+        db = SessionLocal()
+        try:
+            run_alerts_scan(ticker_prices, SqlAlchemyAssetRepository(db), db, get_settings_from_db(db), watch_tickers)
+        except Exception:
+            logger.exception("Fallo en el escaneo de alertas")
+        finally:
+            db.close()
+            _scan_lock.release()
+    threading.Thread(target=run, daemon=True, name="alerts-scan").start()

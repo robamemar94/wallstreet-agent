@@ -8,7 +8,8 @@ from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlche
 from app.infrastructure.dependencies import get_asset_repository, get_settings_from_db
 from app.infrastructure.templates import templates
 from app.application.services.alerts_service import (
-    get_alerts_data, save_alerts_data, run_alerts_scan, build_alert_key, valuation_direction
+    get_alerts_data, save_alerts_data, run_alerts_scan, build_alert_key, valuation_direction, purge_old, alert_when,
+    AUTO_CLEAN_DAYS,
 )
 
 router = APIRouter(tags=["Alerts Views"])
@@ -40,7 +41,8 @@ async def alerts_page(
         "count_caida": count_caida,
         "count_sube": count_sube,
         "count_baja": count_baja,
-        "settings": get_settings_from_db(db_session)
+        "settings": get_settings_from_db(db_session),
+        "auto_clean_months": AUTO_CLEAN_DAYS // 30,
     })
 
 @router.get("/api/alerts/keys")
@@ -53,7 +55,7 @@ def get_alert_keys(db_session: Session = Depends(get_db)):
     return {
         "keys": [
             {"key": build_alert_key(a), "type": a.get("type", "VALORACIÓN")}
-            for a in history
+            for a in history if not a.get("silent")   # caídas heredadas de la versión anterior: no cuentan como nuevas
         ]
     }
 
@@ -106,6 +108,19 @@ def delete_alert(
         new_history.append(alert)
         
     alerts_data["history"] = new_history
+    ep = (alerts_data.get("drops") or {}).get(ticker)
+    if type == "CAÍDA" and ep and ep.get("date") == date:   # caída abierta ignorada: no vuelve hasta que empeore otro 10 %
+        ep["dismissed"] = True
     save_alerts_data(db_session, alerts_data)
     
     return RedirectResponse(url="/alerts", status_code=303)
+
+
+@router.post("/api/alerts/clean")
+def clean_alerts(months: int = Form(...), db_session: Session = Depends(get_db)):
+    """Borra las alertas de más de N meses (las caídas abiertas se conservan: siguen activas)."""
+    alerts_data = get_alerts_data(db_session)
+    alerts_data["history"] = purge_old(alerts_data.get("history", []), max(1, months) * 30)
+    save_alerts_data(db_session, alerts_data)
+    return RedirectResponse(url="/alerts", status_code=303)
+

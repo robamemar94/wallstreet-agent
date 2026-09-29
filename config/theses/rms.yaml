@@ -1,0 +1,155 @@
+# Transcrito de data/theses/Hermes_Tesis_Maestra_v2.6_updated.md (28/09/2026)
+# Cuadro de mando: los 7 KPIs del «7.2 Dashboard principal». Los «controles financieros» (net cash, acciones, capex/
+# capacidad) y las métricas auxiliares NO van al cuadro: la tesis dice que solo explican lo que detecta un KPI; van a las
+# reglas para que la revisión de resultados los tenga en cuenta. Umbrales: solo los que da la propia tesis (H5 margen
+# ~40%, H6 FCF/share base ~8,5% y refutación <5–6%, 6.3 crecimiento <5%). Donde solo hay semáforo sin cifra (Leather
+# Goods, pricing/volumen, ROIC, geografías) el KPI es cualitativo con semáforo MANUAL según la hipótesis y su refutación.
+# Hermès publica cuentas semestrales (ingresos trimestrales): margen y FCF se registran por semestre.
+# El documento completo está en config/theses/rms.md.
+ticker: RMS.PA
+title: Hermès International · Tesis Maestra
+version: "v2.6"
+reference_date: "2026-09-28"
+reference_price: 1354
+source_document: data/theses/Hermes_Tesis_Maestra_v2.6_updated.md
+document: config/theses/rms.md
+verdict: INTACTA
+summary: >-
+  Marca extraordinariamente deseada + oferta deliberadamente limitada + artesanía difícil de escalar + distribución
+  controlada + cultura familiar de largo plazo. La demanda crece más rápido que la capacidad → pricing power → margen ~41%
+  → FCF → reinversión en talleres. La cuestión no es si el negocio es bueno, sino si puede sostener ~8–9% de crecimiento
+  del FCF/acción durante años y si el precio permite capturar una rentabilidad suficiente. Estado: INTACT — WATCH valoración.
+hypothesis: "Si Hermès consigue aumentar capacidad sin destruir exclusividad, puede mantener ~8–9% de crecimiento de FCF por acción a largo plazo; la inversión depende menos de la expansión del múltiplo que de mantener esa economía otra década."
+hypotheses:
+  H1: "La marca conserva su poder de pricing (🟢)"
+  H2: "La demanda seguirá superando la capacidad (🟢)"
+  H3: "Leather Goods seguirá siendo un motor importante (🟢)"
+  H4: "Puede aumentar capacidad sin destruir exclusividad (🟢/🟡)"
+  H5: "El margen operativo puede mantenerse alrededor del 40% (🟢)"
+  H6: "El crecimiento puede normalizarse en ~8–9% de FCF/share (🟡)"
+  H7: "El modelo artesanal seguirá generando altos retornos (🟢)"
+  H8: "Asia ex-Japón se estabilizará (🟡)"
+  H9: "La familia preservará la cultura y disciplina de capital (🟢)"
+  H10: "La valoración permitirá una rentabilidad atractiva (🟡)"
+rules:
+  - "No son thesis breaker: un trimestre débil, una caída temporal de China, una corrección del precio o un descenso temporal del FCF por más capex. Distinguir ciclo, inversión deliberada y deterioro estructural."
+  - "Rompe la tesis la combinación persistente de: crecimiento <5%, pérdida de pricing power, caída material del margen, demanda inferior a capacidad, deterioro del ROIC, exceso de producción, cambio de cultura o M&A/deuda agresivos. Si aparecen varios a la vez: INTACT/WATCH → WEAKENING o BROKEN."
+  - "Valoración y crecimiento se monitorizan por separado de la calidad del negocio: la principal amenaza es que siga siendo extraordinaria pero el crecimiento se normalice antes o el múltiplo terminal sea menor."
+  - "No asumir que el ROIC histórico del 50–70% se mantiene: el ROIC incremental de nuevos talleres puede ser inferior."
+  - "No asumir automáticamente que todos los ajustes no-GAAP son económicos: distinguir beneficio, CFO, capex y FCF."
+  - "Controles financieros (fuera del cuadro de mando, revisar cuando puedan afectar a la tesis): net cash (resiliencia), shares outstanding (dilución/recompras) y capex/capacidad (que los talleres nuevos generen crecimiento y retornos)."
+  - "El KPI detecta → las métricas auxiliares explican: ventas y número de empleados, talleres, tiendas, capex por taller, mix geográfico detallado, FCF total y working capital se consultan solo para diagnosticar un cambio."
+master_questions:
+  - "¿Ha cambiado la trayectoria del crecimiento?"
+  - "¿Ha cambiado el moat?"
+  - "¿La reinversión está generando buenos retornos?"
+  - "¿Ha cambiado la calidad financiera?"
+  - "¿Alguna hipótesis crítica se ha debilitado?"
+  - "¿Qué evidencia favorece a Bull?"
+  - "¿Qué evidencia favorece a Bear?"
+  - "¿Tenemos que modificar la valoración?"
+  - "¿Es la caída del crecimiento del FCF/acción (<5%) un efecto temporal de divisas/capex o un deterioro estructural de la conversión de caja?"
+valuation:
+  question: "FCF normalizado H1 2026 × 2 ≈ €4.364M / ~105,6M acciones ≈ €41,3 de FCF/acción; caja neta ≈ €122/acción (la tesis la suma al valor terminal, el recálculo vivo no). Valor justo base ≈ €1.700 (WACC 8,5%)."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: fcf_ps_cagr, label: FCF CAGR, format: pct}
+    - {key: wacc, label: WACC}
+    - {key: multiple, label: Múltiplo terminal}
+    - {key: price, label: Precio 2036, format: usd}
+    - {key: fair_value, label: Valor justo hoy, format: usd}
+    - {key: cagr_doc, label: CAGR 10a (tesis), format: pct}
+  scenarios:
+    - {name: Bear, fcf_ps_cagr: 5, wacc: "9%", multiple: "20x", price: 1470, fair_value: 960, cagr_doc: 0.8}
+    - {name: Base, fcf_ps_cagr: 8.5, wacc: "8,5%", multiple: "30x", price: 2925, fair_value: 1700, cagr_doc: 8.0}
+    - {name: Bull, fcf_ps_cagr: 10.5, wacc: "8%", multiple: "35x", price: 4050, fair_value: 2345, cagr_doc: 11.6}
+events:
+  - date: "2026-06-30"
+    type: earnings
+    impact: positive
+    title: "Resultados H1 2026 (semestre cerrado jun-2026)"
+    body: "Ingresos €8.163M, orgánico +6,1% (fuerte en América y Japón, Asia ex-Japón más moderada). EBIT recurrente €3.351M, margen 41,0%. Beneficio neto €2.238M, CFO €2.694M, FCF ajustado €2.182M, capex €344M. Caja neta ajustada €12.926M. 27.107 empleados."
+  - date: "2026-09-28"
+    type: thesis
+    impact: neutral
+    title: "Tesis Maestra v2.6 · estado INTACT — WATCH valoración"
+    body: "A ~€1.354 el escenario base (8,5% FCF CAGR, 30x) da ~8% de CAGR de precio a 10 años más dividendos: razonable para un negocio excepcional, no una ganga. Preocupa: desaceleración, Asia ex-Japón, capacidad vs exclusividad, valoración y sucesión. Próximo evento: Q3 2026 el 22/10/2026."
+
+pillars:
+  - key: organic
+    name: Organic revenue growth
+    description: "KPI 1 · H1/H2 — ¿Sigue creciendo la demanda? Se necesitan ~8–9% para el caso base; la contra-narrativa es 4–6%."
+    kpis:
+      - {key: organic_growth, name: Organic revenue growth, unit: "%", green_threshold: 8, red_threshold: 5,
+         how_to_measure: "Crecimiento de ingresos a tipos de cambio constantes (trimestral)",
+         green_text: "≥8% (ritmo del caso base)", amber_text: "5–8%", red_text: "<5% persistente (6.3)",
+         baseline: "2025 +8,9%; H1 2026 +6,1%", frequency: Trimestral, source: Hermès,
+         is_kill_switch: true, kill_rule: "6.3: crecimiento <5% de forma persistente junto con otras señales de deterioro",
+         observations: [{period: FY2025, date: "2025-12-31", value: 8.9},
+                        {period: H1 2026, date: "2026-06-30", value: 6.1}]}
+
+  - key: leather
+    name: Leather Goods growth
+    description: "KPI 2 · H3 — ¿Sigue funcionando el principal motor? Refutación: desaceleración estructural respecto al grupo durante varios años."
+    kpis:
+      - {key: leather_goods, name: Leather Goods growth, kind: qualitative, unit: "%",
+         how_to_measure: "Crecimiento de Marroquinería y Sillería frente al del grupo, con capacidad de talleres",
+         green_text: "Crece en línea o por encima del grupo", amber_text: "Por debajo del grupo puntualmente",
+         red_text: "Desacelera estructuralmente frente al grupo varios años",
+         frequency: Trimestral, source: Hermès}
+
+  - key: pricing
+    name: Pricing / volumen
+    description: "KPI 3 · H1/H4 — ¿Existe pricing power real? Cuánto del crecimiento viene de precio y cuánto de volumen, sin dañar la demanda."
+    kpis:
+      - {key: pricing, name: Pricing / volumen, kind: qualitative,
+         how_to_measure: "Subidas de precio del periodo frente al crecimiento orgánico (reparto precio/volumen) y su efecto en demanda y margen",
+         green_text: "Sube precios y el volumen acompaña", amber_text: "Crecimiento muy dependiente del precio o demanda más floja",
+         red_text: "Las subidas deterioran de forma persistente volumen y margen",
+         frequency: Trimestral/semestral, source: Hermès,
+         is_kill_switch: true, kill_rule: "6.3: pérdida de pricing power"}
+
+  - key: margin
+    name: Operating margin
+    description: "KPI 4 · H5 — ¿El moat sigue convirtiéndose en rentabilidad? No hace falta expansión: basta con ~40% a largo plazo."
+    kpis:
+      - {key: operating_margin, name: Margen operativo recurrente, unit: "%", green_threshold: 40,
+         how_to_measure: "EBIT recurrente / ingresos (semestral)",
+         green_text: "≥~40%", amber_text: "<40%", red_text: "Descenso persistente muy por debajo sin explicación temporal",
+         baseline: "2025 41,0%; H1 2026 41,0%", frequency: Semestral, source: Hermès,
+         is_kill_switch: true, kill_rule: "6.3: caída material y persistente del margen",
+         observations: [{period: FY2025, date: "2025-12-31", value: 41.0},
+                        {period: H1 2026, date: "2026-06-30", value: 41.0}]}
+
+  - key: fcf_share
+    name: FCF/share growth
+    description: "KPI 5 · H6 — ¿El crecimiento llega al accionista? Hipótesis base ~8,5%."
+    kpis:
+      - {key: fcf_per_share_growth, name: FCF/share growth, unit: "%", green_threshold: 8.5, red_threshold: 5,
+         how_to_measure: "CAGR del FCF por acción a 3 años (autocompletado)",
+         green_text: "≥8,5% (caso base)", amber_text: "5–8,5%", red_text: "Crecimiento estructural <5–6%",
+         baseline: "FCF ajustado 2025 €3.880M; H1 2026 €2.182M; ~€41,3/acción normalizado", frequency: Semestral/anual,
+         auto_metric: fcf_per_share_cagr_3y,
+         is_kill_switch: true, kill_rule: "H6: crecimiento estructural de FCF/share <5–6%"}
+
+  - key: roic
+    name: ROIC / retorno incremental
+    description: "KPI 6 · H7 — ¿La reinversión sigue creando mucho valor? El ROIC incremental de talleres nuevos puede ser inferior al histórico."
+    kpis:
+      - {key: roic, name: ROIC / retorno incremental, kind: qualitative, unit: "%",
+         how_to_measure: "ROIC agregado y, cuando sea posible, retorno incremental de las nuevas inversiones (capex en talleres y tiendas)",
+         green_text: "Extraordinario y estable", amber_text: "Baja el retorno incremental", red_text: "ROIC incremental cae sustancialmente mientras sube el capex",
+         baseline: "~50% (terceros, StockAnalysis; depende de la metodología)", frequency: Anual, source: StockAnalysis}
+
+  - key: geography
+    name: Asia ex-Japan + Americas
+    description: "KPI 7 · H8 — ¿Dónde funciona o falla el crecimiento? Asia no tiene que volver al doble dígito, pero no puede caer estructuralmente; América no debe normalizarse de golpe."
+    kpis:
+      - {key: asia_ex_japan, name: Asia ex-Japan organic, kind: qualitative, unit: "%",
+         how_to_measure: "Crecimiento orgánico de Asia ex-Japón (trimestral)",
+         green_text: "Se estabiliza o crece", amber_text: "Moderada (H1 2026)", red_text: "Caída estructural prolongada",
+         baseline: "H1 2026: mucho más moderada que América y Japón", frequency: Trimestral, source: Hermès}
+      - {key: americas, name: Americas organic, kind: qualitative, unit: "%",
+         how_to_measure: "Crecimiento orgánico de América (trimestral)",
+         green_text: "Crecimiento fuerte", amber_text: "Se desacelera", red_text: "Normalización del crecimiento en EEUU (riesgo material, 6.1)",
+         baseline: "H1 2026: especialmente fuerte", frequency: Trimestral, source: Hermès}

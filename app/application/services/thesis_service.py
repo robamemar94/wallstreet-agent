@@ -240,15 +240,13 @@ def ttm_fcf_per_share(quarterly_cashflow, quarterly_income, annual_cashflow=None
     return None
 
 
-_TTM_CACHE: Dict[str, Any] = {}
-
-
 def fetch_ttm_fcf_per_share(ticker: str) -> Optional[float]:
-    import time
-    cached = _TTM_CACHE.get(ticker)
-    if cached and time.time() - cached[0] < 12 * 3600:
-        return cached[1]
-    value = None
+    """FCF por acción TTM en la divisa de cotización. Caché en disco de 12 h (sobrevive a reinicios)."""
+    from app.application.services.market_cache import cached
+    return cached("fcf_ps_ttm", ticker, lambda: _download_ttm_fcf_per_share(ticker))
+
+
+def _download_ttm_fcf_per_share(ticker: str) -> Optional[float]:
     try:
         import yfinance as yf
         stock = yf.Ticker(ticker)
@@ -259,10 +257,9 @@ def fetch_ttm_fcf_per_share(ticker: str) -> Optional[float]:
             # p.ej. Evolution reporta en EUR y cotiza en SEK: el FCF/acción debe ir en la divisa del precio
             fx = yf.Ticker(f"{fin}{trade}=X").fast_info["last_price"]
             value = value * float(fx)
+        return float(value) if value is not None else None
     except Exception:
-        value = None
-    _TTM_CACHE[ticker] = (time.time(), value)
-    return value
+        return None
 
 
 # --- Exposición en cartera ---

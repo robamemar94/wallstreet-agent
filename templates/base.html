@@ -1,3 +1,4 @@
+{% from "_section_tabs.html" import section_tabs -%}
 <!DOCTYPE html>
 <html lang="es" {% if settings and settings.ui.dark_mode %}data-bs-theme="dark"{% endif %}>
 <head>
@@ -352,7 +353,7 @@
         
         .sidebar .nav-link {
             width: 100%;
-            padding: 12px 5px;
+            padding: 9px 5px;
             color: #6c757d;
             display: flex;
             flex-direction: column;
@@ -365,6 +366,20 @@
             border-left: 3px solid transparent;
         }
         
+        /* Grupos del menú: título pequeño y separador */
+        .sidebar .nav-group-title {
+            font-size: 0.55rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--bs-secondary-color);
+            opacity: .7;
+            text-align: center;
+            padding: 10px 2px 4px;
+            margin-top: 6px;
+            border-top: 1px solid var(--bs-border-color);
+        }
+        .sidebar .nav-group-title:first-child { border-top: 0; margin-top: 0; padding-top: 0; }
         .sidebar .nav-link span {
             font-size: 0.68rem;
             font-weight: 600;
@@ -543,50 +558,44 @@
 
     <!-- Sidebar -->
     <nav id="sidebarMenu" class="sidebar collapse d-lg-flex">
-        <a class="sidebar-brand d-flex align-items-center justify-content-center w-100 mb-4 mt-2" href="/" title="Alpha-Flow">📈</a>
+        <a class="sidebar-brand d-flex align-items-center justify-content-center w-100 mb-3 mt-2" href="/" title="Alpha-Flow">📈</a>
         
         <div class="w-100 d-flex flex-column align-items-center">
             {% set _path = request.url.path %}
             
             <ul class="nav flex-column w-100 mb-2">
+                <li class="nav-group-title" aria-hidden="true">Seguimiento</li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path == '/' %} active{% endif %}" href="/" title="Inicio">
-                        <i class="bi bi-house-door"></i>
-                        <span>Inicio</span>
+                    <a class="nav-link {% if _path.startswith('/mercado') or _path.startswith('/calendario') %} active{% endif %}" href="/mercado" title="Mercado y calendario">
+                        <i class="bi bi-globe2"></i>
+                        <span>Mercado</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/centro') %} active{% endif %}" href="/centro" title="Centro de mando">
+                    <a class="nav-link {% if _path.startswith('/centro') %} active{% endif %}" href="/centro" title="Centro de mando: resumen, posiciones y watchlist">
                         <i class="bi bi-grid-1x2"></i>
                         <span>Centro</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/portfolio') or _path.startswith('/ticker') %} active{% endif %}" href="/portfolio" title="Portfolio">
+                    <a class="nav-link {% if _path.startswith('/alerts') %} active{% endif %}" href="/alerts" title="Alertas: cambios de zona y caídas">
+                        <span class="nav-icon-wrap position-relative d-inline-block">
+                            <i class="bi bi-bell"></i>
+                            <span id="sidebarAlertBadge" class="sidebar-notif-badge d-none">0</span>
+                        </span>
+                        <span>Alertas</span>
+                    </a>
+                </li>
+                <li class="nav-group-title" aria-hidden="true">Cartera</li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/portfolio') or _path.startswith('/ticker') or _path.startswith('/ideal-portfolio') %} active{% endif %}" href="/portfolio" title="Cartera y portfolio ideal">
                         <i class="bi bi-briefcase"></i>
                         <span>Cartera</span>
                     </a>
                 </li>
+                <li class="nav-group-title" aria-hidden="true">Análisis</li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/ideal-portfolio') %} active{% endif %}" href="/ideal-portfolio" title="Portfolio Ideal">
-                        <i class="bi bi-award"></i>
-                        <span>P. Ideal</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/oportunidades') %} active{% endif %}" href="/oportunidades" title="Oportunidades">
-                        <i class="bi bi-bullseye"></i>
-                        <span>Oportun.</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/lists') %} active{% endif %}" href="/lists" title="Mis Listas">
-                        <i class="bi bi-list-stars"></i>
-                        <span>Listas</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/tesis') %} active{% endif %}" href="/tesis" title="Seguimiento de tesis">
+                    <a class="nav-link {% if _path.startswith('/tesis') or _path.startswith('/noticias') %} active{% endif %}" href="/tesis" title="Tesis y noticias">
                         <span class="nav-icon-wrap position-relative d-inline-block">
                             <i class="bi bi-clipboard2-pulse"></i>
                             <span id="sidebarThesisBadge" class="sidebar-notif-badge d-none">0</span>
@@ -595,39 +604,9 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/noticias') %} active{% endif %}" href="/noticias" title="Noticias de las tesis">
-                        <span class="nav-icon-wrap position-relative d-inline-block">
-                            <i class="bi bi-broadcast"></i>
-                            <span id="sidebarNewsBadge" class="sidebar-notif-badge d-none">0</span>
-                        </span>
-                        <span>Noticias</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/database') %} active{% endif %}" href="/database" title="Base de Datos">
+                    <a class="nav-link {% if _path.startswith('/database') or _path.startswith('/lists') or _path.startswith('/comparar') %} active{% endif %}" href="/database" title="Base de datos, listas y comparador">
                         <i class="bi bi-database"></i>
                         <span>BBDD</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/calendario') %} active{% endif %}" href="/calendario" title="Calendario">
-                        <i class="bi bi-calendar3"></i>
-                        <span>Calen.</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/alerts') %} active{% endif %}" href="/alerts" title="Alertas">
-                        <span class="nav-icon-wrap position-relative d-inline-block">
-                            <i class="bi bi-bell"></i>
-                            <span id="sidebarAlertBadge" class="sidebar-notif-badge d-none">0</span>
-                        </span>
-                        <span>Alertas</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/comparar') %} active{% endif %}" href="/comparar" title="Comparar">
-                        <i class="bi bi-layout-split"></i>
-                        <span>Comp.</span>
                     </a>
                 </li>
             </ul>
@@ -664,6 +643,7 @@
                     </div>
                 </div>
             </div>
+            {{ section_tabs(request.url.path) }}
             {% block content %}{% endblock %}
         </div>
     </div>
@@ -693,6 +673,8 @@
         // cualquier fila con [data-alert-key] se trata igual, así el estado "visto"
         // es consistente entre ambas vistas.
         window.applyAlertSeenState = function() {
+            // caídas heredadas de la versión anterior: se dan por vistas (vuelven a salir si empeoran)
+            document.querySelectorAll('[data-alert-key][data-silent]').forEach(r => localStorage.setItem('alert_seen_' + r.dataset.alertKey, '1'));
             document.querySelectorAll('[data-alert-key]').forEach(row => {
                 const key = row.dataset.alertKey;
                 if (!key) return;
@@ -770,21 +752,30 @@
             }
         };
         // Noticias nuevas del radar de tesis (solo materialidad >=4)
-        window.refreshSidebarNewsBadge = () => fetch('/api/theses/news/unread-count').then(r => r.json()).then(d => {
-            const b = document.getElementById('sidebarNewsBadge');
+        // Globo de «Tesis» en el menú = avisos de tesis + noticias sin leer (Noticias es una pestaña de Tesis)
+        const thesisBadge = {notices: 0, news: 0, noticesTitle: '', newsTitle: ''};
+        const renderThesisBadge = () => {
+            const b = document.getElementById('sidebarThesisBadge');
             if (!b) return;
-            b.textContent = d.unread > 99 ? '99+' : d.unread;
-            b.classList.toggle('d-none', !d.unread);
-            b.title = d.critical ? `${d.critical} pueden cambiar la tesis` : '';
+            const n = thesisBadge.notices + thesisBadge.news;
+            b.textContent = n > 99 ? '99+' : n;
+            b.classList.toggle('d-none', !n);
+            b.title = [thesisBadge.noticesTitle, thesisBadge.newsTitle].filter(Boolean).join('\n');
+        };
+        // Noticias nuevas del radar de tesis (solo materialidad >=4)
+        window.refreshSidebarNewsBadge = () => fetch('/api/theses/news/unread-count').then(r => r.json()).then(d => {
+            thesisBadge.news = d.unread || 0;
+            thesisBadge.newsTitle = d.unread ? `${d.unread} noticias sin leer` + (d.critical ? ` (${d.critical} pueden cambiar la tesis)` : '') : '';
+            renderThesisBadge();
+            const tab = document.getElementById('tabNewsBadge');
+            if (tab) { tab.textContent = d.unread > 99 ? '99+' : d.unread; tab.classList.toggle('d-none', !d.unread); }
         }).catch(() => {});
         window.refreshSidebarNewsBadge();
         // Resultados nuevos sin revisar / revisiones con IA listas
         fetch('/api/theses/notices').then(r => r.json()).then(d => {
-            const b = document.getElementById('sidebarThesisBadge');
-            if (!b) return;
-            b.textContent = d.count;
-            b.classList.toggle('d-none', !d.count);
-            b.title = (d.notices || []).map(n => `${n.ticker}: ${n.text}`).join('\n');
+            thesisBadge.notices = d.count || 0;
+            thesisBadge.noticesTitle = (d.notices || []).map(n => `${n.ticker}: ${n.text}`).join('\n');
+            renderThesisBadge();
         }).catch(() => {});
 
         fetch('/api/alerts/keys').then(r => r.json()).then(data => {

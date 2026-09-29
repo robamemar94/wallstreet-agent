@@ -1,0 +1,159 @@
+# Transcrito de data/theses/MELI_Tesis_Investment_Research.md (septiembre 2026)
+# Cuadro de mando: los 11 KPIs del «Dashboard KPI maestro» (7.), ordenados como pide «KPIs que deben estar siempre
+# arriba del dashboard». La tesis solo fija cifra para GMV/TPV (Strengthening: >20%) y describe el margen de riesgo
+# (estructuralmente en 6–7%); el resto registra el último dato con el semáforo MANUAL que le da la propia tesis.
+# FCF/share está N/D en la tesis: se autocompleta (CAGR 3 años) pero el semáforo lo decides tú, porque el crecimiento del
+# crédito consume capital y distorsiona el FCF aparente.
+# El documento completo está en config/theses/meli.md.
+ticker: MELI
+title: MercadoLibre · Tesis de inversión
+version: "Investment Research"
+reference_date: "2026-09"
+reference_price: 1820
+source_document: data/theses/MELI_Tesis_Investment_Research.md
+document: config/theses/meli.md
+verdict: VIGILANCIA
+summary: >-
+  De marketplace líder a ecosistema integrado de comercio y servicios financieros en Latinoamérica: Commerce, Mercado
+  Pago, crédito, logística y publicidad. Más usuarios → más frecuencia → más transacciones → más datos → mejor
+  experiencia/underwriting → más usuarios ecosistémicos → mayor monetización → operating leverage → más FCF por acción.
+  Q2'26 respalda la primera mitad de la cadena; la vigilancia está en el margen (6,7%) y en el crédito (+75%).
+  Estado: INTACT / WATCH.
+hypothesis: "MELI puede aumentar durante muchos años el valor económico de cada usuario mediante un ecosistema cada vez más integrado; si la inversión actual produce operating leverage y el crédito mantiene buenos retornos ajustados al riesgo, el crecimiento de EPS y FCF/share puede mantenerse elevado una década."
+hypotheses:
+  H1: "El ecosistema continúa profundizándose (🟢)"
+  H2: "Commerce y Fintech mantienen crecimiento estructural elevado (🟢)"
+  H3: "El engagement produce mejores economics (🟢/🟡)"
+  H4: "El crédito crece sin destruir valor (🟢/🟡)"
+  H5: "Aparece operating leverage (🟡 WATCH)"
+  H6: "El crecimiento llega al accionista (🟡 WATCH)"
+rules:
+  - "Strengthening: GMV/TPV >20%, ecosystemic users creciendo, margen recuperándose, NPL estable y FCF/share acelerando."
+  - "Weakening: desaceleración simultánea de GMV/TPV, deterioro del engagement, margen sin recuperación o crédito deteriorándose. Broken: pérdida estructural del moat o demostración de que el crecimiento incremental no genera retornos suficientes."
+  - "El crecimiento del crédito no es creación de valor por sí mismo: seguir yield → coste de financiación → pérdidas → provisiones → NIMAL → retorno sobre capital."
+  - "No aplicar mecánicamente deuda/EBITDA: considerar liquidez, deuda, fondos de clientes, obligaciones financieras y calidad del loan book. El FCF se lee junto al crecimiento de la cartera de crédito."
+  - "Un competidor mejor en una funcionalidad solo importa si provoca pérdida de usuarios, engagement, cuota o economics. La tecnología solo es disrupción si completa la cadena adopción → cambio de comportamiento → pérdida de cuota → deterioro de márgenes/FCF."
+  - "El cambio de CEO (Ariel Szarfsztejn; Galperin Executive Chairman) se evalúa por resultados: decisión/promesa → capital empleado → KPI esperado → resultado → impacto económico. Vigilar que los incentivos no fomenten TPV o crédito sin retorno."
+  - "La tesis solo cambia cuando cambia la evidencia económica. Cada KPI se actualiza junto con su valor anterior, tendencia y efecto económico."
+master_questions:
+  - "¿Ha cambiado la trayectoria de GMV/TPV?"
+  - "¿Está aumentando el engagement?"
+  - "¿Está aumentando el valor económico del usuario ecosistémico?"
+  - "¿Está mejorando el margen?"
+  - "¿El crédito sigue generando buenos retornos?"
+  - "¿Está creciendo el FCF/share?"
+  - "¿Qué evidencia favorece a Bull y qué evidencia favorece a Bear?"
+  - "¿Ha cambiado la valoración?"
+  - "¿Cuál es el retorno incremental sobre el capital invertido (ROIC) de las nuevas iniciativas (IA, envíos gratis) que justifican la compresión del margen?"
+valuation:
+  target_year: 2031
+  question: "Valoración por EPS 2031 × P/E terminal (no por FCF: el crédito distorsiona el FCF). CAGR del precio a 5 años desde ~1.820 $; en el escenario Base, 1.600 $ daría ~15,5% y 2.000 $ ~10,5%."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: eps, label: EPS 2031, format: usd}
+    - {key: multiple, label: P/E terminal}
+    - {key: price, label: Precio 2031, format: usd}
+    - {key: cagr_doc, label: CAGR 5a (tesis), format: pct}
+  scenarios:
+    - {name: Bear, eps: 85, multiple: "22x", price: 1870, cagr_doc: 0.5}
+    - {name: Base, eps: 122, multiple: "27x", price: 3294, cagr_doc: 12.6}
+    - {name: Bull, eps: 165, multiple: "30x", price: 4950, cagr_doc: 22}
+events:
+  - date: "2026-06-30"
+    type: earnings
+    impact: positive
+    title: "Resultados Q2 2026 (trimestre cerrado jun-2026)"
+    body: "GMV FX-neutral +36%, TPV FX-neutral +56%, revenue FX-neutral +43%, ecosystemic users +37%, items/buyer +14%. EBIT margin 6,7% (↓ frente al periodo comparable). Cartera de crédito ~16,4B $ (+75%), NPL 50-90d 7,0%, NIMAL ~21%. Acciones ~50,7M."
+  - date: "2026-09-28"
+    type: thesis
+    impact: neutral
+    title: "Tesis de inversión (septiembre 2026) · estado INTACT / WATCH"
+    body: "La evidencia refuerza crecimiento, engagement, ecosistema, Commerce y Fintech. Falta confirmar: recuperación del margen, retornos del crédito y crecimiento del FCF/share."
+
+pillars:
+  - key: ecosystem
+    name: Ecosistema y engagement
+    description: "H1/H3 — ¿El usuario usa cada vez más partes del ecosistema? Es la principal señal del flywheel Commerce ↔ Fintech."
+    kpis:
+      - {key: ecosystemic_users, name: Ecosystemic users, kind: qualitative, unit: "% YoY",
+         how_to_measure: "Crecimiento YoY de los usuarios que usan a la vez Commerce y Fintech",
+         green_text: "Crece", amber_text: "Se frena", red_text: "Deterioro del engagement (Weakening)",
+         frequency: Trimestral, source: MercadoLibre,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 37, status: green, note: "+37% YoY"}]}
+      - {key: items_per_buyer, name: Items/buyer, kind: qualitative, unit: "% YoY",
+         how_to_measure: "Crecimiento YoY de artículos por comprador (frecuencia/profundidad de compra)",
+         green_text: "Sube de forma sostenida", amber_text: "Plano", red_text: "Baja (menos engagement)",
+         frequency: Trimestral, source: MercadoLibre,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 14, status: green, note: "+14% YoY"}]}
+
+  - key: commerce
+    name: Commerce (GMV)
+    description: "H2 — Salud de Commerce: crecimiento del volumen de mercancía sin el efecto divisa."
+    kpis:
+      - {key: gmv_fxn, name: GMV FX-neutral, unit: "% YoY", green_threshold: 20,
+         how_to_measure: "Crecimiento YoY del GMV a tipos de cambio constantes",
+         green_text: ">20% (Strengthening)", amber_text: "<20%", red_text: "Desaceleración simultánea con TPV (Weakening)",
+         frequency: Trimestral, source: MercadoLibre,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 36}]}
+
+  - key: fintech
+    name: Fintech (TPV)
+    description: "H2 — Salud de Mercado Pago: volumen total procesado sin el efecto divisa."
+    kpis:
+      - {key: tpv_fxn, name: TPV FX-neutral, unit: "% YoY", green_threshold: 20,
+         how_to_measure: "Crecimiento YoY del TPV a tipos de cambio constantes",
+         green_text: ">20% (Strengthening)", amber_text: "<20%", red_text: "Desaceleración simultánea con GMV (Weakening)",
+         frequency: Trimestral, source: MercadoLibre,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 56}]}
+
+  - key: leverage
+    name: Operating leverage
+    description: "H3/H5 — ¿El crecimiento de ingresos se convierte en beneficio operativo? EBIT margin es el KPI financiero más importante ahora mismo."
+    kpis:
+      - {key: ebit_margin, name: EBIT margin, kind: qualitative, unit: "%",
+         how_to_measure: "Beneficio operativo / ingresos del trimestre, frente al mismo trimestre del año anterior",
+         green_text: "Se recupera (expansión estructural)", amber_text: "Baja por inversión que se espera temporal",
+         red_text: "Se queda estructuralmente en 6–7% (riesgo MATERIAL)",
+         frequency: Trimestral, source: MercadoLibre,
+         is_kill_switch: true, kill_rule: "Margen sin recuperación: el crecimiento genera menos valor del esperado (Weakening)",
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 6.7, status: amber, note: "↓ frente al periodo comparable"}]}
+      - {key: revenue_fxn, name: Revenue FX-neutral, kind: qualitative, unit: "% YoY",
+         how_to_measure: "Crecimiento YoY de ingresos a tipos de cambio constantes (¿la actividad se convierte en ingresos?)",
+         green_text: "Crecimiento elevado", amber_text: "Crece menos que GMV/TPV", red_text: "Se desacelera con la actividad",
+         frequency: Trimestral, source: MercadoLibre,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 43, status: green, note: "+43%"}]}
+
+  - key: credit
+    name: Crédito
+    description: "H4 — ¿El crédito crece sin destruir valor? Riesgo MATERIAL / potencial thesis breaker: loan book ↑ → deterioro → NPL/provisiones ↑ → beneficio ↓."
+    kpis:
+      - {key: npl_50_90, name: NPL 50-90d, kind: qualitative, unit: "%",
+         how_to_measure: "Morosidad de 50 a 90 días sobre la cartera; lo importante es su trayectoria junto al crecimiento de la cartera",
+         green_text: "Estable", amber_text: "Sube", red_text: "Deterioro sostenido del crédito",
+         frequency: Trimestral, source: MercadoLibre,
+         is_kill_switch: true, kill_rule: "Crédito deteriorándose: NPL/provisiones ↑ con el loan book creciendo (potencial thesis breaker)",
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 7.0, status: green}]}
+      - {key: nimal, name: NIMAL, kind: qualitative, unit: "%",
+         how_to_measure: "Margen financiero neto después de pérdidas; leer junto a provisiones y coste de financiación",
+         green_text: "Nivel elevado", amber_text: "Baja", red_text: "Economics del crédito sin retorno suficiente",
+         frequency: Trimestral, source: MercadoLibre,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 21, status: green, note: "~21%"}]}
+      - {key: credit_portfolio, name: Credit portfolio growth, kind: qualitative, unit: "% YoY",
+         how_to_measure: "Crecimiento YoY de la cartera de crédito; por sí solo no demuestra creación de valor",
+         green_text: "Crece con NPL y NIMAL sanos", amber_text: "Crece muy rápido (vigilar)", red_text: "Crece mientras se deteriora la calidad",
+         baseline: "~16,4B $ en Q2 2026", frequency: Trimestral, source: MercadoLibre,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 75, status: amber, note: "+75% YoY, ↑ muy rápido"}]}
+
+  - key: shareholder
+    name: Llega al accionista
+    description: "H6 — ¿El crecimiento operativo se convierte en FCF por acción sin dilución relevante?"
+    kpis:
+      - {key: fcf_per_share_growth, name: FCF/share growth, kind: qualitative, unit: "%",
+         how_to_measure: "CAGR del FCF por acción a 3 años (autocompletado). Semáforo manual: el crecimiento del crédito consume capital",
+         green_text: "Acelera", amber_text: "En observación (N/D en la tesis)", red_text: "Decepciona pese al crecimiento (contra-narrativa)",
+         frequency: Trimestral, source: yfinance, auto_metric: fcf_per_share_cagr_3y}
+      - {key: share_count, name: Shares outstanding, kind: qualitative, unit: "% YoY",
+         how_to_measure: "Acciones diluidas YoY (autocompletado)",
+         green_text: "Aproximadamente estable", amber_text: "Sube", red_text: "Expansión material (reduce el EPS/FCF por acción)",
+         baseline: "~50,7M acciones (Q2 2026)", frequency: Trimestral, source: MercadoLibre, auto_metric: diluted_shares_yoy,
+         observations: [{period: Q2 2026, date: "2026-06-30", status: green, note: "~50,7M, aproximadamente estable"}]}

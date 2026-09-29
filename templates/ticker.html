@@ -2209,128 +2209,176 @@
     </div> <!-- Cierre de row análisis -->
     </div> <!-- Cierre de tab-pane nav-analysis -->
 
-    <!-- SECCIÓN 4: PROYECCIÓN DE RETORNO (5Y) -->
-    {# Extraer el último BPA oficial de la base de datos de auditoría local #}
+    <!-- SECCIÓN 4: VALORACIÓN BASE (un solo escenario sobre BPA o FCF/acción) -->
+    {# Último BPA oficial de la auditoría local, como atajo para el valor de partida #}
     {% set official_eps = none %}
     {% set official_year = "" %}
     {% if financials_hist and financials_hist.get('eps') and financials_hist.get('eps')|length > 0 %}
-        {% set eps_list = financials_hist.get('eps') %}
-        {% set years_list = financials_hist.get('years') %}
-        {% set last_idx = eps_list|length - 1 %}
-        {% set official_eps = eps_list[last_idx] %}
-        {% set official_year = years_list[last_idx] %}
+        {% set official_eps = financials_hist.get('eps')[-1] %}
+        {% set official_year = financials_hist.get('years')[-1] %}
     {% endif %}
+    {% set current_price = custom_metrics.get('currentPrice') or info.get('currentPrice') or info.get('regularMarketPrice') or 0 %}
+    {# Valores por defecto si la empresa aún no tiene valoración guardada #}
+    {% set g_default = info.get('earningsGrowth') or 0.10 %}
+    {% if g_default > 1.0 %}{% set g_default = g_default / 100 %}{% endif %}
+    {% if g_default > 0.40 or g_default < 0.01 %}{% set g_default = 0.10 %}{% endif %}
+    {% set bv = bval or {} %}
+    {% set bv_metric = bv.get('metric') or 'eps' %}
+    {% set bv_growth = bv.get('growth') if bv.get('growth') is not none else g_default %}
+    {% set bv_multiple = bv.get('exit_multiple') or db.get('fair_pe_data', {}).get('fair_forward_pe') or info.get('forwardPE') or 15.0 %}
+    {% set bv_dps = bv.get('dps') if bv.get('dps') is not none else (info.get('dividendRate') or 0.0) %}
+    {% set bv_div_growth = bv.get('div_growth') if bv.get('div_growth') is not none else 0.05 %}
+    {% set bv_years = bv.get('years') or 5 %}
 
-    {% set current_price = custom_metrics.get('currentPrice') or info.get('currentPrice') or info.get('regularMarketPrice') or 1.0 %}
-    {% set initial_eps = db.get('projection_scenarios', {}).get('initial_eps') or official_eps or info.get('forwardEps') or info.get('trailingEps') or 1.0 %}
-    {% set div_yield = db.get('projection_scenarios', {}).get('dividend_yield') %}
-    {% if div_yield is none %}
-        {% set div_rate = info.get('dividendRate') %}
-        {% set curr_price_val = custom_metrics.get('currentPrice') or info.get('currentPrice') or info.get('regularMarketPrice') or 1.0 %}
-        {% if div_rate and curr_price_val and curr_price_val > 0 %}
-            {% set div_yield = div_rate / curr_price_val %}
-        {% else %}
-            {% set raw_yield = info.get('dividendYield') or 0.0 %}
-            {% if raw_yield > 0.20 %}
-                {% set div_yield = raw_yield / 100 %}
-            {% else %}
-                {% set div_yield = raw_yield %}
-            {% endif %}
-        {% endif %}
-    {% endif %}
-
-    {% set proj = db.get('projection_scenarios') or {} %}
-    
-    {% set bear_growth = proj.get('bear', {}).get('eps_growth') %}
-    {% if bear_growth is none %}
-        {% set base_growth_val = info.get('earningsGrowth') or 0.10 %}
-        {% if base_growth_val > 1.0 %}
-            {% set base_growth_val = base_growth_val / 100 %}
-        {% endif %}
-        {% set bear_growth = (base_growth_val - 0.05) if (base_growth_val - 0.05) > 0.0 else 0.0 %}
-    {% endif %}
-    
-    {% set base_growth = proj.get('base', {}).get('eps_growth') %}
-    {% if base_growth is none %}
-        {% set base_growth_val = info.get('earningsGrowth') or 0.10 %}
-        {% if base_growth_val > 1.0 %}
-            {% set base_growth_val = base_growth_val / 100 %}
-        {% endif %}
-        {% set base_growth = base_growth_val %}
-        {% if base_growth > 0.40 or base_growth < 0.01 %}
-            {% set base_growth = 0.10 %}
-        {% endif %}
-    {% endif %}
-    
-    {% set bull_growth = proj.get('bull', {}).get('eps_growth') %}
-    {% if bull_growth is none %}
-        {% set bull_growth = base_growth + 0.04 %}
-    {% endif %}
-
-    {% set fair_pe = db.get('fair_pe_data', {}).get('fair_forward_pe') or info.get('forwardPE') or 15.0 %}
-    
-    {% set bear_pe = proj.get('bear', {}).get('exit_pe') %}
-    {% if bear_pe is none %}
-        {% set bear_pe = (fair_pe * 0.8)|round(1) %}
-    {% endif %}
-    
-    {% set base_pe = proj.get('base', {}).get('exit_pe') %}
-    {% if base_pe is none %}
-        {% set base_pe = fair_pe|round(1) %}
-    {% endif %}
-    
-    {% set bull_pe = proj.get('bull', {}).get('exit_pe') %}
-    {% if bull_pe is none %}
-        {% set bull_pe = (fair_pe * 1.2)|round(1) %}
-    {% endif %}
-
-    {% set bear_div_growth = proj.get('bear', {}).get('div_growth') %}
-    {% if bear_div_growth is none %}
-        {% set bear_div_growth = 0.01 %}
-    {% endif %}
-
-    {% set base_div_growth = proj.get('base', {}).get('div_growth') %}
-    {% if base_div_growth is none %}
-        {% set base_div_growth = 0.05 %}
-    {% endif %}
-
-    {% set bull_div_growth = proj.get('bull', {}).get('div_growth') %}
-    {% if bull_div_growth is none %}
-        {% set bull_div_growth = 0.10 %}
-    {% endif %}
-    
-    {% set rationale = proj.get('rationale') or "No se ha generado justificación de escenarios. Haz clic en 'Generar con IA' para obtener hipótesis fundamentadas por Gemini." %}
-    {% set eps_explanation = proj.get('normalized_eps_explanation') or "" %}
-
+    <style>.text-orange { color: #f0883e !important; }</style>
     <div class="tab-pane fade" id="nav-projection" role="tabpanel">
         <div class="card shadow-sm border-0 mb-4">
-            <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 fw-bold"><i class="bi bi-graph-up-arrow me-2 text-warning"></i> Proyección de Rentabilidad a 5 Años</h5>
-                <span class="badge bg-secondary" id="proj-status-badge">
-                    {% if proj.get('is_manual') %}
-                        Manual (Guardado el {{ proj.get('last_updated') }})
-                    {% elif proj %}
-                        IA (Generado el {{ proj.get('last_updated') }})
+            <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-graph-up-arrow me-2 text-warning"></i> Valoración base</h5>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary" id="proj-status-badge">
+                        {% if bval and bval.get('legacy') %}Antigua proyección: revísala y guarda
+                        {% elif bval and bval.get('is_manual') %}Manual (guardado el {{ bval.get('last_updated') }})
+                        {% elif bval %}IA (generado el {{ bval.get('last_updated') }})
+                        {% else %}Sin guardar: valores por defecto{% endif %}
+                    </span>
+                    {% if watch_auto and not in_watchlist %}
+                    <a class="btn btn-sm btn-outline-light fw-bold py-0" href="/centro#watchlist" title="Entra sola en la watchlist por ser {{ watch_auto|join(' y ') }}">
+                        <i class="bi bi-eye-fill me-1"></i>En la watchlist ({{ watch_auto|join(', ') }})</a>
                     {% else %}
-                        Simulación con Valores por Defecto
+                    <button class="btn btn-sm {{ 'btn-outline-light' if in_watchlist else 'btn-warning text-dark' }} fw-bold py-0" id="btn-watchlist" onclick="toggleWatchlist('{{ ticker }}')" data-in="{{ 'true' if in_watchlist else 'false' }}">
+                        <i class="bi {{ 'bi-eye-fill' if in_watchlist else 'bi-eye' }} me-1"></i><span>{{ 'En la watchlist' if in_watchlist else 'Añadir a watchlist' }}</span>
+                    </button>
                     {% endif %}
-                </span>
+                </div>
             </div>
             <div class="card-body bg-light-subtle p-4">
-                
-                <!-- ALERTA DE ROBUSTEZ Y NORMALIZACIÓN DEL BPA INICIAL -->
-                <div class="alert alert-info border-0 shadow-sm p-3 mb-4 rounded-3 d-flex gap-3">
-                    <div class="text-info fs-3"><i class="bi bi-exclamation-triangle-fill text-warning"></i></div>
-                    <div style="font-size: 0.825rem; line-height: 1.45;">
-                        <strong class="text-dark d-block mb-1">💡 Importancia del BPA de Partida (EPS₀)</strong>
-                        Si los resultados de este año de la empresa han sido atípicos (pérdidas temporales, picos cíclicos insostenibles, multas, o reestructuraciones), usar el BPA actual distorsionará por completo la proyección. En esos casos, es vital seleccionar un <strong>BPA Normalizado</strong> (la media de los últimos 3-5 años o la estimación Forward de consenso) para arrancar la simulación sobre cimientos lógicos.
+
+                <!-- RESULTADO -->
+                <div class="row g-3 mb-4 text-center">
+                    <div class="col-6 col-lg-3"><div class="p-3 bg-white rounded-3 shadow-sm border h-100">
+                        <div class="text-muted fw-bold text-uppercase" style="font-size: .65rem;">Rentabilidad estimada</div>
+                        <div class="fw-bold fs-3 font-monospace-data" id="res-cagr">–</div>
+                        <div class="text-muted" style="font-size: .7rem;">anual comprando hoy, con dividendos</div>
+                    </div></div>
+                    <div class="col-6 col-lg-3"><div class="p-3 bg-white rounded-3 shadow-sm border h-100">
+                        <div class="text-muted fw-bold text-uppercase" style="font-size: .65rem;">Precio de compra al {{ '%.0f'|format(bval_target) }}%</div>
+                        <div class="fw-bold fs-3 font-monospace-data text-primary" id="res-buy">–</div>
+                        <div class="text-muted" style="font-size: .7rem;" id="res-margin">–</div>
+                    </div></div>
+                    <div class="col-6 col-lg-3"><div class="p-3 bg-white rounded-3 shadow-sm border h-100">
+                        <div class="text-muted fw-bold text-uppercase" style="font-size: .65rem;" id="lbl-res-target">Precio objetivo</div>
+                        <div class="fw-bold fs-3 font-monospace-data" id="res-target">–</div>
+                        <div class="text-muted" style="font-size: .7rem;" id="res-divs">–</div>
+                    </div></div>
+                    <div class="col-6 col-lg-3"><div class="p-3 bg-white rounded-3 shadow-sm border h-100">
+                        <div class="text-muted fw-bold text-uppercase" style="font-size: .65rem;">Zona</div>
+                        <div class="fw-bold fs-3 text-uppercase" id="res-zone">–</div>
+                        <div class="text-muted" style="font-size: .7rem;">ganga ≥{{ '%.0f'|format(bval_target) }}% · barata ≥10% · justo ≥6% · cara</div>
+                    </div></div>
+                </div>
+
+                <!-- PARÁMETROS -->
+                <div class="row g-3 mb-4 p-4 bg-white rounded-3 shadow-sm border border-light-subtle">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase mb-1">Métrica de valoración</label>
+                        <div class="btn-group btn-group-sm w-100" role="group">
+                            {% for key, m in bval_metrics.items() %}
+                            <input type="radio" class="btn-check" name="val-metric" id="val-metric-{{ key }}" value="{{ key }}" {{ 'checked' if key == bv_metric }}>
+                            <label class="btn btn-outline-primary fw-bold" for="val-metric-{{ key }}">{{ m.label }}</label>
+                            {% endfor %}
+                        </div>
+                        <label class="form-label fw-bold small text-muted text-uppercase mb-1 mt-3">Precio actual</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light text-muted">{{ currency_symbol }}</span>
+                            <input type="number" step="0.01" class="form-control font-monospace-data fw-bold" id="proj-current-price" value="{{ "{:.2f}".format(current_price) }}">
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold small text-muted text-uppercase mb-1"><span class="lbl-metric">BPA</span> de partida (por acción)</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light text-muted">{{ currency_symbol }}</span>
+                            <input type="number" step="0.01" class="form-control font-monospace-data fw-bold text-primary" id="val-metric-value" value="{{ "{:.2f}".format(bv.get('metric_value')) if bv.get('metric_value') else '' }}">
+                        </div>
+                        <div class="form-check form-switch mt-2 small">
+                            <input class="form-check-input" type="checkbox" id="val-auto" {{ 'checked' if not bv.get('metric_value') }}>
+                            <label class="form-check-label" for="val-auto">Usar el de los últimos 12 meses (TTM) y actualizarlo solo</label>
+                        </div>
+                        <div class="d-flex flex-wrap gap-1 mt-1" id="val-quick-eps">
+                            {% if official_eps %}<button class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size: .65rem;" onclick="setMetricValue({{ official_eps }})">Histórico ({{ official_year }}): {{ "{:.2f}".format(official_eps) }}</button>{% endif %}
+                            {% if info.get('forwardEps') %}<button class="btn btn-xs btn-outline-secondary py-0 px-1" style="font-size: .65rem;" onclick="setMetricValue({{ info.get('forwardEps') }})">Estimado (forward): {{ "{:.2f}".format(info.get('forwardEps')) }}</button>{% endif %}
+                        </div>
+                        <div class="text-muted mt-1" style="font-size: .68rem;" id="val-ttm-label"></div>
+                        <div class="text-warning mt-1 d-none" style="font-size: .68rem;" id="val-fixed-warning"><i class="bi bi-exclamation-triangle me-1"></i>Fijado a mano: no se actualiza con los resultados. Úsalo solo si el TTM está distorsionado.</div>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold small text-muted text-uppercase mb-1">Dividendo por acción</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light text-muted">{{ currency_symbol }}</span>
+                            <input type="number" step="0.01" class="form-control font-monospace-data" id="val-dps" value="{{ "{:.2f}".format(bv_dps) }}">
+                        </div>
+                        {% if info.get('dividendRate') %}<button class="btn btn-xs btn-outline-secondary py-0 px-1 mt-1" style="font-size: .65rem;" onclick="document.getElementById('val-dps').value = {{ info.get('dividendRate') }}; onValChange();">Actual: {{ "{:.2f}".format(info.get('dividendRate')) }}</button>{% endif %}
+                        <div class="text-muted mt-1" style="font-size: .68rem;">Importe anual, no rentabilidad: así el precio de compra no depende de la cotización.</div>
+                    </div>
+
+                    <div class="col-md-3 d-flex flex-column justify-content-end gap-2">
+                        <button class="btn btn-outline-primary btn-sm fw-bold py-2" id="btn-generate-proj-ia" onclick="generateValuationWithAI('{{ ticker }}')">
+                            <span id="proj-ia-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            <i class="bi bi-robot me-1" id="proj-ia-icon"></i> Proponer con IA
+                        </button>
+                        <button class="btn btn-success btn-sm fw-bold py-2" onclick="saveValuation('{{ ticker }}')"><i class="bi bi-save me-1"></i> Guardar</button>
                     </div>
                 </div>
 
-                <!-- Bloque de Explicación del BPA (IA) si existe -->
-                <div class="alert alert-warning py-3 px-4 border border-warning-subtle bg-warning bg-opacity-10 small mb-4 rounded-3 {% if not eps_explanation %}d-none{% endif %}" id="eps-explanation-box">
-                    <strong class="text-dark d-block mb-1"><i class="bi bi-robot me-1 text-primary"></i> Análisis y sugerencia del BPA de Partida (IA):</strong>
-                    <span id="eps-explanation-text" class="text-muted" style="line-height: 1.4;">{{ eps_explanation }}</span>
+                <!-- SUPUESTOS -->
+                <div class="row g-3 mb-4 p-4 bg-white rounded-3 shadow-sm border border-light-subtle">
+                    {% for id, label, val, mn, mx, st, unit in [
+                        ('growth', 'Crecimiento anual del <span class="lbl-metric">BPA</span>', bv_growth * 100, -10, 40, 0.5, '%'),
+                        ('div-growth', 'Crecimiento anual del dividendo', bv_div_growth * 100, -10, 30, 0.5, '%'),
+                        ('multiple', 'Múltiplo de salida (<span class="lbl-multiple">PER</span>)', bv_multiple, 3, 80, 0.5, 'x')] %}
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase mb-1">{{ label|safe }}</label>
+                        <input type="range" class="form-range custom-range" id="slider-{{ id }}" min="{{ mn }}" max="{{ mx }}" step="{{ st }}" value="{{ "{:.1f}".format(val) }}">
+                        <div class="input-group input-group-sm mx-auto" style="max-width: 110px;">
+                            <input type="number" step="0.1" class="form-control text-center font-monospace-data py-0" id="input-{{ id }}" value="{{ "{:.1f}".format(val) }}">
+                            <span class="input-group-text py-0 px-1" style="font-size: .7rem;">{{ unit }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase mb-1">Horizonte</label>
+                        <select class="form-select form-select-sm" id="val-years">
+                            {% for y in [3, 5, 7, 10] %}<option value="{{ y }}" {{ 'selected' if y == bv_years }}>{{ y }} años</option>{% endfor %}
+                        </select>
+                        <div class="text-muted mt-1" style="font-size: .68rem;" id="val-multiple-now"></div>
+                    </div>
+                </div>
+
+                <!-- AÑO A AÑO -->
+                <div class="card border border-light-subtle shadow-sm mb-4 rounded-3 bg-white">
+                    <div class="card-header bg-light py-2 px-3 border-bottom">
+                        <h6 class="mb-0 fw-bold text-dark small text-uppercase"><i class="bi bi-calendar-range me-1 text-primary"></i> Año a año</h6>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped text-center mb-0 align-middle font-monospace-data" style="font-size: .8rem;">
+                            <thead class="table-dark"><tr>
+                                <th class="text-start ps-3">Año</th><th><span class="lbl-metric">BPA</span> ({{ currency_symbol }})</th>
+                                <th>Dividendo ({{ currency_symbol }})</th><th>Precio a ese múltiplo ({{ currency_symbol }})</th>
+                            </tr></thead>
+                            <tbody id="val-years-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Explicación del valor de partida (IA) -->
+                <div class="alert alert-warning py-3 px-4 border border-warning-subtle bg-warning bg-opacity-10 small mb-4 rounded-3 {% if not bv.get('metric_explanation') %}d-none{% endif %}" id="eps-explanation-box">
+                    <strong class="text-dark d-block mb-1"><i class="bi bi-robot me-1 text-primary"></i> Valor de partida según la IA:</strong>
+                    <span id="eps-explanation-text" class="text-muted" style="line-height: 1.4;">{{ bv.get('metric_explanation') or '' }}</span>
+                    <button class="btn btn-xs btn-outline-secondary py-0 px-1 mt-2 {{ '' if bv.get('metric_suggested') else 'd-none' }}" style="font-size: .7rem;" id="btn-use-suggested"
+                            data-value="{{ bv.get('metric_suggested') or '' }}" onclick="setMetricValue(this.dataset.value)">
+                        Usar el valor normalizado de la IA (<span id="suggested-value">{{ "{:.2f}".format(bv.get('metric_suggested')) if bv.get('metric_suggested') else '' }}</span>, queda fijo)</button>
                 </div>
 
                 <!-- RECUADRO DE VALORACIÓN: PER FORWARD JUSTO (IA) -->
@@ -2501,273 +2549,9 @@
                     </div>
                 </div>
 
-                <!-- Fila de Parámetros Globales -->
-                <div class="row g-3 mb-4 p-4 bg-white rounded-3 shadow-sm border border-light-subtle">
-                    <div class="col-md-3">
-                        <label class="form-label fw-bold small text-muted text-uppercase mb-1">Precio Actual (P₀)</label>
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-light text-muted">{{ currency_symbol }}</span>
-                            <input type="number" step="0.01" class="form-control font-monospace-data fw-bold" id="proj-current-price" value="{{ "{:.2f}".format(current_price) }}" oninput="recalculateProjections()">
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold small text-muted text-uppercase mb-1" id="lbl-initial-eps">BPA Inicial (EPS₀) <i class="bi bi-info-circle text-muted opacity-75" data-bs-toggle="tooltip" title="Este es el beneficio por acción sobre el que se aplicarán los incrementos de crecimiento en los próximos 5 años."></i></label>
-                        <div class="input-group input-group-sm mb-2">
-                            <span class="input-group-text bg-light text-muted">{{ currency_symbol }}</span>
-                            <input type="number" step="0.01" class="form-control font-monospace-data fw-bold text-primary" id="proj-initial-eps" value="{{ "{:.2f}".format(initial_eps) }}" oninput="recalculateProjections()">
-                        </div>
-                        
-                        <!-- Selectores rápidos para Normalizar BPA -->
-                        <div class="d-flex flex-wrap gap-1 mt-1">
-                            {% if official_eps %}
-                            <button class="btn btn-xs btn-outline-primary py-0 px-1 border-primary-subtle text-primary fw-bold" style="font-size: 0.65rem;" onclick="quickSetInitialEPS({{ official_eps }}, 'BPA Histórico (Año {{ official_year }})')">
-                                Histórico ({{ official_year }}): {{ "{:.2f}".format(official_eps) }}
-                            </button>
-                            {% endif %}
-                            
-                            {% if info.get('trailingEps') %}
-                            <button class="btn btn-xs btn-outline-secondary py-0 px-1 border-light-subtle" style="font-size: 0.65rem;" onclick="quickSetInitialEPS({{ info.get('trailingEps') }}, 'BPA Trailing (Mercado)')">
-                                TTM: {{ "{:.2f}".format(info.get('trailingEps')) }}
-                            </button>
-                            {% endif %}
-                            
-                            {% if info.get('forwardEps') %}
-                            <button class="btn btn-xs btn-outline-secondary py-0 px-1 border-light-subtle" style="font-size: 0.65rem;" onclick="quickSetInitialEPS({{ info.get('forwardEps') }}, 'BPA Forward (Consenso)')">
-                                Fwd: {{ "{:.2f}".format(info.get('forwardEps')) }}
-                            </button>
-                            {% endif %}
-
-                            <button class="btn btn-xs btn-outline-info py-0 px-1 border-info-subtle text-info {% if not proj.get('initial_eps') %}d-none{% endif %}" id="btn-quick-ia-eps" style="font-size: 0.65rem;" onclick="quickSetInitialEPS({{ proj.get('initial_eps') or 0.0 }}, 'BPA Sugerido (IA)')">
-                                Sugerido IA: {{ "{:.2f}".format(proj.get('initial_eps') or 0.0) }}
-                            </button>
-                        </div>
-                        <div class="text-muted mt-1" style="font-size:0.65rem;" id="eps-selected-source-label">Origen actual: {% if proj.get('initial_eps') %}Guardado en DB{% elif official_eps %}BPA Histórico (Año {{ official_year }}){% else %}Cimiento Inicial{% endif %}</div>
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <label class="form-label fw-bold small text-muted text-uppercase mb-1">Dividend Yield (%)</label>
-                        <div class="input-group input-group-sm">
-                            <input type="number" step="0.01" class="form-control font-monospace-data" id="proj-div-yield" value="{{ "{:.2f}".format(div_yield * 100) }}" oninput="recalculateProjections()">
-                            <span class="input-group-text bg-light text-muted">%</span>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-3 d-flex align-items-end gap-2">
-                        <button class="btn btn-outline-primary btn-sm flex-grow-1 fw-bold py-2 shadow-xs" id="btn-generate-proj-ia" onclick="generateProjectionsWithAI('{{ ticker }}')">
-                            <span id="proj-ia-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                            <i class="bi bi-robot me-1" id="proj-ia-icon"></i> Generar con IA
-                        </button>
-                        <button class="btn btn-success btn-sm flex-grow-1 fw-bold py-2 shadow-xs" onclick="saveProjectionsToDB('{{ ticker }}')">
-                            <i class="bi bi-save me-1"></i> Guardar en DB
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Tabla de Escenarios -->
-                <div class="table-responsive bg-white rounded-3 shadow-sm border border-light-subtle mb-3">
-                    <table class="table table-sm table-bordered mb-0 align-middle text-center font-monospace-data" style="font-size: 0.775rem;">
-                        <thead class="table-dark">
-                            <tr>
-                                <th class="text-start ps-4 py-2" id="lbl-summary-title" style="width: 25%; font-size: 0.8rem;">Métrica de Simulación (5 Años)</th>
-                                <th class="py-2" style="width: 25%; font-size: 0.8rem;"><span class="text-danger"><i class="bi bi-graph-down me-1"></i> PESIMISTA (Bear)</span></th>
-                                <th class="py-2 text-white-50" style="width: 25%; font-size: 0.8rem;"><i class="bi bi-dash-circle me-1"></i> BASE</th>
-                                <th class="py-2" style="width: 25%; font-size: 0.8rem;"><span class="text-success"><i class="bi bi-graph-up me-1"></i> OPTIMISTA (Bull)</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Fila Crecimiento BPA -->
-                            <tr>
-                                <td class="text-start ps-4 fw-bold bg-light">Crecimiento BPA Anual (%)</td>
-                                <td>
-                                    <div class="px-3 py-1">
-                                        <input type="range" class="form-range custom-range" id="slider-bear-growth" min="-10" max="40" step="0.5" value="{{ "{:.1f}".format(bear_growth * 100) }}" oninput="updateSliderValue('bear-growth'); recalculateProjections()">
-                                        <div class="input-group input-group-sm mx-auto mt-1" style="max-width: 90px;">
-                                            <input type="number" step="0.1" class="form-control text-center font-monospace-data py-0" id="input-bear-growth" value="{{ "{:.1f}".format(bear_growth * 100) }}" oninput="updateInputValue('bear-growth'); recalculateProjections()">
-                                            <span class="input-group-text py-0 px-1" style="font-size:0.7rem;">%</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="px-3 py-1">
-                                        <input type="range" class="form-range custom-range" id="slider-base-growth" min="-10" max="40" step="0.5" value="{{ "{:.1f}".format(base_growth * 100) }}" oninput="updateSliderValue('base-growth'); recalculateProjections()">
-                                        <div class="input-group input-group-sm mx-auto mt-1" style="max-width: 90px;">
-                                            <input type="number" step="0.1" class="form-control text-center font-monospace-data py-0" id="input-base-growth" value="{{ "{:.1f}".format(base_growth * 100) }}" oninput="updateInputValue('base-growth'); recalculateProjections()">
-                                            <span class="input-group-text py-0 px-1" style="font-size:0.7rem;">%</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="px-3 py-1">
-                                        <input type="range" class="form-range custom-range" id="slider-bull-growth" min="-10" max="40" step="0.5" value="{{ "{:.1f}".format(bull_growth * 100) }}" oninput="updateSliderValue('bull-growth'); recalculateProjections()">
-                                        <div class="input-group input-group-sm mx-auto mt-2" style="max-width: 90px;">
-                                            <input type="number" step="0.1" class="form-control text-center font-monospace-data py-0" id="input-bull-growth" value="{{ "{:.1f}".format(bull_growth * 100) }}" oninput="updateInputValue('bull-growth'); recalculateProjections()">
-                                            <span class="input-group-text py-0 px-1" style="font-size:0.7rem;">%</span>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                            
-                            <!-- Fila Crecimiento del Dividendo -->
-                            <tr>
-                                <td class="text-start ps-4 fw-bold bg-light">Crecimiento del Dividendo (%) <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" title="Tasa de crecimiento anual compuesta con la que crecerá el dividendo año tras año en cada escenario."></i></td>
-                                <td>
-                                    <div class="px-3 py-1">
-                                        <input type="range" class="form-range custom-range" id="slider-bear-div-growth" min="-10" max="30" step="0.5" value="{{ "{:.1f}".format(bear_div_growth * 100) }}" oninput="updateSliderValue('bear-div-growth'); recalculateProjections()">
-                                        <div class="input-group input-group-sm mx-auto mt-1" style="max-width: 90px;">
-                                            <input type="number" step="0.1" class="form-control text-center font-monospace-data py-0" id="input-bear-div-growth" value="{{ "{:.1f}".format(bear_div_growth * 100) }}" oninput="updateInputValue('bear-div-growth'); recalculateProjections()">
-                                            <span class="input-group-text py-0 px-1" style="font-size:0.7rem;">%</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="px-3 py-1">
-                                        <input type="range" class="form-range custom-range" id="slider-base-div-growth" min="-10" max="30" step="0.5" value="{{ "{:.1f}".format(base_div_growth * 100) }}" oninput="updateSliderValue('base-div-growth'); recalculateProjections()">
-                                        <div class="input-group input-group-sm mx-auto mt-1" style="max-width: 90px;">
-                                            <input type="number" step="0.1" class="form-control text-center font-monospace-data py-0" id="input-base-div-growth" value="{{ "{:.1f}".format(base_div_growth * 100) }}" oninput="updateInputValue('base-div-growth'); recalculateProjections()">
-                                            <span class="input-group-text py-0 px-1" style="font-size:0.7rem;">%</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="px-3 py-1">
-                                        <input type="range" class="form-range custom-range" id="slider-bull-div-growth" min="-10" max="30" step="0.5" value="{{ "{:.1f}".format(bull_div_growth * 100) }}" oninput="updateSliderValue('bull-div-growth'); recalculateProjections()">
-                                        <div class="input-group input-group-sm mx-auto mt-1" style="max-width: 90px;">
-                                            <input type="number" step="0.1" class="form-control text-center font-monospace-data py-0" id="input-bull-div-growth" value="{{ "{:.1f}".format(bull_div_growth * 100) }}" oninput="updateInputValue('bull-div-growth'); recalculateProjections()">
-                                            <span class="input-group-text py-0 px-1" style="font-size:0.7rem;">%</span>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-
-                            <!-- Fila PER de Salida -->
-                            <tr>
-                                <td class="text-start ps-4 fw-bold bg-light">Múltiplo PER de Salida (x)</td>
-                                <td>
-                                    <div class="px-3 py-1">
-                                        <input type="range" class="form-range custom-range" id="slider-bear-pe" min="5" max="50" step="0.5" value="{{ "{:.1f}".format(bear_pe) }}" oninput="updateSliderValue('bear-pe'); recalculateProjections()">
-                                        <div class="input-group input-group-sm mx-auto mt-1" style="max-width: 90px;">
-                                            <input type="number" step="0.1" class="form-control text-center font-monospace-data py-0" id="input-bear-pe" value="{{ "{:.1f}".format(bear_pe) }}" oninput="updateInputValue('bear-pe'); recalculateProjections()">
-                                            <span class="input-group-text py-0 px-1" style="font-size:0.7rem;">x</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="px-3 py-1">
-                                        <input type="range" class="form-range custom-range" id="slider-base-pe" min="5" max="50" step="0.5" value="{{ "{:.1f}".format(base_pe) }}" oninput="updateSliderValue('base-pe'); recalculateProjections()">
-                                        <div class="input-group input-group-sm mx-auto mt-1" style="max-width: 90px;">
-                                            <input type="number" step="0.1" class="form-control text-center font-monospace-data py-0" id="input-base-pe" value="{{ "{:.1f}".format(base_pe) }}" oninput="updateInputValue('base-pe'); recalculateProjections()">
-                                            <span class="input-group-text py-0 px-1" style="font-size:0.7rem;">x</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="px-3 py-1">
-                                        <input type="range" class="form-range custom-range" id="slider-bull-pe" min="5" max="50" step="0.5" value="{{ "{:.1f}".format(bull_pe) }}" oninput="updateSliderValue('bull-pe'); recalculateProjections()">
-                                        <div class="input-group input-group-sm mx-auto mt-1" style="max-width: 90px;">
-                                            <input type="number" step="0.1" class="form-control text-center font-monospace-data py-0" id="input-bull-pe" value="{{ "{:.1f}".format(bull_pe) }}" oninput="updateInputValue('bull-pe'); recalculateProjections()">
-                                            <span class="input-group-text py-0 px-1" style="font-size:0.7rem;">x</span>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                            
-                            <!-- Resultados Calculados (BPA Futuro) -->
-                            <tr class="table-light">
-                                <td class="text-start ps-4 fw-bold" id="lbl-result-eps">BPA Proyectado (Año 5)</td>
-                                <td class="fw-bold text-muted" id="result-bear-eps">-</td>
-                                <td class="fw-bold text-muted" id="result-base-eps">-</td>
-                                <td class="fw-bold text-muted" id="result-bull-eps">-</td>
-                            </tr>
-                            <!-- Resultados Calculados (Precio Futuro) -->
-                            <tr class="table-light">
-                                <td class="text-start ps-4 fw-bold" id="lbl-result-price">Precio Acción Proyectado (Año 5)</td>
-                                <td class="fw-bold text-danger" id="result-bear-price">-</td>
-                                <td class="fw-bold text-secondary" id="result-base-price">-</td>
-                                <td class="fw-bold text-success" id="result-bull-price">-</td>
-                            </tr>
-                            
-                            <!-- Resultados de Dividendos Acumulados -->
-                            <tr class="table-light">
-                                <td class="text-start ps-4 fw-bold text-muted" id="lbl-result-dividends-sum" style="font-size: 0.775rem;">Suma Dividendos Cobrados (5 años)</td>
-                                <td class="text-muted" id="result-bear-dividends-sum">-</td>
-                                <td class="text-muted" id="result-base-dividends-sum">-</td>
-                                <td class="text-muted" id="result-bull-dividends-sum">-</td>
-                            </tr>
-
-                            <!-- Retorno Total Acumulado (PRECIO) -->
-                            <tr>
-                                <td class="text-start ps-4 fw-bold bg-light text-muted" style="font-size: 0.775rem;">Retorno Precio Acumulado (Sin Div)</td>
-                                <td class="font-monospace-data" id="result-bear-total-return">-</td>
-                                <td class="font-monospace-data" id="result-base-total-return">-</td>
-                                <td class="font-monospace-data" id="result-bull-total-return">-</td>
-                            </tr>
-                            <!-- CAGR de Precio (Sin div) -->
-                            <tr>
-                                <td class="text-start ps-4 fw-bold bg-light text-muted" style="font-size: 0.775rem;">Retorno CAGR Anual (Sin Dividendos)</td>
-                                <td class="font-monospace-data" id="result-bear-cagr-nodiv">-</td>
-                                <td class="font-monospace-data" id="result-base-cagr-nodiv">-</td>
-                                <td class="font-monospace-data" id="result-bull-cagr-nodiv">-</td>
-                            </tr>
-                            
-                            <!-- CAGR Total (Con div crecientes) -->
-                            <tr style="border-top: 2px solid #dee2e6; background-color: rgba(0,0,0,0.015) !important;">
-                                <td class="text-start ps-4 fw-bold text-dark" id="lbl-result-cagr-with-div" style="font-size: 0.8rem;"><i class="bi bi-gift-fill me-1 text-primary animate-bounce"></i> Retorno CAGR Total (Con Dividendos Crecientes) <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" title="Calcula la tasa compuesta anual real asumiendo el precio proyectado al año 5 más todos los dividendos acumulados y crecientes pagados."></i></td>
-                                <td class="fw-bold fs-6 text-danger" id="result-bear-cagr-div">-</td>
-                                <td class="fw-bold fs-6 text-primary" id="result-base-cagr-div">-</td>
-                                <td class="fw-bold fs-6 text-success" id="result-bull-cagr-div">-</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Proyección Detallada Año a Año -->
-                <div class="card border border-light-subtle shadow-sm mb-4 rounded-3 bg-white">
-                    <div class="card-header bg-light py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0 fw-bold text-dark small text-uppercase"><i class="bi bi-calendar-range me-1 text-primary"></i> Proyección Detallada Año a Año (BPA y Dividendos Estimados)</h6>
-                        <span class="text-muted" style="font-size:0.7rem;">Simulación de flujos de caja proyectados</span>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-sm table-striped text-center mb-0 align-middle font-monospace-data" style="font-size: 0.8rem;">
-                                <thead class="table-dark">
-                                    <tr style="font-size: 0.75rem;">
-                                        <th rowspan="2" class="align-middle border-end text-start ps-3" style="width: 13%;">Año</th>
-                                        <th colspan="2" class="border-end text-danger py-1" style="width: 29%;"><i class="bi bi-graph-down me-1"></i> Pesimista (Bear)</th>
-                                        <th colspan="2" class="border-end text-white-50 py-1" style="width: 29%;"><i class="bi bi-dash-circle me-1"></i> Base</th>
-                                        <th colspan="2" class="text-success py-1" style="width: 29%;"><i class="bi bi-graph-up me-1"></i> Optimista (Bull)</th>
-                                    </tr>
-                                    <tr style="font-size: 0.725rem;" class="table-secondary text-dark border-bottom">
-                                        <th class="border-end py-1">BPA ({{ currency_symbol }})</th>
-                                        <th class="border-end py-1">Div ({{ currency_symbol }})</th>
-                                        <th class="border-end py-1">BPA ({{ currency_symbol }})</th>
-                                        <th class="border-end py-1">Div ({{ currency_symbol }})</th>
-                                        <th class="border-end py-1">BPA ({{ currency_symbol }})</th>
-                                        <th class="py-1">Div ({{ currency_symbol }})</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for yr in range(1, 6) %}
-                                    <tr class="border-bottom">
-                                        <td class="fw-bold bg-light text-start ps-3 border-end" id="lbl-det-y{{ yr }}">Año {{ yr }}</td>
-                                        <td class="border-end fw-bold" id="bear-eps-y{{ yr }}">-</td>
-                                        <td class="border-end text-muted font-monospace-data" id="bear-div-y{{ yr }}">-</td>
-                                        <td class="border-end fw-bold" id="base-eps-y{{ yr }}">-</td>
-                                        <td class="border-end text-muted font-monospace-data" id="base-div-y{{ yr }}">-</td>
-                                        <td class="border-end fw-bold" id="bull-eps-y{{ yr }}">-</td>
-                                        <td class="text-muted font-monospace-data" id="bull-div-y{{ yr }}">-</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Sección de Justificación (Rationale) -->
                 <div class="bg-white p-4 rounded-3 shadow-sm border border-light-subtle">
-                    <h6 class="fw-bold mb-2 small text-uppercase text-muted"><i class="bi bi-journal-text me-1 text-primary"></i> Justificación de Hipótesis (Rationale)</h6>
-                    <textarea class="form-control font-monospace-data p-3 bg-light bg-opacity-50" id="proj-rationale" rows="4" style="font-size: 0.775rem; line-height: 1.45;" placeholder="Escribe aquí el rationale de tus hipótesis o el análisis que haga Gemini...">{{ rationale }}</textarea>
+                    <h6 class="fw-bold mb-2 small text-uppercase text-muted"><i class="bi bi-journal-text me-1 text-primary"></i> Por qué estos supuestos</h6>
+                    <textarea class="form-control font-monospace-data p-3 bg-light bg-opacity-50" id="proj-rationale" rows="4" style="font-size: .775rem; line-height: 1.45;" placeholder="Tus razones para el crecimiento y el múltiplo, o las de la IA…">{{ bv.get('rationale') or '' }}</textarea>
                 </div>
             </div>
         </div>
@@ -5062,335 +4846,186 @@
             }
         }
 
-        // FUNCIONES DE PROYECCIÓN DE RENTABILIDAD
+        // VALORACIÓN BASE (mismo cálculo que app/application/services/base_valuation_service.py)
+        const VAL = {{ {'ttm': bval_ttm, 'target': bval_target, 'metrics': bval_metrics}|tojson }};
         let autosaveTimer = null;
+        const num = id => parseFloat(document.getElementById(id).value);
+        const valMetric = () => document.querySelector('input[name="val-metric"]:checked').value;
+        const valAuto = () => document.getElementById('val-auto').checked;
 
-        function updateSliderValue(id) {
-            const slider = document.getElementById('slider-' + id);
-            const input = document.getElementById('input-' + id);
-            input.value = slider.value;
+        function valInputs() {
+            const auto = valAuto(), ttm = VAL.ttm[valMetric()];
+            return {
+                metric: valMetric(), metric_value: auto ? null : (num('val-metric-value') || null),
+                metric0: auto ? ttm : num('val-metric-value'),
+                growth: (num('input-growth') || 0) / 100, div_growth: (num('input-div-growth') || 0) / 100,
+                exit_multiple: num('input-multiple') || 0, dps: num('val-dps') || 0,
+                years: parseInt(document.getElementById('val-years').value) || 5,
+            };
+        }
+        // Lo que valen hoy, a la tasa r (%), los dividendos y el precio de venta del año N
+        function presentValue(v, r) {
+            r = r / 100;
+            let pv = 0;
+            for (let t = 1; t <= v.years; t++) pv += v.dps * Math.pow(1 + v.div_growth, t) / Math.pow(1 + r, t);
+            return pv + v.metric0 * Math.pow(1 + v.growth, v.years) * v.exit_multiple / Math.pow(1 + r, v.years);
+        }
+        function irr(v, price) {
+            let lo = -99, hi = 1000;
+            if (presentValue(v, lo) < price || presentValue(v, hi) > price) return null;
+            for (let i = 0; i < 100; i++) { const mid = (lo + hi) / 2; if (presentValue(v, mid) > price) lo = mid; else hi = mid; }
+            return (lo + hi) / 2;
+        }
+        const zoneOf = c => c === null ? null : c >= VAL.target ? ['ganga', 'text-success'] : c >= 10 ? ['barata', 'text-warning'] : c >= 6 ? ['justo', 'text-orange'] : ['cara', 'text-danger'];
+
+        function syncMetricLabels() {
+            const m = VAL.metrics[valMetric()], auto = valAuto(), ttm = VAL.ttm[valMetric()];
+            document.querySelectorAll('.lbl-metric').forEach(el => el.textContent = m.label);
+            document.querySelectorAll('.lbl-multiple').forEach(el => el.textContent = m.multiple);
+            document.getElementById('val-quick-eps').classList.toggle('d-none', valMetric() !== 'eps' || auto);
+            const input = document.getElementById('val-metric-value');
+            input.disabled = auto;
+            document.getElementById('val-fixed-warning').classList.toggle('d-none', auto);
+            if (auto) input.value = ttm ? ttm.toFixed(2) : '';
+            document.getElementById('val-ttm-label').textContent = ttm ? `${m.label} últimos 12 meses: ${ttm.toFixed(2)}` : `No hay ${m.label} de los últimos 12 meses: fíjalo a mano.`;
         }
 
-        function updateInputValue(id) {
-            const slider = document.getElementById('slider-' + id);
-            const input = document.getElementById('input-' + id);
-            slider.value = input.value;
+        function recalculateValuation() {
+            const v = valInputs(), price = num('proj-current-price'), m = VAL.metrics[v.metric];
+            const set = (id, text, cls) => { const el = document.getElementById(id); el.textContent = text; if (cls !== undefined) el.className = cls; };
+            const body = document.getElementById('val-years-body');
+            const startYear = new Date().getFullYear();
+            if (!(v.metric0 > 0) || !(price > 0) || !(v.exit_multiple > 0)) {
+                ['res-cagr', 'res-buy', 'res-target', 'res-zone'].forEach(id => set(id, '–'));
+                set('res-margin', v.metric0 > 0 ? '–' : `Necesita un ${m.label} positivo`); set('res-divs', '–');
+                body.innerHTML = ''; document.getElementById('val-multiple-now').textContent = '';
+                return;
+            }
+            const metricN = v.metric0 * Math.pow(1 + v.growth, v.years), priceN = metricN * v.exit_multiple;
+            let divs = 0; for (let t = 1; t <= v.years; t++) divs += v.dps * Math.pow(1 + v.div_growth, t);
+            const cagr = irr(v, price), buy = presentValue(v, VAL.target), margin = 100 * (buy / price - 1), z = zoneOf(cagr);
+            set('res-cagr', cagr === null ? '–' : cagr.toFixed(1) + '%', 'fw-bold fs-3 font-monospace-data ' + (z ? z[1] : ''));
+            set('res-buy', buy.toFixed(2));
+            set('res-margin', margin >= 0 ? `Cotiza un ${margin.toFixed(1)}% por debajo` : `Tendría que caer un ${(100 * (1 - buy / price)).toFixed(1)}%`,
+                margin >= 0 ? 'text-success fw-bold' : 'text-muted');
+            document.getElementById('res-margin').style.fontSize = '.7rem';
+            set('lbl-res-target', `Precio objetivo ${startYear + v.years}`);
+            set('res-target', priceN.toFixed(2));
+            set('res-divs', `+ ${divs.toFixed(2)} en dividendos · ${m.label} ${metricN.toFixed(2)}`);
+            set('res-zone', z ? z[0] : '–', 'fw-bold fs-3 text-uppercase ' + (z ? z[1] : ''));
+            document.getElementById('val-multiple-now').textContent = `${m.multiple} actual: ${(price / v.metric0).toFixed(1)}x`;
+            let rows = '';
+            for (let t = 1; t <= v.years; t++) {
+                const mt = v.metric0 * Math.pow(1 + v.growth, t);
+                rows += `<tr><td class="text-start ps-3 fw-bold">${startYear + t}</td><td>${mt.toFixed(2)}</td><td class="text-muted">${(v.dps * Math.pow(1 + v.div_growth, t)).toFixed(2)}</td><td>${(mt * v.exit_multiple).toFixed(2)}</td></tr>`;
+            }
+            body.innerHTML = rows;
         }
 
-        function quickSetInitialEPS(val, label) {
-            if (!val || val <= 0) return;
-            document.getElementById('proj-initial-eps').value = val.toFixed(2);
-            document.getElementById('eps-selected-source-label').innerText = "Origen actual: " + label;
-            recalculateProjections();
-            triggerAutosave();
-            
-            // Efecto visual sutil de destello
-            const inputEl = document.getElementById('proj-initial-eps');
-            inputEl.classList.add('bg-warning', 'bg-opacity-25');
-            setTimeout(() => {
-                inputEl.classList.remove('bg-warning', 'bg-opacity-25');
-            }, 300);
+        function onValChange() { syncMetricLabels(); recalculateValuation(); triggerAutosave(); }
+        function setMetricValue(val) {
+            document.getElementById('val-auto').checked = false;
+            document.getElementById('val-metric-value').value = Number(val).toFixed(2);
+            onValChange();
         }
-
         function triggerAutosave() {
             const badge = document.getElementById('proj-status-badge');
-            badge.innerText = 'Guardando cambios...';
-            badge.className = 'badge bg-warning text-dark';
-
-            if (autosaveTimer) {
-                clearTimeout(autosaveTimer);
-            }
-            
-            autosaveTimer = setTimeout(async () => {
-                await saveProjectionsToDB('{{ ticker }}', true);
-            }, 1000); // 1 segundo de debounce para autoguardado en background
+            badge.innerText = 'Guardando cambios...'; badge.className = 'badge bg-warning text-dark';
+            clearTimeout(autosaveTimer);
+            autosaveTimer = setTimeout(() => saveValuation('{{ ticker }}', true), 1000);   // debounce de 1 s
         }
 
-        function recalculateProjections() {
-            const P0 = parseFloat(document.getElementById('proj-current-price').value) || 0;
-            const EPS0 = parseFloat(document.getElementById('proj-initial-eps').value) || 0;
-            const divYield = (parseFloat(document.getElementById('proj-div-yield').value) || 0) / 100;
-            const N = 5; // Simulación fija a 5 años
-
-            const scenarios = ['bear', 'base', 'bull'];
-            
-            scenarios.forEach(sc => {
-                const growth = (parseFloat(document.getElementById('input-' + sc + '-growth').value) || 0) / 100;
-                const divGrowth = (parseFloat(document.getElementById('input-' + sc + '-div-growth').value) || 0) / 100;
-                const PE = parseFloat(document.getElementById('input-' + sc + '-pe').value) || 0;
-
-                // BPA Proyectado: EPS0 * (1 + g)^5
-                const EPS_N = EPS0 * Math.pow(1 + growth, N);
-                // Precio Proyectado: EPS_N * PE
-                const Price_N = EPS_N * PE;
-                
-                // Simulación de Dividendos Crecientes pagados en los 5 años
-                let currentDiv = P0 * divYield; // Dividendo anual inicial estimado
-                let sumD = 0;
-                let tempDiv = currentDiv;
-                for (let t = 1; t <= N; t++) {
-                    tempDiv = tempDiv * (1 + divGrowth); // El dividendo crece año tras año
-                    sumD += tempDiv; // Se acumula
-                }
-
-                // Cálculos de Retorno
-                let totalReturnNoDiv = 0;
-                let cagrNoDiv = 0;
-                let cagrWithDiv = 0;
-                
-                if (P0 > 0) {
-                    totalReturnNoDiv = ((Price_N / P0) - 1) * 100;
-                    cagrNoDiv = (Math.pow(Price_N / P0, 1 / N) - 1) * 100;
-                    cagrWithDiv = (Math.pow((Price_N + sumD) / P0, 1 / N) - 1) * 100;
-                }
-
-                // Actualizar UI Tabla Resumen
-                document.getElementById('result-' + sc + '-eps').innerText = EPS_N.toFixed(2);
-                document.getElementById('result-' + sc + '-price').innerText = Price_N.toFixed(2);
-                document.getElementById('result-' + sc + '-dividends-sum').innerText = sumD.toFixed(2);
-                
-                // Formatear Retorno Total (Sin Dividendos)
-                const totalReturnEl = document.getElementById('result-' + sc + '-total-return');
-                totalReturnEl.innerText = (totalReturnNoDiv >= 0 ? '+' : '') + totalReturnNoDiv.toFixed(1) + '%';
-                totalReturnEl.className = 'font-monospace-data fw-bold ' + (totalReturnNoDiv >= 0 ? 'text-success' : 'text-danger');
-
-                // Formatear CAGR sin div
-                const cagrNoDivEl = document.getElementById('result-' + sc + '-cagr-nodiv');
-                cagrNoDivEl.innerText = (cagrNoDiv >= 0 ? '+' : '') + cagrNoDiv.toFixed(2) + '%';
-                cagrNoDivEl.className = 'font-monospace-data fw-bold ' + (cagrNoDiv >= 0 ? 'text-success' : 'text-danger');
-
-                // Formatear CAGR con div
-                const cagrWithDivEl = document.getElementById('result-' + sc + '-cagr-div');
-                cagrWithDivEl.innerText = (cagrWithDiv >= 0 ? '+' : '') + cagrWithDiv.toFixed(2) + '%';
-                
-                if (cagrWithDiv >= 15) {
-                    cagrWithDivEl.className = 'fw-bold fs-5 text-success';
-                } else if (cagrWithDiv >= 8) {
-                    cagrWithDivEl.className = 'fw-bold fs-5 text-primary';
-                } else if (cagrWithDiv >= 0) {
-                    cagrWithDivEl.className = 'fw-bold fs-5 text-warning';
-                } else {
-                    cagrWithDivEl.className = 'fw-bold fs-5 text-danger';
-                }
-            });
-
-            // Recalcular Proyección Detallada Año a Año (Evolución)
-            for (let t = 1; t <= N; t++) {
-                scenarios.forEach(sc => {
-                    const growth = (parseFloat(document.getElementById('input-' + sc + '-growth').value) || 0) / 100;
-                    const divGrowth = (parseFloat(document.getElementById('input-' + sc + '-div-growth').value) || 0) / 100;
-                    
-                    // BPA Proyectado para el año t
-                    const eps_t = EPS0 * Math.pow(1 + growth, t);
-                    // Dividendo Proyectado para el año t
-                    let div_t = 0;
-                    if (divYield > 0) {
-                        div_t = (P0 * divYield) * Math.pow(1 + divGrowth, t);
-                    }
-                    
-                    document.getElementById(sc + '-eps-y' + t).innerText = eps_t.toFixed(2);
-                    document.getElementById(sc + '-div-y' + t).innerText = divYield > 0 ? div_t.toFixed(2) : '0.00';
-                });
-            }
-        }
-
-        async function generateProjectionsWithAI(ticker) {
-            const btn = document.getElementById('btn-generate-proj-ia');
-            const spinner = document.getElementById('proj-ia-spinner');
-            const icon = document.getElementById('proj-ia-icon');
-            
-            btn.disabled = true;
-            spinner.classList.remove('d-none');
-            icon.classList.add('d-none');
-            
-            try {
-                const response = await fetch('/api/projections/generate/' + ticker, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                const result = await response.json();
-                if (result.status === 'success') {
-                    const data = result.data;
-                    
-                    document.getElementById('proj-initial-eps').value = data.initial_eps.toFixed(2);
-                    document.getElementById('proj-div-yield').value = (data.dividend_yield * 100).toFixed(2);
-                    
-                    // Actualizar botón rápido de EPS IA
-                    const quickIaEpsBtn = document.getElementById('btn-quick-ia-eps');
-                    quickIaEpsBtn.classList.remove('d-none');
-                    quickIaEpsBtn.innerText = "Sugerido IA: " + data.initial_eps.toFixed(2);
-                    quickIaEpsBtn.setAttribute("onclick", `quickSetInitialEPS(${data.initial_eps}, 'BPA Sugerido (IA)')`);
-                    
-                    // Alerta de BPA explicación
-                    const expBox = document.getElementById('eps-explanation-box');
-                    const expText = document.getElementById('eps-explanation-text');
-                    if (data.normalized_eps_explanation) {
-                        expText.innerText = data.normalized_eps_explanation;
-                        expBox.classList.remove('d-none');
-                    } else {
-                        expBox.classList.add('d-none');
-                    }
-
-                    const scenarios = ['bear', 'base', 'bull'];
-                    scenarios.forEach(sc => {
-                        const growthPct = (data[sc].eps_growth * 100).toFixed(1);
-                        const divGrowthPct = (data[sc].div_growth * 100).toFixed(1);
-                        const peVal = data[sc].exit_pe.toFixed(1);
-                        
-                        document.getElementById('slider-' + sc + '-growth').value = growthPct;
-                        document.getElementById('input-' + sc + '-growth').value = growthPct;
-
-                        document.getElementById('slider-' + sc + '-div-growth').value = divGrowthPct;
-                        document.getElementById('input-' + sc + '-div-growth').value = divGrowthPct;
-                        
-                        document.getElementById('slider-' + sc + '-pe').value = peVal;
-                        document.getElementById('input-' + sc + '-pe').value = peVal;
-                    });
-                    
-                    document.getElementById('proj-rationale').value = data.rationale;
-                    document.getElementById('eps-selected-source-label').innerText = "Origen actual: BPA Sugerido (IA)";
-                    
-                    const badge = document.getElementById('proj-status-badge');
-                    badge.innerText = 'IA (Generado justo ahora)';
-                    badge.className = 'badge bg-primary';
-                    
-                    recalculateProjections();
-                    
-                    if (typeof showToast === 'function') {
-                        showToast("Éxito", "Proyección de 5 años generada con IA con éxito", "success");
-                    } else {
-                        alert("Proyección generada con IA con éxito.");
-                    }
-                } else {
-                    alert("Error de la IA: " + (result.message || "Error desconocido"));
-                }
-            } catch (e) {
-                console.error(e);
-                alert("Ocurrió un error al contactar con la IA: " + e.message);
-            } finally {
-                btn.disabled = false;
-                spinner.classList.add('d-none');
-                icon.classList.remove('d-none');
-            }
-        }
-
-        async function saveProjectionsToDB(ticker, isAutosave = false) {
+        async function saveValuation(ticker, isAutosave = false) {
+            const v = valInputs();
             const expBox = document.getElementById('eps-explanation-box');
-            const expText = document.getElementById('eps-explanation-text');
-            const hasExplanation = !expBox.classList.contains('d-none');
-
-            const payload = {
-                initial_eps: parseFloat(document.getElementById('proj-initial-eps').value) || 0,
-                normalized_eps_explanation: hasExplanation ? expText.innerText : "Ajustado por el usuario.",
-                dividend_yield: (parseFloat(document.getElementById('proj-div-yield').value) || 0) / 100,
-                bear: {
-                    eps_growth: (parseFloat(document.getElementById('input-bear-growth').value) || 0) / 100,
-                    exit_pe: parseFloat(document.getElementById('input-bear-pe').value) || 0,
-                    div_growth: (parseFloat(document.getElementById('input-bear-div-growth').value) || 0) / 100
-                },
-                base: {
-                    eps_growth: (parseFloat(document.getElementById('input-base-growth').value) || 0) / 100,
-                    exit_pe: parseFloat(document.getElementById('input-base-pe').value) || 0,
-                    div_growth: (parseFloat(document.getElementById('input-base-div-growth').value) || 0) / 100
-                },
-                bull: {
-                    eps_growth: (parseFloat(document.getElementById('input-bull-growth').value) || 0) / 100,
-                    exit_pe: parseFloat(document.getElementById('input-bull-pe').value) || 0,
-                    div_growth: (parseFloat(document.getElementById('input-bull-div-growth').value) || 0) / 100
-                },
-                rationale: document.getElementById('proj-rationale').value
-            };
-            
+            const payload = {...v, rationale: document.getElementById('proj-rationale').value,
+                             metric_suggested: parseFloat(document.getElementById('btn-use-suggested').dataset.value) || null,
+                             metric_explanation: expBox.classList.contains('d-none') ? '' : document.getElementById('eps-explanation-text').innerText};
+            delete payload.metric0;
             try {
-                const response = await fetch('/api/projections/save/' + ticker, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                const result = await response.json();
-                if (result.status === 'success') {
-                    const badge = document.getElementById('proj-status-badge');
-                    badge.innerText = isAutosave ? 'Manual (Autoguardado en DB)' : 'Manual (Guardado en DB)';
-                    badge.className = 'badge bg-success';
-                    
-                    if (!isAutosave && typeof showToast === 'function') {
-                        showToast("Éxito", "Proyección guardada con éxito en la Base de Datos", "success");
-                    }
-                } else {
-                    if (!isAutosave) alert("Error al guardar: " + (result.message || "Error desconocido"));
-                }
+                const r = await fetch('/api/valuation/' + encodeURIComponent(ticker), {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+                const result = await r.json();
+                if (result.status !== 'success') throw new Error(result.message || 'Error desconocido');
+                const badge = document.getElementById('proj-status-badge');
+                badge.innerText = isAutosave ? 'Manual (autoguardado)' : 'Manual (guardado)'; badge.className = 'badge bg-success';
+                if (!isAutosave && typeof showToast === 'function') showToast("Éxito", "Valoración guardada", "success");
             } catch (e) {
                 console.error(e);
-                if (!isAutosave) alert("Ocurrió un error al intentar guardar: " + e.message);
+                if (!isAutosave) alert("No se pudo guardar: " + e.message);
             }
         }
 
-        function updateCalendarYearLabels() {
-            const startYear = new Date().getFullYear(); // Evaluará dinámicamente a 2026
-            
-            // 1. Etiqueta BPA Inicial (P₀)
-            const lblInitialEps = document.getElementById('lbl-initial-eps');
-            if (lblInitialEps) {
-                lblInitialEps.innerHTML = `BPA Inicial (${startYear}) <i class="bi bi-info-circle text-muted opacity-75" data-bs-toggle="tooltip" title="Este es el beneficio por acción sostenible del año de partida sobre el que se aplicarán los incrementos de crecimiento en los próximos 5 años."></i>`;
-            }
-
-            // 2. Título de la tabla resumen
-            const lblSummaryTitle = document.getElementById('lbl-summary-title');
-            if (lblSummaryTitle) {
-                lblSummaryTitle.innerText = `Métrica de Simulación (${startYear}-${startYear + 5})`;
-            }
-
-            // 3. Filas calculadas de la tabla resumen
-            const lblResultEps = document.getElementById('lbl-result-eps');
-            if (lblResultEps) {
-                lblResultEps.innerText = `BPA Proyectado (${startYear + 5})`;
-            }
-            
-            const lblResultPrice = document.getElementById('lbl-result-price');
-            if (lblResultPrice) {
-                lblResultPrice.innerText = `Precio Acción Proyectado (${startYear + 5})`;
-            }
-
-            const lblResultDivs = document.getElementById('lbl-result-dividends-sum');
-            if (lblResultDivs) {
-                lblResultDivs.innerText = `Suma Dividendos Cobrados (${startYear + 1}-${startYear + 5})`;
-            }
-
-            // 4. Filas de la tabla detallada
-            for (let t = 1; t <= 5; t++) {
-                const lblDetY = document.getElementById('lbl-det-y' + t);
-                if (lblDetY) {
-                    lblDetY.innerText = `${startYear + t} (N+${t})`;
-                }
+        async function generateValuationWithAI(ticker) {
+            const btn = document.getElementById('btn-generate-proj-ia');
+            const spinner = document.getElementById('proj-ia-spinner'), icon = document.getElementById('proj-ia-icon');
+            btn.disabled = true; spinner.classList.remove('d-none'); icon.classList.add('d-none');
+            try {
+                const r = await fetch(`/api/valuation/${encodeURIComponent(ticker)}/generate?metric=${valMetric()}`, {method: 'POST'});
+                const result = await r.json();
+                if (result.status !== 'success') throw new Error(result.message || 'Error desconocido');
+                const d = result.data;
+                const setPair = (id, val) => { document.getElementById('slider-' + id).value = val; document.getElementById('input-' + id).value = val; };
+                setPair('growth', (100 * d.growth).toFixed(1));
+                setPair('div-growth', (100 * d.div_growth).toFixed(1));
+                setPair('multiple', d.exit_multiple.toFixed(1));
+                document.getElementById('val-dps').value = (d.dps || 0).toFixed(2);
+                document.getElementById('val-years').value = d.years;
+                const sug = document.getElementById('btn-use-suggested');   // el valor de la IA queda como sugerencia
+                sug.dataset.value = d.metric_suggested || '';
+                document.getElementById('suggested-value').textContent = d.metric_suggested ? d.metric_suggested.toFixed(2) : '';
+                sug.classList.toggle('d-none', !d.metric_suggested);
+                const expBox = document.getElementById('eps-explanation-box');
+                document.getElementById('eps-explanation-text').innerText = d.metric_explanation || '';
+                expBox.classList.toggle('d-none', !d.metric_explanation);
+                document.getElementById('proj-rationale').value = d.rationale || '';
+                const badge = document.getElementById('proj-status-badge');
+                badge.innerText = 'IA (generado ahora)'; badge.className = 'badge bg-primary';
+                syncMetricLabels(); recalculateValuation();
+            } catch (e) {
+                console.error(e);
+                alert("Error de la IA: " + e.message);
+            } finally {
+                btn.disabled = false; spinner.classList.add('d-none'); icon.classList.remove('d-none');
             }
         }
 
-        // Inicializar tooltips y recalcular proyecciones
+        async function toggleWatchlist(ticker) {
+            const btn = document.getElementById('btn-watchlist'), inList = btn.dataset.in === 'true';
+            btn.disabled = true;
+            try {
+                const r = await fetch('/api/watchlist' + (inList ? '/' + encodeURIComponent(ticker) : ''), {
+                    method: inList ? 'DELETE' : 'POST', headers: {'Content-Type': 'application/json'},
+                    body: inList ? undefined : JSON.stringify({ticker})});
+                const d = await r.json();
+                if (!r.ok) throw new Error(d.detail || r.statusText);
+                btn.dataset.in = String(!inList);
+                btn.className = 'btn btn-sm fw-bold py-0 ' + (!inList ? 'btn-outline-light' : 'btn-warning text-dark');
+                btn.innerHTML = `<i class="bi ${!inList ? 'bi-eye-fill' : 'bi-eye'} me-1"></i><span>${!inList ? 'En la watchlist' : 'Añadir a watchlist'}</span>`;
+            } catch (e) { alert(e.message); }
+            btn.disabled = false;
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl)
-            });
-            
-            // Programar autoguardado automático en background al escribir o deslizar
+            [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]')).map(el => new bootstrap.Tooltip(el));
+
             const container = document.getElementById('nav-projection');
             if (container) {
-                const controls = container.querySelectorAll('input, textarea, select');
-                controls.forEach(ctrl => {
-                    ctrl.addEventListener('input', () => {
-                        recalculateProjections();
-                        triggerAutosave();
-                    });
+                ['growth', 'div-growth', 'multiple'].forEach(id => {
+                    const slider = document.getElementById('slider-' + id), input = document.getElementById('input-' + id);
+                    slider.addEventListener('input', () => { input.value = slider.value; });
+                    input.addEventListener('input', () => { slider.value = input.value; });
                 });
+                // cualquier cambio (métrica, supuestos, precio, nota) recalcula y autoguarda
+                container.querySelectorAll('#nav-projection > .card > .card-body > .row input, #nav-projection > .card > .card-body > .row select, #proj-rationale')
+                    .forEach(ctrl => ctrl.addEventListener(ctrl.type === 'radio' || ctrl.type === 'checkbox' || ctrl.tagName === 'SELECT' ? 'change' : 'input', onValChange));
+                syncMetricLabels();
+                recalculateValuation();
             }
-
-            // Formatear etiquetas de años calendarios dinámicamente
-            updateCalendarYearLabels();
-
-            // Recalcular proyecciones con valores por defecto al cargar
-            recalculateProjections();
+            // /ticker/X#valoracion abre directamente esta pestaña (enlace desde la watchlist)
+            if (location.hash === '#valoracion') {
+                const tab = document.getElementById('nav-projection-tab');
+                if (tab) bootstrap.Tab.getOrCreateInstance(tab).show();
+            }
         });
         </script>
 <script>

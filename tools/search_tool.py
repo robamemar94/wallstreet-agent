@@ -241,10 +241,9 @@ ESTRUCTURA EXACTA DEL JSON:
     except Exception as e:
         return {"error": str(e)}
 
-def generate_projection_scenarios_json(ticker: str, company_name: str = "", suggested_pe: float = None) -> dict:
-    """Calcula las hipótesis estimadas para proyecciones de retorno a 5 años (crecimiento BPA, múltiplos PER y crecimiento de dividendos)
-    para 3 escenarios (Pesimista, Base, Optimista) basándose en fundamentales históricos, sectoriales y un BPA Normalizado.
-    """
+def generate_base_valuation_json(ticker: str, company_name: str = "", metric: str = "eps", suggested_multiple: float = None) -> dict:
+    """Hipótesis del caso base a 5 años sobre la métrica elegida (BPA o FCF por acción): valor de partida,
+    crecimiento anual, crecimiento del dividendo y múltiplo de salida."""
     try:
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
@@ -252,53 +251,38 @@ def generate_projection_scenarios_json(ticker: str, company_name: str = "", sugg
 
         client = genai.Client(api_key=api_key)
         current_date = datetime.now().strftime("%A, %d de %B de %Y")
-        
-        target = f"{company_name} ({ticker})" if company_name else ticker
 
-        pe_instruction = ""
-        if suggested_pe:
-            pe_instruction = f"\n- MÚLTIPLO PER SUGERIDO: El sistema de valoración o el usuario ha establecido un PER justo de {suggested_pe}. DEBES utilizar este valor exactamente como el 'exit_pe' de tu Escenario Base, ajustando el escenario Bear sustancialmente por debajo y el Bull por encima."
+        target = f"{company_name} ({ticker})" if company_name else ticker
+        name, multiple = ("flujo de caja libre por acción (FCF/acción)", "P/FCF") if metric == "fcf" else ("beneficio por acción (BPA)", "PER")
+
+        multiple_instruction = ""
+        if suggested_multiple and metric == "eps":
+            multiple_instruction = f"\n- MÚLTIPLO SUGERIDO: el usuario ha fijado un PER justo de {suggested_multiple}. Úsalo como 'exit_multiple' salvo que sea claramente incoherente, y explícalo."
 
         prompt = f"""
 Hoy es {current_date}. Eres un analista de valoración fundamental de primer nivel (estilo Warren Buffett / Terry Smith).
-Tu objetivo es sugerir hipótesis realistas, prudentes e inteligentes de crecimiento anual del BPA (EPS), crecimiento anual de dividendos y múltiplos PER de salida para los próximos 5 años para la empresa {target}.
-Debes formular estas hipótesis para 3 escenarios bien diferenciados:
-1. Escenario Pesimista (Bear): Un escenario de desaceleración económica, aumento de la competencia, pérdida de márgenes o problemas operativos. Crecimiento de BPA muy bajo o nulo, contracción del múltiplo PER, y dividendos con crecimiento estancado.
-2. Escenario Base (Base): El escenario más probable. Crecimiento de BPA y dividendos alineado con el consenso de analistas y la tendencia histórica ajustada por ley de grandes números, con un múltiplo PER razonable y acorde con la calidad de su Moat.
-3. Escenario Optimista (Bull): Un escenario macroeconómico favorable, éxito en nuevos productos, expansión de márgenes o fuerte recompra de acciones. Crecimiento de BPA y dividendos elevado y múltiplo PER premium.
+Propón las hipótesis del ESCENARIO BASE (el más probable) a 5 años para {target}, valorando por {name} con un múltiplo {multiple} de salida.
 
 INSTRUCCIONES ANALÍTICAS CRÍTICAS:
-- EVITAR ANORMALIDADES EN EL BPA INICIAL (BPA NORMALIZADO DEL AÑO EN CURSO):
-  * Debes buscar específicamente el BPA (EPS) estimado de consenso para el año fiscal actual (o el BPA normalizado/sostenible). Este será tu punto de partida (Año 0) sobre el cual aplicarás las tasas de crecimiento para los próximos 5 años.
-  * Analiza con extremo rigor si este BPA estimado es "anormal" o distorsionado debido a extraordinarios, ciclos extremos, pérdidas de arranque, amortizaciones o costes de reestructuración.
-  * Si es anormal o negativo, calcula un BPA Sostenible Normalizado (por ejemplo, aplicando el margen neto histórico promedio de la empresa sobre las ventas proyectadas, o haciendo una media de los BPA recurrentes de los últimos años).
-  * Asigna este valor del año fiscal actual (real o normalizado sostenible) al campo "initial_eps" en el JSON. Explica detalladamente en "normalized_eps_explanation" cómo has calculado o verificado este BPA de partida y por qué representa una base de simulación sana.
-- CRECIMIENTO DE DIVIDENDOS (div_growth):
-  * Sugiere una tasa anual de crecimiento de dividendos realista para cada escenario. Debe estar alineada con el crecimiento del BPA y el nivel de payout de la empresa.{pe_instruction}
-- CALIDAD DEL MOAT: Si la empresa es de altísima calidad, los múltiplos PER de salida del escenario base y optimista deben reflejar esta prima de calidad (no bajar de manera absurda), mientras que si es cíclica los múltiplos deben ser mucho más conservadores.
+- VALOR DE PARTIDA ("metric_value"): el {name} de los últimos 12 meses o el estimado de consenso para el año fiscal actual.
+  Si está distorsionado (extraordinarios, ciclos extremos, pérdidas de arranque, amortizaciones, reestructuraciones, capex anormal), normalízalo
+  y explica cómo en "metric_explanation". Debe ir en la divisa en la que cotiza la acción.
+- CRECIMIENTO ("growth"): crecimiento anual del {name} alineado con el consenso y la tendencia histórica ajustada por la ley de los grandes números
+  (incluye el efecto de las recompras).
+- DIVIDENDO ("div_growth"): crecimiento anual del dividendo por acción coherente con el crecimiento y el payout (0 si no paga dividendo).
+- MÚLTIPLO DE SALIDA ("exit_multiple"): {multiple} razonable dentro de 5 años según la calidad del foso, múltiplos históricos y competidores;
+  prudente si es cíclica.{multiple_instruction}
 
 IMPORTANTE: DEVUELVE ÚNICA Y EXCLUSIVAMENTE UN JSON VÁLIDO. NADA DE MARKDOWN.
 
 ESTRUCTURA EXACTA DEL JSON:
 {{
-  "initial_eps": [float, el BPA de partida sostenible/normalizado que sugieres, ej. 6.25],
-  "normalized_eps_explanation": "[Explicación detallada de cómo has calculado o verificado el BPA inicial, indicando si el BPA actual de mercado era anormal/negativo y por qué este nuevo valor es el punto de partida sano]",
-  "bear": {{
-    "eps_growth": [float, tasa de crecimiento anual del BPA expresada en decimal, ej: 0.05 para 5%],
-    "exit_pe": [float, múltiplo PER de salida al año 5, ej: 15.0],
-    "div_growth": [float, crecimiento anual del dividendo en decimal, ej: 0.02 para 2%]
-  }},
-  "base": {{
-    "eps_growth": [float, tasa de crecimiento anual del BPA expresada en decimal, ej: 0.11 para 11%],
-    "exit_pe": [float, múltiplo PER de salida al año 5, ej: 20.0],
-    "div_growth": [float, crecimiento anual del dividendo en decimal, ej: 0.08 para 8%]
-  }},
-  "bull": {{
-    "eps_growth": [float, tasa de crecimiento anual del BPA expresada en decimal, ej: 0.16 para 16%],
-    "exit_pe": [float, múltiplo PER de salida al año 5, ej: 25.0],
-    "div_growth": [float, crecimiento anual del dividendo en decimal, ej: 0.12 para 12%]
-  }},
-  "rationale": "[Explicación concisa y profesional justificando las hipótesis elegidas para cada escenario basándose en la calidad del negocio, múltiplos históricos y estimaciones de analistas.]"
+  "metric_value": [float, valor de partida por acción, ej. 6.25],
+  "metric_explanation": "[cómo has calculado o verificado el valor de partida]",
+  "growth": [float, crecimiento anual en decimal, ej. 0.11 para 11%],
+  "div_growth": [float, crecimiento anual del dividendo en decimal, ej. 0.08],
+  "exit_multiple": [float, múltiplo de salida al año 5, ej. 22.0],
+  "rationale": "[justificación concisa de las hipótesis]"
 }}
 """
         response = client.models.generate_content(

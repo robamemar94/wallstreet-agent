@@ -15,7 +15,8 @@ from app.infrastructure.dependencies import get_asset_repository
 
 import agents as crew_logic
 from utils.parsers import parse_summary, parse_sub_report
-from tools.search_tool import generate_15y_financials_json, generate_fair_pe_json, parse_manual_audit_to_financials, generate_projection_scenarios_json
+from tools.search_tool import generate_15y_financials_json, generate_fair_pe_json, parse_manual_audit_to_financials, generate_base_valuation_json
+from app.application.services import base_valuation_service
 
 from app.infrastructure.db.models import DBTask
 from utils.llm_usage import track_usage, month_search_queries
@@ -328,101 +329,46 @@ async def edit_fair_pe(
     asset_repo.save_asset_data(ticker, "fair_pe_data", pe_data)
     return {"status": "success"}
 
-@router.post("/projections/generate/{ticker}")
-def fetch_projection_scenarios(
+@router.post("/valuation/{ticker}/generate")
+def generate_base_valuation(
     ticker: str,
+    metric: str = "eps",
     asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository)
 ):
+    """La IA propone el caso base (valor de partida, crecimiento, dividendo y múltiplo) para la métrica elegida."""
     try:
-        stock = yf.Ticker(ticker)
-        info = stock.info
+        info = yf.Ticker(ticker).info
         company_name = info.get('longName') or info.get('shortName') or ticker
-        
-        # Calcular el dividendo de manera matemáticamente infalible
-        div_rate = info.get('dividendRate')
-        curr_price = info.get('currentPrice') or info.get('regularMarketPrice') or 1.0
-        if div_rate and curr_price and curr_price > 0:
-            div_yield = float(div_rate) / float(curr_price)
-        else:
-            raw_yield = info.get('dividendYield') or 0.0
-            if raw_yield > 0.20:
-                div_yield = float(raw_yield) / 100.0
-            else:
-                div_yield = float(raw_yield)
+        dps = float(info.get('dividendRate') or 0.0)
     except Exception:
-        company_name = ticker
-        div_yield = 0.0
-        
+        company_name, dps = ticker, 0.0
+
     db_data = asset_repo.get_asset_data(ticker)
-    pe_data = db_data.get("fair_pe_data", {})
-    suggested_pe = pe_data.get("fair_forward_pe")
-        
-    data = generate_projection_scenarios_json(ticker, company_name, suggested_pe=suggested_pe)
+    suggested = (db_data.get("fair_pe_data") or {}).get("fair_forward_pe")
+    data = generate_base_valuation_json(ticker, company_name, metric=metric, suggested_multiple=suggested)
     if "error" in data:
         return {"status": "error", "message": data["error"]}
 
-    # Guardar en la base de datos bajo "projection_scenarios"
-    projection_data = {
-        "initial_eps": float(data.get("initial_eps", 0)),
-        "normalized_eps_explanation": data.get("normalized_eps_explanation", ""),
-        "dividend_yield": float(div_yield),
-        "bear": {
-            "eps_growth": float(data.get("bear", {}).get("eps_growth", 0)),
-            "exit_pe": float(data.get("bear", {}).get("exit_pe", 0)),
-            "div_growth": float(data.get("bear", {}).get("div_growth", 0))
-        },
-        "base": {
-            "eps_growth": float(data.get("base", {}).get("eps_growth", 0)),
-            "exit_pe": float(data.get("base", {}).get("exit_pe", 0)),
-            "div_growth": float(data.get("base", {}).get("div_growth", 0))
-        },
-        "bull": {
-            "eps_growth": float(data.get("bull", {}).get("eps_growth", 0)),
-            "exit_pe": float(data.get("bull", {}).get("exit_pe", 0)),
-            "div_growth": float(data.get("bull", {}).get("div_growth", 0))
-        },
-        "rationale": data.get("rationale", "Generación con IA."),
-        "is_manual": False,
-        "last_updated": datetime.now().strftime("%Y-%m-%d")
-    }
-    asset_repo.save_asset_data(ticker, "projection_scenarios", projection_data)
-    return {"status": "success", "data": projection_data}
+    # El valor de partida de la IA queda como sugerencia: por defecto se parte del TTM, que se actualiza solo
+    valuation = base_valuation_service.normalize({**data, "metric": metric, "dps": dps, "metric_value": None}, is_manual=False)
+    valuation["metric_explanation"] = data.get("metric_explanation", "")
+    valuation["metric_suggested"] = float(data["metric_value"]) if data.get("metric_value") else None
+    asset_repo.save_asset_data(ticker, base_valuation_service.ASSET_KEY, valuation)
+    return {"status": "success", "data": valuation}
 
-@router.post("/projections/save/{ticker}")
-async def save_projection_scenarios(
+@router.post("/valuation/{ticker}")
+async def save_base_valuation(
     ticker: str,
     request: Request,
     asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository)
 ):
     try:
         data = await request.json()
-        
-        projection_data = {
-            "initial_eps": float(data.get("initial_eps", 0)),
-            "normalized_eps_explanation": data.get("normalized_eps_explanation", "Ajustado por el usuario."),
-            "dividend_yield": float(data.get("dividend_yield") if data.get("dividend_yield") is not None else 0.0),
-            "bear": {
-                "eps_growth": float(data.get("bear", {}).get("eps_growth", 0)),
-                "exit_pe": float(data.get("bear", {}).get("exit_pe", 0)),
-                "div_growth": float(data.get("bear", {}).get("div_growth", 0))
-            },
-            "base": {
-                "eps_growth": float(data.get("base", {}).get("eps_growth", 0)),
-                "exit_pe": float(data.get("base", {}).get("exit_pe", 0)),
-                "div_growth": float(data.get("base", {}).get("div_growth", 0))
-            },
-            "bull": {
-                "eps_growth": float(data.get("bull", {}).get("eps_growth", 0)),
-                "exit_pe": float(data.get("bull", {}).get("exit_pe", 0)),
-                "div_growth": float(data.get("bull", {}).get("div_growth", 0))
-            },
-            "rationale": data.get("rationale", "Ajustado manualmente por el usuario."),
-            "is_manual": True,
-            "last_updated": datetime.now().strftime("%Y-%m-%d")
-        }
-        
-        asset_repo.save_asset_data(ticker, "projection_scenarios", projection_data)
-        return {"status": "success"}
+        valuation = base_valuation_service.normalize(data)
+        valuation["metric_explanation"] = data.get("metric_explanation") or ""
+        valuation["metric_suggested"] = data.get("metric_suggested")
+        asset_repo.save_asset_data(ticker, base_valuation_service.ASSET_KEY, valuation)
+        return {"status": "success", "data": valuation}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 

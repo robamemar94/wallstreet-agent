@@ -1,0 +1,70 @@
+{# Contenido de la pestaña Watchlist (lo pide el Centro de mando a /centro/watchlist): panel de avisos + tabla compacta #}
+{% from "_notices.html" import attention_list, monitor_card_body %}
+{% set zone_band = {'ganga': 'green', 'barata': 'amber', 'justo': 'orange', 'cara': 'red'} %}
+{% set origin_label = {'manual': 'a mano', 'favorita': '★', 'aceptada': 'aceptada'} %}
+
+<div class="row g-3 p-3 pb-0">
+    <div class="col-12 col-xl-5"><div class="card h-100">
+        <div class="card-header bg-transparent fw-bold"><i class="bi bi-inbox me-1"></i>Requiere tu atención <span class="badge text-bg-secondary att-count">{{ attention|rejectattr('seen')|list|length }}</span></div>
+        {{ attention_list(attention, 'wlAttList', 'Ninguna candidata en zona de compra ni cerca de ella.', list_limit) }}
+    </div></div>
+    <div class="col-12 col-xl-7"><div class="card h-100">
+        <div class="card-header bg-transparent fw-bold"><i class="bi bi-activity me-1"></i>Monitor de precios
+            <span class="small text-muted fw-normal">· movimientos fuertes o anormales y máximos/mínimos de 52 semanas de las candidatas que no tienes</span></div>
+        {{ monitor_card_body(signals, signal_history, 'wlMonList', 'watchlist') }}
+    </div></div>
+</div>
+<script type="application/json" id="wlSeenKeys">{{ seen_keys|tojson }}</script>
+
+<div id="wlFiltersSlot"></div>
+<div class="table-responsive mt-2">
+<table class="table table-sm table-hover mb-0 tbl-wl">
+    <thead><tr>
+        <th class="sortable" data-type="text">Empresa</th>
+        <th class="text-end sortable">Precio</th>
+        <th class="text-end sortable">Var. día</th>
+        <th class="text-end sortable" title="Caída desde el máximo de 52 semanas">Desde máx. 52s</th>
+        <th class="text-end sortable" title="Rentabilidad anual estimada comprando hoy según la valoración base (con dividendos); el color es la zona">CAGR estimado</th>
+        <th class="text-end sortable" title="Precio al que el CAGR estimado sería del {{ '%.0f'|format(target) }}%; debajo, lo que tendría que caer">Compra al {{ '%.0f'|format(target) }}%</th>
+        <th></th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}{% set v = r.val %}{% set band = zone_band.get(v.zone) if v else none %}
+    <tr data-wl-ticker="{{ r.ticker }}" data-group="{{ r.group }}" data-origins="{{ r.origins|join(' ') }}" data-held="{{ 'true' if r.held else 'false' }}"
+        {% if v %}data-price="{{ r.price }}" data-buy="{{ v.buy_price }}" data-cagr="{{ v.cagr if v.cagr is not none else '' }}" data-legacy="{{ 'true' if v.inputs.legacy else 'false' }}"{% endif %}>
+        <td data-sort="{{ r.ticker }}"><a href="/ticker/{{ r.ticker }}" class="text-decoration-none fw-bold">{{ r.ticker }}</a>
+            {% for o in r.origins %}<span class="wl-origin wl-origin-{{ o }}">{{ origin_label[o] }}</span>{% endfor %}
+            {% if r.held %}<span class="badge text-bg-secondary">en cartera</span>{% endif %}
+            <div class="text-muted small text-truncate" style="max-width: 220px;">{{ r.name }}</div></td>
+        <td class="text-end font-monospace-data" data-sort="{{ r.price or '' }}">{{ '%.2f'|format(r.price) if r.price else '–' }} <span class="text-muted">{{ r.cur }}</span></td>
+        {% if r.day_pct is not none %}
+        <td class="text-end font-monospace-data {{ 'text-success' if r.day_pct >= 0 else 'text-danger' }}" data-sort="{{ r.day_pct }}">{{ '%+.2f'|format(r.day_pct) }}%</td>
+        {% else %}
+        <td class="text-end text-muted small" data-sort="" title="{{ 'Su mercado no ha abierto hoy · última sesión ' ~ r.last_session[8:10] ~ '/' ~ r.last_session[5:7] ~ (': ' ~ '%+.2f'|format(r.last_day_pct) ~ '%' if r.last_day_pct is not none else '') if r.last_session else 'Sin datos' }}">cerrado</td>
+        {% endif %}
+        {% set fh = r.from_high_pct %}
+        <td class="text-end font-monospace-data {{ 'text-danger' if fh is not none and fh <= -20 else '' }}" data-sort="{{ fh if fh is not none else '' }}">{{ '%+.1f'|format(fh) ~ '%' if fh is not none else '–' }}</td>
+        {% if v %}
+        <td class="text-end font-monospace-data fw-bold {{ 'cagr-' ~ band if band }}" data-sort="{{ v.cagr if v.cagr is not none else '' }}"
+            title="{{ 'Zona: ' ~ v.zone if v.zone }}{{ ' · valoración antigua sin revisar' if v.inputs.legacy }}">
+            {% if band %}<i class="bi bi-circle-fill me-1" style="font-size: .5rem; vertical-align: middle;"></i>{% endif %}{{ '%.1f'|format(v.cagr) ~ '%' if v.cagr is not none else '–' }}{% if v.inputs.legacy %} <i class="bi bi-exclamation-triangle text-warning" title="Valoración antigua: revísala en la ficha; no genera avisos"></i>{% endif %}</td>
+        <td class="text-end font-monospace-data" data-sort="{{ r.drop_pct }}">{{ '%.2f'|format(v.buy_price) }}
+            <div class="small {{ 'text-success fw-bold' if r.drop_pct <= 0 else ('text-warning' if r.drop_pct <= near else 'text-muted') }}">{{ 'en zona' if r.drop_pct <= 0 else '−' ~ '%.1f'|format(r.drop_pct) ~ '%' }}</div></td>
+        {% else %}
+        <td class="text-end text-muted small" data-sort="">–</td><td class="text-end text-muted small" data-sort="">{{ 'sin valoración' if r.price else 'sin cotización' }}</td>
+        {% endif %}
+        <td class="text-end text-nowrap">
+            <a href="/ticker/{{ r.ticker }}#valoracion" class="btn btn-link btn-sm p-0 me-2" title="{{ 'Ver o editar los supuestos de la valoración' if v else 'Poner la valoración' }}" aria-label="Valoración de {{ r.ticker }}"><i class="bi bi-calculator"></i></a>
+            <button class="btn btn-link btn-sm p-0 me-2 {{ '' if r.note else 'text-muted opacity-50' }}" title="{{ r.note or 'Añadir nota' }}" aria-label="Nota de {{ r.ticker }}" data-note="{{ r.note }}" onclick="wlEditNote('{{ r.ticker }}', this)"><i class="bi {{ 'bi-sticky-fill' if r.note else 'bi-sticky' }}"></i></button>
+            {% if 'manual' in r.origins %}<button class="btn btn-link btn-sm p-0 text-danger" title="Quitar de la watchlist{{ ' (seguirá por ser favorita o aceptada)' if r.origins|length > 1 }}" aria-label="Quitar {{ r.ticker }}" onclick="wlRemove('{{ r.ticker }}')"><i class="bi bi-x-lg"></i></button>{% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    <tr class="wl-empty d-none"><td colspan="7" class="text-muted small p-3">Ninguna empresa con estos filtros.</td></tr>
+    </tbody>
+</table>
+</div>
+<nav class="d-flex justify-content-end align-items-center px-2 pt-2" id="wlPager" aria-label="Páginas de la watchlist"></nav>
+<div class="small text-muted px-2 py-1"><i class="bi bi-calculator"></i> abre los supuestos en la pestaña Valoración de la ficha. Entran solas las favoritas (★) y las aceptadas en la BBDD.
+    Color de la rentabilidad = zona: <span class="cagr-green">● ganga ≥{{ '%.0f'|format(target) }}%</span> <span class="cagr-amber">● barata 10–{{ '%.0f'|format(target) }}%</span>
+    <span class="cagr-orange">● justo 6–10%</span> <span class="cagr-red">● cara &lt;6%</span>.</div>

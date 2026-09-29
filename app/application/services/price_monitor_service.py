@@ -39,20 +39,20 @@ _cache: Dict[str, Any] = {}
 
 # --- Datos ---
 
-def download_history(symbols: List[str]) -> pd.DataFrame:
-    """Cierres diarios de ~1 año y medio (para 52 semanas y media de 200). Cacheado 30 min."""
+def download_history(symbols: List[str], fill: bool = True) -> pd.DataFrame:
+    """Cierres diarios de ~1 año y medio (para 52 semanas y media de 200). Cacheado 30 min.
+    fill=False: sin rellenar los días en que ese valor no cotizó (p. ej. EE. UU. antes de abrir, mientras Europa ya cotiza)."""
     key = ",".join(sorted(set(symbols)))
     cached = _cache.get(key)
-    if cached and time.time() - cached[0] < CACHE_TTL:
-        return cached[1]
-    import yfinance as yf
-    raw = yf.download(sorted(set(symbols)), period="18mo", auto_adjust=True, progress=False)
-    df = raw["Close"] if isinstance(raw.columns, pd.MultiIndex) or "Close" in raw.columns else raw
-    if isinstance(df, pd.Series):
-        df = df.to_frame(symbols[0])
-    df = df.sort_index().ffill()
-    _cache[key] = (time.time(), df)
-    return df
+    if not (cached and time.time() - cached[0] < CACHE_TTL):
+        import yfinance as yf
+        raw = yf.download(sorted(set(symbols)), period="18mo", auto_adjust=True, progress=False)
+        df = raw["Close"] if isinstance(raw.columns, pd.MultiIndex) or "Close" in raw.columns else raw
+        if isinstance(df, pd.Series):
+            df = df.to_frame(symbols[0])
+        df = df.sort_index()
+        cached = _cache[key] = (time.time(), df.ffill(), df)
+    return cached[1] if fill else cached[2]
 
 
 # --- Cartera ---

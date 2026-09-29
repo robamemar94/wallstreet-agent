@@ -1,0 +1,19 @@
+{# Pestañas de las secciones del menú: cada página agrupada muestra arriba las de su sección.
+   El menú lateral solo enseña la página principal de cada sección. #}
+{% set SECTIONS = [
+    [('/mercado', 'Mercado', 'bi-globe2', ''), ('/calendario', 'Calendario', 'bi-calendar3', '')],
+    [('/portfolio', 'Cartera', 'bi-briefcase', ''), ('/ideal-portfolio', 'Portfolio ideal', 'bi-award', '')],
+    [('/tesis', 'Tesis', 'bi-clipboard2-pulse', ''), ('/noticias', 'Noticias', 'bi-broadcast', 'tabNewsBadge')],
+    [('/database', 'Base de datos', 'bi-database', ''), ('/lists', 'Listas', 'bi-list-stars', ''), ('/comparar', 'Comparar', 'bi-layout-split', '')],
+] %}
+
+{% macro section_tabs(path) %}
+{% for tabs in SECTIONS %}{% if path in tabs|map(attribute=0)|list %}
+<ul class="nav nav-tabs section-tabs mb-3">
+    {% for href, label, icon, badge in tabs %}
+    <li class="nav-item"><a class="nav-link {{ 'active' if path == href }}" href="{{ href }}"{% if path == href %} aria-current="page"{% endif %}>
+        <i class="bi {{ icon }} me-1"></i>{{ label }}{% if badge %} <span class="badge rounded-pill text-bg-danger d-none" id="{{ badge }}"></span>{% endif %}</a></li>
+    {% endfor %}
+</ul>
+{% endif %}{% endfor %}
+{% endmacro %}

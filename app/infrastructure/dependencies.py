@@ -6,6 +6,8 @@ from app.infrastructure.db.models import DBSetting
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
 from app.infrastructure.repositories.sqlalchemy_portfolio_repository import SqlAlchemyPortfolioRepository
 from app.infrastructure.repositories.sqlalchemy_thesis_repository import SqlAlchemyThesisRepository
+from app.infrastructure.repositories.sqlalchemy_watchlist_repository import SqlAlchemyWatchlistRepository
+from app.infrastructure.repositories.sqlalchemy_notice_repository import SqlAlchemyNoticeRepository
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.performance_service import PerformanceService
 
@@ -114,3 +116,11 @@ def get_performance_service(
 
 def get_thesis_repository(db: Session = Depends(get_db)) -> SqlAlchemyThesisRepository:
     return SqlAlchemyThesisRepository(db)
+
+
+def get_watchlist_repository(db: Session = Depends(get_db)) -> SqlAlchemyWatchlistRepository:
+    return SqlAlchemyWatchlistRepository(db)
+
+
+def get_notice_repository(db: Session = Depends(get_db)) -> SqlAlchemyNoticeRepository:
+    return SqlAlchemyNoticeRepository(db)

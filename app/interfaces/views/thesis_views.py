@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from app.application.services import thesis_news_runner, thesis_review_service
+from app.application.services import base_valuation_service, cache_warmer, notice_service, thesis_news_runner, thesis_review_service
 from app.application.services.thesis_ai_service import NEWS_INTERVAL_DAYS, NEWS_MIN_MATERIALITY, news_due
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.thesis_service import (
@@ -15,8 +15,11 @@ from app.application.services.thesis_service import (
     render_document,
 )
 from app.infrastructure.db.database import get_db
-from app.infrastructure.dependencies import get_asset_repository, get_portfolio_service, get_settings_from_db, get_thesis_repository
+from app.infrastructure.dependencies import (
+    get_asset_repository, get_notice_repository, get_portfolio_service, get_settings_from_db, get_thesis_repository,
+)
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
+from app.infrastructure.repositories.sqlalchemy_notice_repository import SqlAlchemyNoticeRepository
 from app.infrastructure.repositories.sqlalchemy_thesis_repository import SqlAlchemyThesisRepository
 from app.infrastructure.templates import templates
 from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached, get_currency_symbol
@@ -38,6 +41,8 @@ def _thesis_startup() -> None:
         db.close()
     # Radar semanal automático: consulta en segundo plano las tesis que llevan 7+ días sin radar
     thesis_news_runner.trigger_due_news()
+    # Datos de mercado lentos de cartera, tesis y watchlist: se descargan ya para que la primera visita no espere
+    cache_warmer.warm_up_in_background()
 
 EARNINGS_TTL = 12 * 3600
 _EARNINGS_CACHE: Dict[str, Any] = {}
@@ -258,6 +263,7 @@ def news_page(
 def command_center_page(
     request: Request,
     repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository),
+    notice_repo: SqlAlchemyNoticeRepository = Depends(get_notice_repository),
     asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
     portfolio_service: PortfolioService = Depends(get_portfolio_service),
     db_session: Session = Depends(get_db),
@@ -283,7 +289,10 @@ def command_center_page(
     changes = pm.portfolio_changes(df, txs, splits, benchmark) if df is not None else {"periods": {}, "positions": {}, "total_eur": 0}
     weights = {t: p["weight"] for t, p in changes["positions"].items()}
     rows, signals = [], []
-    for t in sorted(open_tickers | set(theses)):
+    row_tickers = sorted(open_tickers | set(theses))
+    # los datos lentos (FCF/BPA TTM, fechas de resultados) se piden en paralelo y quedan en la caché en disco
+    cache_warmer.prefetch(earnings=row_tickers, fcf=theses, valuation=[t for t in row_tickers if t not in theses])
+    for t in row_tickers:
         st = pm.price_stats(df[t], df[benchmark] if benchmark in df.columns else None) if df is not None and t in df.columns else None
         thesis, data = theses.get(t), asset_repo.get_asset_data(t)
         live = live_valuation(thesis["extra"].get("valuation") or {}, fetch_ttm_fcf_per_share(t), st["price"]) if thesis and st else None
@@ -295,6 +304,11 @@ def command_center_page(
             c = implied_cagr(st["price"], (sc or {}).get("price"), val.get("target_year"))
             if c is not None:
                 cagr, cagr_src = 100 * c, f"Tesis: escenario Base (valor {val.get('target_year')} frente al precio de hoy)"
+        if cagr is None and st:   # sin tesis: la valoración base de la ficha
+            bval = base_valuation_service.live(t, data, st["price"])
+            if bval and bval["cagr"] is not None:
+                cagr, cagr_src = bval["cagr"], (f"Valoración base de la ficha ({base_valuation_service.METRICS[bval['metric']]['label']}, {bval['years']} años)"
+                                                + (" · antigua, sin revisar" if bval["inputs"].get("legacy") else ""))
         row_signals = pm.price_signals(t, st, thesis, live, weights.get(t)) if st else []
         signals += row_signals
         company = data.get("company_name") or t
@@ -313,7 +327,7 @@ def command_center_page(
                   "type": n["type"]} for n in notices]
     for n in repo.list_news(unread_only=True, limit=20):
         attention.append({"prio": 1 if n["materiality"] >= 5 else 3, "ticker": n["ticker"], "type": "news",
-                          "text": f"Noticia {n['materiality']}/5: {n['title']}", "href": "/noticias"})
+                          "text": f"Noticia {n['materiality']}/5: {n['title']}", "href": "/noticias", "ref": n["id"]})
     for s in signals:
         if s["kind"] in ("oportunidad", "cara", "concentración"):
             th = theses.get(s["ticker"])
@@ -322,14 +336,21 @@ def command_center_page(
     attention.sort(key=lambda a: a["prio"])
 
     today = datetime.date.today().isoformat()
+    for r in rows:   # días que faltan para los próximos resultados
+        if r["next"] and r["next"].get("date"):
+            r["next"] = {**r["next"], "days": (datetime.date.fromisoformat(r["next"]["date"][:10]) - datetime.date.today()).days}
     upcoming = sorted(({"ticker": r["ticker"], "thesis_id": r["thesis_id"], **r["next"]} for r in rows
                        if r["next"] and r["next"]["date"] >= today), key=lambda u: u["date"])[:10]
+    # vistos e histórico: lo que deja de aparecer no se borra
+    monitor = sorted((s for s in signals if s["kind"] in ("anormal", "propio", "nivel")),
+                     key=lambda s: (s.get("date") or "", s["ticker"]), reverse=True)
+    attention, monitor, signal_history = notice_service.track(notice_repo, "resumen", attention, monitor)
     return templates.TemplateResponse("command_center.html", {
         "request": request, "settings": settings, "error": error, "benchmark": benchmark,
-        "changes": changes, "rows": rows, "signals": sorted((s for s in signals if s["kind"] in ("anormal", "propio", "nivel")),
-                          key=lambda s: (s.get("date") or "", s["ticker"]), reverse=True),
+        "changes": changes, "rows": rows, "signals": monitor, "signal_history": signal_history,
         "attention": attention, "news": repo.list_news(limit=8), "upcoming": upcoming,
         "chart": [{"ticker": r["ticker"], "weight": r["position"]["weight"], "contribution": r["position"]["contribution"],
                    "change": (r["stats"] or {}).get("change", {})} for r in rows if r["position"]],
         "theses_ids": {t: th["id"] for t, th in theses.items()},
+        "wl_target": base_valuation_service.TARGET_RETURN_PCT,
     })

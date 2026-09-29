@@ -1,9 +1,12 @@
 {% extends "base.html" %}
 {% from "_thesis_macros.html" import status_icon, verdict_badge, thesis_styles %}
+{% from "_watchlist.html" import watchlist_panel %}
+{% from "_notices.html" import notice_styles, attention_list, monitor_card_body %}
 {% block title %}Centro de mando · Alpha-Flow{% endblock %}
 
 {% block content %}
 {{ thesis_styles() }}
+{{ notice_styles() }}
 <style>
     .cc-kpi .val { font-size: 1.9rem; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
     .period-btns .btn { font-size: .78rem; }
@@ -14,17 +17,21 @@
     .tbl-cc td.wrap { white-space: normal; min-width: 180px; }
     .tbl-cc { width: 100%; }
     .cagr-green { color: var(--fin-green) !important; } .cagr-amber { color: #e3b341 !important; } .cagr-orange { color: #f0883e !important; } .cagr-red { color: var(--fin-red) !important; }
+    .tbl-cc th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+    .tbl-cc th.sortable::after { content: "\2195"; opacity: .3; margin-left: .25rem; font-size: .75em; }
+    .tbl-cc th.sortable[data-dir="asc"]::after { content: "\25B2"; opacity: .9; }
+    .tbl-cc th.sortable[data-dir="desc"]::after { content: "\25BC"; opacity: .9; }
 </style>
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <div>
             <h4 class="fw-bold mb-1"><i class="bi bi-grid-1x2 me-2 text-primary"></i>Centro de mando</h4>
             <p class="text-muted small mb-0">Cartera, tesis y precios de un vistazo{% if changes.as_of %} · cierre {{ changes.as_of }}{% endif %}.
-                Semana desde el lunes y mes desde el día 1, respetando las fechas de compra y venta. El monitor de precios solo informa: si algo te interesa, pulsa «¿Por qué se mueve?».</p>
+                Semana desde el lunes y mes desde el día 1, respetando las fechas de compra y venta. El monitor de precios solo informa: si algo te interesa, pulsa la lupa <i class="bi bi-search"></i> para ver por qué se mueve.</p>
         </div>
         <div class="btn-group btn-group-sm period-btns" role="group">
             {% for k, label in [('1d', 'Día'), ('wtd', 'Semana'), ('mtd', 'Mes'), ('ytd', 'Año')] %}
-            <button class="btn btn-outline-secondary {{ 'active' if k == 'wtd' }}" data-period="{{ k }}">{{ label }}</button>
+            <button class="btn btn-outline-secondary {{ 'active' if k == '1d' }}" data-period="{{ k }}">{{ label }}</button>
             {% endfor %}
         </div>
     </div>
@@ -57,34 +64,22 @@
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#cc-resumen" type="button"><i class="bi bi-inbox me-1"></i>Resumen</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cc-posiciones" type="button" data-hash="posiciones"><i class="bi bi-briefcase me-1"></i>Posiciones</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cc-mapa" type="button" data-hash="mapa" id="tabMapa"><i class="bi bi-grid-3x3-gap me-1"></i>Mapa de la cartera</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#cc-watchlist" type="button" data-hash="watchlist"><i class="bi bi-eye me-1"></i>Watchlist <span class="badge text-bg-secondary" id="wlCount">…</span></button></li>
     </ul>
     <div class="tab-content">
     <div class="tab-pane fade show active" id="cc-resumen">
     <div class="row g-3 mb-3">
         <!-- REQUIERE TU ATENCIÓN -->
         <div class="col-12 col-xl-5"><div class="card h-100">
-            <div class="card-header bg-transparent fw-bold"><i class="bi bi-inbox me-1"></i>Requiere tu atención <span class="badge text-bg-secondary">{{ attention|length }}</span></div>
-            <div class="card-body small">
-            {% for a in attention %}
-                <div class="att-item p{{ [a.prio, 3]|min }}"><a href="{{ a.href }}" class="text-decoration-none"><strong>{{ a.ticker }}</strong></a> · {{ a.text }}</div>
-            {% else %}<div class="text-muted"><i class="bi bi-check2-circle st-green me-1"></i>Nada pendiente: sin resultados por revisar, noticias nuevas ni señales de tesis.</div>{% endfor %}
-            </div>
+            <div class="card-header bg-transparent fw-bold"><i class="bi bi-inbox me-1"></i>Requiere tu atención <span class="badge text-bg-secondary" id="attCount">{{ attention|rejectattr('seen')|list|length }}</span></div>
+            {{ attention_list(attention, 'attList', 'Nada pendiente: sin resultados por revisar, noticias nuevas ni señales de tesis.') }}
         </div></div>
         <!-- MONITOR DE PRECIOS -->
         <div class="col-12 col-xl-7"><div class="card h-100">
             <div class="card-header bg-transparent fw-bold"><i class="bi bi-activity me-1"></i>Monitor de precios
                 <span class="small text-muted fw-normal">· movimientos fuertes o anormales para cada valor (≥2σ o ≥7% en 5 sesiones, ≥2,5σ o ≥5% en un día), movimientos propios frente al mercado y máximos/mínimos de 52 semanas</span></div>
-            <div class="card-body small">
-            {% for s in signals %}
-                <div class="d-flex gap-2 mb-1 align-items-start">
-                    <i class="bi {{ 'bi-arrow-down-right' if s.tone == 'down' else ('bi-arrow-up-right' if s.tone == 'up' else 'bi-dot') }} sig-{{ s.tone }}"></i>
-                    <span class="text-muted font-monospace-data text-nowrap" style="min-width: 5.2rem;" title="{{ 'Del ' ~ s.since ~ ' al ' ~ s.date if s.since else s.date }}">{% if s.since %}{{ s.since[8:10] }}/{{ s.since[5:7] }}–{% endif %}{{ s.date[8:10] }}/{{ s.date[5:7] }}</span>
-                    <span class="flex-grow-1"><strong>{{ s.ticker }}</strong> <span class="badge bg-light text-dark border">{{ s.kind }}</span> {{ s.text }}</span>
-                    {% if theses_ids.get(s.ticker) %}<button class="btn btn-link btn-sm p-0 text-nowrap" onclick="whyMoves({{ theses_ids[s.ticker] }}, '{{ s.ticker }}', this)">¿Por qué se mueve?</button>{% endif %}
-                </div>
-            {% else %}<div class="text-muted">Sin movimientos fuera de lo normal ni niveles relevantes esta semana.</div>{% endfor %}
-            <div id="whyResult" class="mt-2"></div>
-            </div>
+            {{ monitor_card_body(signals, signal_history, 'monList', 'resumen', theses_ids) }}
+            <div class="px-3 pb-2"><div id="whyResult" class="small"></div></div>
         </div></div>
     </div>
 
@@ -104,8 +99,9 @@
             <ul class="list-group list-group-flush small">
             {% for u in upcoming %}<li class="list-group-item d-flex justify-content-between">
                 <span>{% if u.thesis_id %}<a href="/tesis/{{ u.thesis_id }}" class="text-decoration-none"><strong>{{ u.ticker }}</strong></a>{% else %}<strong>{{ u.ticker }}</strong>{% endif %}
-                    {% if u.source == 'búsqueda' %}<span class="badge bg-light text-dark border" title="{{ u.event ~ ' · ' if u.event }}yfinance no la tenía: encontrada con búsqueda web">web</span>{% endif %}</span>
-                <span class="font-monospace-data">{{ u.date[8:10] }}/{{ u.date[5:7] }}/{{ u.date[:4] }}</span>
+                   </span>
+                <span class="font-monospace-data">{{ u.date[8:10] }}/{{ u.date[5:7] }}/{{ u.date[:4] }}
+                    <span class="{{ 'text-warning fw-bold' if u.days is not none and u.days <= 7 else 'text-muted' }} ms-1">{{ 'hoy' if u.days == 0 else ('mañana' if u.days == 1 else 'en ' ~ u.days ~ ' d') }}</span></span>
             </li>{% else %}<li class="list-group-item text-muted">Sin fechas disponibles.</li>{% endfor %}
             </ul>
         </div></div>
@@ -118,37 +114,40 @@
         <div class="table-responsive">
         <table class="table table-sm table-hover mb-0 tbl-cc">
             <thead><tr>
-                <th>Valor</th><th class="text-end">Peso</th><th class="text-end">Precio</th><th class="text-end">Var. <span class="period-label">semana</span></th>
-                <th class="text-end" title="Aportación a la variación de la cartera en el periodo (respeta fechas de compra)">Contribución</th>
-                <th class="text-end" title="Caída desde el máximo de 52 semanas">Desde máx. 52s</th>
-                <th class="text-end" title="Retorno anual esperado al precio actual según el escenario Base de la tesis">CAGR estimado</th>
-                <th>Próx. resultados</th>
+                <th class="sortable" data-type="text">Valor</th><th class="text-end sortable">Peso</th><th class="text-end sortable">Precio</th><th class="text-end sortable">Var. <span class="period-label">semana</span></th>
+                <th class="text-end sortable" title="Aportación a la variación de la cartera en el periodo (respeta fechas de compra)">Contribución</th>
+                <th class="text-end sortable" title="Caída desde el máximo de 52 semanas">Desde máx. 52s</th>
+                <th class="text-end sortable" title="Retorno anual esperado al precio actual según el escenario Base de la tesis o, si no hay, la valoración base de la ficha">CAGR estimado</th>
+                <th class="sortable" title="Ordena por días que faltan">Próx. resultados</th>
             </tr></thead>
             <tbody>
             {% for r in rows %}{% set st = r.stats or {} %}
             <tr data-ticker="{{ r.ticker }}">
-                <td>{% if r.thesis_id %}<a href="/tesis/{{ r.thesis_id }}" class="text-decoration-none fw-bold" title="Ver la tesis">{{ r.ticker }}</a>{% else %}<a href="/ticker/{{ r.ticker }}" class="text-decoration-none fw-bold text-body">{{ r.ticker }}</a>{% endif %}
+                <td data-sort="{{ r.ticker }}">{% if r.thesis_id %}<a href="/tesis/{{ r.thesis_id }}" class="text-decoration-none fw-bold" title="Ver la tesis">{{ r.ticker }}</a>{% else %}<a href="/ticker/{{ r.ticker }}" class="text-decoration-none fw-bold text-body">{{ r.ticker }}</a>{% endif %}
                     <div class="text-muted small text-truncate" style="max-width: 200px;">{{ r.name }}</div></td>
-                <td class="text-end font-monospace-data">{{ '%.1f'|format(r.position.weight) ~ '%' if r.position else '–' }}</td>
-                <td class="text-end font-monospace-data">{{ '%.2f'|format(st.get('price')) if st.get('price') else '–' }} <span class="text-muted">{{ r.cur }}</span></td>
+                <td class="text-end font-monospace-data" data-sort="{{ r.position.weight if r.position else '' }}">{{ '%.1f'|format(r.position.weight) ~ '%' if r.position else '–' }}</td>
+                <td class="text-end font-monospace-data" data-sort="{{ st.get('price') or '' }}">{{ '%.2f'|format(st.get('price')) if st.get('price') else '–' }} <span class="text-muted">{{ r.cur }}</span></td>
                 <td class="text-end font-monospace-data cell-change">–</td>
                 <td class="text-end font-monospace-data cell-contrib">–</td>
                 {% set fh = st.get('from_high_pct') %}
-                <td class="text-end font-monospace-data {{ 'text-danger' if fh is not none and fh <= -20 else '' }}">{{ '%+.1f'|format(fh) ~ '%' if fh is not none else '–' }}</td>
+                <td class="text-end font-monospace-data {{ 'text-danger' if fh is not none and fh <= -20 else '' }}" data-sort="{{ fh if fh is not none else '' }}">{{ '%+.1f'|format(fh) ~ '%' if fh is not none else '–' }}</td>
                 {% set band = none if r.cagr is none else ('green' if r.cagr >= 15 else ('amber' if r.cagr >= 10 else ('orange' if r.cagr >= 6 else 'red'))) %}
-                <td class="text-end font-monospace-data fw-bold {{ 'cagr-' ~ band if band }}" title="{{ (r.cagr_src ~ ' · ' ~ {'green': '≥15%', 'amber': '10–15%', 'orange': '6–10%', 'red': '<6%'}[band]) if band else 'Sin tesis' }}">
+                <td class="text-end font-monospace-data fw-bold {{ 'cagr-' ~ band if band }}" data-sort="{{ r.cagr if r.cagr is not none else '' }}" title="{{ (r.cagr_src ~ ' · ' ~ {'green': '≥15%', 'amber': '10–15%', 'orange': '6–10%', 'red': '<6%'}[band]) if band else 'Sin tesis ni valoración base en la ficha' }}">
                     {% if band %}<i class="bi bi-circle-fill me-1" style="font-size: .5rem; vertical-align: middle;"></i>{{ '%.1f'|format(r.cagr) }}%{% else %}–{% endif %}</td>
-                <td class="small">{% if r.next %}<span title="{{ r.next.event }}">{{ r.next.date[8:10] }}/{{ r.next.date[5:7] }}/{{ r.next.date[2:4] }}</span>{% if r.next.source == 'búsqueda' %} <span class="badge bg-light text-dark border" title="{{ r.next.event }} (yfinance no la tenía: búsqueda web)">web</span>{% endif %}{% else %}<span class="text-muted">–</span>{% endif %}</td>
+                <td class="small" data-sort="{{ r.next.days if r.next and r.next.days is not none and r.next.days >= 0 else '' }}">{% if r.next %}<span title="{{ r.next.event }}">{{ r.next.date[8:10] }}/{{ r.next.date[5:7] }}/{{ r.next.date[2:4] }}</span>{% if r.next.days is not none and r.next.days >= 0 %} <span class="{{ 'text-warning fw-bold' if r.next.days <= 7 else 'text-muted' }}">({{ r.next.days }} d)</span>{% endif %}{% else %}<span class="text-muted">–</span>{% endif %}</td>
             </tr>
             {% endfor %}
             </tbody>
         </table>
         </div>
-        <div class="small text-muted px-2 py-1">CAGR estimado: escenario Base de la tesis al precio de hoy («–» si no hay tesis) ·
+        <div class="small text-muted px-2 py-1">CAGR estimado: escenario Base de la tesis al precio de hoy; si no hay tesis, la valoración base de la ficha («–» si no hay ninguna) ·
             <span class="cagr-green">● ≥15%</span> <span class="cagr-amber">● 10–15%</span> <span class="cagr-orange">● 6–10%</span> <span class="cagr-red">● &lt;6%</span>.
             La contribución respeta las fechas de compra y venta.</div>
     </div>
 
+    </div>
+    <div class="tab-pane fade" id="cc-watchlist">
+    {{ watchlist_panel(wl_target, (settings.get("ui") or {}).get("items_per_page") or 10) }}
     </div>
     <div class="tab-pane fade" id="cc-mapa">
     <!-- GRÁFICOS -->
@@ -194,9 +193,11 @@ function render(period) {
         const c = CC.chart.find(x => x.ticker === tr.dataset.ticker);
         const ch = c ? (c.change || {})[period] : null;
         const cv = c ? c.contribution[period] : null;
-        const cc = tr.querySelector('.cell-change'); cc.textContent = fmtPct(ch); cc.className = 'text-end font-monospace-data cell-change ' + cls(ch);
-        const ct = tr.querySelector('.cell-contrib'); ct.textContent = cv === null || cv === undefined ? '–' : (cv >= 0 ? '+' : '') + cv.toFixed(2) + ' pp'; ct.className = 'text-end font-monospace-data cell-contrib ' + cls(cv);
+        const cc = tr.querySelector('.cell-change'); cc.textContent = fmtPct(ch); cc.className = 'text-end font-monospace-data cell-change ' + cls(ch); cc.dataset.sort = ch ?? '';
+        const ct = tr.querySelector('.cell-contrib'); ct.textContent = cv === null || cv === undefined ? '–' : (cv >= 0 ? '+' : '') + cv.toFixed(2) + ' pp'; ct.className = 'text-end font-monospace-data cell-contrib ' + cls(cv); ct.dataset.sort = cv ?? '';
     });
+
+    sortTable();   // si la tabla está ordenada por variación o contribución, se reordena con el nuevo periodo
 
     const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
     const ink = dark ? '#c9d1d9' : '#343a40', surface = dark ? '#11131b' : '#ffffff', grid = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
@@ -223,11 +224,34 @@ function render(period) {
         {displayModeBar: false, responsive: true});
 }
 
+// Tabla de posiciones ordenable por cualquier columna (clic: descendente, otro clic: ascendente). Sin dato → siempre al final.
+let sortState = null;   // {col, dir}
+function sortTable() {
+    if (!sortState) return;
+    const tbody = document.querySelector('.tbl-cc tbody');
+    const text = document.querySelectorAll('.tbl-cc th')[sortState.col].dataset.type === 'text';
+    const val = tr => { const v = tr.children[sortState.col].dataset.sort; return v === '' || v === undefined ? null : (text ? v : parseFloat(v)); };
+    [...tbody.querySelectorAll('tr')].sort((a, b) => {
+        const x = val(a), y = val(b);
+        if (x === null || y === null) return x === null ? (y === null ? 0 : 1) : -1;
+        return (text ? x.localeCompare(y) : x - y) * sortState.dir;
+    }).forEach(tr => tbody.appendChild(tr));
+    document.querySelectorAll('.tbl-cc th.sortable').forEach((th, i) => th.dataset.dir = '');
+    document.querySelectorAll('.tbl-cc th')[sortState.col].dataset.dir = sortState.dir > 0 ? 'asc' : 'desc';
+}
+document.querySelectorAll('.tbl-cc th.sortable').forEach(th => th.addEventListener('click', () => {
+    const col = [...th.parentNode.children].indexOf(th);
+    // primer clic: texto y días a resultados de menor a mayor; números de mayor a menor
+    const first = th.dataset.type === 'text' || col === th.parentNode.children.length - 1 ? 1 : -1;
+    sortState = {col, dir: sortState && sortState.col === col ? -sortState.dir : first};
+    sortTable();
+}));
+
 document.querySelectorAll('[data-period]').forEach(btn => btn.addEventListener('click', () => {
     document.querySelectorAll('[data-period]').forEach(b => b.classList.toggle('active', b === btn));
     render(btn.dataset.period);
 }));
-render('wtd');
+render('1d');
 document.addEventListener('DOMContentLoaded', () => {
     const btn = document.querySelector(`[data-bs-toggle="tab"][data-hash="${location.hash.slice(1)}"]`);
     if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
@@ -237,9 +261,93 @@ document.querySelectorAll('[data-bs-toggle="tab"][data-hash]').forEach(btn => bt
 }));
 document.getElementById('tabMapa').addEventListener('shown.bs.tab', () => {
     const active = document.querySelector('[data-period].active');
-    render(active ? active.dataset.period : 'wtd');
+    render(active ? active.dataset.period : '1d');
     ['treemap', 'contrib'].forEach(id => Plotly.Plots.resize(document.getElementById(id)));   // se dibujaron con la pestaña oculta
 });
+
+// Listas largas (avisos, monitor): se ven los N primeros por prioridad y el resto tras «Ver N más».
+// Los avisos vistos no cuentan (se ocultan salvo con «Mostrar vistos»).
+function collapseList(el) {
+    const n = parseInt(el.dataset.collapse), showSeen = el.classList.contains('show-seen');
+    const items = [...el.children].filter(c => c.matches('.att-item, .sig-item') && (showSeen || !c.classList.contains('att-seen')));
+    el.querySelectorAll(':scope > .collapse-toggle').forEach(b => b.remove());
+    items.forEach((it, i) => it.classList.toggle('d-none', i >= n));
+    if (items.length <= n) return;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'btn btn-link btn-sm p-0 collapse-toggle me-3';
+    const label = open => btn.textContent = open ? 'Ver menos' : `Ver ${items.length - n} más`;
+    label(false);
+    btn.addEventListener('click', () => {
+        const open = btn.textContent !== 'Ver menos';
+        items.forEach((it, i) => it.classList.toggle('d-none', !open && i >= n));
+        label(open);
+    });
+    const toggle = el.querySelector(':scope > .seen-toggle');
+    toggle ? el.insertBefore(btn, toggle) : el.appendChild(btn);
+}
+// Recuento, texto de «todo visto» y botón «Mostrar vistos» de una lista de avisos
+function refreshNoticeList(el) {
+    const all = [...el.querySelectorAll(':scope > .att-item')], seen = all.filter(a => a.classList.contains('att-seen'));
+    const pending = all.length - seen.length;
+    const empty = el.querySelector(':scope > .att-empty'); if (empty) empty.classList.toggle('d-none', pending > 0);
+    const t = el.querySelector(':scope > .seen-toggle');
+    if (t) { t.classList.toggle('d-none', !seen.length); t.textContent = el.classList.contains('show-seen') ? 'Ocultar vistos' : `Mostrar vistos (${seen.length})`; }
+    const badge = el.id === 'attList' ? document.getElementById('attCount') : el.closest('.card')?.querySelector('.att-count');
+    if (badge) badge.textContent = pending;
+    collapseList(el);
+}
+async function markSeen(btn) {
+    const item = btn.closest('.att-item'), seen = !item.classList.contains('att-seen');
+    const keys = (item.dataset.keys || item.dataset.key).split(',');
+    btn.disabled = true;
+    try {
+        const r = await fetch('/api/notices/seen', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({keys, seen})});
+        if (!r.ok) throw new Error(r.statusText);
+        item.classList.toggle('att-seen', seen);
+        btn.querySelector('i').className = 'bi ' + (seen ? 'bi-arrow-counterclockwise' : 'bi-check2');
+        btn.title = seen ? 'Volver a marcar como pendiente' : 'Marcar como visto';
+        refreshNoticeList(item.closest('.notice-list'));
+        // el mismo aviso puede estar en el Resumen y en la watchlist
+        document.querySelectorAll('.att-item').forEach(other => {
+            if (other !== item && keys.some(k => (other.dataset.keys || other.dataset.key || '').split(',').includes(k))) {
+                other.classList.toggle('att-seen', seen); refreshNoticeList(other.closest('.notice-list'));
+            }
+        });
+    } catch (e) { alert('No se pudo guardar: ' + e.message); }
+    btn.disabled = false;
+}
+async function deleteSignal(btn) {
+    const item = btn.closest('.sig-item'), list = item.parentNode;
+    try {
+        const r = await fetch(`/api/notices/${item.dataset.id}`, {method: 'DELETE'});
+        if (!r.ok) throw new Error(r.statusText);
+        item.remove(); monHistoryChanged(list);
+    } catch (e) { alert('No se pudo borrar: ' + e.message); }
+}
+async function clearSignalHistory(btn) {
+    if (!confirm('¿Vaciar el histórico de señales? No se puede deshacer.')) return;
+    const list = btn.closest('[data-scope]');
+    try {
+        const r = await fetch('/api/notices/clear', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({scope: list.dataset.scope})});
+        if (!r.ok) throw new Error(r.statusText);
+        list.querySelectorAll('.sig-item').forEach(el => el.remove()); monHistoryChanged(list);
+    } catch (e) { alert('No se pudo vaciar: ' + e.message); }
+}
+function monHistoryChanged(list) {
+    const n = list.querySelectorAll('.sig-item').length;
+    const badge = document.querySelector(`[data-mon="${list.id.replace(/History$/, '')}"] .btn:last-child .badge`);
+    if (badge) badge.textContent = n;
+    if (!n) list.innerHTML = '<div class="text-muted">Histórico vacío: aquí quedan las señales que dejan de estar activas.</div>';
+    else collapseList(list);
+}
+function showMonTab(btn, which) {
+    const id = btn.parentNode.dataset.mon;
+    btn.parentNode.querySelectorAll('.btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.getElementById(id).classList.toggle('d-none', which !== 'active');
+    document.getElementById(id + 'History').classList.toggle('d-none', which !== 'history');
+}
+document.querySelectorAll('#cc-resumen .notice-list').forEach(refreshNoticeList);
+document.querySelectorAll('#cc-resumen [data-collapse]').forEach(collapseList);
 
 // «¿Por qué se mueve?»: lo lanza el usuario; consulta el radar de noticias de esa tesis (forzado)
 async function whyMoves(thesisId, ticker, btn) {

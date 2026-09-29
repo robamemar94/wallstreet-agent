@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.infrastructure.db.database import get_db
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
+from app.application.services import market_cache
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.performance_service import PerformanceService
 from app.infrastructure.dependencies import (
@@ -20,7 +21,7 @@ from app.infrastructure.dependencies import (
     get_settings_from_db,
 )
 from app.infrastructure.templates import templates
-from app.interfaces.views.market_views import get_currency_symbol, is_reload_request, INDEX_CACHE, ensure_prices_cached
+from app.interfaces.views.market_views import get_currency_symbol, is_reload_request, INDEX_CACHE, ensure_prices_cached, prices_banner_context
 from app.domain.models import TransactionType
 from utils.financial_math import calculate_position_cagr
 # from tools.download_logos import download_logo
@@ -228,6 +229,75 @@ def portfolio_ticker_page(
         "settings": get_settings_from_db(db_session)
     })
 
+EMPTY_METRICS = {"beta": None, "roic": None, "dividend_yield": None, "expected_growth": None, "gross_margin": None,
+                 "operating_margin": None, "trailing_pe": None, "forward_pe": None, "peg_ratio": None, "fcf_yield": None,
+                 "net_debt_ebitda": None, "current_ratio": None, "company_name": None}
+
+
+def portfolio_raw(ticker: str) -> dict:
+    """Métricas fundamentales y próximo dividendo de yfinance para la cartera. Caché en disco de 12 h: son
+    varias llamadas lentas por empresa y cambian poco (la cotización va aparte y sí se refresca a menudo)."""
+    def download():
+        stock = yf.Ticker(ticker)
+        cal = stock.calendar
+        info = stock.info or {}
+        m = {
+            "beta": info.get('beta'),
+            "roic": info.get('returnOnInvestment') or info.get('returnOnAssets') or info.get('returnOnEquity'),
+            "dividend_yield": info.get('dividendYield'), "gross_margin": info.get('grossMargins'),
+            "operating_margin": info.get('operatingMargins'),
+            # métricas de valoración y salud financiera
+            "trailing_pe": info.get('trailingPE'), "forward_pe": info.get('forwardPE'), "peg_ratio": info.get('pegRatio'),
+            "current_ratio": info.get('currentRatio'), "fcf_yield": None,
+            "company_name": info.get('longName') or info.get('shortName'),
+        }
+        fcf, mcap = info.get('freeCashflow'), info.get('marketCap')
+        if fcf and mcap and mcap > 0:
+            fcf_val = float(fcf)
+            # yfinance a veces reporta freeCashflow en la divisa de los estados financieros (financialCurrency),
+            # distinta de la de cotización (currency) usada en marketCap. Ej: OMAB reporta en MXN pero cotiza en USD.
+            fin_ccy, quote_ccy = info.get('financialCurrency'), info.get('currency')
+            if fin_ccy and quote_ccy and fin_ccy != quote_ccy:
+                try:
+                    fx_rate = yf.Ticker(f"{fin_ccy}{quote_ccy}=X").fast_info['lastPrice']
+                    fcf_val = fcf_val * float(fx_rate) if fx_rate else None
+                except Exception:
+                    fcf_val = None
+            m["fcf_yield"] = (fcf_val / float(mcap)) if fcf_val is not None else None
+        # Deuda neta / EBITDA
+        ebitda, total_debt, total_cash = info.get('ebitda'), info.get('totalDebt'), info.get('totalCash')
+        if total_debt is not None and total_cash is not None and ebitda and ebitda > 0:
+            m["net_debt_to_ebitda"] = (total_debt - total_cash) / ebitda
+        # Crecimiento de ingresos esperado (revenue estimate de +1y si lo hay)
+        expected_growth = info.get('revenueGrowth')
+        try:
+            rev_est = stock.revenue_estimate
+            if rev_est is not None and not rev_est.empty and '+1y' in rev_est.index:
+                growth_val = rev_est.loc['+1y', 'growth']
+                if growth_val is not None and not pd.isna(growth_val):
+                    expected_growth = float(growth_val)
+        except Exception:
+            pass
+        m["expected_growth"] = expected_growth
+
+        to_iso = lambda v: (v.date() if hasattr(v, "date") else v).isoformat() if v else None
+        ex_ts = info.get('exDividendDate') or info.get('dividendExDate')
+        pay_ts = info.get('dividendDate') or info.get('dividendPaymentDate')
+        pay = datetime.date.fromtimestamp(pay_ts).isoformat() if pay_ts else None
+        if not pay and isinstance(cal, dict) and cal.get('Dividend Date'):
+            pay = to_iso(cal.get('Dividend Date'))
+        elif not pay and isinstance(cal, pd.DataFrame) and 'Dividend Date' in cal.index:
+            pay = to_iso(cal.loc['Dividend Date'].iloc[0])
+        div_rate = info.get('dividendRate')
+        return {"metrics": {k: (float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else v) for k, v in m.items()},
+                "ex_div": datetime.date.fromtimestamp(ex_ts).isoformat() if ex_ts else None, "pay_date": pay,
+                "div_value": info.get('lastDividendValue') or ((div_rate / 4.0) if div_rate else 0.0)}
+    try:
+        return market_cache.cached("portfolio_raw", ticker, download)
+    except Exception:
+        return {}
+
+
 @router.get("/portfolio", response_class=HTMLResponse)
 def portfolio_page(
     request: Request,
@@ -245,8 +315,8 @@ def portfolio_page(
     # 1. Rendimiento histórico (ya tiene su propia caché interna)
     perf_data = performance_service.get_performance_data(perf_start_date)
     
-    # Si es una recarga del navegador (F5), forzar la expiración de la caché de precios compartida
-    if is_reload_request(request):
+    # F5: se piden precios nuevos en segundo plano (la página no espera; se recarga sola al llegar)
+    if is_reload_request(request) and time.time() - INDEX_CACHE.get("prices_update", 0) > 30:
         INDEX_CACHE["prices_update"] = 0
 
     # 2. Actualizar caché de precios y divisas (compartida con el dashboard vía INDEX_CACHE,
@@ -287,121 +357,16 @@ def portfolio_page(
                 ticker = item['ticker']
                 shares = item['shares']
                 curr = currency_by_ticker.get(ticker, "USD")
-                
-                ret_data = {
-                    "ticker": ticker,
-                    "upcoming_dividend": None,
-                    "metrics": {
-                        "beta": None,
-                        "roic": None,
-                        "dividend_yield": None,
-                        "expected_growth": None,
-                        "gross_margin": None,
-                        "operating_margin": None,
-                        "trailing_pe": None,
-                        "forward_pe": None,
-                        "peg_ratio": None,
-                        "fcf_yield": None,
-                        "net_debt_ebitda": None,
-                        "current_ratio": None,
-                        "company_name": None
-                    }
-                }
-                
+                ret_data = {"ticker": ticker, "upcoming_dividend": None, "metrics": dict(EMPTY_METRICS)}
                 try:
-                    stock = yf.Ticker(ticker)
-                    cal = stock.calendar
-                    info = stock.info
+                    raw = portfolio_raw(ticker)
+                    ret_data["metrics"].update(raw.get("metrics") or {})
                     today = datetime.date.today()
-                    
-                    # 1. Extraer métricas fundamentales
-                    ret_data["metrics"]["beta"] = info.get('beta')
-                    ret_data["metrics"]["roic"] = info.get('returnOnInvestment') or info.get('returnOnAssets') or info.get('returnOnEquity')
-                    ret_data["metrics"]["dividend_yield"] = info.get('dividendYield')
-                    ret_data["metrics"]["gross_margin"] = info.get('grossMargins')
-                    ret_data["metrics"]["operating_margin"] = info.get('operatingMargins')
-                    
-                    # Extraer métricas de valoración y salud financiera
-                    ret_data["metrics"]["trailing_pe"] = info.get('trailingPE')
-                    ret_data["metrics"]["forward_pe"] = info.get('forwardPE')
-                    ret_data["metrics"]["peg_ratio"] = info.get('pegRatio')
-                    ret_data["metrics"]["current_ratio"] = info.get('currentRatio')
-                    
-                    # FCF Yield
-                    fcf = info.get('freeCashflow')
-                    mcap = info.get('marketCap')
-                    if fcf and mcap and mcap > 0:
-                        fcf_val = float(fcf)
-                        # yfinance a veces reporta freeCashflow en la divisa de los estados
-                        # financieros (financialCurrency), distinta de la divisa de cotización
-                        # (currency) usada en marketCap. Ej: OMAB reporta en MXN pero cotiza en USD.
-                        # Sin esta conversión el ratio sale inflado por el tipo de cambio.
-                        fin_ccy = info.get('financialCurrency')
-                        quote_ccy = info.get('currency')
-                        if fin_ccy and quote_ccy and fin_ccy != quote_ccy:
-                            try:
-                                fx_rate = yf.Ticker(f"{fin_ccy}{quote_ccy}=X").fast_info['lastPrice']
-                                if fx_rate:
-                                    fcf_val = fcf_val * float(fx_rate)
-                                else:
-                                    fcf_val = None
-                            except Exception:
-                                fcf_val = None
-                        ret_data["metrics"]["fcf_yield"] = (fcf_val / float(mcap)) if fcf_val is not None else None
-                    else:
-                        ret_data["metrics"]["fcf_yield"] = None
-                        
-                    # Deuda Neta / EBITDA o Deuda / Capital
-                    # yfinance tiene ebitda, totalDebt, totalCash. Calculemos Deuda Neta / EBITDA
-                    ebitda = info.get('ebitda')
-                    total_debt = info.get('totalDebt')
-                    total_cash = info.get('totalCash')
-                    if total_debt is not None and total_cash is not None and ebitda and ebitda > 0:
-                        net_debt = total_debt - total_cash
-                        ret_data["metrics"]["net_debt_to_ebitda"] = net_debt / ebitda
-                    
-                    # Crecimiento de ingresos esperado (Intentar obtener revenue estimate de +1y)
-                    expected_growth = info.get('revenueGrowth')
-                    try:
-                        rev_est = stock.revenue_estimate
-                        if rev_est is not None and not rev_est.empty and '+1y' in rev_est.index:
-                            growth_val = rev_est.loc['+1y', 'growth']
-                            if growth_val is not None and not pd.isna(growth_val):
-                                expected_growth = float(growth_val)
-                    except Exception:
-                        pass
-                    ret_data["metrics"]["expected_growth"] = expected_growth
-                    
-                    company_name = info.get('longName') or info.get('shortName')
-                    if company_name:
-                        ret_data["metrics"]["company_name"] = company_name
-                    
-                    # 2. Dividendo futuro
-                    ex_ts = info.get('exDividendDate') or info.get('dividendExDate')
-                    ex_date = None
-                    if ex_ts:
-                        ex_date = datetime.date.fromtimestamp(ex_ts)
-                        
-                    pay_date_obj = None
-                    pay_ts = info.get('dividendDate') or info.get('dividendPaymentDate')
-                    if pay_ts:
-                        pay_date_obj = datetime.date.fromtimestamp(pay_ts)
-                    elif isinstance(cal, dict) and cal.get('Dividend Date'):
-                        pay_date_obj = cal.get('Dividend Date')
-                        if hasattr(pay_date_obj, 'date'):
-                            pay_date_obj = pay_date_obj.date()
-                    elif isinstance(cal, pd.DataFrame) and 'Dividend Date' in cal.index:
-                        pay_date_obj = cal.loc['Dividend Date'].iloc[0]
-                        if hasattr(pay_date_obj, 'date'):
-                            pay_date_obj = pay_date_obj.date()
-                    
+                    as_date = lambda v: datetime.date.fromisoformat(v) if v else None
+                    ex_date, pay_date_obj, val = as_date(raw.get("ex_div")), as_date(raw.get("pay_date")), raw.get("div_value") or 0.0
+
                     # We only care about upcoming dividends (either ex-date or pay-date is in the future)
                     if (ex_date and ex_date >= today) or (pay_date_obj and pay_date_obj >= today):
-                        val = info.get('lastDividendValue')
-                        if not val:
-                            div_rate = info.get('dividendRate')
-                            val = (div_rate / 4.0) if div_rate else 0.0
-
                         # Si el ex-date ya pasó (pero el pago sigue pendiente), hay que
                         # validar que ya teníamos la posición en esa fecha: si la compra
                         # fue posterior al ex-date, ese dividendo no nos corresponde.
@@ -424,9 +389,9 @@ def portfolio_page(
                 except Exception:
                     pass
                 return ret_data
-            
+
             upcoming = []
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
                 results = list(executor.map(fetch_dividend, portfolio_data))
                 
             for res in results:
@@ -878,6 +843,7 @@ def portfolio_page(
 
     return templates.TemplateResponse("portfolio.html", {
         "request": request, "portfolio": portfolio_data, "closed_portfolio": closed_portfolio_data,
+        **prices_banner_context(),
         "period_changes": period_changes,
         "total_invested": total_invested_eur,
         "total_current_value": total_current_value_eur,

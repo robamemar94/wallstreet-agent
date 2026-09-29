@@ -261,3 +261,36 @@ class DBThesisDecision(Base):
     created_at = Column(String, nullable=False)
 
     thesis = relationship("DBThesis")
+
+class DBWatchlistItem(Base):
+    """Empresas añadidas a mano a la watchlist (las favoritas y las aceptadas entran solas).
+    La valoración y la nota viven en la ficha: assets.data['base_valuation'] y assets.data['watchlist_note']."""
+    __tablename__ = "watchlist_items"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ticker = Column(String, nullable=False, unique=True, index=True)
+    added_price = Column(Float, nullable=True)
+    added_at = Column(String, nullable=False)
+
+
+class DBNotice(Base):
+    """Avisos de «Requiere tu atención» y señales del monitor de precios, para marcarlos como vistos y no perder el rastro.
+    Se sincronizan en cada carga: lo que ya no aparece queda inactivo (histórico) pero no se borra.
+    Cada fila es un episodio: si el aviso desaparece y vuelve a salir, se abre otra fila (y vuelve a estar sin ver)."""
+    __tablename__ = "notices"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    key = Column(String, nullable=False, index=True)   # identidad del aviso (sin precios que cambian); una fila por episodio
+    scope = Column(String, nullable=False, index=True)              # 'resumen' | 'watchlist'
+    category = Column(String, nullable=False)                       # 'attention' | 'signal'
+    ticker = Column(String, nullable=True)
+    kind = Column(String, nullable=True)
+    tone = Column(String, nullable=True)
+    text = Column(String, nullable=False)                           # último texto mostrado
+    date = Column(String, nullable=True)                            # fecha de la señal (sesión)
+    since = Column(String, nullable=True)
+    first_seen = Column(String, nullable=False)
+    last_seen = Column(String, nullable=False)
+    active = Column(Boolean, nullable=False, default=True)
+    seen_at = Column(String, nullable=True)                         # marcado como visto por el usuario
+

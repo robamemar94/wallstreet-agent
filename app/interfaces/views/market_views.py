@@ -3,6 +3,7 @@ import re
 import time
 import datetime
 import concurrent.futures
+import threading
 import os
 import yfinance as yf
 import markdown
@@ -18,15 +19,19 @@ from app.infrastructure.dependencies import (
     get_portfolio_service,
     get_performance_service,
     get_settings_from_db,
+    get_watchlist_repository,
 )
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
+from app.infrastructure.repositories.sqlalchemy_watchlist_repository import SqlAlchemyWatchlistRepository
+from app.application.services import base_valuation_service, market_cache
+from app.application.services.thesis_service import fetch_ttm_fcf_per_share
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.performance_service import PerformanceService
 from app.infrastructure.templates import templates
 
 from utils.parsers import parse_summary
 from utils.financial_math import calculate_custom_metrics, calculate_cagr_metrics, get_estimated_growth, get_financials_history, get_extended_stats
-from app.application.services.alerts_service import get_alerts_data, run_alerts_scan
+from app.application.services.alerts_service import get_alerts_data, scan_in_background
 
 router = APIRouter(tags=["Market Views"])
 
@@ -124,92 +129,145 @@ def get_region_for_asset(ticker, country):
     return "Otros"
 
 def ensure_prices_cached(tickers: list, asset_repo) -> None:
-    """Asegura que los tickers provistos tengan su precio y variación cargados en INDEX_CACHE."""
-    import time
-    import pandas as pd
-    import yfinance as yf
-    
-    now = time.time()
-    PRICE_TTL = 300 # 5 minutos
-    
-    # Filtrar tickers vacíos o inválidos
+    """Asegura que los tickers provistos tengan su precio y variación en INDEX_CACHE.
+    Si faltan, se descargan (y se espera); si solo están viejos, se muestran y se actualizan en segundo plano."""
     tickers = list(set([t for t in tickers if t and not t.startswith('^')]))
     if not tickers:
         return
-        
-    price_stale = (
-        now - INDEX_CACHE.get("prices_update", 0) > PRICE_TTL
-        or any(t for t in tickers if t not in INDEX_CACHE["data"])
-    )
-    
-    if price_stale:
+    if not INDEX_CACHE["data"]:
+        _load_price_snapshot()   # tras un reinicio: lo último guardado, mientras se actualiza
+    currencies = set()
+    for t in tickers:
         try:
-            # Obtener monedas de cada asset para descargar tipos de cambio
-            currencies = []
-            for t in tickers:
-                try:
-                    currencies.append(asset_repo.get_asset_data(t).get("currency", "USD"))
-                except:
-                    currencies.append("USD")
-            currencies = set(currencies)
-            fx_list = [f"{c}EUR=X" for c in currencies if c != "EUR"]
-            
-            all_symbols = tickers + fx_list
-            data = yf.download(all_symbols, period="5d", progress=False)
-            
-            # Intentar descargar 1d para el último dato intradiario más preciso
-            try:
-                latest_data = yf.download(all_symbols, period="1d", progress=False)
-                if not data.empty and not latest_data.empty:
-                    last_idx = data.index[-1]
-                    if last_idx in latest_data.index:
-                        for col in data.columns:
-                            if col in latest_data.columns:
-                                val = latest_data.at[last_idx, col]
-                                if not pd.isna(val):
-                                    data.at[last_idx, col] = val
-            except:
-                pass
-                
-            if not data.empty and 'Close' in data:
-                closes = data['Close']
-                
-                # Convertir a DataFrame si es una sola Serie (caso de un solo ticker total)
-                if isinstance(closes, pd.Series):
-                    closes = pd.DataFrame({tickers[0]: closes})
-                    
-                for t in closes.columns:
-                    try:
-                        col_close = closes[t].dropna()
-                        if not col_close.empty:
-                            last_date = col_close.index[-1].date()
-                            price = float(col_close.iloc[-1])
-                            prev = float(col_close.iloc[-2]) if len(col_close) > 1 else price
-                            
-                            p_last_date = col_close.index[-1].date()
-                            p_prev = prev
-                            if len(col_close) > 1:
-                                calendar_gap = (col_close.index[-1].date() - col_close.index[-2].date()).days
-                                expected_gap = 3 if last_date.weekday() == 0 else 1
-                                if calendar_gap > expected_gap:
-                                    try:
-                                        p_prev = float(yf.Ticker(t).fast_info["previous_close"])
-                                    except Exception:
-                                        pass
-                                        
-                            INDEX_CACHE["data"][t] = {
-                                "price": price,
-                                "prev": p_prev,
-                                "last_date": last_date
-                            }
-                    except:
-                        continue
-                
-                INDEX_CACHE["prices_update"] = now
-        except Exception as e:
-            print(f"Error fetching prices in ensure_prices_cached: {e}")
+            currencies.add(asset_repo.get_asset_data(t).get("currency", "USD"))
+        except Exception:
+            currencies.add("USD")
+    symbols = tickers + [f"{c}EUR=X" for c in currencies if c != "EUR"]
+    missing = [t for t in symbols if t not in INDEX_CACHE["data"] and t not in INDEX_CACHE.get("unavailable", ())]
+    try:
+        if missing:
+            refresh_index_prices(symbols, [])
+        elif time.time() - INDEX_CACHE.get("prices_update", 0) > 300:
+            start_price_refresh(symbols, [])
+    except Exception as e:
+        print(f"Error fetching prices in ensure_prices_cached: {e}")
 
-@router.get("/", response_class=HTMLResponse)
+
+_price_refresh_lock = threading.Lock()
+
+
+def _load_price_snapshot() -> None:
+    snap = market_cache.load_snapshot()
+    if not snap:
+        return
+    INDEX_CACHE["data"].update({t: {**d, "last_date": datetime.date.fromisoformat(d["last_date"]) if d.get("last_date") else None}
+                                for t, d in snap.get("data", {}).items() if t not in INDEX_CACHE["data"]})
+    INDEX_CACHE["prices_update"] = snap.get("updated", 0)
+
+
+def refresh_index_prices(symbols: list, alert_tickers: list) -> None:
+    """Precio y cierre anterior de cada valor (una sola descarga de 5 sesiones) → INDEX_CACHE y foto en disco."""
+    data = yf.download(sorted(set(symbols)), period="5d", progress=False)
+    if data.empty or "Close" not in data:
+        return
+    closes = data["Close"]
+    if isinstance(closes, pd.Series):
+        closes = closes.to_frame(symbols[0])
+    fresh = {}
+    for t in closes.columns:
+        col_close = closes[t].dropna()
+        if col_close.empty:
+            continue
+        last_date = col_close.index[-1].date()
+        price = float(col_close.iloc[-1])
+        prev = float(col_close.iloc[-2]) if len(col_close) > 1 else price
+        if len(col_close) > 1:
+            # a veces Yahoo no trae la sesión anterior: si hay un hueco raro, cierre anterior de fast_info
+            gap = (last_date - col_close.index[-2].date()).days
+            if gap > (3 if last_date.weekday() == 0 else 1):
+                try:
+                    prev = float(yf.Ticker(t).fast_info["previous_close"])
+                except Exception:
+                    pass
+        fresh[t] = {"price": price, "prev": prev, "last_date": last_date}
+    INDEX_CACHE["data"].update(fresh)
+    INDEX_CACHE["unavailable"] = (set(INDEX_CACHE.get("unavailable", ())) - set(fresh)) | (set(symbols) - set(fresh))
+    INDEX_CACHE["prices_update"] = time.time()
+    market_cache.save_snapshot({"updated": INDEX_CACHE["prices_update"], "data": {
+        t: {**d, "last_date": d["last_date"].isoformat() if d.get("last_date") else None} for t, d in INDEX_CACHE["data"].items()}})
+    # alertas con los precios recién descargados (en segundo plano: descarga histórico)
+    if alert_tickers:
+        scan_in_background({t: INDEX_CACHE["data"][t]["price"] for t in alert_tickers if t in INDEX_CACHE["data"]})
+
+
+def start_price_refresh(symbols: list, alert_tickers: list) -> None:
+    if not _price_refresh_lock.acquire(blocking=False):
+        return
+    INDEX_CACHE["refreshing"] = True
+
+    def run():
+        try:
+            refresh_index_prices(symbols, alert_tickers)
+        except Exception as e:
+            logging.warning("Mercado: fallo al actualizar precios: %s", e)
+        finally:
+            INDEX_CACHE["refreshing"] = False
+            _price_refresh_lock.release()
+    threading.Thread(target=run, daemon=True, name="price-refresh").start()
+
+
+def event_raw(ticker: str) -> dict:
+    """Fechas de dividendo y resultados de yfinance, en la caché en disco (12 h): son lentas de pedir."""
+    def download():
+        stock = yf.Ticker(ticker)
+        info, cal = stock.info or {}, stock.calendar
+        to_iso = lambda v: (v.date() if hasattr(v, "date") else v).isoformat() if v else None
+        out = {"ex_div": None, "div_amount": None, "pay_date": None, "earnings": None}
+        dts = info.get("exDividendDate") or info.get("dividendExDate")
+        if dts:
+            out["ex_div"] = datetime.date.fromtimestamp(dts).isoformat()
+            out["div_amount"] = info.get("lastDividendValue") or ((info.get("dividendRate") or 0) / 4.0)
+            pay_ts = info.get("dividendDate") or info.get("dividendPaymentDate")
+            if pay_ts:
+                out["pay_date"] = datetime.date.fromtimestamp(pay_ts).isoformat()
+            elif isinstance(cal, dict) and cal.get("Dividend Date"):
+                out["pay_date"] = to_iso(cal.get("Dividend Date"))
+            elif isinstance(cal, pd.DataFrame) and "Dividend Date" in cal.index:
+                out["pay_date"] = to_iso(cal.loc["Dividend Date"].iloc[0])
+        ed = None
+        if isinstance(cal, dict):
+            ed = cal.get("Earnings Date")
+        elif isinstance(cal, pd.DataFrame) and "Earnings Date" in cal.index:
+            ed = cal.loc["Earnings Date"].iloc[0]
+        if isinstance(ed, list):
+            ed = ed[0] if ed else None
+        out["earnings"] = to_iso(ed)
+        return out
+    try:
+        return market_cache.cached("event_raw", ticker, download)
+    except Exception:
+        return {}
+
+
+def prices_banner_context() -> dict:
+    """Variables de _prices_banner.html."""
+    updated = INDEX_CACHE.get("prices_update", 0)
+    return {"prices_updated": updated, "prices_refreshing": bool(INDEX_CACHE.get("refreshing")), "now_ts": time.time(),
+            "prices_time": datetime.datetime.fromtimestamp(updated or time.time()).strftime("%H:%M")}
+
+
+@router.get("/api/mercado/prices-status")
+def prices_status():
+    return {"updated": INDEX_CACHE.get("prices_update", 0), "refreshing": bool(INDEX_CACHE.get("refreshing"))}
+
+
+@router.get("/")
+def home():
+    # La portada es Mercado (índices, actividad del día, eventos)
+    return RedirectResponse("/mercado")
+
+
+@router.get("/mercado", response_class=HTMLResponse)
 def index(
     request: Request,
     asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
@@ -217,11 +275,6 @@ def index(
     performance_service: PerformanceService = Depends(get_performance_service),
     db_session: Session = Depends(get_db)
 ):
-    # F5: solo invalidar caché de precios (eventos son lentos, se cachean por separado)
-    if is_reload_request(request):
-        INDEX_CACHE["prices_update"] = 0
-        INDEX_CACHE["data"] = {}
-
     settings = get_settings_from_db(db_session)
     val_cfg = settings.get("valuation", {"ganga": 0.60, "barata": 0.85, "justo_max": 1.15, "cara_max": 1.40})
 
@@ -238,85 +291,18 @@ def index(
     if cached_evs and "is_portfolio" not in cached_evs[0]:
         INDEX_CACHE["last_update"] = 0
 
-    # ── PRECIOS: refresco rápido cada PRICE_TTL segundos ──────────────────────
-    price_stale = (
-        now - INDEX_CACHE.get("prices_update", 0) > PRICE_TTL
-        or any(t for t in all_involved if t not in INDEX_CACHE["data"])
-    )
-    if price_stale:
-        try:
-            currencies = {asset_repo.get_asset_data(t).get("currency", "USD") for t in all_involved}
-            fx_list = [f"{c}EUR=X" for c in currencies if c != "EUR"]
-
-            data = yf.download(all_involved + list(indices_to_fetch.keys()) + fx_list, period="5d", progress=False)
-            try:
-                latest_data = yf.download(all_involved + list(indices_to_fetch.keys()) + fx_list, period="1d", progress=False)
-                if not data.empty and not latest_data.empty:
-                    last_idx = data.index[-1]
-                    if last_idx in latest_data.index:
-                        for col in data.columns:
-                            if col in latest_data.columns:
-                                val = latest_data.at[last_idx, col]
-                                if not pd.isna(val):
-                                    data.at[last_idx, col] = val
-            except Exception:
-                pass
-            if not data.empty and 'Close' in data:
-                closes = data['Close']
-                
-                for t in closes.columns:
-                    try:
-                        col_close = closes[t].dropna()
-                        if not col_close.empty:
-                            last_date = col_close.index[-1].date()
-                            price = float(col_close.iloc[-1])
-                            prev = float(col_close.iloc[-2]) if len(col_close) > 1 else price
-                            
-                            # Fallback if Yahoo historical bars are lagging or missing the previous trading day
-                            if len(col_close) > 1:
-                                calendar_gap = (col_close.index[-1].date() - col_close.index[-2].date()).days
-                                expected_gap = 3 if last_date.weekday() == 0 else 1
-                                if calendar_gap > expected_gap:
-                                    try:
-                                        prev_fast = yf.Ticker(t).fast_info.get("previous_close")
-                                        if prev_close_val := prev_close_val if False else prev_close_val if False else prev_close_val if False else prev_close_val if False else None: pass
-                                        # Let's clean up
-                                    except Exception:
-                                        pass
-                            # Clean python logic for previous close fallback:
-                            p_last_date = col_close.index[-1].date()
-                            p_prev = prev
-                            if len(col_close) > 1:
-                                calendar_gap = (col_close.index[-1].date() - col_close.index[-2].date()).days
-                                expected_gap = 3 if last_date.weekday() == 0 else 1
-                                if calendar_gap > expected_gap:
-                                    try:
-                                        p_prev = float(yf.Ticker(t).fast_info["previous_close"])
-                                    except Exception:
-                                        pass
-                                    
-                            INDEX_CACHE["data"][t] = {
-                                "price": price,
-                                "prev": p_prev,
-                                "last_date": last_date
-                            }
-                    except: continue
-
-                INDEX_CACHE["prices_update"] = now
-
-                # Scan automático de alertas con los precios recién descargados
-                try:
-                    ticker_prices_for_alerts = {
-                        t: INDEX_CACHE["data"][t]["price"]
-                        for t in all_involved
-                        if t in INDEX_CACHE["data"]
-                    }
-                    run_alerts_scan(ticker_prices_for_alerts, asset_repo, db_session, settings)
-                except Exception as ae:
-                    print(f"Auto alert scan error: {ae}")
-
-        except Exception as e:
-            print(f"Price fetch error: {e}")
+    # ── PRECIOS: se muestra al instante lo último que hay y se actualiza en segundo plano ──
+    currencies = {asset_repo.get_asset_data(t).get("currency", "USD") for t in all_involved}
+    symbols = all_involved + list(indices_to_fetch.keys()) + [f"{c}EUR=X" for c in currencies if c != "EUR"]
+    if not INDEX_CACHE["data"]:
+        _load_price_snapshot()
+    # los que Yahoo no devolvió en la última descarga no fuerzan otra (si no, se actualizaría en cada visita)
+    missing = [t for t in symbols if t not in INDEX_CACHE["data"] and t not in INDEX_CACHE.get("unavailable", ())]
+    age = now - INDEX_CACHE.get("prices_update", 0)
+    if not INDEX_CACHE["data"] or len(missing) > len(symbols) / 2:
+        refresh_index_prices(symbols, all_involved)        # primera vez: no hay nada que enseñar, se espera
+    elif age > PRICE_TTL or missing or (is_reload_request(request) and age > 30):
+        start_price_refresh(symbols, all_involved)         # F5 o precios viejos: se actualizan sin esperar
 
     # ── EVENTOS: refresco lento cada EVENT_TTL segundos ───────────────────────
     if now - INDEX_CACHE["last_update"] > EVENT_TTL:
@@ -375,35 +361,12 @@ def index(
                 ticker = item["ticker"]
                 evs = []
                 try:
-                    stock = yf.Ticker(ticker)
+                    raw = event_raw(ticker)
                     today = datetime.date.today()
-                    info = stock.info
-                    cal = stock.calendar
-
-                    dts = info.get('exDividendDate') or info.get('dividendExDate')
-                    if dts:
-                        d = datetime.date.fromtimestamp(dts)
-                        div_amount = info.get('lastDividendValue')
-                        if not div_amount:
-                            div_rate = info.get('dividendRate')
-                            if div_rate:
-                                div_amount = div_rate / 4.0
-                            else:
-                                div_amount = 0
-
-                        pay_date_obj = None
-                        pay_ts = info.get('dividendDate') or info.get('dividendPaymentDate')
-                        if pay_ts:
-                            pay_date_obj = datetime.date.fromtimestamp(pay_ts)
-                        elif isinstance(cal, dict) and cal.get('Dividend Date'):
-                            pay_date_obj = cal.get('Dividend Date')
-                            if hasattr(pay_date_obj, 'date'):
-                                pay_date_obj = pay_date_obj.date()
-                        elif isinstance(cal, pd.DataFrame) and 'Dividend Date' in cal.index:
-                            pay_date_obj = cal.loc['Dividend Date'].iloc[0]
-                            if hasattr(pay_date_obj, 'date'):
-                                pay_date_obj = pay_date_obj.date()
-
+                    as_date = lambda v: datetime.date.fromisoformat(v) if v else None
+                    d = as_date(raw.get("ex_div"))
+                    if d:
+                        pay_date_obj = as_date(raw.get("pay_date"))
                         # "Próximo a cobrar": mientras el pago no se haya realizado, sigue siendo
                         # relevante aunque la fecha ex-dividendo ya haya pasado (fallback a ex-div
                         # si no conocemos la fecha de pago).
@@ -414,21 +377,18 @@ def index(
                         shares_at_exdiv = shares_as_of(ticker, d) if item["is_portfolio"] else 0
 
                         if pending and (not item["is_portfolio"] or shares_at_exdiv > 0.0001):
-                            evs.append({"ticker": ticker, "type": "Dividendo", "date": d, "pay_date": pay_date_obj, "amount": div_amount * shares_at_exdiv, "is_portfolio": item["is_portfolio"], "is_favorite": item["is_favorite"]})
+                            evs.append({"ticker": ticker, "type": "Dividendo", "date": d, "pay_date": pay_date_obj, "amount": (raw.get("div_amount") or 0) * shares_at_exdiv, "is_portfolio": item["is_portfolio"], "is_favorite": item["is_favorite"]})
 
-                    ed = None
-                    if isinstance(cal, dict): ed = cal.get('Earnings Date')
-                    elif isinstance(cal, pd.DataFrame) and 'Earnings Date' in cal.index: ed = cal.loc['Earnings Date'].iloc[0]
-                    if ed:
-                        if isinstance(ed, list): ed = ed[0]
-                        if hasattr(ed, 'date'): ed = ed.date()
-                        if ed >= today: evs.append({"ticker": ticker, "type": "Resultados", "date": ed, "is_portfolio": item["is_portfolio"], "is_favorite": item["is_favorite"]})
+                    ed = as_date(raw.get("earnings"))
+                    if ed and ed >= today:
+                        evs.append({"ticker": ticker, "type": "Resultados", "date": ed, "is_portfolio": item["is_portfolio"], "is_favorite": item["is_favorite"]})
                     return evs
-                except: return []
+                except Exception:
+                    return []
 
             print(f"[events] fetching for {len(event_items)} items: {[x['ticker'] for x in event_items]}")
             all_evs = []
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
                 for res in ex.map(fetch_event, event_items): all_evs.extend(res)
             print(f"[events] found {len(all_evs)} raw events: {[(e['ticker'], e['type']) for e in all_evs]}")
 
@@ -485,7 +445,7 @@ def index(
             market_indices.append({"name": name, "price": p_price, "change": change, "pct": pct, "is_portfolio": False})
 
     # 4. Movers, Heatmap, Opportunities
-    all_daily_movers, fav_movers, heatmap_data, near_opportunities = [], [], [], []
+    all_daily_movers, fav_movers, heatmap_data = [], [], []
     port_daily_movers, port_fav_movers = [], []
     portfolio_tickers = {p.ticker for p in active_portfolio}
     portfolio_shares = {p.ticker: p.shares for p in active_portfolio}
@@ -548,51 +508,6 @@ def index(
                 mover_item["total_change_eur"] = change * shares * fx
                 port_daily_movers.append(mover_item)
             
-            # Oportunidades de compra — ACCEPTED, sin cartera, con PE de compra fijado
-            if t in ticker_names and db_d.get("status") == "ACCEPTED" and t not in portfolio_tickers:
-                fpe_d = db_d.get("fair_pe_data", {})
-                buy_pe = fpe_d.get("fair_forward_pe")
-                market_pe = db_d.get("last_market_fwd_pe")
-                cache_t = INDEX_CACHE["data"].get(t, {})
-                current_price = cache_t.get("price")
-                if buy_pe and market_pe:
-                    try:
-                        buy_pe_f, market_pe_f = float(buy_pe), float(market_pe)
-                        if buy_pe_f > 0 and market_pe_f > 0:
-                            # precio_compra = PE_compra × EPS_forward (independiente del precio live)
-                            # Prioridad: EPS directo → implied_EPS del snapshot guardado
-                            forward_eps = db_d.get("last_forward_eps")
-                            if not forward_eps:
-                                ref_p = db_d.get("last_market_fwd_pe_ref_price")
-                                if ref_p and market_pe_f > 0:
-                                    forward_eps = float(ref_p) / market_pe_f
-                            if forward_eps:
-                                compra_pe = buy_pe_f * val_cfg.get("barata", 0.85)
-                                buy_price = compra_pe * float(forward_eps)
-                            else:
-                                buy_price = None
-                            if not buy_price or not current_price:
-                                continue
-                            drop_needed = round((current_price - buy_price) / current_price * 100, 1)
-                            prev = cache_t.get("prev", current_price)
-                            p_last_date = cache_t.get("last_date")
-                            if is_weekday and p_last_date and p_last_date != today:
-                                prev = current_price
-                            ch_abs = round(current_price - prev, 2) if (current_price and prev) else 0.0
-                            ch_pct = round((current_price / prev - 1) * 100, 2) if (current_price and prev) else 0.0
-                            if drop_needed <= 30:
-                                near_opportunities.append({
-                                    "ticker": t,
-                                    "company_name": db_d.get("company_name", t),
-                                    "current_price": current_price,
-                                    "buy_price": round(buy_price, 2),
-                                    "drop_needed": drop_needed,
-                                    "change_abs": ch_abs,
-                                    "change_pct": ch_pct,
-                                    "currency_symbol": get_currency_symbol(db_d.get("currency", "USD"), t),
-                                })
-                    except (ValueError, TypeError):
-                        pass
 
     # Sort ALL valid daily movers by PCT Descending
     sorted_movers = sorted(all_daily_movers, key=lambda x: x["pct"], reverse=True)
@@ -604,7 +519,6 @@ def index(
     
     fav_movers = sorted(fav_movers, key=lambda x: x["pct"])
     port_fav_movers = sorted(port_fav_movers, key=lambda x: x["pct"])
-    near_opportunities = sorted(near_opportunities, key=lambda x: x["drop_needed"])[:10]
 
     _today = datetime.date.today()
     evs = [
@@ -718,47 +632,19 @@ def index(
     except Exception as e:
         logging.error(f"Error calculating custom lists movers: {e}")
 
-    # Alertas de caída (todas, para tabla paginada en dashboard)
-    drop_alerts = []
-    alerts_last_statuses = {}
-    try:
-        _alerts_data = get_alerts_data(db_session)
-        all_drop_alerts = sorted(
-            [a for a in _alerts_data.get("history", []) if a.get("type") == "CAÍDA"],
-            key=lambda x: x.get("date", ""),
-            reverse=True
-        )
-
-        # Filtramos solo las que están en seguimiento
-        all_assets = db_session.query(DBAsset).all()
-        seguimiento_tickers = {
-            asset.ticker for asset in all_assets if (asset.data or {}).get("status") == "ACCEPTED"
-        }
-        
-        logging.info(f"Tickers en seguimiento: {seguimiento_tickers}")
-        logging.info(f"Alertas de caída antes de filtrar: {[a['ticker'] for a in all_drop_alerts]}")
-        
-        drop_alerts = [alert for alert in all_drop_alerts if alert["ticker"] in seguimiento_tickers]
-        logging.info(f"Alertas de caída después de filtrar: {[a['ticker'] for a in drop_alerts]}")
-
-        alerts_last_statuses = _alerts_data.get("last_statuses", {})
-    except Exception as e:
-        print(f"Error processing drop alerts: {e}")
-
     return templates.TemplateResponse("index.html", {
         "request": request,
         "top_gainers": top_gainers, "top_losers": top_losers, "fav_movers": fav_movers,
         "custom_lists": custom_lists_movers,
         "port_all": sorted_port_movers,
-        "market_indices": market_indices, "near_opportunities": near_opportunities,
+        "market_indices": market_indices,
         "upcoming_earnings": [e for e in evs if e["type"] == "Resultados"],
         "upcoming_dividends": [e for e in evs if e["type"] == "Dividendo" and e.get("is_portfolio", False)],
         "week_days": week_days,
         "upcoming_events_json": serialized_evs,
         "heatmap_data": heatmap_data,
-        "drop_alerts": drop_alerts,
-        "alerts_last_statuses": alerts_last_statuses,
         "settings": settings,
+        **prices_banner_context(),
     })
 
 @router.get("/database", response_class=HTMLResponse)
@@ -899,7 +785,7 @@ async def search(ticker: str = Form(...)):
     return RedirectResponse(url=f"/ticker/{ticker.upper()}", status_code=303)
 
 @router.get("/ticker/{ticker}", response_class=HTMLResponse)
-def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository), portfolio_service: PortfolioService = Depends(get_portfolio_service), db_session: Session = Depends(get_db)):
+def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository), portfolio_service: PortfolioService = Depends(get_portfolio_service), db_session: Session = Depends(get_db), watchlist_repo: SqlAlchemyWatchlistRepository = Depends(get_watchlist_repository)):
     stock = yf.Ticker(ticker)
     
     # ── CARGA RESILIENTE DE INFO DE YAHOO FINANCE (EVITA EL CRASH POR RATE LIMIT 429) ──
@@ -1288,6 +1174,13 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         "portfolio_is_active": portfolio_is_active,
         "portfolio_total_profit_closed": portfolio_total_profit_closed,
         "events_table_html": events_table_html,
+        # Valoración base (un solo escenario, BPA o FCF/acción)
+        "bval": base_valuation_service.stored(db_d),
+        "bval_ttm": {"eps": info.get('trailingEps'), "fcf": fetch_ttm_fcf_per_share(ticker)},
+        "bval_target": base_valuation_service.TARGET_RETURN_PCT,
+        "bval_metrics": base_valuation_service.METRICS,
+        "in_watchlist": watchlist_repo.get_by_ticker(ticker) is not None,   # añadida a mano
+        "watch_auto": [o for o, on in (("favorita", is_fav), ("aceptada", db_d.get("status") == "ACCEPTED")) if on],
     })
 
 
@@ -1352,323 +1245,10 @@ def calendario_page(
     })
 
 
-@router.get("/oportunidades", response_class=HTMLResponse)
-def oportunidades_page(
-    request: Request,
-    asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
-    portfolio_service: PortfolioService = Depends(get_portfolio_service),
-    db_session: Session = Depends(get_db)
-):
-    # Si es una recarga del navegador (F5), forzar la expiración de la caché de precios
-    if is_reload_request(request):
-        INDEX_CACHE["last_update"] = 0
-        INDEX_CACHE["data"] = {}
-
-    settings = get_settings_from_db(db_session)
-    val_cfg = settings.get("valuation", {"ganga": 0.60, "barata": 0.85, "justo_max": 1.15, "cara_max": 1.40})
-
-    # Tickers ya en cartera activa → no mostrar como oportunidad
-    portfolio_tickers = {p.ticker for p in portfolio_service.get_active_portfolio()}
-
-    # Solo activos ACEPTADOS y que no estén ya en cartera
-    valid_assets = [
-        a for a in db_session.query(DBAsset).all()
-        if (a.data or {}).get("status") == "ACCEPTED"
-        and a.ticker not in portfolio_tickers
-    ]
-    tickers_valid = [a.ticker for a in valid_assets]
-
-    # ── Fetch precios en batch (yf.download) ──────────────────────────────────
-    now = time.time()
-    missing = any(t for t in tickers_valid if t not in INDEX_CACHE["data"])
-    if missing or now - INDEX_CACHE.get("prices_update", 0) > PRICE_TTL:
-        try:
-            if tickers_valid:
-                raw = yf.download(tickers_valid, period="5d", progress=False)
-                try:
-                    latest_raw = yf.download(tickers_valid, period="1d", progress=False)
-                    if not raw.empty and not latest_raw.empty:
-                        last_idx = raw.index[-1]
-                        if last_idx in latest_raw.index:
-                            for col in raw.columns:
-                                if col in latest_raw.columns:
-                                    val = latest_raw.at[last_idx, col]
-                                    if not pd.isna(val):
-                                        raw.at[last_idx, col] = val
-                except Exception:
-                    pass
-                if not raw.empty and "Close" in raw:
-                    closes = raw["Close"]
-                    if isinstance(closes, pd.Series):
-                        closes = closes.to_frame(name=tickers_valid[0])
-                    for t in closes.columns:
-                        try:
-                            col_close = closes[t].dropna()
-                            if not col_close.empty:
-                                last_date = col_close.index[-1].date()
-                                price = float(col_close.iloc[-1])
-                                prev = float(col_close.iloc[-2]) if len(col_close) > 1 else price
-                                
-                                # Fallback if Yahoo historical bars are lagging or missing the previous trading day
-                                p_prev = prev
-                                if len(col_close) > 1:
-                                    calendar_gap = (col_close.index[-1].date() - col_close.index[-2].date()).days
-                                    expected_gap = 3 if last_date.weekday() == 0 else 1
-                                    if calendar_gap > expected_gap:
-                                        try:
-                                            p_prev = float(yf.Ticker(t).fast_info["previous_close"])
-                                        except Exception:
-                                            pass
-                                        
-                                INDEX_CACHE["data"][t] = {
-                                    "price": price,
-                                    "prev": p_prev,
-                                    "last_date": last_date,
-                                }
-                        except Exception:
-                            continue
-                    INDEX_CACHE["prices_update"] = now
-        except Exception as e:
-            print(f"oportunidades price fetch error: {e}")
-
-    # ── Fetch forward PE calculado desde datos de Yahoo Finance (en paralelo) ──
-    # Estrategia: calculamos nosotros precio_actual / EPS_forward_consenso (+1y).
-    # Es más fiable que leer el campo forwardPE directamente porque usamos el
-    # precio en tiempo real y el EPS que los analistas estiman explícitamente.
-    # Fallback: forwardPE del info si no hay estimaciones de analistas.
-    def _fetch_fwd_pe(ticker: str):
-        try:
-            stock = yf.Ticker(ticker)
-            info = stock.info
-            price = info.get("currentPrice") or info.get("regularMarketPrice")
-
-            # Los tickers de UK (LSE) cotizan en peniques (currency 'GBp'/'GBX') pero el
-            # EPS (trailing/forward/consenso de analistas) viene en libras. Sin esta
-            # conversión el PE calculado sale ~100x inflado (ej. PER en miles).
-            if price and info.get("currency") in ("GBp", "GBX"):
-                price = price / 100.0
-
-            # Fuente 1: EPS forward del consenso de analistas (totalmente independiente del precio)
-            forward_eps = None
-            pe_calculated = None
-            try:
-                est = stock.earnings_estimate
-                if est is not None and not est.empty:
-                    for idx in ("+1y", "0y"):
-                        if idx in est.index:
-                            val = est.loc[idx, "avg"]
-                            if val is not None and not pd.isna(val) and float(val) > 0:
-                                forward_eps = float(val)
-                                if price:
-                                    pe_calculated = float(price) / forward_eps
-                                break
-            except Exception:
-                pass
-
-            # Fuente 2: forwardEps del info de Yahoo (también independiente del precio)
-            if forward_eps is None:
-                fe = info.get("forwardEps")
-                if fe and float(fe) > 0:
-                    forward_eps = float(fe)
-
-            # forwardPE directo de yfinance
-            pe_yahoo = None
-            raw = info.get("forwardPE")
-            if raw and float(raw) > 0:
-                pe_yahoo = float(raw)
-
-            # Media de los PE disponibles
-            values = [v for v in (pe_calculated, pe_yahoo) if v is not None]
-            if not values:
-                return ticker, None, forward_eps, price
-            return ticker, round(sum(values) / len(values), 2), forward_eps, price
-        except Exception:
-            return ticker, None, None, None
-
-    live_fwd_pe: dict = {}
-    live_fwd_eps: dict = {}
-    live_fwd_ref_price: dict = {}
-    if tickers_valid:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=12) as ex:
-            for t, pe, eps, ref_price in ex.map(_fetch_fwd_pe, tickers_valid):
-                live_fwd_pe[t] = pe
-                if pe is not None:
-                    asset_repo.save_asset_data(t, "last_market_fwd_pe", pe)
-                    if ref_price is not None:
-                        # Precio de referencia del snapshot → permite calcular implied_eps estable
-                        live_fwd_ref_price[t] = ref_price
-                        asset_repo.save_asset_data(t, "last_market_fwd_pe_ref_price", ref_price)
-                if eps is not None:
-                    live_fwd_eps[t] = eps
-                    asset_repo.save_asset_data(t, "last_forward_eps", eps)
-
-    # Umbrales de proximidad
-    NEAR_THRESHOLD  = 15   # ≤15%  → cerca
-    WATCH_THRESHOLD = 30   # ≤30%  → en seguimiento
-    FAR_THRESHOLD   = 50   # ≤50%  → lejos de compra (>50% no se muestra)
-
-    # Determinar si el mercado ha operado hoy (para validar el cambio diario)
-    opp_today = datetime.date.today()
-    session_indices = ["^GSPC", "^IXIC", "^IBEX", "^STOXX50E", "URTH"]
-    dates_found = [INDEX_CACHE["data"][idx]["last_date"] for idx in session_indices if idx in INDEX_CACHE["data"]]
-    opp_market_date = max(dates_found) if dates_found else None
-    market_open_today = (opp_market_date == opp_today)
-
-    in_zone, near_list, watch_list, far_list = [], [], [], []
-
-    for asset in valid_assets:
-        t = asset.ticker
-        db_d = asset.data or {}
-        fpe_d = db_d.get("fair_pe_data", {})
-        buy_pe = fpe_d.get("fair_forward_pe")           # PE de compra marcado por el usuario
-        market_pe = live_fwd_pe.get(t) or db_d.get("last_market_fwd_pe")  # PE forward en vivo (con fallback a BD)
-        if not buy_pe or not market_pe:
-            continue
-        try:
-            buy_pe_f = float(buy_pe)
-            market_pe_f = float(market_pe)
-            if buy_pe_f <= 0 or market_pe_f <= 0:
-                continue
-
-            cache_t = INDEX_CACHE["data"].get(t, {})
-            current_price = cache_t.get("price")
-
-            # precio_compra = PE_compra × EPS_forward (independiente del precio de mercado)
-            # Prioridad: EPS directo (estable) → implied_EPS del snapshot guardado (estable)
-            forward_eps = (
-                live_fwd_eps.get(t)
-                or db_d.get("last_forward_eps")
-            )
-            if not forward_eps:
-                # Implied EPS desde snapshot guardado: ref_price/ref_pe son valores fijos
-                ref_p = live_fwd_ref_price.get(t) or db_d.get("last_market_fwd_pe_ref_price")
-                ref_pe = db_d.get("last_market_fwd_pe")
-                if ref_p and ref_pe and float(ref_pe) > 0:
-                    forward_eps = float(ref_p) / float(ref_pe)
-            if forward_eps:
-                compra_pe = round(buy_pe_f * val_cfg.get("barata", 0.85), 1)
-                buy_price = round(compra_pe * float(forward_eps), 2)
-                ganga_pe = round(buy_pe_f * val_cfg.get("ganga", 0.70), 1)
-                ganga_price = round(ganga_pe * float(forward_eps), 2)
-            else:
-                compra_pe = None
-                buy_price = None
-                ganga_pe = None
-                ganga_price = None
-
-            # % que debe caer el precio actual para llegar al precio de compra (Barato)
-            # negativo = ya está por debajo del precio de compra
-            if current_price and buy_price:
-                drop_needed = round((current_price - buy_price) / current_price * 100, 1)
-            else:
-                drop_needed = None
-
-            prev = cache_t.get("prev", current_price)
-            p_last_date = cache_t.get("last_date")
-            is_weekday = opp_today.weekday() < 5
-            if is_weekday and p_last_date and p_last_date != opp_today:
-                prev = current_price
-            ch_abs = round(current_price - prev, 2) if (current_price and prev) else 0.0
-            ch_pct = round((current_price / prev - 1) * 100, 2) if (current_price and prev) else 0.0
-
-            # Calcular estado de valoración basado en los ratios de val_cfg
-            ratio = market_pe_f / buy_pe_f
-            if ratio < val_cfg.get("ganga", 0.70):
-                val_status = "GANGA"
-            elif ratio < val_cfg.get("barata", 0.85):
-                val_status = "BARATA"
-            elif ratio <= val_cfg.get("justo_max", 1.15):
-                val_status = "PRECIO_JUSTO"
-            elif ratio <= val_cfg.get("cara_max", 1.30):
-                val_status = "CARO"
-            else:
-                val_status = "BURBUJA"
-
-            item = {
-                "ticker": t,
-                "company_name": db_d.get("company_name") or asset.company_name or t,
-                "sector": db_d.get("sector", "-"),
-                "current_price": current_price,
-                "market_pe": round(market_pe_f, 1),
-                "buy_pe": round(buy_pe_f, 1),
-                "compra_pe": compra_pe,
-                "ganga_pe": ganga_pe,
-                "buy_price": buy_price,
-                "ganga_price": ganga_price,
-                "drop_needed": drop_needed,
-                "change_abs": ch_abs,
-                "change_pct": ch_pct,
-                "valuation_status": val_status,
-                "currency_symbol": get_currency_symbol(db_d.get("currency", "USD"), t),
-            }
-
-            if drop_needed is None:
-                continue
-            elif drop_needed <= 0:
-                in_zone.append(item)
-            elif drop_needed <= NEAR_THRESHOLD:
-                near_list.append(item)
-            elif drop_needed <= WATCH_THRESHOLD:
-                watch_list.append(item)
-            elif drop_needed <= FAR_THRESHOLD:
-                far_list.append(item)
-            # > FAR_THRESHOLD: demasiado lejos, no mostrar
-
-        except (ValueError, TypeError):
-            continue
-
-    in_zone.sort(key=lambda x: x["drop_needed"])
-    near_list.sort(key=lambda x: x["drop_needed"])
-    watch_list.sort(key=lambda x: x["drop_needed"])
-    far_list.sort(key=lambda x: x["drop_needed"])
-
-    # Acciones válidas SIN PE de compra configurado (para poder configurarlas desde aquí)
-    def _day_change(ticker):
-        c = INDEX_CACHE["data"].get(ticker, {})
-        price = c.get("price")
-        prev  = c.get("prev", price)
-        p_last_date = c.get("last_date")
-        is_weekday = opp_today.weekday() < 5
-        if not price or not prev:
-            return price, None, None
-        if is_weekday and p_last_date and p_last_date != opp_today:
-            prev = price
-        return price, round(price - prev, 2), round((price / prev - 1) * 100, 2)
-
-    no_pe_list = sorted([
-        {
-            "ticker": a.ticker,
-            "company_name": (a.data or {}).get("company_name") or a.company_name or a.ticker,
-            "sector": (a.data or {}).get("sector", "-"),
-            "market_pe": round(live_fwd_pe.get(a.ticker) or 0, 1),
-            "currency_symbol": get_currency_symbol((a.data or {}).get("currency", "USD"), a.ticker),
-            "current_price": _day_change(a.ticker)[0],
-            "change_abs":    _day_change(a.ticker)[1],
-            "change_pct":    _day_change(a.ticker)[2],
-            "buy_pe": None,
-            "compra_pe": None,
-            "ganga_pe": None,
-            "buy_price": None,
-            "ganga_price": None,
-            "drop_needed": None,
-            "valuation_status": "N/A",
-        }
-        for a in valid_assets
-        if not (a.data or {}).get("fair_pe_data", {}).get("fair_forward_pe")
-    ], key=lambda x: x["ticker"])
-
-    return templates.TemplateResponse("oportunidades.html", {
-        "request": request,
-        "in_zone": in_zone,
-        "near_list": near_list,
-        "watch_list": watch_list,
-        "far_list": far_list,
-        "no_pe_list": no_pe_list,
-        "near_threshold": NEAR_THRESHOLD,
-        "watch_threshold": WATCH_THRESHOLD,
-        "far_threshold": FAR_THRESHOLD,
-        "settings": settings,
-    })
+@router.get("/oportunidades")
+def oportunidades_page():
+    # Oportunidades se unificó con la watchlist del Centro de mando (valoración base, favoritas y aceptadas)
+    return RedirectResponse("/centro#watchlist")
 
 
 @router.get("/comparar", response_class=HTMLResponse)

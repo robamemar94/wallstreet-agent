@@ -104,6 +104,16 @@ def update_thesis(thesis_id: int, payload: ThesisUpdate,
     fields = {k: v for k, v in payload.model_dump().items() if v is not None and k != "note"}
     changes = [f"{label}: {thesis[f]} → {fields[f]}" for f, label in (("verdict", "Veredicto"), ("status", "Estado"))
                if f in fields and fields[f] != thesis[f]]
+    # El YAML es la fuente de verdad: si no se escribe en él, la próxima reimportación (p. ej. al añadir una pregunta
+    # maestra o aplicar un cambio) devolvería el veredicto/estado al valor anterior
+    spec_path = thesis["extra"].get("spec_path")
+    yaml_fields = {f: fields[f] for f in ("verdict", "status") if f in fields and fields[f] != thesis[f]}
+    if yaml_fields and spec_path and os.path.exists(spec_path):
+        def transform(text):
+            for f, v in yaml_fields.items():
+                text = thesis_changes_service.set_top_level_field_in_yaml(text, f, v)
+            return text
+        thesis_changes_service.apply_text_change(spec_path, transform)
     updated = repo.update_thesis(thesis_id, fields)
     if changes:
         impact = {"REFORZADA": "positive", "DEBILITADA": "negative", "ROTA": "negative"}.get(fields.get("verdict"), "neutral")

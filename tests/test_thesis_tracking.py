@@ -575,3 +575,12 @@ def test_big_absolute_move_shows_even_in_volatile_stock():
     sig = price_signals("EVO.ST", st)
     assert len(sig) == 1 and sig[0]["kind"] == "anormal" and "-7.4% en 5 sesiones" in sig[0]["text"]
     assert not price_signals("X", {**st, "r5": -5.0, "change": {"1d": -1.0}})
+
+
+def test_verdict_change_is_written_to_yaml():
+    from app.application.services.thesis_changes_service import set_top_level_field_in_yaml
+    text = "ticker: X\ntitle: T\nverdict: INTACTA\nsummary: >-\n  verdict: no tocar\n"
+    out = set_top_level_field_in_yaml(text, "verdict", "VIGILANCIA")
+    assert "verdict: VIGILANCIA" in out and "INTACTA" not in out and "  verdict: no tocar" in out
+    added = set_top_level_field_in_yaml("ticker: X\ntitle: T\n", "status", "EN_REVISION")
+    assert added == "ticker: X\ntitle: T\nstatus: EN_REVISION\n"

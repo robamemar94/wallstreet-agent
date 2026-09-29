@@ -38,16 +38,17 @@ VERDICTS = ("REFORZADA", "INTACTA", "VIGILANCIA", "DEBILITADA", "ROTA")
 PROMISE_RESULTS = {"cumplida": 1.0, "parcial": 0.5, "incumplida": 0.0}
 DOC_CHARS_FOR_EXTRACTION = 120_000
 EARNINGS_TTL = 12 * 3600
-_earnings_cache: Dict[str, Any] = {}
 
 
 # --- Paso 0: datos gratuitos ---
 
 def _earnings_info(ticker: str) -> Dict[str, Any]:
-    """Última presentación publicada (fecha + BPA real vs consenso) y próxima fecha prevista. Cacheado 12h."""
-    cached = _earnings_cache.get(ticker)
-    if cached and time.time() - cached[0] < EARNINGS_TTL:
-        return cached[1]
+    """Última presentación publicada (fecha + BPA real vs consenso) y próxima fecha prevista. Caché en disco de 12 h."""
+    from app.application.services.market_cache import cached
+    return cached("earnings", ticker, lambda: _download_earnings_info(ticker), EARNINGS_TTL / 3600)
+
+
+def _download_earnings_info(ticker: str) -> Dict[str, Any]:
     info: Dict[str, Any] = {"last": None, "next": None}
     try:
         import math
@@ -65,7 +66,6 @@ def _earnings_info(ticker: str) -> Dict[str, Any]:
             break
     except Exception as e:
         logger.warning("Sin calendario de resultados para %s: %s", ticker, e)
-    _earnings_cache[ticker] = (time.time(), info)
     return info
 
 

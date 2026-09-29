@@ -187,6 +187,18 @@ def remove_master_question_from_yaml(text: str, question: str) -> str:
     return text[:m.start(1)] + new_block + text[m.end(1):]
 
 
+def set_top_level_field_in_yaml(text: str, field: str, value: str) -> str:
+    """Cambia (o añade tras 'title:') un campo simple de primer nivel, p. ej. verdict o status."""
+    line = f"{field}: {value}"
+    pattern = re.compile(rf"^{re.escape(field)}:.*$", re.M)
+    if pattern.search(text):
+        return pattern.sub(line, text, count=1)
+    m = re.search(r"^title:.*$", text, re.M)
+    if not m:
+        raise ValueError("El YAML no tiene 'title:' donde insertar el campo")
+    return text[:m.end()] + "\n" + line + text[m.end():]
+
+
 def apply_text_change(spec_path: str, transform) -> str:
     """Aplica una transformación de texto al YAML con la misma seguridad que apply_to_yaml
     (valida el resultado y guarda la versión anterior). Devuelve la ruta de la copia."""

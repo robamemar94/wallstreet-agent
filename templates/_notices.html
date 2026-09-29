@@ -1,0 +1,58 @@
+{# Listas de avisos comunes al Resumen del Centro de mando y a la pestaña Watchlist.
+   El JavaScript (markSeen, collapseList, refreshNoticeList, showMonTab) está en command_center.html. #}
+
+{% macro notice_styles() %}
+<style>
+    .att-item .att-dismiss { opacity: .35; } .att-item:hover .att-dismiss { opacity: 1; }
+    .notice-list:not(.show-seen) .att-seen { display: none !important; }
+    .notice-list.show-seen .att-seen { opacity: .5; }
+    .mon-tabs .btn { font-size: .72rem; padding: .05rem .5rem; }
+</style>
+{% endmacro %}
+
+{% macro attention_list(items, list_id, empty_text, collapse=6) %}
+<div class="card-body small notice-list" id="{{ list_id }}" data-collapse="{{ collapse }}">
+    {% for a in items %}
+    <div class="att-item p{{ [a.prio, 3]|min }} {{ 'att-seen' if a.seen }}" data-key="{{ a.key }}">
+        <div class="d-flex gap-2 align-items-start">
+            <div class="flex-grow-1">{% if a.href %}<a href="{{ a.href }}" class="text-decoration-none"><strong>{{ a.label or a.ticker }}</strong></a>{% else %}<strong>{{ a.label or a.ticker }}</strong>{% endif %} · {{ a.text }}</div>
+            <button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="{{ 'Volver a marcar como pendiente' if a.seen else 'Marcar como visto (vuelve a salir si desaparece y reaparece)' }}" aria-label="Marcar como visto" onclick="markSeen(this)"><i class="bi {{ 'bi-arrow-counterclockwise' if a.seen else 'bi-check2' }}"></i></button>
+        </div>
+    </div>
+    {% endfor %}
+    <div class="text-muted att-empty d-none"><i class="bi bi-check2-circle st-green me-1"></i>{{ empty_text }}</div>
+    <button type="button" class="btn btn-link btn-sm p-0 text-muted seen-toggle d-none" onclick="this.closest('.notice-list').classList.toggle('show-seen'); refreshNoticeList(this.closest('.notice-list'))"></button>
+</div>
+{% endmacro %}
+
+{% macro monitor_card_body(signals, history, list_id, scope, theses_ids={}) %}
+<div class="px-3 pt-2 mon-tabs d-flex gap-1" data-mon="{{ list_id }}">
+    <button type="button" class="btn btn-outline-secondary active" onclick="showMonTab(this, 'active')">Activas <span class="badge text-bg-secondary">{{ signals|length }}</span></button>
+    <button type="button" class="btn btn-outline-secondary" onclick="showMonTab(this, 'history')" title="Señales que ya no están activas: no se borran">Histórico <span class="badge text-bg-secondary">{{ history|length }}</span></button>
+</div>
+<div class="card-body small" id="{{ list_id }}" data-collapse="8">
+    {% for s in signals %}
+    <div class="d-flex gap-2 mb-1 align-items-start sig-item">
+        <i class="bi {{ 'bi-arrow-down-right' if s.tone == 'down' else ('bi-arrow-up-right' if s.tone == 'up' else 'bi-dot') }} sig-{{ s.tone }}"></i>
+        <span class="text-muted font-monospace-data text-nowrap" style="min-width: 5.2rem;" title="{{ 'Del ' ~ s.since ~ ' al ' ~ s.date if s.since else s.date }}">{% if s.since %}{{ s.since[8:10] }}/{{ s.since[5:7] }}–{% endif %}{{ (s.date or '')[8:10] }}/{{ (s.date or '')[5:7] }}</span>
+        <span class="flex-grow-1"><a href="/ticker/{{ s.ticker }}" class="text-decoration-none"><strong>{{ s.ticker }}</strong></a> <span class="badge bg-light text-dark border">{{ s.kind }}</span> {{ s.text }}</span>
+        {% if theses_ids.get(s.ticker) %}<button class="btn btn-link btn-sm p-0 text-info" title="¿Por qué se mueve? Busca noticias de {{ s.ticker }} (radar de la tesis)" aria-label="¿Por qué se mueve {{ s.ticker }}?" onclick="whyMoves({{ theses_ids[s.ticker] }}, '{{ s.ticker }}', this)"><i class="bi bi-search"></i></button>{% endif %}
+    </div>
+    {% else %}<div class="text-muted">Sin movimientos fuera de lo normal ni niveles relevantes.</div>{% endfor %}
+</div>
+<div class="card-body small d-none" id="{{ list_id }}History" data-collapse="10" data-scope="{{ scope }}">
+    {% if history %}<div class="d-flex justify-content-between align-items-center mb-2 text-muted">
+        <span>Se borran solas a los 6 meses de su última aparición.</span>
+        <button type="button" class="btn btn-link btn-sm p-0 text-danger" onclick="clearSignalHistory(this)"><i class="bi bi-trash me-1"></i>Vaciar histórico</button>
+    </div>{% endif %}
+    {% for h in history %}
+    <div class="d-flex gap-2 mb-1 align-items-start sig-item" data-id="{{ h.id }}">
+        <i class="bi {{ 'bi-arrow-down-right' if h.tone == 'down' else ('bi-arrow-up-right' if h.tone == 'up' else 'bi-dot') }} sig-{{ h.tone }} opacity-75"></i>
+        <span class="text-muted font-monospace-data text-nowrap" style="min-width: 5.2rem;" title="Señal del {{ (h.since ~ ' al ' if h.since else '') ~ (h.date or '') }}">{% if h.since %}{{ h.since[8:10] }}/{{ h.since[5:7] }}–{% endif %}{{ (h.date or '')[8:10] }}/{{ (h.date or '')[5:7] }}</span>
+        <span class="flex-grow-1"><a href="/ticker/{{ h.ticker }}" class="text-decoration-none"><strong>{{ h.ticker }}</strong></a> <span class="badge bg-light text-dark border">{{ h.kind }}</span> {{ h.text }}
+            <span class="text-muted">· activa del {{ h.first_seen[8:10] }}/{{ h.first_seen[5:7] }} al {{ h.last_seen[8:10] }}/{{ h.last_seen[5:7] }}</span></span>
+        <button type="button" class="btn btn-link btn-sm p-0 text-muted att-dismiss" title="Borrar del histórico" aria-label="Borrar del histórico" onclick="deleteSignal(this)"><i class="bi bi-x-lg"></i></button>
+    </div>
+    {% else %}<div class="text-muted">Aún no hay señales pasadas: aquí quedan las que dejan de estar activas.</div>{% endfor %}
+</div>
+{% endmacro %}
