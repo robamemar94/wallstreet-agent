@@ -10,8 +10,9 @@
         <th class="ps-4 sortable" data-type="text">Activo {{ sort_icon|safe }}</th>
         {{ th('Empresa', end=false, text=true) }}
         {{ th('Último') }}
-        {{ th('Var. %', period=true) }}
-        {{ th('Var. €', title='Lo que has ganado o perdido en euros con esta posición en el periodo, con el cambio de la divisa (las compras y ventas del periodo no cuentan como ganancia)', period=true) }}
+        <th class="sortable text-end" title="Cuánto se ha movido el precio en el periodo, en su moneda">Var. <span class="pt-period-label">día</span> {{ sort_icon|safe }}</th>
+        <th class="sortable text-end">Var. <span class="pt-period-label">día</span> % {{ sort_icon|safe }}</th>
+        <th class="sortable text-end" title="Lo que has ganado o perdido en euros con esta posición en el periodo, con el cambio de la divisa (las compras y ventas del periodo no cuentan como ganancia)">Var. <span class="pt-period-label">día</span> € {{ sort_icon|safe }}</th>
         {{ th('Contrib.', title='Contribución: aportación a la variación de la cartera en el periodo, en puntos de % (respeta fechas de compra)') }}
         {{ th('Máx. 52s', title='Caída desde el máximo de 52 semanas') }}
         {{ th('Máx. hist.', title='Caída desde el máximo histórico (cierre ajustado por splits y dividendos)') }}
@@ -26,6 +27,7 @@
             <a href="/portfolio/ticker/{{ r.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(r.ticker) }}</a></td>
         <td class="text-muted align-middle text-truncate" style="max-width: 150px;" data-sort="{{ r.name }}" title="{{ r.name }}">{{ r.name }}</td>
         <td class="text-end fw-bold num-font align-middle cell-price" data-sort="{{ st.get('price') or '' }}">{{ num(st.get('price'), 2) ~ ' ' ~ r.cur if st.get('price') else '–' }}</td>
+        <td class="text-end num-font align-middle cell-move">–</td>
         <td class="text-end num-font align-middle cell-change">–</td>
         <td class="text-end num-font align-middle cell-eur">–</td>
         <td class="text-end num-font align-middle cell-contrib">–</td>

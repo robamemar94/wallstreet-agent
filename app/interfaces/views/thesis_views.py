@@ -381,7 +381,8 @@ def chart_rows(rows):
     """Datos por posición para la tabla de seguimiento, el mapa y las tarjetas (variación y contribución por periodo)."""
     return [{"ticker": r["ticker"], "weight": r["position"]["weight"], "contribution": dict(r["position"]["contribution"]),
              "pnl_eur": dict(r["position"]["pnl_eur"]), "change": dict((r["stats"] or {}).get("change", {})),
-             "closed_today": r["closed_today"], "last_session": r["last_session"]} for r in rows if r["position"]]
+             "closed_today": r["closed_today"], "last_session": r["last_session"],
+             "price": (r["stats"] or {}).get("price"), "cur": r["cur"]} for r in rows if r["position"]]
 
 
 def live_day(chart, periods, portfolio_service: PortfolioService, asset_repo: SqlAlchemyAssetRepository) -> Dict[str, Any]:
@@ -401,7 +402,7 @@ def live_day(chart, periods, portfolio_service: PortfolioService, asset_repo: Sq
     for c in chart:
         d = days.get(c["ticker"])
         if d:
-            c["closed_today"] = d["closed"]
+            c["closed_today"], c["price"] = d["closed"], INDEX_CACHE["data"][c["ticker"]]["price"]
             if d["last_date"]:
                 c["last_session"] = d["last_date"].isoformat() if hasattr(d["last_date"], "isoformat") else str(d["last_date"])
             c["change"]["1d"], c["pnl_eur"]["1d"] = (None if d["closed"] else d["pct"]), d["eur"]

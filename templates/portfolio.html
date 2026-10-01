@@ -17,16 +17,21 @@
     /* Contable y Seguimiento: mismo ancho en las columnas comunes (Activo, Empresa, Último, Var. %, Var. €) */
     #activeTable, .tbl-pt { table-layout: fixed; width: 100%; }
     #activeTable td, .tbl-pt td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #activeTable th:nth-child(1), .tbl-pt th:nth-child(1) { width: 8%; }
-    #activeTable th:nth-child(2), .tbl-pt th:nth-child(2) { width: 17%; }
-    #activeTable th:nth-child(3), .tbl-pt th:nth-child(3) { width: 9%; }
+    #activeTable th:nth-child(1), .tbl-pt th:nth-child(1) { width: 6%; }
+    #activeTable th:nth-child(2), .tbl-pt th:nth-child(2) { width: 14%; }
+    #activeTable th:nth-child(3), .tbl-pt th:nth-child(3) { width: 8%; }
     #activeTable th:nth-child(4), .tbl-pt th:nth-child(4) { width: 8%; }
-    #activeTable th:nth-child(5), .tbl-pt th:nth-child(5) { width: 9%; }
+    #activeTable th:nth-child(5), .tbl-pt th:nth-child(5) { width: 8%; }
+    #activeTable th:nth-child(6), .tbl-pt th:nth-child(6) { width: 8%; }
     #activeTable th, .tbl-pt th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #activeTable th:nth-child(6) { width: 7%; }
-    #activeTable th:nth-child(7) { width: 9%; }
-    #activeTable th:nth-child(8) { width: 11%; }
-    #activeTable th:nth-child(9) { width: 7%; }
+    #activeTable th:nth-child(7) { width: 7%; }
+    #activeTable th:nth-child(8) { width: 9%; }
+    #activeTable th:nth-child(9) { width: 10%; }
+    #activeTable th:nth-child(10) { width: 7%; }
+    .tbl-pt th:nth-child(7), .tbl-pt th:nth-child(10) { width: 7%; }
+    .tbl-pt th:nth-child(8) { width: 6%; }
+    .tbl-pt th:nth-child(9) { width: 8%; }
+    .tbl-pt th:nth-child(11) { width: 10%; }
     #activeTable th:last-child { width: 48px; }
     .pos-toolbar .btn { font-size: .75rem; }
 </style>
@@ -393,13 +398,14 @@
                     <th class="ps-4" onclick="sortTable('activeTable', 0, false)">Activo <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
                     <th onclick="sortTable('activeTable', 1, false)">Empresa <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
                     <th class="text-end" onclick="sortTable('activeTable', 2, true)">Último <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 3, true)">Var. día % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 4, true)">Var. día € <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 5, true)">Títulos <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 6, true)">Precio Medio <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 7, true)">Valor Mercado <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 8, true)">Peso % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 9, true)">P&amp;L <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 3, true)" title="Cuánto se ha movido hoy el precio, en su moneda">Var. día <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 4, true)">Var. día % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 5, true)">Var. día € <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 6, true)">Títulos <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 7, true)">Precio Medio <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 8, true)">Valor Mercado <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 9, true)">Peso % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 10, true)">P&amp;L <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
                     <th class="text-center" style="width:48px;"></th>
                 </tr>
             </thead>
@@ -417,7 +423,10 @@
                     {% if item.closed_today %}{% set why = 'Su mercado no ha abierto hoy' ~ (' (última sesión ' ~ item.last_date.strftime('%d/%m') ~ ')' if item.last_date else '') %}
                     <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
                     <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
+                    <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
                     {% else %}{% set dc = item.daily_change_total_eur %}
+                    {% set da = item.daily_change_abs %}
+                    <td class="text-end num-font align-middle {{ 'text-success' if da > 0 else ('text-danger' if da < 0 else 'text-muted') }}" data-sort-value="{{ item.daily_change_pct }}">{{ num(da, 2, sign=True) }} {{ item.currency_symbol }}</td>
                     <td class="text-end num-font align-middle {{ 'text-success' if item.daily_change_pct > 0 else ('text-danger' if item.daily_change_pct < 0 else 'text-muted') }}" data-sort-value="{{ item.daily_change_pct }}">{{ '+' if item.daily_change_pct > 0 }}{{ (num(item.daily_change_pct, 2) ~ '%') }}</td>
                     <td class="text-end fw-bold num-font align-middle {{ 'text-success' if dc > 0 else ('text-danger' if dc < 0 else 'text-muted') }}" data-sort-value="{{ dc }}" title="Incluye el cambio de la divisa">{{ '+' if dc > 0 }}{{ num(dc, 2) }} €</td>
                     {% endif %}
@@ -1608,7 +1617,7 @@
         document.querySelectorAll('.pt-period-label').forEach(el => el.textContent = PT_LABELS[ptPeriod]);
         document.querySelectorAll('#ptBody tr[data-ticker]').forEach(tr => {
             const c = ptData.chart.find(x => x.ticker === tr.dataset.ticker);
-            const cells = ['.cell-change', '.cell-eur', '.cell-contrib'].map(sel => tr.querySelector(sel));
+            const cells = ['.cell-move', '.cell-change', '.cell-eur', '.cell-contrib'].map(sel => tr.querySelector(sel));
             // su mercado aún no ha abierto hoy: sin variación del día (lo que se mueve en € es solo la divisa)
             if (c && c.closed_today && ptPeriod === '1d') {
                 const fx = c.pnl_eur ? c.pnl_eur['1d'] : null, d = c.last_session;
@@ -1619,6 +1628,9 @@
             }
             cells.forEach(cell => cell.title = '');
             const ch = c ? (c.change || {})[ptPeriod] : null, cv = c ? c.contribution[ptPeriod] : null;
+            // precio de hoy menos el de inicio del periodo, en su moneda
+            const mv = c && c.price && ch !== null && ch !== undefined ? c.price - c.price / (1 + ch / 100) : null, cm = tr.querySelector('.cell-move');
+            cm.textContent = mv === null ? '–' : fmtNum(mv, 2, true) + ' ' + (c.cur || ''); cm.className = 'text-end num-font align-middle cell-move ' + cls(mv); cm.dataset.sort = ch ?? '';
             const cc = tr.querySelector('.cell-change'); cc.textContent = fmtPct(ch); cc.className = 'text-end num-font align-middle cell-change ' + cls(ch); cc.dataset.sort = ch ?? '';
             const pe = c && c.pnl_eur ? c.pnl_eur[ptPeriod] : null, ce = tr.querySelector('.cell-eur');
             ce.textContent = pe === null || pe === undefined ? '–' : (pe > 0 ? '+' : '') + fmtNum(pe, 2) + ' €';   // como Contable
