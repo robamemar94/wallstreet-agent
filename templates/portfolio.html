@@ -185,12 +185,12 @@
     <!-- Resumen de Saldos y Variación -->
     <div class="mb-3 mt-1">
         <p class="text-muted mb-0" style="font-size:0.9rem;">
-            Valor de mercado: <strong>{{ "{:,.0f}".format(total_current_value) }} €</strong>
+            Valor de mercado: <strong>{{ num(total_current_value, 0) }} €</strong>
             &nbsp;·&nbsp;
             P&amp;L no realizado:
             <strong class="{% if total_return_abs >= 0 %}text-success{% else %}text-danger{% endif %}">
-                {% if total_return_abs >= 0 %}+{% endif %}{{ "{:,.0f}".format(total_return_abs) }} €
-                ({% if total_return_pct >= 0 %}+{% endif %}{{ "{:.1f}".format(total_return_pct) }}%)
+                {% if total_return_abs >= 0 %}+{% endif %}{{ num(total_return_abs, 0) }} €
+                ({% if total_return_pct >= 0 %}+{% endif %}{{ num(total_return_pct, 1) }}%)
             </strong>
         </p>
     </div>
@@ -203,9 +203,9 @@
                 <div class="card-body d-flex flex-column justify-content-between p-2.5">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6 class="text-muted fw-bold mb-0" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px;">Invertido</h6>
-                        <i class="bi bi-info-circle text-muted cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="top" title="✂️ Comisiones Totales: {{ '{:,.2f}'.format(total_fees) }} €" style="font-size: 0.72rem;"></i>
+                        <i class="bi bi-info-circle text-muted cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="top" title="✂️ Comisiones Totales: {{ num(total_fees, 2) }} €" style="font-size: 0.72rem;"></i>
                     </div>
-                    <h4 class="mb-0 text-white num-font mt-1" style="font-size: 1.05rem; font-weight: 700;">{{ "{:,.2f}".format(total_invested) }} €</h4>
+                    <h4 class="mb-0 text-white num-font mt-1" style="font-size: 1.05rem; font-weight: 700;">{{ num(total_invested, 2) }} €</h4>
                 </div>
             </div>
         </div>
@@ -215,7 +215,7 @@
             <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
                 <div class="card-body d-flex flex-column justify-content-between p-2.5">
                     <h6 class="text-muted fw-bold mb-0" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px;">Valor Actual</h6>
-                    <h4 class="mb-0 text-white num-font mt-1" style="font-size: 1.05rem; font-weight: 700;">{{ "{:,.2f}".format(total_current_value) }} €</h4>
+                    <h4 class="mb-0 text-white num-font mt-1" style="font-size: 1.05rem; font-weight: 700;">{{ num(total_current_value, 2) }} €</h4>
                 </div>
             </div>
         </div>
@@ -226,8 +226,8 @@
                 <div class="card-body d-flex flex-column justify-content-between p-2.5">
                     <h6 class="fw-bold mb-0 {% if total_daily_abs == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Var. Diaria</h6>
                     <h4 class="mb-0 num-font mt-1 {% if total_daily_abs > 0 %}text-success{% elif total_daily_abs < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
-                        {% if total_daily_abs > 0 %}+{% endif %}{{ "{:,.2f}".format(total_daily_abs) }} €
-                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if total_daily_pct > 0 %}+{% endif %}{{ "{:.2f}%".format(total_daily_pct) }})</small>
+                        {% if total_daily_abs > 0 %}+{% endif %}{{ num(total_daily_abs, 2) }} €
+                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if total_daily_pct > 0 %}+{% endif %}{{ (num(total_daily_pct, 2) ~ '%') }})</small>
                     </h4>
                 </div>
             </div>
@@ -241,8 +241,8 @@
                     <h6 class="fw-bold mb-0 {% if not pc or pc.abs_eur == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Var. Semanal</h6>
                     {% if pc and pc.pct is not none %}
                     <h4 class="mb-0 num-font mt-1 {% if pc.abs_eur > 0 %}text-success{% elif pc.abs_eur < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
-                        {% if pc.abs_eur > 0 %}+{% endif %}{{ "{:,.2f}".format(pc.abs_eur) }} €
-                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if pc.pct > 0 %}+{% endif %}{{ "{:.2f}%".format(pc.pct) }})</small>
+                        {% if pc.abs_eur > 0 %}+{% endif %}{{ num(pc.abs_eur, 2) }} €
+                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if pc.pct > 0 %}+{% endif %}{{ (num(pc.pct, 2) ~ '%') }})</small>
                     </h4>
                     {% else %}<h4 class="mb-0 num-font mt-1 text-muted" style="font-size: 1.05rem;">–</h4>{% endif %}
                 </div>
@@ -257,8 +257,8 @@
                     <h6 class="fw-bold mb-0 {% if not pc or pc.abs_eur == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Var. Mensual</h6>
                     {% if pc and pc.pct is not none %}
                     <h4 class="mb-0 num-font mt-1 {% if pc.abs_eur > 0 %}text-success{% elif pc.abs_eur < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
-                        {% if pc.abs_eur > 0 %}+{% endif %}{{ "{:,.2f}".format(pc.abs_eur) }} €
-                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if pc.pct > 0 %}+{% endif %}{{ "{:.2f}%".format(pc.pct) }})</small>
+                        {% if pc.abs_eur > 0 %}+{% endif %}{{ num(pc.abs_eur, 2) }} €
+                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if pc.pct > 0 %}+{% endif %}{{ (num(pc.pct, 2) ~ '%') }})</small>
                     </h4>
                     {% else %}<h4 class="mb-0 num-font mt-1 text-muted" style="font-size: 1.05rem;">–</h4>{% endif %}
                 </div>
@@ -271,11 +271,11 @@
                 <div class="card-body d-flex flex-column justify-content-between p-2.5">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6 class="fw-bold mb-0 {% if total_return_abs == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Rent. Latente</h6>
-                        <i class="bi bi-info-circle text-muted cursor-pointer" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="📈 Efecto Acción: {% if global_unrealized_price_pnl >= 0 %}+{% endif %}{{ '{:,.0f}'.format(global_unrealized_price_pnl) }} €<br>💵 Efecto Divisa: {% if global_unrealized_fx_pnl >= 0 %}+{% endif %}{{ '{:,.0f}'.format(global_unrealized_fx_pnl) }} €" style="font-size: 0.72rem;"></i>
+                        <i class="bi bi-info-circle text-muted cursor-pointer" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="📈 Efecto Acción: {% if global_unrealized_price_pnl >= 0 %}+{% endif %}{{ num(global_unrealized_price_pnl, 0) }} €<br>💵 Efecto Divisa: {% if global_unrealized_fx_pnl >= 0 %}+{% endif %}{{ num(global_unrealized_fx_pnl, 0) }} €" style="font-size: 0.72rem;"></i>
                     </div>
                     <h4 class="mb-0 num-font mt-1 {% if total_return_abs > 0 %}text-success{% elif total_return_abs < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
-                        {% if total_return_abs > 0 %}+{% endif %}{{ "{:,.2f}".format(total_return_abs) }} €
-                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if total_return_pct > 0 %}+{% endif %}{{ "{:.2f}%".format(total_return_pct) }})</small>
+                        {% if total_return_abs > 0 %}+{% endif %}{{ num(total_return_abs, 2) }} €
+                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if total_return_pct > 0 %}+{% endif %}{{ (num(total_return_pct, 2) ~ '%') }})</small>
                     </h4>
                 </div>
             </div>
@@ -287,10 +287,10 @@
                 <div class="card-body d-flex flex-column justify-content-between p-2.5">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6 class="fw-bold mb-0 {% if total_realized_pnl == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Bº Realizado</h6>
-                        <i class="bi bi-info-circle text-muted cursor-pointer" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="📈 Ventas Cerradas: {% if global_realized_price_pnl >= 0 %}+{% endif %}{{ '{:,.0f}'.format(global_realized_price_pnl) }} €<br>💵 Efecto Divisa: {% if global_realized_fx_pnl >= 0 %}+{% endif %}{{ '{:,.0f}'.format(global_realized_fx_pnl) }} €" style="font-size: 0.72rem;"></i>
+                        <i class="bi bi-info-circle text-muted cursor-pointer" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="📈 Ventas Cerradas: {% if global_realized_price_pnl >= 0 %}+{% endif %}{{ num(global_realized_price_pnl, 0) }} €<br>💵 Efecto Divisa: {% if global_realized_fx_pnl >= 0 %}+{% endif %}{{ num(global_realized_fx_pnl, 0) }} €" style="font-size: 0.72rem;"></i>
                     </div>
                     <h4 class="mb-0 num-font mt-1 {% if total_realized_pnl > 0 %}text-success{% elif total_realized_pnl < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
-                        {% if total_realized_pnl > 0 %}+{% endif %}{{ "{:,.2f}".format(total_realized_pnl) }} €
+                        {% if total_realized_pnl > 0 %}+{% endif %}{{ num(total_realized_pnl, 2) }} €
                     </h4>
                 </div>
             </div>
@@ -302,10 +302,10 @@
                 <div class="card-body d-flex flex-column justify-content-between p-2.5">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6 class="text-white-50 fw-bold mb-0" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px;">Total Histórico</h6>
-                        <i class="bi bi-info-circle text-white-50 cursor-pointer" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="📈 Acción: {% if global_total_price_pnl >= 0 %}+{% endif %}{{ '{:,.0f}'.format(global_total_price_pnl) }} €<br>💵 Divisa: {% if global_total_fx_pnl >= 0 %}+{% endif %}{{ '{:,.0f}'.format(global_total_fx_pnl) }} €<br>💰 Dividendos: +{{ '{:,.0f}'.format(global_total_dividends) }} €<br>✂️ Comisiones: {{ '{:,.2f}'.format(total_fees) }} €" style="font-size: 0.72rem;"></i>
+                        <i class="bi bi-info-circle text-white-50 cursor-pointer" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="📈 Acción: {% if global_total_price_pnl >= 0 %}+{% endif %}{{ num(global_total_price_pnl, 0) }} €<br>💵 Divisa: {% if global_total_fx_pnl >= 0 %}+{% endif %}{{ num(global_total_fx_pnl, 0) }} €<br>💰 Dividendos: +{{ num(global_total_dividends, 0) }} €<br>✂️ Comisiones: {{ num(total_fees, 2) }} €" style="font-size: 0.72rem;"></i>
                     </div>
                     <h4 class="mb-0 text-white num-font mt-1" style="font-size: 1.05rem; font-weight: 700;">
-                        {% if global_total_profits >= 0 %}+{% endif %}{{ "{:,.2f}".format(global_total_profits) }} €
+                        {% if global_total_profits >= 0 %}+{% endif %}{{ num(global_total_profits, 2) }} €
                     </h4>
                 </div>
             </div>
@@ -414,20 +414,20 @@
                     </td>
                     <td class="text-muted align-middle text-truncate" style="max-width: 150px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
                     {% set up = none if item.closed_today else item.daily_change_pct %}
-                    <td class="text-end fw-bold num-font align-middle {{ 'text-success' if up and up > 0 else ('text-danger' if up and up < 0 else '') }}" data-sort-value="{{ item.current_price }}">{{ "{:,.2f}".format(item.current_price) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end fw-bold num-font align-middle {{ 'text-success' if up and up > 0 else ('text-danger' if up and up < 0 else '') }}" data-sort-value="{{ item.current_price }}">{{ num(item.current_price, 2) }} {{ item.currency_symbol }}</td>
                     {% if item.closed_today %}{% set why = 'Su mercado no ha abierto hoy' ~ (' (última sesión ' ~ item.last_date.strftime('%d/%m') ~ ')' if item.last_date else '') %}
                     <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
                     <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
                     {% else %}{% set dc = item.daily_change_total_eur %}
-                    <td class="text-end num-font align-middle {{ 'text-success' if item.daily_change_pct > 0 else ('text-danger' if item.daily_change_pct < 0 else 'text-muted') }}" data-sort-value="{{ item.daily_change_pct }}">{{ '+' if item.daily_change_pct > 0 }}{{ "{:.2f}%".format(item.daily_change_pct) }}</td>
-                    <td class="text-end fw-bold num-font align-middle {{ 'text-success' if dc > 0 else ('text-danger' if dc < 0 else 'text-muted') }}" data-sort-value="{{ dc }}" title="Incluye el cambio de la divisa">{{ '+' if dc > 0 }}{{ "{:,.2f}".format(dc) }} €</td>
+                    <td class="text-end num-font align-middle {{ 'text-success' if item.daily_change_pct > 0 else ('text-danger' if item.daily_change_pct < 0 else 'text-muted') }}" data-sort-value="{{ item.daily_change_pct }}">{{ '+' if item.daily_change_pct > 0 }}{{ (num(item.daily_change_pct, 2) ~ '%') }}</td>
+                    <td class="text-end fw-bold num-font align-middle {{ 'text-success' if dc > 0 else ('text-danger' if dc < 0 else 'text-muted') }}" data-sort-value="{{ dc }}" title="Incluye el cambio de la divisa">{{ '+' if dc > 0 }}{{ num(dc, 2) }} €</td>
                     {% endif %}
-                    <td class="text-end num-font align-middle" data-sort-value="{{ item.shares }}">{{ item.shares }}</td>
-                    <td class="text-end num-font align-middle" data-sort-value="{{ item.average_price }}">{{ "{:,.2f}".format(item.average_price) }} {{ item.currency_symbol }}</td>
-                    <td class="text-end fw-bold num-font align-middle" data-sort-value="{{ item.current_value_eur }}">{{ "{:,.2f}".format(item.current_value_eur) }} €</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.shares }}">{{ num(item.shares, 0 if item.shares == item.shares|int else 2) }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.average_price }}">{{ num(item.average_price, 2) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end fw-bold num-font align-middle" data-sort-value="{{ item.current_value_eur }}">{{ num(item.current_value_eur, 2) }} €</td>
                     {% set peso = (item.current_value_eur / total_current_value * 100) if total_current_value > 0 else 0 %}
                     <td class="text-end align-middle" data-sort-value="{{ peso }}">
-                        <span class="fw-semibold num-font">{{ "{:.1f}".format(peso) }}%</span>
+                        <span class="fw-semibold num-font">{{ num(peso, 1) }}%</span>
                         <div class="progress mt-1 ms-auto" style="height:3px; width:60px;">
                             <div class="progress-bar bg-primary" style="width:{{ "{:.1f}".format(peso) }}%"></div>
                         </div>
@@ -435,11 +435,11 @@
                     {% set pnl_total = item.current_value_eur - item.invested_value_eur %}
                     <td class="text-end fw-bold num-font align-middle {% if pnl_total > 0 %}text-success{% elif pnl_total < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ pnl_total }}">
                         <div style="line-height: 1.2;">
-                            <span class="d-block">{% if pnl_total > 0 %}+{% endif %}{{ "{:,.2f}".format(pnl_total) }} €</span>
+                            <span class="d-block">{% if pnl_total > 0 %}+{% endif %}{{ num(pnl_total, 2) }} €</span>
                             <small class="d-block fw-normal" style="font-size: 0.75rem; opacity: 0.85;">
-                                ({% if item.return_pct > 0 %}+{% endif %}{{ "{:.2f}%".format(item.return_pct) }})
+                                ({% if item.return_pct > 0 %}+{% endif %}{{ (num(item.return_pct, 2) ~ '%') }})
                                 {% if item.cagr is not none %}
-                                <i class="bi bi-info-circle text-muted ms-1 cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="top" title="Rentabilidad Anualizada (CAGR): {% if item.cagr > 0 %}+{% endif %}{{ '{:.1f}%'.format(item.cagr) }}" style="font-size: 0.68rem; vertical-align: middle;"></i>
+                                <i class="bi bi-info-circle text-muted ms-1 cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="top" title="Rentabilidad Anualizada (CAGR): {% if item.cagr > 0 %}+{% endif %}{{ (num(item.cagr, 1) ~ '%') }}" style="font-size: 0.68rem; vertical-align: middle;"></i>
                                 {% endif %}
                             </small>
                             {# TODO: desglose precio/FX — pendiente de validar cálculo #}
@@ -543,7 +543,7 @@
           <div class="col-6 col-md border-end border-light-subtle">
             <div class="text-muted text-uppercase mb-1" style="font-size:0.58rem; letter-spacing:0.04em; font-weight:700;">Bf. Realizado</div>
             <span class="fw-bold fs-6 lh-1 {% if total_realized_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
-              {% if total_realized_pnl >= 0 %}+{% endif %}{{ "{:,.0f}".format(total_realized_pnl) }} €
+              {% if total_realized_pnl >= 0 %}+{% endif %}{{ num(total_realized_pnl, 0) }} €
             </span>
           </div>
           <!-- Mejor Mes -->
@@ -643,16 +643,16 @@
                     data-alfa="{{ alfa if alfa is not none else '' }}">
                   <td class="ps-4 text-start fw-bold">{{ row.year }}</td>
                   <td class="fw-bold cell-port {% if row.portfolio >= 0 %}text-success{% else %}text-danger{% endif %}">
-                    {% if row.portfolio >= 0 %}+{% endif %}{{ "{:.2f}".format(row.portfolio) }}%
+                    {% if row.portfolio >= 0 %}+{% endif %}{{ num(row.portfolio, 2) }}%
                   </td>
                   {% for bench_name in perf_benchmarks.keys() %}
                   {% set bret = row.get(bench_name) %}
                   <td class="bench-col {% if bret is not none and bret >= 0 %}text-success{% elif bret is not none %}text-danger{% else %}text-muted{% endif %}">
-                    {% if bret is not none %}{% if bret >= 0 %}+{% endif %}{{ "{:.2f}".format(bret) }}%{% else %}—{% endif %}
+                    {% if bret is not none %}{% if bret >= 0 %}+{% endif %}{{ num(bret, 2) }}%{% else %}—{% endif %}
                   </td>
                   {% endfor %}
                   <td class="pe-4 fw-bold alfa-col {% if alfa is not none and alfa >= 0 %}text-success{% elif alfa is not none %}text-danger{% else %}text-muted{% endif %}">
-                    {% if alfa is not none %}{% if alfa >= 0 %}+{% endif %}{{ "{:.2f}".format(alfa) }}%{% else %}—{% endif %}
+                    {% if alfa is not none %}{% if alfa >= 0 %}+{% endif %}{{ num(alfa, 2) }}%{% else %}—{% endif %}
                   </td>
                 </tr>
                 {% endfor %}
@@ -708,19 +708,19 @@
               <!-- ROIC -->
               <div class="col-4 border-end border-light-subtle">
                 <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">ROIC (TTM)</div>
-                <span class="fw-bold fs-5 text-success lh-1">{{ "{:,.1f}%".format(port_roic) }}</span>
+                <span class="fw-bold fs-5 text-success lh-1">{{ (num(port_roic, 1) ~ '%') }}</span>
                 <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Retorno Capital</div>
               </div>
               <!-- Crecimiento -->
               <div class="col-4 border-end border-light-subtle">
                 <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Crecimiento (NTM)</div>
-                <span class="fw-bold fs-5 text-success lh-1">{{ "{:,.1f}%".format(port_growth) }}</span>
+                <span class="fw-bold fs-5 text-success lh-1">{{ (num(port_growth, 1) ~ '%') }}</span>
                 <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Ingresos Esperados</div>
               </div>
               <!-- Beta -->
               <div class="col-4">
                 <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Beta Cartera</div>
-                <span class="fw-bold fs-5 text-secondary lh-1">{{ "{:,.2f}".format(port_beta) }}</span>
+                <span class="fw-bold fs-5 text-secondary lh-1">{{ num(port_beta, 2) }}</span>
                 <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">vs. MSCI World</div>
               </div>
               
@@ -729,18 +729,18 @@
                   <!-- M. Bruto -->
                   <div class="col-4 border-end border-light-subtle">
                     <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Margen Bruto</div>
-                    <span class="fw-bold fs-6 text-dark lh-1">{{ "{:,.1f}%".format(port_gross_margin) }}</span>
+                    <span class="fw-bold fs-6 text-dark lh-1">{{ (num(port_gross_margin, 1) ~ '%') }}</span>
                   </div>
                   <!-- M. Operativo -->
                   <div class="col-4 border-end border-light-subtle">
                     <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Margen Operativo</div>
-                    <span class="fw-bold fs-6 text-dark lh-1">{{ "{:,.1f}%".format(port_operating_margin) }}</span>
+                    <span class="fw-bold fs-6 text-dark lh-1">{{ (num(port_operating_margin, 1) ~ '%') }}</span>
                   </div>
                   <!-- Alfa -->
                   <div class="col-4">
                     <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Alfa de Jensen</div>
                     <span class="fw-bold fs-6 {% if port_alpha >= 0 %}text-success{% else %}text-danger{% endif %} lh-1">
-                      {% if port_alpha >= 0 %}+{% endif %}{{ "{:,.2f}%".format(port_alpha) }}
+                      {% if port_alpha >= 0 %}+{% endif %}{{ (num(port_alpha, 2) ~ '%') }}
                     </span>
                   </div>
                 </div>
@@ -774,7 +774,7 @@
               <!-- FCF Yield -->
               <div class="col-3 border-end border-light-subtle">
                 <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">FCF Yield</div>
-                <span class="fw-bold fs-5 text-success lh-1">{{ "{:,.2f}%".format(port_fcf_yield) }}</span>
+                <span class="fw-bold fs-5 text-success lh-1">{{ (num(port_fcf_yield, 2) ~ '%') }}</span>
                 <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Rendimiento Caja</div>
               </div>
               <!-- Deuda Neta / EBITDA -->
@@ -786,7 +786,7 @@
               <!-- Dividend Yield -->
               <div class="col-3">
                 <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Div. Yield</div>
-                <span class="fw-bold fs-5 text-primary lh-1">{{ "{:,.2f}%".format(port_yield) }}</span>
+                <span class="fw-bold fs-5 text-primary lh-1">{{ (num(port_yield, 2) ~ '%') }}</span>
                 <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Dividendo Cartera</div>
               </div>
               
@@ -800,12 +800,12 @@
                   <!-- PEG Ratio -->
                   <div class="col-4 border-end border-light-subtle">
                     <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PEG Ratio</div>
-                    <span class="fw-bold fs-6 text-dark lh-1">{{ "{:,.2f}".format(port_peg) }}</span>
+                    <span class="fw-bold fs-6 text-dark lh-1">{{ num(port_peg, 2) }}</span>
                   </div>
                   <!-- Liquidez -->
                   <div class="col-4">
                     <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Liquidez Corr.</div>
-                    <span class="fw-bold fs-6 text-success lh-1">{{ "{:,.2f}".format(port_current_ratio) }}</span>
+                    <span class="fw-bold fs-6 text-success lh-1">{{ num(port_current_ratio, 2) }}</span>
                   </div>
                 </div>
               </div>
@@ -852,21 +852,21 @@
                   <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(item.ticker) }}</a>
                 </td>
                 <td class="text-muted align-middle text-truncate" style="max-width: 140px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
-                <td class="text-end num-font align-middle fw-semibold" data-sort-value="{{ peso }}">{{ "{:.1f}%".format(peso) }}</td>
+                <td class="text-end num-font align-middle fw-semibold" data-sort-value="{{ peso }}">{{ (num(peso, 1) ~ '%') }}</td>
                 <td class="text-end num-font align-middle text-muted" data-sort-value="{{ item.beta if item.beta is not none else -100 }}">
-                  {{ "{:,.2f}".format(item.beta) if item.beta is not none else '—' }}
+                  {{ num(item.beta, 2) if item.beta is not none else '—' }}
                 </td>
                 <td class="text-end num-font align-middle fw-bold {% if item.roic is not none %}{% if item.roic > 15 %}text-success{% elif item.roic > 8 %}text-dark{% else %}text-danger{% endif %}{% endif %}" data-sort-value="{{ item.roic if item.roic is not none else -100 }}">
-                  {{ "{:,.1f}%".format(item.roic) if item.roic is not none else '—' }}
+                  {{ (num(item.roic, 1) ~ '%') if item.roic is not none else '—' }}
                 </td>
                 <td class="text-end num-font align-middle fw-bold {% if item.expected_growth is not none %}{% if item.expected_growth > 12 %}text-success{% elif item.expected_growth > 5 %}text-dark{% else %}text-danger{% endif %}{% endif %}" data-sort-value="{{ item.expected_growth if item.expected_growth is not none else -100 }}">
-                  {{ "{:,.1f}%".format(item.expected_growth) if item.expected_growth is not none else '—' }}
+                  {{ (num(item.expected_growth, 1) ~ '%') if item.expected_growth is not none else '—' }}
                 </td>
                 <td class="text-end num-font align-middle text-muted" data-sort-value="{{ item.gross_margin if item.gross_margin is not none else -100 }}">
-                  {{ "{:,.1f}%".format(item.gross_margin) if item.gross_margin is not none else '—' }}
+                  {{ (num(item.gross_margin, 1) ~ '%') if item.gross_margin is not none else '—' }}
                 </td>
                 <td class="text-end num-font align-middle text-muted" data-sort-value="{{ item.operating_margin if item.operating_margin is not none else -100 }}">
-                  {{ "{:,.1f}%".format(item.operating_margin) if item.operating_margin is not none else '—' }}
+                  {{ (num(item.operating_margin, 1) ~ '%') if item.operating_margin is not none else '—' }}
                 </td>
                 <!-- PER Trailing -->
                 <td class="text-end num-font align-middle" data-sort-value="{{ item.trailing_pe if item.trailing_pe is not none else -100 }}">
@@ -878,11 +878,11 @@
                 </td>
                 <!-- PEG Ratio -->
                 <td class="text-end num-font align-middle {% if item.peg_ratio is not none %}{% if item.peg_ratio <= 1.5 %}text-success{% else %}text-muted{% endif %}{% endif %}" data-sort-value="{{ item.peg_ratio if item.peg_ratio is not none else 100 }}">
-                  {{ "{:,.2f}".format(item.peg_ratio) if item.peg_ratio is not none else '—' }}
+                  {{ num(item.peg_ratio, 2) if item.peg_ratio is not none else '—' }}
                 </td>
                 <!-- Yield FCF -->
                 <td class="text-end num-font align-middle fw-semibold text-success" data-sort-value="{{ item.fcf_yield if item.fcf_yield is not none else -100 }}">
-                  {{ "{:,.1f}%".format(item.fcf_yield) if item.fcf_yield is not none else '—' }}
+                  {{ (num(item.fcf_yield, 1) ~ '%') if item.fcf_yield is not none else '—' }}
                 </td>
                 <!-- Deuda / EBITDA -->
                 <td class="text-end num-font align-middle fw-semibold {% if item.net_debt_ebitda is not none %}{% if item.net_debt_ebitda <= 1.0 %}text-success{% elif item.net_debt_ebitda <= 2.5 %}text-dark{% else %}text-warning{% endif %}{% endif %}" data-sort-value="{{ item.net_debt_ebitda if item.net_debt_ebitda is not none else 100 }}">
@@ -890,11 +890,11 @@
                 </td>
                 <!-- Liquidez corriente -->
                 <td class="text-end num-font align-middle" data-sort-value="{{ item.current_ratio if item.current_ratio is not none else -100 }}">
-                  {{ "{:,.2f}".format(item.current_ratio) if item.current_ratio is not none else '—' }}
+                  {{ num(item.current_ratio, 2) if item.current_ratio is not none else '—' }}
                 </td>
                 <!-- Dividend Yield -->
                 <td class="text-end num-font align-middle pe-4 text-primary fw-semibold" data-sort-value="{{ item.dividend_yield if item.dividend_yield is not none else -100 }}">
-                  {{ "{:,.2f}%".format(item.dividend_yield) if item.dividend_yield is not none else '—' }}
+                  {{ (num(item.dividend_yield, 2) ~ '%') if item.dividend_yield is not none else '—' }}
                 </td>
               </tr>
               {% endfor %}
@@ -921,27 +921,27 @@
           </div>
           <div class="col border-end pe-4 me-4">
             <div class="text-muted" style="font-size:0.72rem;">COBRADO {{ div_kpis.current_year }}</div>
-            <div class="fw-bold num-font" style="font-size:1.25rem;">{{ "{:,.2f}".format(div_kpis.total_ytd) }} €</div>
+            <div class="fw-bold num-font" style="font-size:1.25rem;">{{ num(div_kpis.total_ytd, 2) }} €</div>
             {% if div_kpis.yoy_change is not none %}
             <small class="{% if div_kpis.yoy_change >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size:0.78rem;">
-              {% if div_kpis.yoy_change >= 0 %}▲{% else %}▼{% endif %} {{ "{:.1f}".format(div_kpis.yoy_change | abs) }}% vs {{ div_kpis.current_year - 1 }}
+              {% if div_kpis.yoy_change >= 0 %}▲{% else %}▼{% endif %} {{ num(div_kpis.yoy_change | abs, 1) }}% vs {{ div_kpis.current_year - 1 }}
             </small>
             {% endif %}
           </div>
           <div class="col border-end pe-4 me-4">
             <div class="text-muted" style="font-size:0.72rem;">COBRADO {{ div_kpis.current_year - 1 }}</div>
-            <div class="fw-bold num-font" style="font-size:1.25rem;">{{ "{:,.2f}".format(div_kpis.total_last_year) }} €</div>
+            <div class="fw-bold num-font" style="font-size:1.25rem;">{{ num(div_kpis.total_last_year, 2) }} €</div>
           </div>
           <div class="col border-end pe-4 me-4">
             <div class="text-muted" style="font-size:0.72rem;">MEDIA MENSUAL (12M)</div>
-            <div class="fw-bold num-font" style="font-size:1.25rem;">{{ "{:,.2f}".format(div_kpis.avg_monthly) }} €</div>
-            <small class="text-muted" style="font-size:0.78rem;">≈ {{ "{:,.2f}".format(div_kpis.avg_monthly * 12) }} €/año</small>
+            <div class="fw-bold num-font" style="font-size:1.25rem;">{{ num(div_kpis.avg_monthly, 2) }} €</div>
+            <small class="text-muted" style="font-size:0.78rem;">≈ {{ num(div_kpis.avg_monthly * 12, 2) }} €/año</small>
           </div>
           <div class="col">
             <div class="text-muted" style="font-size:0.72rem;">PRÓXIMO PAGO</div>
             {% if upcoming_dividends %}
               {% set nxt = upcoming_dividends[0] %}
-              <div class="fw-bold text-success num-font" style="font-size:1.25rem;">+{{ "{:.2f}".format(nxt.total_amount) }} {{ nxt.currency_code }}</div>
+              <div class="fw-bold text-success num-font" style="font-size:1.25rem;">+{{ num(nxt.total_amount, 2) }} {{ nxt.currency_code }}</div>
               <small class="text-muted" style="font-size:0.78rem;">
                 <span class="fw-semibold">{{ clean_ticker(nxt.ticker) }}</span>
                 · {{ nxt.pay_date.strftime('%d/%m/%Y') if nxt.pay_date else (nxt.date.strftime('%d/%m/%Y') if nxt.date else '—') }}
@@ -995,8 +995,8 @@
                       <td class="ps-3 fw-bold">{{ clean_ticker(div.ticker) }}</td>
                       <td class="num-font">{{ div.pay_date.strftime('%d/%m/%Y') if div.pay_date else '—' }}</td>
                       <td class="num-font">{{ div.date.strftime('%d/%m/%Y') if div.date else '—' }}</td>
-                      <td class="text-end num-font">{{ "{:.4f}".format(div.amount_per_share) }} {{ div.currency_code }}</td>
-                      <td class="text-end pe-3 fw-bold text-success num-font">+{{ "{:.2f}".format(div.total_amount) }} {{ div.currency_code }}</td>
+                      <td class="text-end num-font">{{ num(div.amount_per_share, 4) }} {{ div.currency_code }}</td>
+                      <td class="text-end pe-3 fw-bold text-success num-font">+{{ num(div.total_amount, 2) }} {{ div.currency_code }}</td>
                     </tr>
                     {% endfor %}
                   {% else %}
@@ -1047,8 +1047,8 @@
                       <td class="num-font">
                         {{ div.date[8:10] + '/' + div.date[5:7] + '/' + div.date[0:4] if div.date and div.date|length >= 10 else div.date or '—' }}
                       </td>
-                      <td class="text-end num-font">{{ "{:.4f}".format(div.amount_per_share) }} {{ div.currency_code }}</td>
-                      <td class="text-end pe-3 fw-bold text-success num-font">+{{ "{:.2f}".format(div.total_amount) }} {{ div.currency_code }}</td>
+                      <td class="text-end num-font">{{ num(div.amount_per_share, 4) }} {{ div.currency_code }}</td>
+                      <td class="text-end pe-3 fw-bold text-success num-font">+{{ num(div.total_amount, 2) }} {{ div.currency_code }}</td>
                     </tr>
                     {% endfor %}
                   {% else %}
@@ -1188,8 +1188,8 @@
                       <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(item.ticker) }}</a>
                     </td>
                     <td class="text-muted align-middle text-truncate" style="max-width: 150px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
-                    <td class="text-end num-font align-middle" data-sort-value="{{ item.total_shares_sold }}">{{ "{:,.2f}".format(item.total_shares_sold) }}</td>
-                    <td class="text-end num-font align-middle" data-sort-value="{{ item.average_buy_price }}">{{ "{:,.2f}".format(item.average_buy_price) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.total_shares_sold }}">{{ num(item.total_shares_sold, 2) }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.average_buy_price }}">{{ num(item.average_buy_price, 2) }} {{ item.currency_symbol }}</td>
                     <td class="text-end num-font align-middle" data-sort-value="{{ item.average_sell_price or 0 }}">
                       {% if item.current_price > 0 %}
                         <span class="border-bottom border-dashed cursor-help" 
@@ -1199,39 +1199,39 @@
                               title="
                                 <div class='text-start p-1' style='font-size:0.75rem; max-width: 220px;'>
                                   <strong class='d-block mb-1 border-bottom pb-1 text-white'>🔍 Efecto Salida Actual</strong>
-                                  Precio actual de mercado: <strong>{{ '{:,.2f}'.format(item.current_price) }} {{ item.currency_symbol }}</strong><br>
+                                  Precio actual de mercado: <strong>{{ num(item.current_price, 2) }} {{ item.currency_symbol }}</strong><br>
                                   {% if item.opp_diff_eur > 0 %}
-                                    <span class='text-warning fw-bold'>Costo de Oportunidad: -{{ '{:,.2f}'.format(item.opp_diff_eur) }} €</span>
+                                    <span class='text-warning fw-bold'>Costo de Oportunidad: -{{ num(item.opp_diff_eur, 2) }} €</span>
                                     <p class='text-white-50 m-0 mt-1 small'>La cotización ha subido desde que vendiste.</p>
                                   {% elif item.opp_diff_eur < 0 %}
-                                    <span class='text-success fw-bold'>🛡️ Pérdida Evitada: +{{ '{:,.2f}'.format(item.opp_diff_eur|abs) }} €</span>
+                                    <span class='text-success fw-bold'>🛡️ Pérdida Evitada: +{{ num(item.opp_diff_eur|abs, 2) }} €</span>
                                     <p class='text-white-50 m-0 mt-1 small'>¡Excelente venta! Evitaste pérdidas al vender a tiempo.</p>
                                   {% else %}
                                     <span class='text-muted'>Sin variaciones</span>
                                   {% endif %}
                                 </div>
                               ">
-                          {{ "{:,.2f}".format(item.average_sell_price or 0) }} {{ item.currency_symbol }}
+                          {{ num(item.average_sell_price or 0, 2) }} {{ item.currency_symbol }}
                         </span>
                       {% else %}
-                        {{ "{:,.2f}".format(item.average_sell_price or 0) }} {{ item.currency_symbol }}
+                        {{ num(item.average_sell_price or 0, 2) }} {{ item.currency_symbol }}
                       {% endif %}
                     </td>
-                    <td class="text-end num-font align-middle" data-sort-value="{{ item.invested_value }}">{{ "{:,.2f}".format(item.invested_value) }} {{ item.currency_symbol }}</td>
-                    <td class="text-end num-font align-middle" data-sort-value="{{ item.total_sell_revenue }}">{{ "{:,.2f}".format(item.total_sell_revenue) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.invested_value }}">{{ num(item.invested_value, 2) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.total_sell_revenue }}">{{ num(item.total_sell_revenue, 2) }} {{ item.currency_symbol }}</td>
                     <td class="text-end num-font align-middle fw-semibold {% if item.cagr and item.cagr > 0 %}text-success{% elif item.cagr and item.cagr < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ item.cagr or -9999 }}">
-                      {% if item.cagr is not none %}{{ "{:,.2f}".format(item.cagr) }}%{% else %}—{% endif %}
+                      {% if item.cagr is not none %}{{ num(item.cagr, 2) }}%{% else %}—{% endif %}
                     </td>
                     <td class="text-end num-font align-middle text-primary" data-sort-value="{{ item.dividends_collected }}">
-                      {% if item.dividends_collected > 0 %}{{ "{:,.2f}".format(item.dividends_collected) }} {{ item.currency_symbol }}{% else %}—{% endif %}
+                      {% if item.dividends_collected > 0 %}{{ num(item.dividends_collected, 2) }} {{ item.currency_symbol }}{% else %}—{% endif %}
                     </td>
 
                     <td class="text-end num-font align-middle pe-4" data-sort-value="{{ item.total_profit_closed_eur }}">
                       <div class="fw-bold {% if item.total_profit_closed_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
-                        {% if item.total_profit_closed_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(item.total_profit_closed_eur) }} €
+                        {% if item.total_profit_closed_eur >= 0 %}+{% endif %}{{ num(item.total_profit_closed_eur, 2) }} €
                       </div>
                       <small class="text-muted" style="font-size:0.7rem;">
-                        {% if item.return_pct >= 0 %}+{% endif %}{{ "{:,.2f}".format(item.return_pct) }}%
+                        {% if item.return_pct >= 0 %}+{% endif %}{{ num(item.return_pct, 2) }}%
                       </small>
                     </td>
                   </tr>
@@ -1343,13 +1343,13 @@
                         <td class="align-middle">
                             <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(item.ticker) }}</a>
                         </td>
-                        <td class="text-end num-font align-middle">{{ "{:,.2f}".format(item.shares) }}</td>
-                        <td class="text-end num-font align-middle">{{ "{:,.2f}".format(item.price) }} {{ item.currency }}</td>
+                        <td class="text-end num-font align-middle">{{ num(item.shares, 2) }}</td>
+                        <td class="text-end num-font align-middle">{{ num(item.price, 2) }} {{ item.currency }}</td>
                         <td class="text-end fw-bold num-font align-middle pe-4 {% if item.type == 'COMPRA' %}text-muted{% elif item.pnl_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
                             {% if item.type == 'COMPRA' %}
                             -
                             {% else %}
-                            {% if item.pnl_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(item.pnl_eur) }} €
+                            {% if item.pnl_eur >= 0 %}+{% endif %}{{ num(item.pnl_eur, 2) }} €
                             {% endif %}
                         </td>
                     </tr>
@@ -1420,19 +1420,19 @@
               <tr class="{% if row.net > 0 %}table-success bg-opacity-25{% elif row.net < 0 %}table-danger bg-opacity-25{% endif %}">
                 <td class="ps-4 text-start fw-bold">{{ row.year }}</td>
                 <td class="text-end text-success fw-semibold">
-                  {% if row.gains > 0 %}+{{ "{:,.2f}".format(row.gains) }} €{% else %}—{% endif %}
+                  {% if row.gains > 0 %}+{{ num(row.gains, 2) }} €{% else %}—{% endif %}
                 </td>
                 <td class="text-end text-danger fw-semibold">
-                  {% if row.losses < 0 %}{{ "{:,.2f}".format(row.losses) }} €{% else %}—{% endif %}
+                  {% if row.losses < 0 %}{{ num(row.losses, 2) }} €{% else %}—{% endif %}
                 </td>
                 <td class="text-end text-primary fw-semibold">
-                  {% if row.dividends > 0 %}+{{ "{:,.2f}".format(row.dividends) }} €{% else %}—{% endif %}
+                  {% if row.dividends > 0 %}+{{ num(row.dividends, 2) }} €{% else %}—{% endif %}
                 </td>
                 <td class="text-end fw-bold {% if row.net > 0 %}text-success{% elif row.net < 0 %}text-danger{% else %}text-muted{% endif %}">
-                  {% if row.net > 0 %}+{% endif %}{{ "{:,.2f}".format(row.net) }} €
+                  {% if row.net > 0 %}+{% endif %}{{ num(row.net, 2) }} €
                 </td>
                 <td class="text-end pe-4 fw-semibold">
-                  {% if row.tax_estimate > 0 %}{{ "{:,.2f}".format(row.tax_estimate) }} €{% else %}—{% endif %}
+                  {% if row.tax_estimate > 0 %}{{ num(row.tax_estimate, 2) }} €{% else %}—{% endif %}
                 </td>
               </tr>
               {% endfor %}
@@ -1441,18 +1441,18 @@
               <tr>
                 <td class="ps-4 text-start">Total</td>
                 <td class="text-end text-success">
-                  {% if ns.total_gains > 0 %}+{{ "{:,.2f}".format(ns.total_gains) }} €{% else %}—{% endif %}
+                  {% if ns.total_gains > 0 %}+{{ num(ns.total_gains, 2) }} €{% else %}—{% endif %}
                 </td>
                 <td class="text-end text-danger">
-                  {% if ns.total_losses < 0 %}{{ "{:,.2f}".format(ns.total_losses) }} €{% else %}—{% endif %}
+                  {% if ns.total_losses < 0 %}{{ num(ns.total_losses, 2) }} €{% else %}—{% endif %}
                 </td>
                 <td class="text-end text-primary">
-                  {% if ns.total_divs > 0 %}+{{ "{:,.2f}".format(ns.total_divs) }} €{% else %}—{% endif %}
+                  {% if ns.total_divs > 0 %}+{{ num(ns.total_divs, 2) }} €{% else %}—{% endif %}
                 </td>
                 <td class="text-end {% if ns.total_net > 0 %}text-success{% else %}text-danger{% endif %}">
-                  {% if ns.total_net > 0 %}+{% endif %}{{ "{:,.2f}".format(ns.total_net) }} €
+                  {% if ns.total_net > 0 %}+{% endif %}{{ num(ns.total_net, 2) }} €
                 </td>
-                <td class="text-end pe-4">{{ "{:,.2f}".format(ns.total_tax) }} €</td>
+                <td class="text-end pe-4">{{ num(ns.total_tax, 2) }} €</td>
               </tr>
             </tfoot>
           </table>
@@ -1552,7 +1552,7 @@
 // --- Posiciones: vista Contable (por defecto) / Seguimiento (se carga aparte; se abre directa con #seguimiento) ---
 (() => {
     const PT_LABELS = {'1d': 'día', 'wtd': 'semana', 'mtd': 'mes', 'ytd': 'año'};
-    const fmtPct = v => (v === null || v === undefined) ? '–' : (v > 0 ? '+' : '') + v.toFixed(2) + '%';
+    const fmtPct = v => (v === null || v === undefined) ? '–' : (v > 0 ? '+' : '') + fmtNum(v, 2) + '%';
     const cls = v => v === null || v === undefined ? '' : (v >= 0 ? 'text-success' : 'text-danger');
     let ptData = null, ptLoading = null, ptPeriod = '1d', ptSort = null, ptSub = 'tabla';
     // mapa: tamaño = peso, color = variación del periodo; barras: contribución a la variación de la cartera
@@ -1576,7 +1576,7 @@
         Plotly.react('contrib', [{
             type: 'bar', orientation: 'h', y: contrib.map(c => c.t), x: contrib.map(c => c.v),
             marker: {color: contrib.map(c => c.v >= 0 ? green : red)},
-            text: contrib.map(c => (c.v >= 0 ? '+' : '') + c.v.toFixed(2)), textposition: 'auto', insidetextanchor: 'middle', textfont: {size: 11}, cliponaxis: false,
+            text: contrib.map(c => (c.v >= 0 ? '+' : '') + fmtNum(c.v, 2)), textposition: 'auto', insidetextanchor: 'middle', textfont: {size: 11}, cliponaxis: false,
             hovertemplate: '<b>%{y}</b><br>%{x:+.2f} pp de la variación de la cartera<extra></extra>',
         }], {margin: {l: 70, r: 40, t: 10, b: 30}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: {color: ink, size: 11},
              xaxis: {gridcolor: grid, zeroline: true, zerolinecolor: ink, ticksuffix: ' pp'}, yaxis: {automargin: true}, bargap: 0.35},
@@ -1616,7 +1616,7 @@
             if (c && c.closed_today && ptPeriod === '1d') {
                 const fx = c.pnl_eur ? c.pnl_eur['1d'] : null, d = c.last_session;
                 const why = `Su mercado no ha abierto hoy (última sesión ${d.slice(8, 10)}/${d.slice(5, 7)})` +
-                    (fx ? ` · el cambio de divisa mueve ${(fx >= 0 ? '+' : '') + fx.toFixed(2)} € su valor` : '');
+                    (fx ? ` · el cambio de divisa mueve ${(fx >= 0 ? '+' : '') + fmtNum(fx, 2)} € su valor` : '');
                 cells.forEach(cell => { cell.textContent = '–'; cell.className = 'text-end num-font align-middle text-body-secondary ' + cell.className.split(' ').find(k => k.startsWith('cell-')); cell.dataset.sort = ''; cell.title = why; });
                 return;
             }
@@ -1624,9 +1624,9 @@
             const ch = c ? (c.change || {})[ptPeriod] : null, cv = c ? c.contribution[ptPeriod] : null;
             const cc = tr.querySelector('.cell-change'); cc.textContent = fmtPct(ch); cc.className = 'text-end num-font align-middle cell-change ' + cls(ch); cc.dataset.sort = ch ?? '';
             const pe = c && c.pnl_eur ? c.pnl_eur[ptPeriod] : null, ce = tr.querySelector('.cell-eur');
-            ce.textContent = pe === null || pe === undefined ? '–' : (pe > 0 ? '+' : '') + pe.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';   // como Contable
+            ce.textContent = pe === null || pe === undefined ? '–' : (pe > 0 ? '+' : '') + fmtNum(pe, 2) + ' €';   // como Contable
             ce.className = 'text-end fw-bold num-font align-middle cell-eur ' + cls(pe); ce.dataset.sort = pe ?? '';
-            const ct = tr.querySelector('.cell-contrib'); ct.textContent = cv === null || cv === undefined ? '–' : (cv >= 0 ? '+' : '') + cv.toFixed(2) + ' pp'; ct.className = 'text-end num-font align-middle cell-contrib ' + cls(cv); ct.dataset.sort = cv ?? '';
+            const ct = tr.querySelector('.cell-contrib'); ct.textContent = cv === null || cv === undefined ? '–' : (cv > 0 ? '+' : '') + fmtNum(cv, 2) + ' pp'; ct.className = 'text-end num-font align-middle cell-contrib ' + cls(cv); ct.dataset.sort = cv ?? '';
         });
         ptSortRows();   // si está ordenada por variación o contribución, se reordena con el nuevo periodo
         ptRenderMap();
@@ -1873,7 +1873,7 @@
 
         // ── KPIs dinámicos ──────────────────────────────────────────────────
         function fmt(v, decimals=2) {
-            return (v >= 0 ? '+' : '') + v.toFixed(decimals) + '%';
+            return (v >= 0 ? '+' : '') + fmtNum(v, decimals) + '%';
         }
         function colorClass(v) {
             return v >= 0 ? 'text-success' : 'text-danger';
@@ -1947,7 +1947,7 @@
             document.getElementById('kpiBenchCagr').innerHTML = benchHtml;
 
             // Max drawdown (Badge superior)
-            document.getElementById('kpiDD').textContent = maxDD.toFixed(2) + '%';
+            document.getElementById('kpiDD').textContent = fmtNum(maxDD, 2) + '%';
             document.getElementById('kpiDDLabel').innerHTML =
                 `Máx. Drawdown <span class="opacity-50">(${periodLabel})</span>`;
 
@@ -1964,25 +1964,25 @@
                     const diffEur = lastEur - baseEur;
                     const pctEur = baseEur > 0 ? (diffEur / baseEur * 100) : 0;
                     
-                    elInfoPortReturn.textContent = `${pctEur >= 0 ? '+' : ''}${pctEur.toFixed(2)}%`;
+                    elInfoPortReturn.textContent = `${pctEur >= 0 ? '+' : ''}${fmtNum(pctEur, 2)}%`;
                     elInfoPortReturn.className = `fs-4 fw-bold ${pctEur >= 0 ? 'text-success' : 'text-danger'}`;
                     
-                    elInfoPortBadge.textContent = `${diffEur >= 0 ? '+' : ''}${Math.round(diffEur).toLocaleString('es-ES')} €`;
+                    elInfoPortBadge.textContent = `${diffEur >= 0 ? '+' : ''}${fmtNum(Math.round(diffEur), 0)} €`;
                     elInfoPortBadge.className = `badge ${diffEur >= 0 ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle'}`;
                     
-                    elInfoPortRangeVal.textContent = `${Math.round(baseEur).toLocaleString('es-ES')} € → ${Math.round(lastEur).toLocaleString('es-ES')} €`;
+                    elInfoPortRangeVal.textContent = `${fmtNum(Math.round(baseEur), 0)} € → ${fmtNum(Math.round(lastEur), 0)} €`;
                 } else {
                     const baseVal = portSlice[0] || 100;
                     const lastVal = portSlice[portSlice.length - 1] || 100;
                     const pctVal = baseVal > 0 ? ((lastVal / baseVal) - 1) * 100 : 0;
                     
-                    elInfoPortReturn.textContent = `${pctVal >= 0 ? '+' : ''}${pctVal.toFixed(2)}%`;
+                    elInfoPortReturn.textContent = `${pctVal >= 0 ? '+' : ''}${fmtNum(pctVal, 2)}%`;
                     elInfoPortReturn.className = `fs-4 fw-bold ${pctVal >= 0 ? 'text-success' : 'text-danger'}`;
                     
                     elInfoPortBadge.textContent = `NAV TWR`;
                     elInfoPortBadge.className = `badge bg-secondary-subtle text-secondary border border-secondary-subtle`;
                     
-                    elInfoPortRangeVal.textContent = `Índice: ${baseVal.toFixed(2)} → ${lastVal.toFixed(2)}`;
+                    elInfoPortRangeVal.textContent = `Índice: ${fmtNum(baseVal, 2)} → ${fmtNum(lastVal, 2)}`;
                 }
             }
 
@@ -2019,11 +2019,11 @@
                                 <div>
                                     <span class="legend-color-dot me-1" style="width: 8px; height: 8px; border-radius: 50%; background-color: ${color}; display: inline-block;"></span>
                                     <span class="small fw-semibold text-dark">${name}</span>
-                                    <div class="text-muted" style="font-size: 0.68rem;">Retorno: ${bPct >= 0 ? '+' : ''}${bPct.toFixed(2)}%</div>
+                                    <div class="text-muted" style="font-size: 0.68rem;">Retorno: ${bPct >= 0 ? '+' : ''}${fmtNum(bPct, 2)}%</div>
                                 </div>
                                 <div class="text-end">
                                     <span class="badge ${alpha >= 0 ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'}" style="font-size:0.72rem; padding: 0.35em 0.65em;">
-                                        α ${alphaSign}${alpha.toFixed(2)}%
+                                        α ${alphaSign}${fmtNum(alpha, 2)}%
                                     </span>
                                 </div>
                             </div>
@@ -2038,7 +2038,7 @@
             if (elInfoMaxDD) {
                 const activeValsForDD = currentMode === 'real' ? perfValuesEur.slice(si) : portSlice;
                 const periodMaxDD = activeValsForDD.length ? Math.min(...calcDrawdown(activeValsForDD)) : 0;
-                elInfoMaxDD.textContent = `${periodMaxDD.toFixed(2)}%`;
+                elInfoMaxDD.textContent = `${fmtNum(periodMaxDD, 2)}%`;
             }
 
             const elInfoDays = document.getElementById('infoAnalyzedDays');
@@ -2326,7 +2326,7 @@
             document.querySelectorAll('#annualTableBody tr').forEach(tr => {
                 const pct      = parseFloat(tr.dataset.port);
                 const portCell = tr.querySelector('.cell-port');
-                portCell.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+                portCell.textContent = (pct >= 0 ? '+' : '') + fmtNum(pct, 2) + '%';
                 portCell.className   = 'fw-bold cell-port ' + (pct >= 0 ? 'text-success' : 'text-danger');
             });
         } else {
@@ -2364,7 +2364,7 @@
                 if (c.pct < worstPct) { worstPct = c.pct; worstLabel = `${monthNames[m]} ${yr}`; }
             }
         });
-        const fmtP = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+        const fmtP = v => (v >= 0 ? '+' : '') + fmtNum(v, 2) + '%';
         if (bestPct > -Infinity) {
             document.getElementById('kpiBestMonth').textContent = fmtP(bestPct);
             document.getElementById('kpiBestMonthLabel').textContent = bestLabel;
@@ -2376,7 +2376,7 @@
         if (allReturns.length > 1) {
             const mean = allReturns.reduce((a, b) => a + b, 0) / allReturns.length;
             const variance = allReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / (allReturns.length - 1);
-            document.getElementById('kpiVol').textContent = Math.sqrt(variance * 12).toFixed(2) + '%';
+            document.getElementById('kpiVol').textContent = fmtNum(Math.sqrt(variance * 12), 2) + '%';
         }
         if (totalMths > 0) {
             document.getElementById('kpiPosMths').textContent = Math.round(posMths / totalMths * 100) + '%';
@@ -2443,7 +2443,7 @@
         const { years, matrix, yearTotals } = data;
         const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
         const fmtEur = v => (v >= 0 ? '+' : '') + new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
-        const fmtPct = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+        const fmtPct = v => (v >= 0 ? '+' : '') + fmtNum(v, 2) + '%';
         const fmt    = v => monthlyMode === 'pct' ? fmtPct(v) : fmtEur(v);
 
         // Cabecera: Mes | 2022 | 2023 | 2024 | ...

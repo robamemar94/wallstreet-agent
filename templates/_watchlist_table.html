@@ -34,7 +34,7 @@
         <th class="text-end sortable">Var. día</th>
         <th class="text-end sortable" title="Caída desde el máximo de 52 semanas">Desde máx. 52s</th>
         <th class="text-end sortable" title="Rentabilidad anual estimada comprando hoy según la valoración base (con dividendos); el color es la zona">CAGR estimado</th>
-        <th class="text-end sortable" title="Precio al que el CAGR estimado sería del {{ '%.0f'|format(target) }}%; debajo, lo que tendría que caer">Compra al {{ '%.0f'|format(target) }}%</th>
+        <th class="text-end sortable" title="Precio al que el CAGR estimado sería del {{ num(target, 0) }}%; debajo, lo que tendría que caer">Compra al {{ num(target, 0) }}%</th>
         <th></th>
     </tr></thead>
     <tbody>
@@ -47,20 +47,20 @@
             {% if r.role in roles_by_key %}{% set rd = roles_by_key[r.role] %}<span class="wl-role" style="--role-color: {{ rd.color }};" title="{{ rd.name }}">{{ rd.emoji }} {{ rd.key }}</span>{% endif %}
             {% if r.held %}<span class="badge text-bg-secondary">en cartera</span>{% endif %}
             <div class="text-muted small text-truncate" style="max-width: 220px;">{{ r.name }}</div></td>
-        <td class="text-end font-monospace-data" data-sort="{{ r.price or '' }}">{{ '%.2f'|format(r.price) if r.price else '–' }} <span class="text-muted">{{ r.cur }}</span></td>
+        <td class="text-end font-monospace-data" data-sort="{{ r.price or '' }}">{{ num(r.price, 2) if r.price else '–' }} <span class="text-muted">{{ r.cur }}</span></td>
         {% if r.day_pct is not none %}
-        <td class="text-end font-monospace-data {{ 'text-success' if r.day_pct >= 0 else 'text-danger' }}" data-sort="{{ r.day_pct }}">{{ '%+.2f'|format(r.day_pct) }}%</td>
+        <td class="text-end font-monospace-data {{ 'text-success' if r.day_pct >= 0 else 'text-danger' }}" data-sort="{{ r.day_pct }}">{{ num(r.day_pct, 2, sign=True) }}%</td>
         {% else %}
-        <td class="text-end text-muted small" data-sort="" title="{{ 'Su mercado no ha abierto hoy · última sesión ' ~ r.last_session[8:10] ~ '/' ~ r.last_session[5:7] ~ (': ' ~ '%+.2f'|format(r.last_day_pct) ~ '%' if r.last_day_pct is not none else '') if r.last_session else 'Sin datos' }}">cerrado</td>
+        <td class="text-end text-muted small" data-sort="" title="{{ 'Su mercado no ha abierto hoy · última sesión ' ~ r.last_session[8:10] ~ '/' ~ r.last_session[5:7] ~ (': ' ~ num(r.last_day_pct, 2, sign=True) ~ '%' if r.last_day_pct is not none else '') if r.last_session else 'Sin datos' }}">cerrado</td>
         {% endif %}
         {% set fh = r.from_high_pct %}
-        <td class="text-end font-monospace-data {{ 'text-danger' if fh is not none and fh <= -20 else '' }}" data-sort="{{ fh if fh is not none else '' }}">{{ '%+.1f'|format(fh) ~ '%' if fh is not none else '–' }}</td>
+        <td class="text-end font-monospace-data {{ 'text-danger' if fh is not none and fh <= -20 else '' }}" data-sort="{{ fh if fh is not none else '' }}">{{ num(fh, 1, sign=True) ~ '%' if fh is not none else '–' }}</td>
         {% if v %}
         <td class="text-end font-monospace-data fw-bold {{ 'cagr-' ~ band if band }}" data-sort="{{ v.cagr if v.cagr is not none else '' }}"
             title="{{ 'Zona: ' ~ v.zone if v.zone }}{{ ' · valoración antigua sin revisar' if v.inputs.legacy }}{{ ' · ' ~ stale_text(r.stale) if r.stale and (r.stale.stale or r.stale.results_since) }}">
-            {% if band %}<i class="bi bi-circle-fill me-1" style="font-size: .5rem; vertical-align: middle;"></i>{% endif %}{{ '%.1f'|format(v.cagr) ~ '%' if v.cagr is not none else '–' }}{% if v.anchor and v.anchor.state == 'active' %} <i class="bi bi-pencil-fill text-primary" style="font-size: .65rem;" title="{{ metrics[v.metric].label }} {{ v.anchor.year }} corregido a mano: {{ '%.2f'|format(v.anchor.value) }} (automático {{ '%.2f'|format(v.anchor.auto) }}){% if v.anchor.cagr_auto is not none %} · sin corrección: {{ '%.1f'|format(v.anchor.cagr_auto) }}%{% endif %}"></i>{% endif %}{% if v.inputs.legacy %} <i class="bi bi-exclamation-triangle text-warning" title="Valoración antigua: revísala en la ficha; no genera avisos"></i>{% elif r.stale and r.stale.stale %} <i class="bi bi-clock-history text-danger" title="{{ stale_text(r.stale) }}"></i>{% endif %}</td>
-        <td class="text-end font-monospace-data" data-sort="{{ r.drop_pct }}">{{ '%.2f'|format(v.buy_price) }}
-            <div class="small {{ 'text-success fw-bold' if r.drop_pct <= 0 else ('text-warning' if r.drop_pct <= near else 'text-muted') }}">{{ 'en zona' if r.drop_pct <= 0 else '−' ~ '%.1f'|format(r.drop_pct) ~ '%' }}</div></td>
+            {% if band %}<i class="bi bi-circle-fill me-1" style="font-size: .5rem; vertical-align: middle;"></i>{% endif %}{{ num(v.cagr, 1) ~ '%' if v.cagr is not none else '–' }}{% if v.anchor and v.anchor.state == 'active' %} <i class="bi bi-pencil-fill text-primary" style="font-size: .65rem;" title="{{ metrics[v.metric].label }} {{ v.anchor.year }} corregido a mano: {{ num(v.anchor.value, 2) }} (automático {{ num(v.anchor.auto, 2) }}){% if v.anchor.cagr_auto is not none %} · sin corrección: {{ num(v.anchor.cagr_auto, 1) }}%{% endif %}"></i>{% endif %}{% if v.inputs.legacy %} <i class="bi bi-exclamation-triangle text-warning" title="Valoración antigua: revísala en la ficha; no genera avisos"></i>{% elif r.stale and r.stale.stale %} <i class="bi bi-clock-history text-danger" title="{{ stale_text(r.stale) }}"></i>{% endif %}</td>
+        <td class="text-end font-monospace-data" data-sort="{{ r.drop_pct }}">{{ num(v.buy_price, 2) }}
+            <div class="small {{ 'text-success fw-bold' if r.drop_pct <= 0 else ('text-warning' if r.drop_pct <= near else 'text-muted') }}">{{ 'en zona' if r.drop_pct <= 0 else '−' ~ num(r.drop_pct, 1) ~ '%' }}</div></td>
         {% else %}
         <td class="text-end text-muted small" data-sort="">–</td><td class="text-end text-muted small" data-sort="">{{ 'sin valoración' if r.price else 'sin cotización' }}</td>
         {% endif %}
@@ -77,6 +77,6 @@
 </div>
 <nav class="d-flex justify-content-end align-items-center px-2 pt-2" id="wlPager" aria-label="Páginas de la watchlist"></nav>
 <div class="small text-muted px-2 py-1"><i class="bi bi-calculator"></i> abre los supuestos en la pestaña Valoración de la ficha. Entran solas las favoritas (★); las demás, añadiéndolas a mano.
-    Color de la rentabilidad = zona: <span class="cagr-green">● ganga ≥{{ '%.0f'|format(ZONE.ganga) }}%</span> <span class="cagr-amber">● barata {{ '%.0f'|format(ZONE.barata) }}–{{ '%.0f'|format(ZONE.ganga) }}%</span>
-    <span class="cagr-orange">● justo {{ '%.0f'|format(ZONE.justo) }}–{{ '%.0f'|format(ZONE.barata) }}%</span> <span class="cagr-red">● cara &lt;{{ '%.0f'|format(ZONE.justo) }}%</span>.
+    Color de la rentabilidad = zona: <span class="cagr-green">● ganga ≥{{ num(ZONE.ganga, 0) }}%</span> <span class="cagr-amber">● barata {{ num(ZONE.barata, 0) }}–{{ num(ZONE.ganga, 0) }}%</span>
+    <span class="cagr-orange">● justo {{ num(ZONE.justo, 0) }}–{{ num(ZONE.barata, 0) }}%</span> <span class="cagr-red">● cara &lt;{{ num(ZONE.justo, 0) }}%</span>.
     <i class="bi bi-clock-history text-danger"></i> valoración anticuada: dos presentaciones de resultados desde tu última revisión (o 7 meses si no hay calendario).</div>

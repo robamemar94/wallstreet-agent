@@ -241,7 +241,7 @@ document.getElementById('compararForm').addEventListener('submit', e => {
             <td class="ps-4 text-muted">Precio actual</td>
             {% for c in comparisons %}
             <td class="text-center fw-semibold">
-              {% if c.price %}{{ "{:,.2f}".format(c.price) }} {{ c.currency }}{% else %}—{% endif %}
+              {% if c.price %}{{ num(c.price, 2) }} {{ c.currency }}{% else %}—{% endif %}
             </td>
             {% endfor %}
           </tr>
@@ -281,7 +281,7 @@ document.getElementById('compararForm').addEventListener('submit', e => {
               {% if c.fwd_pe and c.fair_pe %}
                 {% set diff = ((c.fwd_pe / c.fair_pe) - 1) * 100 %}
                 <span class="{{ 'text-danger' if diff > 0 else 'text-success' }}">
-                  {% if diff > 0 %}+{% endif %}{{ "{:.1f}".format(diff) }}%
+                  {% if diff > 0 %}+{% endif %}{{ num(diff, 1) }}%
                 </span>
               {% else %}—{% endif %}
             </td>
@@ -305,7 +305,7 @@ document.getElementById('compararForm').addEventListener('submit', e => {
             <td class="text-center">
               {% set sc = c[key] %}
               {% if sc is not none %}
-              <div class="fw-bold mb-1">{{ "{:.1f}".format(sc) }}/10</div>
+              <div class="fw-bold mb-1">{{ num(sc, 1) }}/10</div>
               <div class="progress" style="height:5px;border-radius:3px;">
                 <div class="progress-bar bg-{{ color }}" style="width:{{ (sc / 10 * 100)|int }}%"></div>
               </div>

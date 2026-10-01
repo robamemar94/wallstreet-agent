@@ -237,7 +237,7 @@ function openDayModal(dateStr, evs) {
 
         let detail = '';
         if (ev.type === 'Dividendo') {
-            detail = ev.amount && ev.amount > 0 ? `<small class="text-success fw-bold">+${ev.amount.toFixed(2)}€</small>` : '';
+            detail = ev.amount && ev.amount > 0 ? `<small class="text-success fw-bold">+${fmtNum(ev.amount, 2)}€</small>` : '';
             if (ev.pay_date) detail += `<small class="text-muted ms-2">Cobro: ${ev.pay_date}</small>`;
         } else {
             detail = `<small class="text-muted">Resultados</small>`;

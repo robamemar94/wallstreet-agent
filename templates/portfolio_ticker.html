@@ -8,7 +8,7 @@
             <h2 class="fw-bold mb-0">Operaciones de {{ clean_ticker(ticker) }}</h2>
             <span class="text-muted small">
                 {% if is_active %}
-                Posición Abierta — {{ item.shares }} acciones
+                Posición Abierta — {{ num(item.shares, 0 if item.shares == item.shares|int else 2) }} acciones
                 {% else %}
                 Posición Cerrada Histórica
                 {% endif %}
@@ -28,7 +28,7 @@
             <div class="card-body text-center">
                 <h6 class="text-muted fw-bold">Beneficio Realizado (Ventas)</h6>
                 <h3 class="mb-0 {% if item.realized_pnl > 0 %}text-success{% elif item.realized_pnl < 0 %}text-danger{% endif %}">
-                    {% if item.realized_pnl > 0 %}+{% endif %}{{ "{:,.2f}".format(item.realized_pnl) }} {{ currency_symbol }}
+                    {% if item.realized_pnl > 0 %}+{% endif %}{{ num(item.realized_pnl, 2) }} {{ currency_symbol }}
                 </h3>
             </div>
         </div>
@@ -39,7 +39,7 @@
             <div class="card-body text-center">
                 <h6 class="text-muted fw-bold">Dividendos Cobrados</h6>
                 <h3 class="mb-0 text-success">
-                    +{{ "{:,.2f}".format(item.dividends_collected|default(0)) }} {{ currency_symbol }}
+                    +{{ num(item.dividends_collected|default(0), 2) }} {{ currency_symbol }}
                 </h3>
             </div>
         </div>
@@ -50,12 +50,12 @@
             <div class="card-body text-center">
                 <h6 class="text-muted fw-bold">Bº Total Histórico</h6>
                 <h3 class="mb-0 {% if total_profit_closed > 0 %}text-success{% elif total_profit_closed < 0 %}text-danger{% endif %}">
-                    {% if total_profit_closed > 0 %}+{% endif %}{{ "{:,.2f}".format(total_profit_closed) }} {{ currency_symbol }}
+                    {% if total_profit_closed > 0 %}+{% endif %}{{ num(total_profit_closed, 2) }} {{ currency_symbol }}
                 </h3>
                 <small class="text-muted d-block" style="font-size: 0.75rem;">
                     (Ventas + Dividendos)
                     {% if not is_active and item.cagr is not none %}
-                    <span class="d-block mt-1">CAGR: <span class="fw-bold {% if item.cagr > 0 %}text-success{% elif item.cagr < 0 %}text-danger{% endif %}">{% if item.cagr > 0 %}+{% endif %}{{ "{:.2f}%".format(item.cagr) }}</span></span>
+                    <span class="d-block mt-1">CAGR: <span class="fw-bold {% if item.cagr > 0 %}text-success{% elif item.cagr < 0 %}text-danger{% endif %}">{% if item.cagr > 0 %}+{% endif %}{{ (num(item.cagr, 2) ~ '%') }}</span></span>
                     {% endif %}
                 </small>
             </div>
@@ -69,12 +69,12 @@
                 <div>
                     <h6 class="text-muted fw-bold">Bº No Realizado (Latente)</h6>
                     <h3 class="mb-0 {% if item.return_abs > 0 %}text-success{% elif item.return_abs < 0 %}text-danger{% endif %}">
-                        {% if item.return_abs > 0 %}+{% endif %}{{ "{:,.2f}".format(item.return_abs) }} {{ currency_symbol }}
+                        {% if item.return_abs > 0 %}+{% endif %}{{ num(item.return_abs, 2) }} {{ currency_symbol }}
                     </h3>
                     <small class="text-muted d-block" style="font-size: 0.75rem;">
-                        ({{ "{:.2f}%".format(item.return_pct) }})
+                        ({{ (num(item.return_pct, 2) ~ '%') }})
                         {% if item.cagr is not none %}
-                        · <span class="fw-semibold">CAGR: <span class="{% if item.cagr > 0 %}text-success{% elif item.cagr < 0 %}text-danger{% endif %}">{% if item.cagr > 0 %}+{% endif %}{{ "{:.2f}%".format(item.cagr) }}</span></span>
+                        · <span class="fw-semibold">CAGR: <span class="{% if item.cagr > 0 %}text-success{% elif item.cagr < 0 %}text-danger{% endif %}">{% if item.cagr > 0 %}+{% endif %}{{ (num(item.cagr, 2) ~ '%') }}</span></span>
                         {% endif %}
                     </small>
                 </div>
@@ -100,35 +100,35 @@
                 <h6 class="fw-bold mb-3 d-flex align-items-center gap-2 flex-wrap">
                     <i class="bi bi-currency-exchange me-1"></i> Desglose de Divisa y Comisiones (en Euros)
                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-auto" style="font-size: 0.75rem; font-weight: 600;">
-                        ✂️ Comisiones Acumuladas: {{ "{:,.2f}".format(item.total_fees_eur|default(0)) }} €
+                        ✂️ Comisiones Acumuladas: {{ num(item.total_fees_eur|default(0), 2) }} €
                     </span>
                 </h6>
                 <div class="row text-center g-3">
                     <div class="col-md-3 border-end">
                         <div class="text-muted small">Valoración Total (EUR)</div>
-                        <div class="fw-bold fs-5 mt-1">{{ "{:,.2f}".format(item.current_value_eur) }} €</div>
-                        <small class="text-muted" style="font-size: 0.7rem;">Coste: {{ "{:,.2f}".format(item.invested_value_eur) }} €</small>
+                        <div class="fw-bold fs-5 mt-1">{{ num(item.current_value_eur, 2) }} €</div>
+                        <small class="text-muted" style="font-size: 0.7rem;">Coste: {{ num(item.invested_value_eur, 2) }} €</small>
                     </div>
                     <div class="col-md-3 border-end">
                         <div class="text-muted small">Rendimiento Cotización (Acción)</div>
                         <div class="fw-bold fs-5 mt-1 {% if item.pnl_price_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            {% if item.pnl_price_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(item.pnl_price_eur) }} €
+                            {% if item.pnl_price_eur >= 0 %}+{% endif %}{{ num(item.pnl_price_eur, 2) }} €
                         </div>
                         <small class="text-muted" style="font-size: 0.7rem;">Pura subida/bajada de cotización</small>
                     </div>
                     <div class="col-md-3 border-end">
                         <div class="text-muted small">Efecto Tipo de Cambio (Divisa)</div>
                         <div class="fw-bold fs-5 mt-1 {% if item.pnl_fx_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            {% if item.pnl_fx_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(item.pnl_fx_eur) }} €
+                            {% if item.pnl_fx_eur >= 0 %}+{% endif %}{{ num(item.pnl_fx_eur, 2) }} €
                         </div>
                         <small class="text-muted" style="font-size: 0.7rem;">Por fluctuación de la moneda</small>
                     </div>
                     <div class="col-md-3">
                         <div class="text-muted small">P&amp;L Total (EUR)</div>
                         <div class="fw-bold fs-5 mt-1 {% if item.total_pnl_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            {% if item.total_pnl_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(item.total_pnl_eur) }} €
+                            {% if item.total_pnl_eur >= 0 %}+{% endif %}{{ num(item.total_pnl_eur, 2) }} €
                         </div>
-                        <small class="text-muted" style="font-size: 0.7rem;">Compra: {{ "{:.4f}".format(item.fx_avg_purchase) }} | Actual: {{ "{:.4f}".format(item.current_fx_rate) }}</small>
+                        <small class="text-muted" style="font-size: 0.7rem;">Compra: {{ num(item.fx_avg_purchase, 4) }} | Actual: {{ num(item.current_fx_rate, 4) }}</small>
                     </div>
                 </div>
             </div>
@@ -173,25 +173,25 @@
                     </td>
                     <td class="text-end num-font">
                         {% if tx.type == 'DIVIDEND' %}
-                            <span class="text-muted small">Por {{ "{:,.2f}".format(tx.shares) }} accs.</span>
+                            <span class="text-muted small">Por {{ num(tx.shares, 2) }} accs.</span>
                         {% elif tx.type == 'SPLIT' %}
                             <span class="fw-bold">1 : {{ "{:g}".format(tx.shares) }}</span>
                         {% else %}
-                            {{ "{:,.2f}".format(tx.shares) }}
+                            {{ num(tx.shares, 2) }}
                         {% endif %}
                     </td>
                     <td class="text-end num-font">
                         {% if tx.type == 'SPLIT' %}
                             -
                         {% else %}
-                            {{ "{:,.4f}".format(tx.price) }} {{ currency_symbol }}
+                            {{ num(tx.price, 4) }} {{ currency_symbol }}
                         {% endif %}
                     </td>
                     <td class="text-end fw-bold num-font {% if tx.type == 'DIVIDEND' or tx.type == 'SELL' %}text-success{% elif tx.type == 'SPLIT' %}text-muted{% else %}text-danger{% endif %}">
                         {% if tx.type == 'SPLIT' %}
                             -
                         {% else %}
-                            {% if tx.type == 'DIVIDEND' or tx.type == 'SELL' %}+{% else %}-{% endif %}{{ "{:,.2f}".format(tx.total) }} {{ currency_symbol }}
+                            {% if tx.type == 'DIVIDEND' or tx.type == 'SELL' %}+{% else %}-{% endif %}{{ num(tx.total, 2) }} {{ currency_symbol }}
                         {% endif %}
                     </td>
                     <td class="text-center">
@@ -207,7 +207,7 @@
                                 <span class="text-muted d-block small fw-semibold">Detalles de Operación</span>
                                 <span class="fw-bold text-dark">
                                     {% if tx.type == 'BUY' %}Compra de{% elif tx.type == 'SELL' %}Venta de{% elif tx.type == 'DIVIDEND' %}Cobro de Dividendo{% else %}Split de{% endif %}
-                                    {{ "{:,.2f}".format(tx.shares) }} acciones a {{ "{:,.4f}".format(tx.price) }} {{ currency_symbol }}
+                                    {{ num(tx.shares, 2) }} acciones a {{ num(tx.price, 4) }} {{ currency_symbol }}
                                 </span>
                                 {% if tx.type != 'SPLIT' %}
                                 <div class="mt-2 text-muted" style="font-size:0.78rem;">
@@ -224,7 +224,7 @@
                                     </div>
                                     {% endif %}
                                     {% if tx.fee > 0 and tx.type != 'DIVIDEND' %}
-                                    <span class="d-block mt-1">✂️ Comisión: <strong class="text-danger">{{ "{:,.2f}".format(tx.fee) }} {{ currency_symbol }}</strong></span>
+                                    <span class="d-block mt-1">✂️ Comisión: <strong class="text-danger">{{ num(tx.fee, 2) }} {{ currency_symbol }}</strong></span>
                                     {% endif %}
                                 </div>
                                 {% endif %}
@@ -234,9 +234,9 @@
                             <div class="col-md-4 border-start">
                                 <span class="text-muted d-block small fw-semibold">Tipo de Cambio</span>
                                 <span class="fw-bold text-dark">
-                                    1 {{ currency_symbol }} = {{ "{:.4f}".format(tx.fx_rate) }} EUR
+                                    1 {{ currency_symbol }} = {{ num(tx.fx_rate, 4) }} EUR
                                     {% if tx.type == 'SELL' and tx.fx_avg_purchase %}
-                                    <small class="text-muted d-block fw-normal" style="font-size:0.75rem;">(Histórico de compra: {{ "{:.4f}".format(tx.fx_avg_purchase) }})</small>
+                                    <small class="text-muted d-block fw-normal" style="font-size:0.75rem;">(Histórico de compra: {{ num(tx.fx_avg_purchase, 4) }})</small>
                                     {% endif %}
                                 </span>
                             </div>
@@ -244,21 +244,21 @@
                                 <span class="text-muted d-block small fw-semibold">Equivalente en Euros (EUR)</span>
                                 <span>
                                     {% if tx.type == 'DIVIDEND' %}
-                                        <strong class="text-success">+{{ "{:,.2f}".format(tx.pnl_eur) }} €</strong>
+                                        <strong class="text-success">+{{ num(tx.pnl_eur, 2) }} €</strong>
                                         <small class="text-muted d-block fw-normal" style="font-size:0.75rem;">Recibido neto en EUR</small>
                                     {% elif tx.type == 'SELL' %}
                                         <div class="fw-bold {% if tx.pnl_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                            Resultado: {% if tx.pnl_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(tx.pnl_eur) }} €
+                                            Resultado: {% if tx.pnl_eur >= 0 %}+{% endif %}{{ num(tx.pnl_eur, 2) }} €
                                         </div>
                                         <div class="small text-muted mt-1" style="font-size:0.76rem; line-height:1.25;">
-                                            • Por Cotización: <strong class="{% if tx.pnl_price_eur >= 0 %}text-success{% else %}text-danger{% endif %}">{% if tx.pnl_price_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(tx.pnl_price_eur) }} €</strong><br>
-                                            • Por Efecto Divisa: <strong class="{% if tx.pnl_fx_eur >= 0 %}text-success{% else %}text-danger{% endif %}">{% if tx.pnl_fx_eur >= 0 %}+{% endif %}{{ "{:,.2f}".format(tx.pnl_fx_eur) }} €</strong><br>
+                                            • Por Cotización: <strong class="{% if tx.pnl_price_eur >= 0 %}text-success{% else %}text-danger{% endif %}">{% if tx.pnl_price_eur >= 0 %}+{% endif %}{{ num(tx.pnl_price_eur, 2) }} €</strong><br>
+                                            • Por Efecto Divisa: <strong class="{% if tx.pnl_fx_eur >= 0 %}text-success{% else %}text-danger{% endif %}">{% if tx.pnl_fx_eur >= 0 %}+{% endif %}{{ num(tx.pnl_fx_eur, 2) }} €</strong><br>
                                             {% if tx.fee > 0 %}
-                                            • Comisiones pagadas: <strong class="text-danger">{{ "{:,.2f}".format(tx.fee * tx.fx_rate) }} €</strong>
+                                            • Comisiones pagadas: <strong class="text-danger">{{ num(tx.fee * tx.fx_rate, 2) }} €</strong>
                                             {% endif %}
                                         </div>
                                     {% else %}
-                                        <strong class="text-dark">{{ "{:,.2f}".format(tx.total * tx.fx_rate) }} €</strong>
+                                        <strong class="text-dark">{{ num(tx.total * tx.fx_rate, 2) }} €</strong>
                                         <small class="text-muted d-block fw-normal" style="font-size:0.75rem;">Valor total invertido (con comisiones)</small>
                                     {% endif %}
                                 </span>
@@ -267,10 +267,10 @@
                             <div class="col-md-8 border-start">
                                 <span class="text-muted d-block small fw-semibold">Valor Total en Euros</span>
                                 <span class="fw-bold text-dark">
-                                    {% if tx.type == 'DIVIDEND' or tx.type == 'SELL' %}+{% else %}-{% endif %}{{ "{:,.2f}".format(tx.total) }} €
+                                    {% if tx.type == 'DIVIDEND' or tx.type == 'SELL' %}+{% else %}-{% endif %}{{ num(tx.total, 2) }} €
                                 </span>
                                 {% if tx.fee > 0 and tx.type != 'DIVIDEND' %}
-                                <small class="text-muted d-block mt-1" style="font-size:0.75rem;">(Incluye comisiones de {{ "{:,.2f}".format(tx.fee) }} €)</small>
+                                <small class="text-muted d-block mt-1" style="font-size:0.75rem;">(Incluye comisiones de {{ num(tx.fee, 2) }} €)</small>
                                 {% endif %}
                             </div>
                             {% endif %}

@@ -105,7 +105,7 @@
                         {% if closed %}Duró {{ alert.days }} días desde el máximo ({{ alert.high }})
                         {% else %}Máx. 52s {{ alert.high }} → {{ alert.current_price }} · {{ alert.days }} d
                             {%- if alert.max_drop > alert.drop_pct + 0.5 %} · peor −{{ alert.max_drop }}%{% endif %}
-                            {%- if alert.bench_pct is not none %} · mercado {{ '%+.1f'|format(alert.bench_pct) }}%{% endif %}
+                            {%- if alert.bench_pct is not none %} · mercado {{ num(alert.bench_pct, 1, sign=True) }}%{% endif %}
                             {%- if alert.buy_gap is not none %} · <span class="{{ 'text-success fw-bold' if alert.buy_gap <= 0 else '' }}">{{ 'bajo precio de compra' if alert.buy_gap <= 0 else 'a ' ~ alert.buy_gap ~ '% de compra' }}</span>{% endif %}
                         {% endif %}
                     {% else %}Máx. histórico {{ alert.ath }} → {{ alert.current_price }}{% endif %}
@@ -113,7 +113,7 @@
                 {% else %}
                 <td><span class="al-type al-type-val">Valoración</span></td>
                 <td class="text-nowrap">{{ zone(alert.old_status) }} <i class="bi bi-arrow-right text-muted mx-1"></i> {{ zone(alert.new_status) }}</td>
-                <td class="al-detail">{% if alert.cagr is defined and alert.cagr is not none %}CAGR {{ '%.1f'|format(alert.cagr) }}% · compra al {{ '%.0f'|format(ZONE.ganga) }}% {{ '%.2f'|format(alert.buy_price) }} · cotizaba {{ '%.2f'|format(alert.price) }}{% else %}Por PER justo (método anterior){% endif %}</td>
+                <td class="al-detail">{% if alert.cagr is defined and alert.cagr is not none %}CAGR {{ num(alert.cagr, 1) }}% · compra al {{ num(ZONE.ganga, 0) }}% {{ num(alert.buy_price, 2) }} · cotizaba {{ num(alert.price, 2) }}{% else %}Por PER justo (método anterior){% endif %}</td>
                 {% endif %}
                 <td class="text-end pe-3 text-nowrap al-actions">
                     <button type="button" class="btn btn-link btn-mark-seen d-none" title="Marcar como leída" aria-label="Marcar como leída" onclick="markAlertSeen(this);"><i class="bi bi-check2"></i></button>

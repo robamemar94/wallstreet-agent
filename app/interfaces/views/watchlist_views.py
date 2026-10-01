@@ -18,6 +18,7 @@ from app.infrastructure.repositories.sqlalchemy_notice_repository import SqlAlch
 from app.infrastructure.repositories.sqlalchemy_watchlist_repository import SqlAlchemyWatchlistRepository
 from app.infrastructure.templates import templates
 from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached, get_currency_symbol
+from utils.number_format import es
 
 logger = logging.getLogger(__name__)
 
@@ -113,20 +114,20 @@ def watchlist_attention(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     out = []
     for r in fresh:
         v = r["val"]
-        cagr = f" · rentabilidad estimada {v['cagr']:.1f}%" if v["cagr"] is not None else ""
+        cagr = f" · rentabilidad estimada {es(v['cagr'], 1)}%" if v["cagr"] is not None else ""
         if r["group"] == "zona":
             # la señal de compra sale de unos supuestos viejos: que se note antes de comprar
             old = " · valoración anticuada: revísala antes de comprar" if (r["stale"] or {}).get("stale") else ""
-            out.append({"prio": 0, "type": "zona", "ticker": r["ticker"], "href": f"/ticker/{r['ticker']}#valoracion", "text": f"Por debajo de su precio de compra al {v['target']:.0f}% ({v['buy_price']:,.2f}; cotiza a {r['price']:,.2f}){cagr}{old}"})
+            out.append({"prio": 0, "type": "zona", "ticker": r["ticker"], "href": f"/ticker/{r['ticker']}#valoracion", "text": f"Por debajo de su precio de compra al {es(v['target'], 0)}% ({es(v['buy_price'], 2)}; cotiza a {es(r['price'], 2)}){cagr}{old}"})
         elif r["group"] == "cerca":
-            out.append({"prio": 1, "type": "cerca", "ticker": r["ticker"], "href": f"/ticker/{r['ticker']}#valoracion", "text": f"A un {r['drop_pct']:.1f}% de su precio de compra ({v['buy_price']:,.2f}){cagr}"})
+            out.append({"prio": 1, "type": "cerca", "ticker": r["ticker"], "href": f"/ticker/{r['ticker']}#valoracion", "text": f"A un {es(r['drop_pct'], 1)}% de su precio de compra ({es(v['buy_price'], 2)}){cagr}"})
     for r in fresh:   # el año corregido a mano ya tiene dato real: la corrección ha dejado de aplicarse
         a = r["val"]["anchor"]
         if a and a["state"] == "expired":
             label = bv.METRICS[r["val"]["metric"]]["label"]
             out.append({"prio": 2, "type": "anchor_expired", "ticker": r["ticker"], "ref": str(a["year"]), "href": f"/ticker/{r['ticker']}#valoracion",
-                        "text": f"Tu {label} {a['year']} corregido ({a['value']:,.2f}) ya ha pasado: el de los últimos 12 meses es {a['auto']:,.2f} "
-                                f"({100 * (a['auto'] / a['value'] - 1):+.1f}% frente a tu corrección). La corrección ya no se aplica: revisa el crecimiento"})
+                        "text": f"Tu {label} {a['year']} corregido ({es(a['value'], 2)}) ya ha pasado: el de los últimos 12 meses es {es(a['auto'], 2)} "
+                                f"({es(100 * (a['auto'] / a['value'] - 1), 1, sign=True)}% frente a tu corrección). La corrección ya no se aplica: revisa el crecimiento"})
     legacy = [r for r in rows if r["val"] and r["val"]["inputs"].get("legacy")]
     if legacy:
         out.append({"prio": 3, "type": "legacy", "ticker": None, "label": f"{len(legacy)} empresas", "text": f"Valoración antigua sin revisar (no generan avisos): {_names(legacy)}"})

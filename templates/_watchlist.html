@@ -20,7 +20,7 @@
         <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
             <div>
                 <div class="fw-bold"><i class="bi bi-eye me-1"></i>Watchlist</div>
-                <div class="small text-muted">Empresas candidatas con su valoración base al precio de hoy. El precio de compra es el que te daría un {{ '%.0f'|format(target) }}% anual con dividendos.</div>
+                <div class="small text-muted">Empresas candidatas con su valoración base al precio de hoy. El precio de compra es el que te daría un {{ num(target, 0) }}% anual con dividendos.</div>
             </div>
             <form class="d-flex gap-2" id="wlAddForm">
                 <input class="form-control form-control-sm" style="width: 9rem;" id="wlAddTicker" placeholder="Ticker (p. ej. ASML.AS)" required>

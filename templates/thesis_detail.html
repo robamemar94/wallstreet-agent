@@ -72,13 +72,13 @@
             <div class="kpi-label">Precio</div>
             {% if price %}
             <div class="health-num font-monospace-data" style="font-size: 1.8rem;">{{ money(price.price, cur) }}</div>
-            <div class="small font-monospace-data {{ 'text-success' if price.pct >= 0 else 'text-danger' }}">{{ '%+.2f'|format(price.pct) }}% hoy
-                {% if vs_reference is not none %}<span class="text-muted">· {{ '%+.1f'|format(vs_reference) }}% vs ref. {{ money(thesis.reference_price, cur) }}</span>{% endif %}</div>
+            <div class="small font-monospace-data {{ 'text-success' if price.pct >= 0 else 'text-danger' }}">{{ num(price.pct, 2, sign=True) }}% hoy
+                {% if vs_reference is not none %}<span class="text-muted">· {{ num(vs_reference, 1, sign=True) }}% vs ref. {{ money(thesis.reference_price, cur) }}</span>{% endif %}</div>
             {% else %}<div class="text-muted">Sin cotización</div>{% endif %}
             <div class="small mt-1">
-                {% if position %}<i class="bi bi-briefcase me-1"></i>En cartera: <strong>{{ '%.1f'|format(position.weight) }}%</strong>
+                {% if position %}<i class="bi bi-briefcase me-1"></i>En cartera: <strong>{{ num(position.weight, 1) }}%</strong>
                     <span class="text-muted">· {{ position.shares|round(2) }} acc. · {{ format_euro(position.value_eur, 0) }} €{% if position.pnl_pct is not none %} ·
-                    <span class="{{ 'text-success' if position.pnl_pct >= 0 else 'text-danger' }}">{{ '%+.1f'|format(position.pnl_pct) }}%</span>{% endif %}</span>
+                    <span class="{{ 'text-success' if position.pnl_pct >= 0 else 'text-danger' }}">{{ num(position.pnl_pct, 1, sign=True) }}%</span>{% endif %}</span>
                 {% else %}<span class="text-muted"><i class="bi bi-briefcase me-1"></i>No está en cartera</span>{% endif %}
             </div>
             <div class="small text-muted mt-1"><i class="bi bi-calendar-event me-1"></i>
@@ -234,7 +234,7 @@
                     <div class="d-flex justify-content-between gap-2">
                         <span><strong class="text-capitalize">{{ d.action }}</strong> · {{ d.date }}{% if d.price %} · a {{ d.price }}{% endif %}{% if d.shares %} · {{ d.shares|round(2) }} acc.{% endif %}</span>
                         <span class="text-nowrap">
-                            {% if o.price_change is not none %}<span class="{{ 'st-green' if o.good else 'st-red' }}" title="Variación del precio desde la decisión ({{ o.days }} días)">{{ '%+.1f'|format(o.price_change) }}%</span>{% endif %}
+                            {% if o.price_change is not none %}<span class="{{ 'st-green' if o.good else 'st-red' }}" title="Variación del precio desde la decisión ({{ o.days }} días)">{{ num(o.price_change, 1, sign=True) }}%</span>{% endif %}
                             <button class="btn btn-link btn-sm p-0 text-muted ms-1" onclick="deleteDecision({{ d.id }})" title="Eliminar"><i class="bi bi-x"></i></button>
                         </span>
                     </div>
@@ -288,7 +288,7 @@
                 <span class="fw-bold"><i class="bi bi-broadcast me-1"></i>Radar semanal</span>
                 <span class="small text-muted ms-auto">
                     {% if radar_running %}<span class="spinner-border spinner-border-sm"></span> en curso · {% endif %}
-                    {% if news.digest %}{{ news.digest.created_at[:10] }}{% if news.digest.window_days %} · últimos {{ news.digest.window_days }} días{% endif %}{% if news.digest.free_tier %} · gratis{% elif news.digest.usage %} · ${{ '%.3f'|format(news.digest.usage.cost_usd) }}{% endif %}{% else %}sin consultar{% endif %}
+                    {% if news.digest %}{{ news.digest.created_at[:10] }}{% if news.digest.window_days %} · últimos {{ news.digest.window_days }} días{% endif %}{% if news.digest.free_tier %} · gratis{% elif news.digest.usage %} · ${{ num(news.digest.usage.cost_usd, 3) }}{% endif %}{% else %}sin consultar{% endif %}
                 </span>
                 <button class="btn btn-sm {{ 'btn-outline-primary' if news.due else 'btn-outline-secondary' }} py-0" id="btnNews" data-force="{{ 'false' if news.due else 'true' }}"
                         title="{{ 'Consultar noticias de los últimos 7 días' if news.due else 'Ya se consultó esta semana (próxima: ' ~ news.next_run.strftime('%d/%m') ~ '). Pulsa para forzar.' }}">
@@ -382,7 +382,7 @@
                     </td>
                     {% endfor %}
                     {% if valuation.target_year %}
-                    <td class="font-monospace-data fw-bold">{{ '%.1f'|format(s.implied_cagr) ~ '%' if s.implied_cagr is not none else '–' }}</td>
+                    <td class="font-monospace-data fw-bold">{{ num(s.implied_cagr, 1) ~ '%' if s.implied_cagr is not none else '–' }}</td>
                     {% endif %}
                 </tr>
                 {% endfor %}
@@ -400,12 +400,12 @@
                     <tbody>{% for r in live.scenarios %}<tr>
                         <td class="fw-semibold">{{ r.name }}</td>
                         <td class="text-end font-monospace-data">{{ money(r.price_target, cur, 'int') }}</td>
-                        <td class="text-end font-monospace-data fw-bold {{ 'st-green' if r.cagr >= 10 else ('st-red' if r.cagr < 5 else '') }}">{{ '%.1f'|format(r.cagr) }}%</td>
+                        <td class="text-end font-monospace-data fw-bold {{ 'st-green' if r.cagr >= 10 else ('st-red' if r.cagr < 5 else '') }}">{{ num(r.cagr, 1) }}%</td>
                         {% for rr, p in r.entry_prices.items() %}<td class="text-end font-monospace-data {{ 'st-green' if price and price.price <= p else 'text-muted' }}">{{ money(p, cur, 'int') }}</td>{% endfor %}
                     </tr>{% endfor %}</tbody>
                 </table></div>
                 <div class="small text-muted p-2"><strong>DCF inverso:</strong> al precio actual, para ganar
-                    {% for r, g in live.implied_growth.items() %}{{ r }}% anual el FCF/acción debe crecer <strong>{{ '%.1f'|format(g) }}%</strong>{% if not loop.last %} y para {% endif %}{% endfor %}
+                    {% for r, g in live.implied_growth.items() %}{{ r }}% anual el FCF/acción debe crecer <strong>{{ num(g, 1) }}%</strong>{% if not loop.last %} y para {% endif %}{% endfor %}
                     al año hasta {{ live.target_year }} (múltiplo final {{ live.base_multiple|int }}x del escenario {{ live.base_name }}).
                     Se recalcula solo con cada trimestre y con el precio del día.</div>
             </div>
@@ -698,7 +698,7 @@ function applyReview(r) {
     const verdict = r.verdict ? `\n\nVeredicto propuesto por la IA: ${r.verdict}. ${r.verdict_rationale}` : '';
     const master = (r.master_answers || []).filter(m => m.answer).map(m => `- ${m.question}\n  ${m.answer}`).join('\n');
     document.getElementById('obsSummary').value = (steps + (master ? `\n\nPreguntas maestras:\n${master}` : '') + verdict).trim();
-    const cost = r.usage ? ` · coste $${r.usage.cost_usd.toFixed(3)}` : '';
+    const cost = r.usage ? ` · coste $${fmtNum(r.usage.cost_usd, 3)}` : '';
     const check = r.verified ? 'verificada' : 'SIN verificar (falló la 2ª pasada)';
     const grounded = r.grounded === false
         ? '<div class="st-red"><i class="bi bi-exclamation-octagon"></i> Gemini no usó la búsqueda: las cifras pueden venir de su memoria. Compruébalas.</div>' : '';

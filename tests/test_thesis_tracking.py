@@ -585,7 +585,7 @@ def test_price_signals_abnormal_own_move_and_thesis_links():
     live = {"scenarios": [{"name": "Base", "cagr": 4.0, "entry_prices": {10: st["price"] * 1.5, 15: st["price"] * 1.2}}]}
     sig = price_signals("X", st, {"verdict": "INTACTA"}, live, weight=18)
     texts = " ".join(s["text"] for s in sig)
-    assert "entrada al 15%" in texts and "CAGR implícito" in texts and "18.0%" in texts and "10%" not in texts
+    assert "entrada al 15%" in texts and "CAGR implícito" in texts and "18,0%" in texts and "10%" not in texts
     assert not {"mínimo relativo", "media de 200"} & {w for w in ("mínimo relativo", "media de 200") if w in texts}
     assert not [s for s in price_signals("X", st, {"verdict": "DEBILITADA"}, live) if s["kind"] == "oportunidad"]
 
@@ -595,7 +595,7 @@ def test_big_absolute_move_shows_even_in_volatile_stock():
     st = {"change": {"1d": -1.6}, "z_day": -0.9, "r5": -7.4, "z_week": -1.9, "z_own_week": -1.8, "bench_week_pct": -0.7,
           "beta": 0.3, "date": "2026-09-28", "r5_from": "2026-09-21"}
     sig = price_signals("EVO.ST", st)
-    assert len(sig) == 1 and sig[0]["kind"] == "anormal" and "-7.4% en 5 sesiones" in sig[0]["text"]
+    assert len(sig) == 1 and sig[0]["kind"] == "anormal" and "-7,4% en 5 sesiones" in sig[0]["text"]
     assert not price_signals("X", {**st, "r5": -5.0, "change": {"1d": -1.0}})
 
 
@@ -630,3 +630,9 @@ def test_from_all_time_high():
     assert from_all_time_high({"high": 200.0, "date": "2021-11-01"}, 150.0) == pytest.approx(-25.0)
     assert from_all_time_high({"high": 100.0, "date": "2021-11-01"}, 120.0) == 0.0   # hoy en máximos
     assert from_all_time_high(None, 120.0) is None and from_all_time_high({"high": 1.0, "date": "x"}, None) is None
+
+
+def test_spanish_number_format():
+    from utils.number_format import es
+    assert es(1234.5) == "1.234,50" and es(1234.5, 0) == "1.234" and es(-7.42, 1) == "-7,4"
+    assert es(0.5, 1, sign=True) == "+0,5" and es(0, 1, sign=True) == "0,0" and es(None) == "–"

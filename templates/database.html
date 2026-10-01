@@ -629,9 +629,9 @@
         let absPart = '';
         if (abs !== null && abs !== undefined && !isNaN(abs)) {
             const absSign = abs > 0 ? '+' : '';
-            absPart = `${absSign}${abs.toFixed(2)} `;
+            absPart = `${absSign}${fmtNum(abs, 2)} `;
         }
-        cell.innerHTML = `<span class="small fw-bold num-font ${colorClass}">${absPart}(${sign}${pct.toFixed(2)}%)</span>`;
+        cell.innerHTML = `<span class="small fw-bold num-font ${colorClass}">${absPart}(${sign}${fmtNum(pct, 2)}%)</span>`;
     }
 
     function filterDropdownItems(input) {

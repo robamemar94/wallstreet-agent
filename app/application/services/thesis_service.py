@@ -14,6 +14,7 @@ from datetime import date as date_cls, datetime
 from typing import Any, Dict, List, Optional
 
 import yaml
+from utils.number_format import es
 
 STATUS_SCORE = {"green": 100.0, "amber": 50.0, "red": 0.0}
 STATUS_RANK = {"green": 2, "amber": 1, "red": 0}
@@ -316,7 +317,7 @@ def exposure_risk(thesis: Dict[str, Any], ev: Dict[str, Any], weight: Optional[f
         reasons.append(f"health score {ev.get('health_score')}")
     if not reasons:
         return None
-    return f"Pesa el {weight:.1f}% de tu cartera y " + "; ".join(reasons)
+    return f"Pesa el {es(weight, 1)}% de tu cartera y " + "; ".join(reasons)
 
 
 # --- Diario de decisiones ---

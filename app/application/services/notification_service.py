@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 
 from app.application.services import alerts_service
+from utils.number_format import es
 
 NEWS_LIMIT = 60
 ZONE_LABEL = {"GANGA": "ganga", "BARATA": "barata", "PRECIO JUSTO": "justo", "CARA": "cara", "BURBUJA": "burbuja"}
@@ -31,7 +32,7 @@ def _alert_item(a: Dict[str, Any], read: set) -> Dict[str, Any]:
         kind = "valoración"
         text = f"Pasa de {ZONE_LABEL.get(a.get('old_status'), a.get('old_status'))} a {ZONE_LABEL.get(a.get('new_status'), a.get('new_status'))}"
         if a.get("cagr") is not None:
-            text += f" · CAGR estimado {a['cagr']:.1f}%"
+            text += f" · CAGR estimado {es(a['cagr'], 1)}%"
     return {"key": key, "group": "alertas", "kind": kind, "ticker": a.get("ticker"), "text": text,
             "date": alerts_service.alert_when(a), "href": "/alerts", "read": key in read}
 

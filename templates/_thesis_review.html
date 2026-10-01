@@ -68,7 +68,7 @@
             · {% if rp.docs.press_release_url %}<a href="{{ rp.docs.press_release_url }}" target="_blank" rel="noopener">Comunicado</a>{% else %}<span class="st-amber">sin comunicado descargado</span>{% endif %}
         {% endif %}
         {% if rp.grounded == false %}· <span class="st-red">no usó la búsqueda</span>{% endif %}
-        {% if rp.usage %}· {{ rp.model }} · ${{ '%.3f'|format(rp.usage.cost_usd) }}{% endif %}
+        {% if rp.usage %}· {{ rp.model }} · ${{ num(rp.usage.cost_usd, 3) }}{% endif %}
     </div>
 </div></div>
 
@@ -78,7 +78,7 @@
             <div class="card-body small">
                 <ul class="mb-2">{% for x in rp.results_summary %}<li>{{ x }}</li>{% endfor %}</ul>
                 {% if rp.vs_consensus %}<div><strong>Vs consenso:</strong> {{ rp.vs_consensus }}
-                    {% if rp.consensus and rp.consensus.surprise_pct is not none %}<span class="text-muted">(BPA {{ rp.consensus.eps_reported }} vs {{ rp.consensus.eps_estimate }} estimado, {{ '%+.1f'|format(rp.consensus.surprise_pct) }}%)</span>{% endif %}</div>{% endif %}
+                    {% if rp.consensus and rp.consensus.surprise_pct is not none %}<span class="text-muted">(BPA {{ rp.consensus.eps_reported }} vs {{ rp.consensus.eps_estimate }} estimado, {{ num(rp.consensus.surprise_pct, 1, sign=True) }}%)</span>{% endif %}</div>{% endif %}
             </div>
         </div>
 

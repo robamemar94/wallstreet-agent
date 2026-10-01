@@ -49,7 +49,7 @@
     {% endfor %}
     {% if uncovered %}
     <div class="small text-muted mb-3"><i class="bi bi-info-circle me-1"></i>Posiciones de más del 5% de tu cartera sin tesis:
-        {% for tk, p in uncovered %}<strong>{{ tk }}</strong> ({{ '%.1f'|format(p.weight) }}%){% if not loop.last %}, {% endif %}{% endfor %}</div>
+        {% for tk, p in uncovered %}<strong>{{ tk }}</strong> ({{ num(p.weight, 1) }}%){% if not loop.last %}, {% endif %}{% endfor %}</div>
     {% endif %}
     {% if unread.unread %}
     <a href="/noticias" class="alert {{ 'alert-danger' if unread.critical else 'alert-primary' }} d-flex align-items-center gap-2 py-2 text-decoration-none">
@@ -91,7 +91,7 @@
                 <div class="text-end thesis-price">
                     {% if c.price %}
                     <div class="fw-bold font-monospace-data">{{ money(c.price.price, c.cur) }}</div>
-                    <div class="small font-monospace-data {{ 'text-success' if c.price.pct >= 0 else 'text-danger' }}">{{ '%+.2f'|format(c.price.pct) }}%</div>
+                    <div class="small font-monospace-data {{ 'text-success' if c.price.pct >= 0 else 'text-danger' }}">{{ num(c.price.pct, 2, sign=True) }}%</div>
                     {% endif %}
                 </div>
             </div>
@@ -139,8 +139,8 @@
                 </span>
             </div>
             <div class="small mt-1">
-                {% if c.position %}<i class="bi bi-briefcase me-1"></i>En cartera: <strong>{{ '%.1f'|format(c.position.weight) }}%</strong>
-                    <span class="text-muted">· {{ format_euro(c.position.value_eur, 0) }} €{% if c.position.pnl_pct is not none %} · <span class="{{ 'text-success' if c.position.pnl_pct >= 0 else 'text-danger' }}">{{ '%+.1f'|format(c.position.pnl_pct) }}%</span>{% endif %}</span>
+                {% if c.position %}<i class="bi bi-briefcase me-1"></i>En cartera: <strong>{{ num(c.position.weight, 1) }}%</strong>
+                    <span class="text-muted">· {{ format_euro(c.position.value_eur, 0) }} €{% if c.position.pnl_pct is not none %} · <span class="{{ 'text-success' if c.position.pnl_pct >= 0 else 'text-danger' }}">{{ num(c.position.pnl_pct, 1, sign=True) }}%</span>{% endif %}</span>
                 {% else %}<span class="text-muted"><i class="bi bi-briefcase me-1"></i>No está en cartera</span>{% endif %}
             </div>
             {% if c.news.digest %}

@@ -155,7 +155,7 @@
                         <span class="fw-bold num-font {% if portfolio_idx.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.78rem;">
                             {% if portfolio_idx.change >= 0 %}+{% endif %}{{ format_euro(portfolio_idx.change, 2) }}€
                             <span class="opacity-75 small ms-1" style="font-size: 0.68rem;">
-                                ({% if portfolio_idx.pct >= 0 %}+{% endif %}{{ "%.2f"|format(portfolio_idx.pct) }}%)
+                                ({% if portfolio_idx.pct >= 0 %}+{% endif %}{{ num(portfolio_idx.pct, 2) }}%)
                             </span>
                         </span>
                     </div>
@@ -1134,7 +1134,7 @@
                             const valSize = mode === 'portfolio' ? d.value_eur : 1;
                             values.push(valSize); 
                             colors.push(d.pct);
-                            texts.push(d.pct.toFixed(2) + '%');
+                            texts.push(fmtNum(d.pct, 2) + '%');
                         });
                     } else {
                         filteredData.filter(d => d.sector === s && d.industry === ind).forEach(d => {
@@ -1142,7 +1142,7 @@
                             const valSize = mode === 'portfolio' ? d.value_eur : 1;
                             values.push(valSize); 
                             colors.push(d.pct);
-                            texts.push(d.pct.toFixed(2) + '%');
+                            texts.push(fmtNum(d.pct, 2) + '%');
                         });
                     }
                 });

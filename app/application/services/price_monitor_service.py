@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+from utils.number_format import es
 
 logger = logging.getLogger(__name__)
 
@@ -315,31 +316,31 @@ def price_signals(ticker: str, st: Dict[str, Any], thesis: Optional[Dict[str, An
     zd, zw, zo = st.get("z_day"), st.get("z_week"), st.get("z_own_week")
     d1, r5 = (st.get("change") or {}).get("1d"), st.get("r5")
     own = zo is not None and abs(zo) >= IDIOSYNCRATIC_SIGMA
-    market = (f" · propio: el mercado {st['bench_week_pct']:+.1f}% (beta {st['beta']:.1f})" if own
-              else (f" · mercado {st['bench_week_pct']:+.1f}%" if st.get("bench_week_pct") is not None else ""))
-    sig = lambda z: f", {abs(z):.1f}σ para este valor" if z is not None else ""
+    market = (f" · propio: el mercado {es(st['bench_week_pct'], 1, sign=True)}% (beta {es(st['beta'], 1)})" if own
+              else (f" · mercado {es(st['bench_week_pct'], 1, sign=True)}%" if st.get("bench_week_pct") is not None else ""))
+    sig = lambda z: f", {es(abs(z), 1)}σ para este valor" if z is not None else ""
     if d1 is not None and ((zd is not None and abs(zd) >= ABNORMAL_DAY_SIGMA) or abs(d1) >= BIG_MOVE_DAY_PCT):
-        add("anormal", "down" if d1 < 0 else "up", f"{d1:+.1f}% en el día{sig(zd)}", st.get("date"))
+        add("anormal", "down" if d1 < 0 else "up", f"{es(d1, 1, sign=True)}% en el día{sig(zd)}", st.get("date"))
     if r5 is not None and ((zw is not None and abs(zw) >= ABNORMAL_WEEK_SIGMA) or abs(r5) >= BIG_MOVE_5D_PCT):
-        add("anormal", "down" if r5 < 0 else "up", f"{r5:+.1f}% en 5 sesiones{sig(zw)}{market}", st.get("date"), st.get("r5_from"))
+        add("anormal", "down" if r5 < 0 else "up", f"{es(r5, 1, sign=True)}% en 5 sesiones{sig(zw)}{market}", st.get("date"), st.get("r5_from"))
     elif own:
-        add("propio", "down" if zo < 0 else "up", f"Movimiento propio: {st['own_week_pct']:+.1f}% en 5 sesiones descontando el mercado ({st['bench_week_pct']:+.1f}%)",
+        add("propio", "down" if zo < 0 else "up", f"Movimiento propio: {es(st['own_week_pct'], 1, sign=True)}% en 5 sesiones descontando el mercado ({es(st['bench_week_pct'], 1, sign=True)}%)",
             st.get("date"), st.get("r5_from"))
     if st.get("new_low"):
-        add("nivel", "down", f"Nuevo mínimo de 52 semanas ({st['low_52w']:.2f})", st.get("low_date"))
+        add("nivel", "down", f"Nuevo mínimo de 52 semanas ({es(st['low_52w'], 2)})", st.get("low_date"))
     elif st.get("new_high"):
-        add("nivel", "up", f"Nuevo máximo de 52 semanas ({st['high_52w']:.2f})", st.get("high_date"))
+        add("nivel", "up", f"Nuevo máximo de 52 semanas ({es(st['high_52w'], 2)})", st.get("high_date"))
     if live:
         base = next((s for s in live["scenarios"] if str(s["name"]).lower() == "base"), None)
         intact = thesis and thesis.get("verdict") in ("REFORZADA", "INTACTA")
         if base:
             e15 = base["entry_prices"].get(15)
             if intact and e15 and st["price"] <= e15:
-                add("oportunidad", "up", f"Por debajo del precio de entrada al 15% del escenario Base ({e15:,.0f}) con la tesis {thesis['verdict']}")
+                add("oportunidad", "up", f"Por debajo del precio de entrada al 15% del escenario Base ({es(e15, 0)}) con la tesis {thesis['verdict']}")
             if base["cagr"] < MIN_CAGR_PCT:
-                add("cara", "down", f"CAGR implícito del escenario Base {base['cagr']:.1f}% (<{MIN_CAGR_PCT:.0f}%): poco retorno al precio actual")
+                add("cara", "down", f"CAGR implícito del escenario Base {es(base['cagr'], 1)}% (<{es(MIN_CAGR_PCT, 0)}%): poco retorno al precio actual")
     if weight is not None and weight > MAX_WEIGHT_PCT:
-        add("concentración", "neutral", f"Pesa el {weight:.1f}% de la cartera (>{MAX_WEIGHT_PCT:.0f}%)")
+        add("concentración", "neutral", f"Pesa el {es(weight, 1)}% de la cartera (>{es(MAX_WEIGHT_PCT, 0)}%)")
     return out
 
 

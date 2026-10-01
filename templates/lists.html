@@ -136,19 +136,19 @@
                                      </td>
                                      <!-- Precio -->
                                      <td class="text-end py-2.5 align-middle num-font font-monospace fw-bold text-white">
-                                         {{ "{:,.2f}".format(asset.price) }}{{ asset.symbol }}
+                                         {{ num(asset.price, 2) }}{{ asset.symbol }}
                                      </td>
                                      <!-- % Cambio -->
                                      <td class="text-end py-2.5 align-middle num-font">
                                          <span class="fw-bold {% if asset.pct > 0 %}text-success{% elif asset.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.8rem; white-space: nowrap;">
-                                             {% if asset.change_abs > 0 %}+{% endif %}{{ "{:,.2f}".format(asset.change_abs) }}{{ asset.symbol }}
-                                             <span class="opacity-85 small ms-1">({% if asset.pct > 0 %}+{% endif %}{{ "{:,.2f}".format(asset.pct) }}%)</span>
+                                             {% if asset.change_abs > 0 %}+{% endif %}{{ num(asset.change_abs, 2) }}{{ asset.symbol }}
+                                             <span class="opacity-85 small ms-1">({% if asset.pct > 0 %}+{% endif %}{{ num(asset.pct, 2) }}%)</span>
                                          </span>
                                      </td>
                                      <!-- Nota Media -->
                                      {% if asset.media is not none %}
                                      <td class="text-center py-2.5 align-middle fw-bold num-font {% if asset.media >= 8.0 %}text-success{% elif asset.media <= 5.0 %}text-danger{% else %}text-warning{% endif %}">
-                                         {{ "%.2f"|format(asset.media) }}
+                                         {{ num(asset.media, 2) }}
                                      </td>
                                      {% else %}
                                      <td class="text-center py-2.5 align-middle fw-bold text-muted num-font">-</td>

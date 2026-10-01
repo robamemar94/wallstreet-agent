@@ -22,7 +22,14 @@ def format_euro(value, decimals=2):
         return str(value)
 
 
+def num(value, decimals=2, sign=False):
+    """Número en formato español (1.234,56); sign=True antepone «+» a los positivos. Sin dato: «–»."""
+    from utils.number_format import es
+    return es(value, decimals, sign)
+
+
 templates.env.globals["format_euro"] = format_euro
+templates.env.globals["num"] = num
 templates.env.globals["clean_ticker"] = clean_ticker
 
 
