@@ -413,8 +413,7 @@
                         </div>
                     </td>
                     <td class="text-muted align-middle text-truncate" style="max-width: 150px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
-                    {% set up = none if item.closed_today else item.daily_change_pct %}
-                    <td class="text-end fw-bold num-font align-middle {{ 'text-success' if up and up > 0 else ('text-danger' if up and up < 0 else '') }}" data-sort-value="{{ item.current_price }}">{{ num(item.current_price, 2) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end fw-bold num-font align-middle" data-sort-value="{{ item.current_price }}">{{ num(item.current_price, 2) }} {{ item.currency_symbol }}</td>
                     {% if item.closed_today %}{% set why = 'Su mercado no ha abierto hoy' ~ (' (última sesión ' ~ item.last_date.strftime('%d/%m') ~ ')' if item.last_date else '') %}
                     <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
                     <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
@@ -1611,8 +1610,6 @@
             const c = ptData.chart.find(x => x.ticker === tr.dataset.ticker);
             const cells = ['.cell-change', '.cell-eur', '.cell-contrib'].map(sel => tr.querySelector(sel));
             // su mercado aún no ha abierto hoy: sin variación del día (lo que se mueve en € es solo la divisa)
-            const day = c && !c.closed_today ? (c.change || {})['1d'] : null, pr = tr.querySelector('.cell-price');   // el último, según el día
-            if (pr) pr.className = 'text-end fw-bold num-font align-middle cell-price ' + (day ? cls(day) : '');
             if (c && c.closed_today && ptPeriod === '1d') {
                 const fx = c.pnl_eur ? c.pnl_eur['1d'] : null, d = c.last_session;
                 const why = `Su mercado no ha abierto hoy (última sesión ${d.slice(8, 10)}/${d.slice(5, 7)})` +
