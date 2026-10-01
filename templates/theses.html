@@ -3,8 +3,30 @@
 {% block title %}Tesis · Alpha-Flow{% endblock %}
 
 {% block content %}
+{% from "_centro_tabs.html" import centro_tabs %}
 {{ thesis_styles() }}
+<style>
+    /* tarjetas compactas: hasta 4 por fila */
+    .thesis-card .card-body { padding: .75rem .85rem; }
+    .thesis-card .health-num { font-size: 1.7rem; }
+    .thesis-card .pillar-row { font-size: .74rem; padding: 1px 0; }
+    .thesis-card .border-top.pt-2 { padding-top: .35rem !important; margin-top: .35rem !important; }
+    .thesis-card .small { font-size: .74rem; }
+    /* cabecera: el título se recorta con «…» y el precio nunca se sale de la tarjeta */
+    .thesis-card .min-w-0 { min-width: 0; }
+    .thesis-head-left { flex: 1 1 auto; overflow: hidden; }
+    .thesis-price { flex: 0 0 auto; white-space: nowrap; font-size: .8rem; line-height: 1.25; }
+    .thesis-logo { position: relative; width: 34px; height: 34px; flex: 0 0 34px; border-radius: 8px; background: #fff;
+                   border: 1px solid var(--bs-border-color); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .thesis-logo img { width: 100%; height: 100%; object-fit: contain; padding: 3px; position: relative; z-index: 1; }
+    .thesis-logo-fallback { position: absolute; font-size: .7rem; font-weight: 700; color: #6c757d; }
+    .thesis-logo-upload { position: absolute; inset: 0; z-index: 2; border: 0; background: rgba(0,0,0,.55); color: #fff;
+                          opacity: 0; transition: opacity .15s; font-size: .85rem; }
+    .thesis-logo:hover .thesis-logo-upload, .thesis-logo-upload:focus { opacity: 1; }
+</style>
+<input type="file" id="logoInput" accept="image/*" class="d-none">
 <div class="container-fluid py-4">
+    {{ centro_tabs('tesis') }}
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
         <div>
             <h4 class="fw-bold mb-1"><i class="bi bi-clipboard2-pulse me-2 text-primary"></i>Seguimiento de tesis</h4>
@@ -47,19 +69,26 @@
     <div class="row g-3">
     {% for c in cards %}
         {% set t = c.thesis %}{% set ev = c.ev %}
-        <div class="col-12 col-lg-6 col-xxl-4">
+        <div class="col-12 col-md-6 col-xl-4 col-xxl-3">
         <a href="/tesis/{{ t.id }}" class="text-decoration-none text-body">
         <div class="card thesis-card h-100"><div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-3">
+            <div class="d-flex justify-content-between align-items-start mb-2 gap-2">
+                <div class="d-flex gap-2 align-items-start min-w-0 thesis-head-left">
+                    <div class="thesis-logo" title="Cambiar logo">
+                        <img src="/logo/{{ t.ticker }}" alt="" loading="lazy" onerror="this.remove()">
+                        <span class="thesis-logo-fallback">{{ t.ticker[:2] }}</span>
+                        <button type="button" class="thesis-logo-upload" aria-label="Subir logo de {{ t.ticker }}" onclick="event.preventDefault(); event.stopPropagation(); pickLogo('{{ t.ticker }}', this)"><i class="bi bi-camera"></i></button>
+                    </div>
                 <div class="min-w-0">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="fs-5 fw-bold">{{ t.ticker }}</span>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="fs-6 fw-bold">{{ t.ticker }}</span>
                         {{ verdict_badge(t.verdict) }}
                         {% if t.status == 'EN_REVISION' %}<span class="badge text-bg-warning">EN REVISIÓN</span>{% endif %}
                     </div>
                     <div class="text-muted small text-truncate">{{ t.title }}{% if t.version %} · {{ t.version }}{% endif %}</div>
                 </div>
-                <div class="text-end">
+                </div>
+                <div class="text-end thesis-price">
                     {% if c.price %}
                     <div class="fw-bold font-monospace-data">{{ money(c.price.price, c.cur) }}</div>
                     <div class="small font-monospace-data {{ 'text-success' if c.price.pct >= 0 else 'text-danger' }}">{{ '%+.2f'|format(c.price.pct) }}%</div>
@@ -67,7 +96,7 @@
                 </div>
             </div>
 
-            <div class="d-flex align-items-end gap-3 mb-2">
+            <div class="d-flex align-items-end gap-3 mb-1">
                 <div>
                     <div class="kpi-label">Health score</div>
                     <div class="health-num {{ 'st-' ~ ev.health_status if ev.health_status else 'st-none' }}">{{ ev.health_score if ev.health_score is not none else '–' }}</div>
@@ -102,11 +131,11 @@
                 {% endfor %}
             </div>
 
-            <div class="border-top pt-2 mt-2 d-flex justify-content-between small text-muted flex-wrap gap-1">
+            <div class="border-top pt-1 mt-1 d-flex justify-content-between small text-muted flex-wrap gap-1 thesis-foot">
                 {% set watch = ev.kill_switches|selectattr('state', 'equalto', 'watch')|list %}
-                <span><i class="bi bi-shield-check me-1"></i>Kill switches: {{ ev.kill_triggered|length }} disparados · {{ watch|length }} en vigilancia</span>
-                <span><i class="bi bi-calendar-event me-1"></i>
-                    {% if c.next_earnings %}Resultados {{ c.next_earnings.strftime('%d/%m/%Y') }} ({{ c.days_to_earnings }} d){% else %}Sin fecha de resultados{% endif %}
+                <span title="Kill switches disparados · en vigilancia"><i class="bi bi-shield-check me-1"></i>{{ ev.kill_triggered|length }} · {{ watch|length }} vig.</span>
+                <span title="Próximos resultados"><i class="bi bi-calendar-event me-1"></i>
+                    {% if c.next_earnings %}{{ c.next_earnings.strftime('%d/%m/%y') }} ({{ c.days_to_earnings }} d){% else %}sin fecha{% endif %}
                 </span>
             </div>
             <div class="small mt-1">
@@ -119,9 +148,7 @@
             <div class="small {{ 'st-amber' if c.news.digest['items'] else 'text-muted' }} mt-1"><i class="bi bi-broadcast me-1"></i>Radar {{ c.news.digest.created_at[:10] }}:
                 {% if c.news.digest['items'] %}{{ c.news.digest['items']|length }} noticia{{ 's' if c.news.digest['items']|length > 1 }} muy relevante{{ 's' if c.news.digest['items']|length > 1 }}{% if critical %} · {{ critical|length }} puede{{ 'n' if critical|length > 1 }} cambiar la tesis{% endif %}{% else %}sin noticias muy relevantes{% endif %}</div>
             {% endif %}
-            {% if c.last_event %}
-            <div class="small text-muted mt-1 text-truncate"><i class="bi bi-clock-history me-1"></i>{{ c.last_event.date }} · {{ c.last_event.title }}</div>
-            {% endif %}
+
         </div></div>
         </a>
         </div>
@@ -195,6 +222,25 @@ document.getElementById('btnReimport').addEventListener('click', async (e) => {
         if (d.errors && d.errors.length) alert('Errores:\n' + d.errors.join('\n'));
         location.reload();
     } catch (err) { alert('Error al reimportar: ' + err); btn.disabled = false; }
+});
+</script>
+<script>
+// Subir tu propio logo (sustituye al descargado)
+let logoTarget = null;
+function pickLogo(ticker, btn) { logoTarget = {ticker, box: btn.closest('.thesis-logo')}; document.getElementById('logoInput').click(); }
+document.getElementById('logoInput').addEventListener('change', async e => {
+    const f = e.target.files[0];
+    if (!f || !logoTarget) return;
+    const fd = new FormData(); fd.append('file', f);
+    try {
+        const r = await fetch(`/api/logo/${encodeURIComponent(logoTarget.ticker)}`, {method: 'POST', body: fd});
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.detail || r.statusText);
+        let img = logoTarget.box.querySelector('img');
+        if (!img) { img = document.createElement('img'); img.alt = ''; logoTarget.box.prepend(img); }
+        img.src = `/logo/${encodeURIComponent(logoTarget.ticker)}?t=${Date.now()}`;
+    } catch (x) { alert('No se pudo subir el logo: ' + x.message); }
+    e.target.value = '';
 });
 </script>
 {% endblock %}

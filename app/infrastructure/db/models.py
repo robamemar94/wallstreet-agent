@@ -263,7 +263,7 @@ class DBThesisDecision(Base):
     thesis = relationship("DBThesis")
 
 class DBWatchlistItem(Base):
-    """Empresas añadidas a mano a la watchlist (las favoritas y las aceptadas entran solas).
+    """Empresas añadidas a mano a la watchlist (las favoritas entran solas).
     La valoración y la nota viven en la ficha: assets.data['base_valuation'] y assets.data['watchlist_note']."""
     __tablename__ = "watchlist_items"
 
@@ -276,7 +276,8 @@ class DBWatchlistItem(Base):
 class DBNotice(Base):
     """Avisos de «Requiere tu atención» y señales del monitor de precios, para marcarlos como vistos y no perder el rastro.
     Se sincronizan en cada carga: lo que ya no aparece queda inactivo (histórico) pero no se borra.
-    Cada fila es un episodio: si el aviso desaparece y vuelve a salir, se abre otra fila (y vuelve a estar sin ver)."""
+    Cada fila es un episodio: si el aviso desaparece y vuelve a salir, se abre otra fila (y vuelve a estar sin ver),
+    salvo que vuelva en menos de una semana o sea la misma señal de la misma sesión: entonces se reabre la anterior."""
     __tablename__ = "notices"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
@@ -293,4 +294,6 @@ class DBNotice(Base):
     last_seen = Column(String, nullable=False)
     active = Column(Boolean, nullable=False, default=True)
     seen_at = Column(String, nullable=True)                         # marcado como visto por el usuario
+    href = Column(String, nullable=True)                            # a dónde lleva el aviso (panel de notificaciones)
+    dismissed_at = Column(String, nullable=True)                    # descartado: no se muestra mientras dure el episodio
 

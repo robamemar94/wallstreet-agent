@@ -4,19 +4,21 @@ import markdown
 import json
 import yfinance as yf
 from datetime import datetime
-from fastapi import APIRouter, Request, BackgroundTasks, Depends
+from fastapi import APIRouter, Request, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 from sqlalchemy import func, desc
 from sqlalchemy.orm import Session
 from app.infrastructure.db.database import get_db, SessionLocal
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
-from app.infrastructure.dependencies import get_asset_repository
+from app.infrastructure.dependencies import get_asset_repository, get_portfolio_service
+from app.application.services.portfolio_service import PortfolioService
 
 import agents as crew_logic
 from utils.parsers import parse_summary, parse_sub_report
 from tools.search_tool import generate_15y_financials_json, generate_fair_pe_json, parse_manual_audit_to_financials, generate_base_valuation_json
-from app.application.services import base_valuation_service
+from app.application.services import base_valuation_service, portfolio_roles_service
+from app.application.services.thesis_service import quote_unit_factor
 
 from app.infrastructure.db.models import DBTask
 from utils.llm_usage import track_usage, month_search_queries
@@ -264,8 +266,29 @@ async def update_status(
     status = data.get("status")
     if status in ["ACCEPTED", "REJECTED", "PENDING", "STANDBY"]:
         asset_repo.save_asset_data(ticker, "status", status)
+        if status == "REJECTED" and asset_repo.get_asset_data(ticker).get(portfolio_roles_service.ROLE_KEY):
+            asset_repo.save_asset_data(ticker, portfolio_roles_service.ROLE_KEY, None)   # descartada: sale del Portfolio ideal
         return {"status": "success", "new_status": status}
     return {"status": "error", "message": "Invalid status"}
+
+
+@router.post("/role/{ticker}")
+async def update_role(
+    ticker: str,
+    request: Request,
+    asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
+):
+    """Rol en el Portfolio ideal (CORE, GROWTH, QUALITY, OPTIONALITY); role vacío lo quita."""
+    role = (await request.json()).get("role") or None
+    if role and role not in portfolio_roles_service.role_keys():
+        raise HTTPException(status_code=400, detail=f"Rol desconocido: {role}")
+    if role:
+        held = any(i.ticker == ticker and i.shares > 0 for i in portfolio_service.get_active_portfolio())
+        if not portfolio_roles_service.eligible(asset_repo.get_asset_data(ticker), asset_repo.is_favorite(ticker), held):
+            raise HTTPException(status_code=400, detail="Solo pueden tener rol las empresas en seguimiento, favoritas o en cartera")
+    asset_repo.save_asset_data(ticker, portfolio_roles_service.ROLE_KEY, role)
+    return {"status": "success", "role": role}
 
 @router.post("/fetch_15y/{ticker}")
 def fetch_15y(
@@ -339,7 +362,7 @@ def generate_base_valuation(
     try:
         info = yf.Ticker(ticker).info
         company_name = info.get('longName') or info.get('shortName') or ticker
-        dps = float(info.get('dividendRate') or 0.0)
+        dps = float(info.get('dividendRate') or 0.0) * quote_unit_factor(info.get('currency'))   # Londres: en peniques
     except Exception:
         company_name, dps = ticker, 0.0
 
@@ -350,7 +373,10 @@ def generate_base_valuation(
         return {"status": "error", "message": data["error"]}
 
     # El valor de partida de la IA queda como sugerencia: por defecto se parte del TTM, que se actualiza solo
-    valuation = base_valuation_service.normalize({**data, "metric": metric, "dps": dps, "metric_value": None}, is_manual=False)
+    # la corrección de un año que hayas hecho a mano se conserva
+    anchor = (base_valuation_service.stored(db_data) or {}).get("anchor")
+    valuation = base_valuation_service.normalize({**data, "metric": metric, "dps": dps, "metric_value": None, "anchor": anchor},
+                                                 is_manual=False)
     valuation["metric_explanation"] = data.get("metric_explanation", "")
     valuation["metric_suggested"] = float(data["metric_value"]) if data.get("metric_value") else None
     asset_repo.save_asset_data(ticker, base_valuation_service.ASSET_KEY, valuation)
@@ -371,6 +397,16 @@ async def save_base_valuation(
         return {"status": "success", "data": valuation}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@router.post("/valuation/{ticker}/reviewed")
+def mark_base_valuation_reviewed(ticker: str, asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository)):
+    """«Revisada, sin cambios»: reinicia el plazo de revisión sin tocar los supuestos."""
+    valuation = asset_repo.get_asset_data(ticker).get(base_valuation_service.ASSET_KEY)
+    if not valuation:
+        return {"status": "error", "message": "No hay valoración guardada: guárdala para darla por revisada."}
+    valuation["reviewed_at"] = datetime.now().strftime("%Y-%m-%d")
+    asset_repo.save_asset_data(ticker, base_valuation_service.ASSET_KEY, valuation)
+    return {"status": "success", "reviewed_at": valuation["reviewed_at"]}
 
 @router.post("/fair_pe_bulk")
 async def bulk_edit_fair_pe(

@@ -457,11 +457,16 @@ def test_news_radar_uses_free_key_and_falls_back_to_paid(monkeypatch):
         return {"items": [], "summary": "", "usage": None, "grounded": True, "model": model}
     monkeypatch.setattr(ai, "_run_news", fake_run)
     monkeypatch.setattr(ai, "_client", lambda key=None: key)
+    monkeypatch.setattr(ai, "FREE_NEWS_MODEL", "modelo-gratuito")   # distinto del de pago aunque no se cargue .env
     thesis = {"ticker": "X", "extra": {}}
     monkeypatch.delenv("GEMINI_FREE_API_KEY", raising=False)
     fake_run.fail_free = False
     assert ai.run_news_digest(thesis, {"pillars": []})["free_tier"] is False and calls == [ai.GEMINI_MODEL]
     monkeypatch.setenv("GEMINI_FREE_API_KEY", "gratis")
+    calls.clear()                              # con clave gratuita pero sin búsqueda gratuita activada: de pago
+    monkeypatch.delenv("THESIS_NEWS_FREE_SEARCH", raising=False)
+    assert ai.run_news_digest(thesis, {"pillars": []})["free_tier"] is False and calls == [ai.GEMINI_MODEL]
+    monkeypatch.setenv("THESIS_NEWS_FREE_SEARCH", "true")
     calls.clear()
     assert ai.run_news_digest(thesis, {"pillars": []})["free_tier"] is True and calls == [ai.FREE_NEWS_MODEL]
     fake_run.fail_free = True
@@ -537,9 +542,26 @@ def test_portfolio_changes_respect_purchase_dates_and_splits():
     w = out["periods"]["wtd"]
     assert w["abs_eur"] == pytest.approx(10 * 10 * 0.9)                    # solo la subida de AAA; comprar BBB no es ganancia
     assert out["positions"]["BBB"]["contribution"]["wtd"] == pytest.approx(0.0)
+    # en euros por posición: AAA gana lo mismo que la cartera; BBB, comprada en el periodo, 0 €
+    assert out["positions"]["AAA"]["pnl_eur"]["wtd"] == pytest.approx(90.0)
+    assert out["positions"]["BBB"]["pnl_eur"]["wtd"] == pytest.approx(0.0)
     y = out["periods"]["ytd"]                                              # en el año: igual, BBB se compró en septiembre
     assert y["abs_eur"] == pytest.approx(90.0)
     assert sum(p["weight"] for p in out["positions"].values()) == pytest.approx(100)
+
+
+def test_missing_price_is_reported_instead_of_inflating_weights():
+    # si Yahoo no devuelve el tipo de cambio (o el precio) de una posición, no se da el 100 % a la otra sin avisar
+    from app.application.services.price_monitor_service import portfolio_changes, price_signals
+    idx = pd.bdate_range("2026-01-01", "2026-09-30")
+    df = pd.DataFrame({"AAA": 100.0, "RMS.PA": 2000.0}, index=idx)          # falta USDEUR=X
+    txs = [{"ticker": "AAA", "date": "2026-02-01", "type": "BUY", "shares": 50, "price": 100, "currency": "USD"},
+           {"ticker": "RMS.PA", "date": "2026-02-01", "type": "BUY", "shares": 1, "price": 2000, "currency": "EUR"}]
+    out = portfolio_changes(df, txs, {})
+    assert out["missing"] == ["AAA"]
+    assert out["positions"]["RMS.PA"]["weight"] == pytest.approx(100)       # el peso sale inflado…
+    st = {"change": {}, "price": 2000.0}
+    assert not any(s["kind"] == "concentración" for s in price_signals("RMS.PA", st, weight=None))   # …y por eso no se pasa
 
 
 def test_next_results_fallback_only_when_missing_or_far():
@@ -584,3 +606,27 @@ def test_verdict_change_is_written_to_yaml():
     assert "verdict: VIGILANCIA" in out and "INTACTA" not in out and "  verdict: no tocar" in out
     added = set_top_level_field_in_yaml("ticker: X\ntitle: T\n", "status", "EN_REVISION")
     assert added == "ticker: X\ntitle: T\nstatus: EN_REVISION\n"
+
+
+def test_history_retries_missing_symbol_and_falls_back_to_backup(monkeypatch, tmp_path):
+    import yfinance as yf
+    from app.application.services import price_monitor_service as pm
+    idx = pd.bdate_range("2026-09-01", "2026-09-29")
+    monkeypatch.setattr(pm, "BACKUP_FILE", str(tmp_path / "backup.pkl"))
+    monkeypatch.setattr(pm, "_cache", {})
+    old = pd.Series(150.0, index=pd.bdate_range("2026-09-01", "2026-09-24"))
+    pm._save_backup({"BKNG": old})                                          # último histórico bueno de BKNG
+    # Yahoo devuelve ROL y una columna vacía para BKNG (así llega cuando falla una parte de la descarga)
+    monkeypatch.setattr(yf, "download", lambda syms, **kw: pd.concat({"Close": pd.DataFrame({"ROL": 30.0, "BKNG": float("nan")}, index=idx)}, axis=1))
+    monkeypatch.setattr(pm, "_single_history", lambda sym: None)            # el reintento también falla
+    df = pm.download_history(["ROL", "BKNG"])
+    assert df["BKNG"].iloc[-1] == 150.0 and df["ROL"].iloc[-1] == 30.0      # no se queda sin precio
+    raw = pm.download_history(["ROL", "BKNG"], fill=False)
+    assert pm.stale_symbols(raw, ["ROL", "BKNG"]) == {"BKNG": "2026-09-24"}
+
+
+def test_from_all_time_high():
+    from app.application.services.price_monitor_service import from_all_time_high
+    assert from_all_time_high({"high": 200.0, "date": "2021-11-01"}, 150.0) == pytest.approx(-25.0)
+    assert from_all_time_high({"high": 100.0, "date": "2021-11-01"}, 120.0) == 0.0   # hoy en máximos
+    assert from_all_time_high(None, 120.0) is None and from_all_time_high({"high": 1.0, "date": "x"}, None) is None

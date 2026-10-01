@@ -2,6 +2,34 @@
 {% block title %}Alpha-Flow · Mi Portfolio{% endblock %}
 
 {% block content %}
+<style>
+    .cagr-green { color: var(--fin-green) !important; } .cagr-amber { color: #e3b341 !important; } .cagr-orange { color: #f0883e !important; } .cagr-red { color: var(--fin-red) !important; }
+    /* .table-modern pinta todos los enlaces del color del texto: el CAGR conserva su color de zona */
+    .table-modern a.cagr-green, .table-modern a.cagr-green:hover { color: var(--fin-green) !important; }
+    /* Seguimiento: veredicto de la tesis (mismos colores que en Tesis) */
+    .tbl-pt td:last-child { overflow: visible; }
+    .table-modern a.pt-verdict { font-size: .62rem; font-weight: 700; letter-spacing: .03em; padding: 1px 5px; border-radius: 4px; border: 1px solid currentColor; }
+    .table-modern a.pt-vd-reforzada { color: var(--fin-green) !important; } .table-modern a.pt-vd-intacta { color: #58a6ff !important; }
+    .table-modern a.pt-vd-vigilancia { color: #d29922 !important; } .table-modern a.pt-vd-debilitada { color: #f0883e !important; } .table-modern a.pt-vd-rota { color: var(--fin-red) !important; }
+    .table-modern a.cagr-amber, .table-modern a.cagr-amber:hover { color: #e3b341 !important; }
+    .table-modern a.cagr-orange, .table-modern a.cagr-orange:hover { color: #f0883e !important; }
+    .table-modern a.cagr-red, .table-modern a.cagr-red:hover { color: var(--fin-red) !important; }
+    /* Contable y Seguimiento: mismo ancho en las columnas comunes (Activo, Empresa, Último, Var. %, Var. €) */
+    #activeTable, .tbl-pt { table-layout: fixed; width: 100%; }
+    #activeTable td, .tbl-pt td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #activeTable th:nth-child(1), .tbl-pt th:nth-child(1) { width: 8%; }
+    #activeTable th:nth-child(2), .tbl-pt th:nth-child(2) { width: 17%; }
+    #activeTable th:nth-child(3), .tbl-pt th:nth-child(3) { width: 9%; }
+    #activeTable th:nth-child(4), .tbl-pt th:nth-child(4) { width: 8%; }
+    #activeTable th:nth-child(5), .tbl-pt th:nth-child(5) { width: 9%; }
+    #activeTable th, .tbl-pt th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #activeTable th:nth-child(6) { width: 7%; }
+    #activeTable th:nth-child(7) { width: 9%; }
+    #activeTable th:nth-child(8) { width: 11%; }
+    #activeTable th:nth-child(9) { width: 7%; }
+    #activeTable th:last-child { width: 48px; }
+    .pos-toolbar .btn { font-size: .75rem; }
+</style>
 {% include "_prices_banner.html" %}
 <style>
     /* Estilos ultra-compactos y profesionales para la página de Mi Portfolio */
@@ -283,11 +311,26 @@
             </div>
         </div>
     </div>
-    <div class="d-flex justify-content-between align-items-center mb-2">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 pos-toolbar">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Vista de las posiciones">
+            <button type="button" class="btn btn-outline-primary active" data-pos-view="contable" title="Títulos, precio medio, valor y ganancia"><i class="bi bi-calculator me-1"></i>Contable</button>
+            <button type="button" class="btn btn-outline-primary" data-pos-view="seguimiento" title="Variación y contribución por periodo, distancia al máximo, CAGR estimado y próximos resultados"><i class="bi bi-activity me-1"></i>Seguimiento</button>
+        </div>
+        <div class="btn-group btn-group-sm d-none" role="group" aria-label="Tabla o mapa" id="ptSubviews">
+            <button type="button" class="btn btn-outline-secondary active" data-pt-sub="tabla"><i class="bi bi-table me-1"></i>Tabla</button>
+            <button type="button" class="btn btn-outline-secondary" data-pt-sub="mapa"><i class="bi bi-grid-3x3-gap me-1"></i>Mapa</button>
+        </div>
+        <div class="btn-group btn-group-sm d-none" role="group" aria-label="Periodo" id="ptPeriods">
+            {% for k, label in [('1d', 'Día'), ('wtd', 'Semana'), ('mtd', 'Mes'), ('ytd', 'Año')] %}
+            <button type="button" class="btn btn-outline-secondary {{ 'active' if k == '1d' }}" data-pt-period="{{ k }}">{{ label }}</button>
+            {% endfor %}
+        </div>
         <button class="btn btn-sm btn-outline-secondary" type="button"
                 data-bs-toggle="collapse" data-bs-target="#distPanel" aria-expanded="false">
             <i class="bi bi-pie-chart-fill me-1"></i>Distribución
         </button>
+        </div>
         <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('activeTable', 'portfolio-open-positions.csv')" title="Exportar a CSV">
             <i class="bi bi-download me-1"></i>Exportar CSV
         </button>
@@ -328,19 +371,35 @@
             </div>
         </div>
     </div>
-    <div class="table-responsive bg-white rounded shadow-sm">
+    <div class="d-none" id="viewSeguimiento">
+        <div class="bg-white rounded shadow-sm mb-3" id="ptTable">
+            <div id="ptBody"><div class="p-3 small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Calculando variaciones y valoraciones…</div></div>
+        </div>
+        <div class="row g-3 mb-3 d-none" id="ptMap">
+            <div class="col-12 col-xl-7"><div class="card h-100">
+                <div class="card-header bg-transparent fw-bold"><i class="bi bi-grid-3x3-gap me-1"></i>Mapa de la cartera <span class="small text-muted fw-normal">· tamaño = peso, color = variación del <span class="pt-period-label">día</span></span></div>
+                <div class="card-body p-1"><div id="treemap" style="height: 380px;"></div></div>
+            </div></div>
+            <div class="col-12 col-xl-5"><div class="card h-100">
+                <div class="card-header bg-transparent fw-bold"><i class="bi bi-bar-chart me-1"></i>Contribución a la variación <span class="small text-muted fw-normal">(puntos de %)</span></div>
+                <div class="card-body p-1"><div id="contrib" style="height: 380px;"></div></div>
+            </div></div>
+        </div>
+    </div>
+    <div class="table-responsive bg-white rounded shadow-sm" id="viewContable">
         <table class="table table-modern align-middle mb-0" id="activeTable">
             <thead>
                 <tr style="cursor: pointer; user-select: none;">
                     <th class="ps-4" onclick="sortTable('activeTable', 0, false)">Activo <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
                     <th onclick="sortTable('activeTable', 1, false)">Empresa <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 2, true)">Títulos <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 3, true)">Precio Medio <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 4, true)">Último <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 5, true)">Var. Día <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 6, true)">Valor Mercado <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 7, true)">Peso % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 8, true)">P&amp;L <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 2, true)">Último <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 3, true)">Var. día % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 4, true)">Var. día € <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 5, true)">Títulos <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 6, true)">Precio Medio <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 7, true)">Valor Mercado <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 8, true)">Peso % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 9, true)">P&amp;L <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
                     <th class="text-center" style="width:48px;"></th>
                 </tr>
             </thead>
@@ -354,19 +413,17 @@
                         </div>
                     </td>
                     <td class="text-muted align-middle text-truncate" style="max-width: 150px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
+                    {% set up = none if item.closed_today else item.daily_change_pct %}
+                    <td class="text-end fw-bold num-font align-middle {{ 'text-success' if up and up > 0 else ('text-danger' if up and up < 0 else '') }}" data-sort-value="{{ item.current_price }}">{{ "{:,.2f}".format(item.current_price) }} {{ item.currency_symbol }}</td>
+                    {% if item.closed_today %}{% set why = 'Su mercado no ha abierto hoy' ~ (' (última sesión ' ~ item.last_date.strftime('%d/%m') ~ ')' if item.last_date else '') %}
+                    <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
+                    <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
+                    {% else %}{% set dc = item.daily_change_total_eur %}
+                    <td class="text-end num-font align-middle {{ 'text-success' if item.daily_change_pct > 0 else ('text-danger' if item.daily_change_pct < 0 else 'text-muted') }}" data-sort-value="{{ item.daily_change_pct }}">{{ '+' if item.daily_change_pct > 0 }}{{ "{:.2f}%".format(item.daily_change_pct) }}</td>
+                    <td class="text-end fw-bold num-font align-middle {{ 'text-success' if dc > 0 else ('text-danger' if dc < 0 else 'text-muted') }}" data-sort-value="{{ dc }}" title="Incluye el cambio de la divisa">{{ '+' if dc > 0 }}{{ "{:,.2f}".format(dc) }} €</td>
+                    {% endif %}
                     <td class="text-end num-font align-middle" data-sort-value="{{ item.shares }}">{{ item.shares }}</td>
                     <td class="text-end num-font align-middle" data-sort-value="{{ item.average_price }}">{{ "{:,.2f}".format(item.average_price) }} {{ item.currency_symbol }}</td>
-                    <td class="text-end fw-bold num-font align-middle" data-sort-value="{{ item.daily_change_pct or 0 }}">
-                        <span class="d-block">{{ "{:,.2f}".format(item.current_price) }} {{ item.currency_symbol }}</span>
-                        {% if item.daily_change_abs is defined and item.daily_change_abs != 0 %}
-                        <small class="fw-bold {% if item.daily_change_abs > 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.72rem;">
-                            {% if item.daily_change_abs > 0 %}+{% endif %}{{ "{:,.2f}".format(item.daily_change_abs) }} {{ item.currency_symbol }} ({% if item.daily_change_pct > 0 %}+{% endif %}{{ "{:.2f}%".format(item.daily_change_pct) }})
-                        </small>
-                        {% endif %}
-                    </td>
-                    <td class="text-end fw-bold num-font align-middle {% if item.daily_change_total_eur > 0 %}text-success{% elif item.daily_change_total_eur < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ item.daily_change_total_eur }}">
-                        <span class="d-block">{% if item.daily_change_total_eur > 0 %}+{% endif %}{{ "{:,.2f}".format(item.daily_change_total_eur) }} €</span>
-                    </td>
                     <td class="text-end fw-bold num-font align-middle" data-sort-value="{{ item.current_value_eur }}">{{ "{:,.2f}".format(item.current_value_eur) }} €</td>
                     {% set peso = (item.current_value_eur / total_current_value * 100) if total_current_value > 0 else 0 %}
                     <td class="text-end align-middle" data-sort-value="{{ peso }}">
@@ -1492,6 +1549,129 @@
 </div>
 
 <script>
+// --- Posiciones: vista Contable (por defecto) / Seguimiento (se carga aparte; se abre directa con #seguimiento) ---
+(() => {
+    const PT_LABELS = {'1d': 'día', 'wtd': 'semana', 'mtd': 'mes', 'ytd': 'año'};
+    const fmtPct = v => (v === null || v === undefined) ? '–' : (v > 0 ? '+' : '') + v.toFixed(2) + '%';
+    const cls = v => v === null || v === undefined ? '' : (v >= 0 ? 'text-success' : 'text-danger');
+    let ptData = null, ptLoading = null, ptPeriod = '1d', ptSort = null, ptSub = 'tabla';
+    // mapa: tamaño = peso, color = variación del periodo; barras: contribución a la variación de la cartera
+    function ptRenderMap() {
+        if (!ptData || ptSub !== 'mapa') return;
+        const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+        const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const ink = dark ? '#c9d1d9' : '#343a40', surface = dark ? '#11131b' : '#ffffff', grid = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+        const red = css('--fin-red') || '#f23645', green = css('--fin-green') || '#089981', mid = dark ? '#2b2f3a' : '#e9ecef';
+        const open = c => !(c.closed_today && ptPeriod === '1d');   // su mercado aún no ha abierto: sin variación del día
+        const tm = ptData.chart.map(c => { const v = open(c) ? (c.change || {})[ptPeriod] : null; return {t: c.ticker, w: c.weight, v}; });
+        const lim = Math.max(2, ...tm.map(x => Math.abs(x.v || 0)));
+        Plotly.react('treemap', [{
+            type: 'treemap', labels: tm.map(x => x.t), parents: tm.map(() => ''), values: tm.map(x => x.w),
+            text: tm.map(x => x.v === null || x.v === undefined ? 'cerrado' : fmtPct(x.v)), textinfo: 'label+text', branchvalues: 'total',
+            marker: {colors: tm.map(x => x.v || 0), colorscale: [[0, red], [0.5, mid], [1, green]], cmin: -lim, cmax: lim, line: {width: 2, color: surface}},
+            hovertemplate: '<b>%{label}</b><br>Peso %{value:.1f}%<br>Variación %{text}<extra></extra>', textfont: {color: '#fff', size: 13},
+        }], {margin: {l: 0, r: 0, t: 0, b: 0}, paper_bgcolor: 'rgba(0,0,0,0)'}, {displayModeBar: false, responsive: true});
+        const contrib = ptData.chart.filter(open).map(c => ({t: c.ticker, v: c.contribution[ptPeriod]}))
+                                    .filter(c => c.v !== null && c.v !== undefined).sort((x, y) => x.v - y.v);
+        Plotly.react('contrib', [{
+            type: 'bar', orientation: 'h', y: contrib.map(c => c.t), x: contrib.map(c => c.v),
+            marker: {color: contrib.map(c => c.v >= 0 ? green : red)},
+            text: contrib.map(c => (c.v >= 0 ? '+' : '') + c.v.toFixed(2)), textposition: 'auto', insidetextanchor: 'middle', textfont: {size: 11}, cliponaxis: false,
+            hovertemplate: '<b>%{y}</b><br>%{x:+.2f} pp de la variación de la cartera<extra></extra>',
+        }], {margin: {l: 70, r: 40, t: 10, b: 30}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: {color: ink, size: 11},
+             xaxis: {gridcolor: grid, zeroline: true, zerolinecolor: ink, ticksuffix: ' pp'}, yaxis: {automargin: true}, bargap: 0.35},
+            {displayModeBar: false, responsive: true});
+    }
+    function showSub(sub) {
+        ptSub = sub;
+        document.querySelectorAll('[data-pt-sub]').forEach(b => b.classList.toggle('active', b.dataset.ptSub === sub));
+        document.getElementById('ptTable').classList.toggle('d-none', sub !== 'tabla');
+        document.getElementById('ptMap').classList.toggle('d-none', sub !== 'mapa');
+        history.replaceState(null, '', sub === 'mapa' ? '#mapa' : '#seguimiento');
+        ptLoad().then(ptRenderMap);
+    }
+
+    function ptSortRows() {
+        if (!ptSort) return;
+        const tbody = document.querySelector('.tbl-pt tbody'), th = document.querySelectorAll('.tbl-pt th')[ptSort.col];
+        const text = th.dataset.type === 'text';
+        const val = tr => { const v = tr.children[ptSort.col].dataset.sort; return v === '' || v === undefined ? null : (text ? v : parseFloat(v)); };
+        [...tbody.querySelectorAll('tr[data-ticker]')].sort((a, b) => {
+            const x = val(a), y = val(b);
+            if (x === null || y === null) return x === null ? (y === null ? 0 : 1) : -1;
+            return (text ? x.localeCompare(y) : x - y) * ptSort.dir;
+        }).forEach(tr => tbody.appendChild(tr));
+        document.querySelectorAll('.tbl-pt th.sortable').forEach(h => h.dataset.dir = '');
+        th.dataset.dir = ptSort.dir > 0 ? 'asc' : 'desc';
+    }
+    function ptRender() {
+        if (!ptData) return;
+        document.querySelectorAll('.pt-period-label').forEach(el => el.textContent = PT_LABELS[ptPeriod]);
+        document.querySelectorAll('#ptBody tr[data-ticker]').forEach(tr => {
+            const c = ptData.chart.find(x => x.ticker === tr.dataset.ticker);
+            const cells = ['.cell-change', '.cell-eur', '.cell-contrib'].map(sel => tr.querySelector(sel));
+            // su mercado aún no ha abierto hoy: sin variación del día (lo que se mueve en € es solo la divisa)
+            const day = c && !c.closed_today ? (c.change || {})['1d'] : null, pr = tr.querySelector('.cell-price');   // el último, según el día
+            if (pr) pr.className = 'text-end fw-bold num-font align-middle cell-price ' + (day ? cls(day) : '');
+            if (c && c.closed_today && ptPeriod === '1d') {
+                const fx = c.pnl_eur ? c.pnl_eur['1d'] : null, d = c.last_session;
+                const why = `Su mercado no ha abierto hoy (última sesión ${d.slice(8, 10)}/${d.slice(5, 7)})` +
+                    (fx ? ` · el cambio de divisa mueve ${(fx >= 0 ? '+' : '') + fx.toFixed(2)} € su valor` : '');
+                cells.forEach(cell => { cell.textContent = '–'; cell.className = 'text-end num-font align-middle text-body-secondary ' + cell.className.split(' ').find(k => k.startsWith('cell-')); cell.dataset.sort = ''; cell.title = why; });
+                return;
+            }
+            cells.forEach(cell => cell.title = '');
+            const ch = c ? (c.change || {})[ptPeriod] : null, cv = c ? c.contribution[ptPeriod] : null;
+            const cc = tr.querySelector('.cell-change'); cc.textContent = fmtPct(ch); cc.className = 'text-end num-font align-middle cell-change ' + cls(ch); cc.dataset.sort = ch ?? '';
+            const pe = c && c.pnl_eur ? c.pnl_eur[ptPeriod] : null, ce = tr.querySelector('.cell-eur');
+            ce.textContent = pe === null || pe === undefined ? '–' : (pe > 0 ? '+' : '') + pe.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';   // como Contable
+            ce.className = 'text-end fw-bold num-font align-middle cell-eur ' + cls(pe); ce.dataset.sort = pe ?? '';
+            const ct = tr.querySelector('.cell-contrib'); ct.textContent = cv === null || cv === undefined ? '–' : (cv >= 0 ? '+' : '') + cv.toFixed(2) + ' pp'; ct.className = 'text-end num-font align-middle cell-contrib ' + cls(cv); ct.dataset.sort = cv ?? '';
+        });
+        ptSortRows();   // si está ordenada por variación o contribución, se reordena con el nuevo periodo
+        ptRenderMap();
+    }
+    async function ptLoad() {
+        if (ptLoading) return ptLoading;
+        ptLoading = (async () => {
+            const body = document.getElementById('ptBody');
+            try {
+                const r = await fetch('/portfolio/seguimiento');
+                if (!r.ok) throw new Error(r.statusText);
+                body.innerHTML = await r.text();
+                ptData = JSON.parse(document.getElementById('ptData').textContent);
+                body.querySelectorAll('.tbl-pt th.sortable').forEach(th => th.addEventListener('click', () => {
+                    const col = [...th.parentNode.children].indexOf(th);
+                    // primer clic: texto y días a resultados de menor a mayor; números de mayor a menor
+                    const first = th.dataset.type === 'text' || col === th.parentNode.children.length - 1 ? 1 : -1;
+                    ptSort = {col, dir: ptSort && ptSort.col === col ? -ptSort.dir : first};
+                    ptSortRows();
+                }));
+                ptRender();
+            } catch (e) { body.innerHTML = `<div class="p-3 small text-danger">No se pudo cargar el seguimiento: ${e.message}</div>`; ptLoading = null; }
+        })();
+        return ptLoading;
+    }
+    function showView(view) {
+        document.querySelectorAll('[data-pos-view]').forEach(b => b.classList.toggle('active', b.dataset.posView === view));
+        document.getElementById('viewContable').classList.toggle('d-none', view !== 'contable');
+        document.getElementById('viewSeguimiento').classList.toggle('d-none', view !== 'seguimiento');
+        document.getElementById('ptPeriods').classList.toggle('d-none', view !== 'seguimiento');
+        document.getElementById('ptSubviews').classList.toggle('d-none', view !== 'seguimiento');
+        history.replaceState(null, '', view === 'seguimiento' ? (ptSub === 'mapa' ? '#mapa' : '#seguimiento') : location.pathname + location.search);
+        if (view === 'seguimiento') ptLoad();
+    }
+    document.querySelectorAll('[data-pos-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.posView)));
+    document.querySelectorAll('[data-pt-period]').forEach(b => b.addEventListener('click', () => {
+        ptPeriod = b.dataset.ptPeriod;
+        document.querySelectorAll('[data-pt-period]').forEach(x => x.classList.toggle('active', x === b));
+        ptRender();
+    }));
+    document.querySelectorAll('[data-pt-sub]').forEach(b => b.addEventListener('click', () => showSub(b.dataset.ptSub)));
+    if (location.hash === '#seguimiento') showView('seguimiento');
+    if (location.hash === '#mapa') { showView('seguimiento'); showSub('mapa'); }
+})();
+
     const perfDates      = {{ perf_dates | tojson | safe }};
     const perfPortfolio  = {{ perf_portfolio | tojson | safe }};
     const perfValuesEur  = {{ perf_values_eur | tojson | safe }};

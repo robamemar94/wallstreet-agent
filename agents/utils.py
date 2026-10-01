@@ -64,8 +64,17 @@ def get_tools_for_agent(agent_name: str, has_audit_data: bool = False):
 
     return tools
 
-def get_llm():
-    return f"gemini/{os.getenv('GEMINI_MODEL', 'gemini-flash-latest')}"
+PRO_MODEL_DEFAULT = "gemini-3.1-pro-preview"
+
+
+def get_llm(model: str = "") -> str:
+    """Modelo de un agente (clave `model` de agents.yaml): 'pro' → GEMINI_PRO_MODEL; un nombre concreto, tal cual;
+    sin clave → GEMINI_MODEL (Flash)."""
+    if model == "pro":
+        name = os.getenv("GEMINI_PRO_MODEL", PRO_MODEL_DEFAULT)
+    else:
+        name = model or os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+    return f"gemini/{name}"
 
 def get_current_date():
     return datetime.now().strftime("%A, %d de %B de %Y")
@@ -81,7 +90,7 @@ def get_agent(agent_name: str, has_audit_data: bool = False) -> Agent:
         verbose=True,
         allow_delegation=False,
         tools=get_tools_for_agent(agent_name, has_audit_data),
-        llm=get_llm(),
+        llm=get_llm(agent_config.get('model', '')),
         max_iter=30
     )
     return agent

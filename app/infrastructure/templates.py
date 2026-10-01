@@ -24,3 +24,21 @@ def format_euro(value, decimals=2):
 
 templates.env.globals["format_euro"] = format_euro
 templates.env.globals["clean_ticker"] = clean_ticker
+
+
+def _zone_cuts():
+    from app.application.services import base_valuation_service as bv
+    return {"ganga": bv.TARGET_RETURN_PCT, "barata": bv.BARATA_PCT, "justo": bv.JUSTO_PCT}
+
+
+# cortes de las zonas de la valoración base (ganga/barata/justo/cara) para colorear el CAGR
+templates.env.globals["ZONE"] = _zone_cuts()
+
+
+def _portfolio_roles():
+    from app.application.services.portfolio_roles_service import load_roles
+    return load_roles()
+
+
+# roles de cartera (CORE, GROWTH…) para los selectores y etiquetas de rol: portfolio_roles()
+templates.env.globals["portfolio_roles"] = _portfolio_roles

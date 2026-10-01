@@ -42,13 +42,8 @@ class SqlAlchemyAssetRepository(AssetRepositoryInterface):
         return False
 
     def get_watch_candidates(self) -> Dict[str, Dict[str, bool]]:
-        """Empresas que entran solas en la watchlist: favoritas y aceptadas en la BBDD."""
-        out = {}
-        for a in self.db.query(DBAsset).all():
-            fav, acc = bool(a.is_favorite), (a.data or {}).get("status") == "ACCEPTED"
-            if fav or acc:
-                out[a.ticker] = {"favorita": fav, "aceptada": acc}
-        return out
+        """Empresas que entran solas en la watchlist: las favoritas."""
+        return {a.ticker: {"favorita": True} for a in self.db.query(DBAsset).filter(DBAsset.is_favorite.is_(True)).all()}
 
     def get_all_companies(self) -> List[Dict[str, str]]:
         rows = self.db.query(DBAsset.ticker, DBAsset.company_name).all()

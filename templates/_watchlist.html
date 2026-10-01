@@ -6,7 +6,6 @@
     .zone { font-size: .7rem; font-weight: 700; text-transform: uppercase; border: 1px solid currentColor; border-radius: 1rem; padding: .05rem .5rem; }
     .wl-origin { font-size: .65rem; border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: 0 .4rem; margin-right: .2rem; color: var(--bs-secondary-color); }
     .wl-origin-favorita { color: #e3b341; border-color: #e3b34166; }
-    .wl-origin-aceptada { color: var(--fin-green); border-color: currentColor; }
     .tbl-wl th.sortable { cursor: pointer; user-select: none; }
     .tbl-wl th.sortable::after { content: "\2195"; opacity: .3; margin-left: .25rem; font-size: .75em; }
     .tbl-wl th.sortable[data-dir="asc"]::after { content: "\25B2"; opacity: .9; }
@@ -14,6 +13,7 @@
     .note-input { border: 1px solid transparent; background: transparent; font-size: .78rem; width: 100%; min-width: 160px; }
     .note-input:hover, .note-input:focus { border-color: var(--bs-border-color); }
     .wl-filters .btn { font-size: .75rem; }
+    .wl-role { font-size: .65rem; border: 1px solid var(--role-color); color: var(--role-color); border-radius: 1rem; padding: 0 .4rem; margin-right: .2rem; }
 </style>
 <div class="card">
     <div class="card-header bg-transparent">
@@ -32,15 +32,24 @@
     </div>
         <div class="d-flex flex-wrap gap-2 align-items-center wl-filters px-3 pt-3 d-none" id="wlFilters">   {# se coloca entre el panel y la tabla al cargar #}
             <div class="btn-group btn-group-sm" role="group" aria-label="Origen">
-                {% for k, label in [('', 'Todas'), ('favorita', '★ Favoritas'), ('aceptada', 'Aceptadas'), ('manual', 'A mano')] %}
-                <button type="button" class="btn btn-outline-secondary {{ 'active' if k == 'favorita' }}" data-wl-origin="{{ k }}">{{ label }} <span class="wl-n"></span></button>
+                {% for k, label in [('', 'Todas'), ('favorita', '★ Favoritas'), ('manual', 'A mano')] %}
+                <button type="button" class="btn btn-outline-secondary {{ 'active' if not k }}" data-wl-origin="{{ k }}">{{ label }} <span class="wl-n"></span></button>
                 {% endfor %}
+            </div>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Rol en cartera">
+                <button type="button" class="btn btn-outline-secondary active" data-wl-role="">Todos los roles <span class="wl-n"></span></button>
+                {% for r in portfolio_roles() %}
+                <button type="button" class="btn btn-outline-secondary" data-wl-role="{{ r.key }}" title="{{ r.name }}">{{ r.emoji }} {{ r.key }} <span class="wl-n"></span></button>
+                {% endfor %}
+                <button type="button" class="btn btn-outline-secondary" data-wl-role="none">Sin rol <span class="wl-n"></span></button>
             </div>
             <div class="btn-group btn-group-sm" role="group" aria-label="Cercanía al precio de compra">
                 {% for k, label in [('', 'Todas'), ('zona', 'En zona de compra'), ('cerca', 'Cerca ≤15%'), ('seguimiento', 'Seguimiento ≤30%'), ('lejos', 'Lejos'), ('sin', 'Sin valoración')] %}
                 <button type="button" class="btn btn-outline-secondary {{ 'active' if not k }}" data-wl-group="{{ k }}">{{ label }} <span class="wl-n"></span></button>
                 {% endfor %}
             </div>
+            <button type="button" class="btn btn-sm btn-outline-danger" id="wlOnlyStale" aria-pressed="false" title="Valoraciones anticuadas o antiguas sin revisar">
+                <i class="bi bi-clock-history me-1"></i>Por revisar <span class="wl-n"></span></button>
             <div class="form-check form-switch small mb-0">
                 <input class="form-check-input" type="checkbox" id="wlHideHeld" checked>
                 <label class="form-check-label" for="wlHideHeld">Ocultar las que ya tengo en cartera</label>
@@ -50,7 +59,7 @@
 </div>
 
 <script>
-const wlFilter = {origin: 'favorita', group: ''}, WL_PER_PAGE = {{ per_page|int }};
+const wlFilter = {origin: '', group: '', role: '', stale: false}, WL_PER_PAGE = {{ per_page|int }};
 let wlPage = 0;
 async function wlApi(url, method, body) {
     const r = await fetch(url, {method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
@@ -64,8 +73,10 @@ function wlApplyFilters() {
     const base = wlRows().filter(tr => !(hideHeld && tr.dataset.held === 'true'));
     const byOrigin = tr => !wlFilter.origin || tr.dataset.origins.split(' ').includes(wlFilter.origin);
     const byGroup = tr => !wlFilter.group || tr.dataset.group === wlFilter.group;
+    const roleIs = (tr, k) => !k || (k === 'none' ? !tr.dataset.role : tr.dataset.role === k), byRole = tr => roleIs(tr, wlFilter.role);
+    const isStale = tr => tr.dataset.stale === 'true', byStale = tr => !wlFilter.stale || isStale(tr);
     wlRows().forEach(tr => tr.classList.add('d-none'));
-    const shown = base.filter(tr => byOrigin(tr) && byGroup(tr));
+    const shown = base.filter(tr => byOrigin(tr) && byGroup(tr) && byRole(tr) && byStale(tr));
     const pages = Math.max(1, Math.ceil(shown.length / WL_PER_PAGE));
     wlPage = Math.min(wlPage, pages - 1);
     shown.slice(wlPage * WL_PER_PAGE, (wlPage + 1) * WL_PER_PAGE).forEach(tr => tr.classList.remove('d-none'));
@@ -74,9 +85,12 @@ function wlApplyFilters() {
     if (empty) empty.classList.toggle('d-none', shown.length > 0);
     // cada botón cuenta cuántas quedarían con el otro filtro aplicado
     document.querySelectorAll('[data-wl-origin]').forEach(b => b.querySelector('.wl-n').textContent =
-        base.filter(tr => byGroup(tr) && (!b.dataset.wlOrigin || tr.dataset.origins.split(' ').includes(b.dataset.wlOrigin))).length);
+        base.filter(tr => byGroup(tr) && byRole(tr) && byStale(tr) && (!b.dataset.wlOrigin || tr.dataset.origins.split(' ').includes(b.dataset.wlOrigin))).length);
     document.querySelectorAll('[data-wl-group]').forEach(b => b.querySelector('.wl-n').textContent =
-        base.filter(tr => byOrigin(tr) && (!b.dataset.wlGroup || tr.dataset.group === b.dataset.wlGroup)).length);
+        base.filter(tr => byOrigin(tr) && byRole(tr) && byStale(tr) && (!b.dataset.wlGroup || tr.dataset.group === b.dataset.wlGroup)).length);
+    document.querySelectorAll('[data-wl-role]').forEach(b => b.querySelector('.wl-n').textContent =
+        base.filter(tr => byOrigin(tr) && byGroup(tr) && byStale(tr) && roleIs(tr, b.dataset.wlRole)).length);
+    document.querySelector('#wlOnlyStale .wl-n').textContent = base.filter(tr => byOrigin(tr) && byGroup(tr) && byRole(tr) && isStale(tr)).length;
     const n = document.getElementById('wlCount'); if (n) n.textContent = base.length;
 }
 function wlRenderPager(total, pages) {
@@ -95,13 +109,20 @@ function wlRenderPager(total, pages) {
         if (p >= 0 && p < pages) { wlPage = p; wlApplyFilters(); }
     }));
 }
-document.querySelectorAll('[data-wl-origin], [data-wl-group]').forEach(btn => btn.addEventListener('click', () => {
+document.querySelectorAll('[data-wl-origin], [data-wl-group], [data-wl-role]').forEach(btn => btn.addEventListener('click', () => {
     wlPage = 0;
-    const key = 'wlOrigin' in btn.dataset ? 'origin' : 'group';
-    wlFilter[key] = btn.dataset[key === 'origin' ? 'wlOrigin' : 'wlGroup'];
-    document.querySelectorAll(key === 'origin' ? '[data-wl-origin]' : '[data-wl-group]').forEach(b => b.classList.toggle('active', b === btn));
+    const key = 'wlOrigin' in btn.dataset ? 'origin' : 'wlGroup' in btn.dataset ? 'group' : 'role';
+    const attr = 'data-wl-' + key;
+    wlFilter[key] = btn.getAttribute(attr);
+    document.querySelectorAll(`[${attr}]`).forEach(b => b.classList.toggle('active', b === btn));
     wlApplyFilters();
 }));
+document.getElementById('wlOnlyStale').addEventListener('click', e => {
+    wlPage = 0; wlFilter.stale = !wlFilter.stale;
+    e.currentTarget.classList.toggle('active', wlFilter.stale);
+    e.currentTarget.setAttribute('aria-pressed', wlFilter.stale);
+    wlApplyFilters();
+});
 document.getElementById('wlHideHeld').addEventListener('change', () => { wlPage = 0; wlApplyFilters(); });
 
 // «Requiere tu atención» del Resumen: las candidatas que ya cotizan por debajo de su precio de compra
@@ -111,14 +132,17 @@ function wlAttention() {
     if (!list) return;
     list.querySelectorAll('.att-watchlist').forEach(el => el.remove());
     const seenKeys = new Set(JSON.parse(document.getElementById('wlSeenKeys')?.textContent || '[]'));
+    const dismissed = new Set(JSON.parse(document.getElementById('wlDismissedKeys')?.textContent || '[]'));
     const key = tr => `watchlist|att|zona|${tr.dataset.wlTicker}|`;
-    const hits = wlRows().filter(tr => tr.dataset.group === 'zona' && tr.dataset.held !== 'true' && tr.dataset.legacy !== 'true');
+    const hits = wlRows().filter(tr => tr.dataset.group === 'zona' && tr.dataset.held !== 'true' && tr.dataset.legacy !== 'true'
+                                       && !dismissed.has(key(tr)) && !(window.dismissedNoticeKeys || new Set()).has(key(tr)));
     const make = (keys, html, seen) => {
         const div = document.createElement('div');
-        div.className = 'att-item p2 att-watchlist' + (seen ? ' att-seen' : '');
+        div.className = 'att-item inbox-item p2 att-watchlist' + (seen ? ' att-seen' : '');   // fuera de cartera: no cuentan en el contador
         div.dataset.keys = keys.join(',');
-        div.innerHTML = `<div class="d-flex gap-2 align-items-start"><div class="flex-grow-1">${html}</div>
-            <button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="Marcar como visto" aria-label="Marcar como visto" onclick="markSeen(this)"><i class="bi ${seen ? 'bi-arrow-counterclockwise' : 'bi-check2'}"></i></button></div>`;
+        const label = seen ? 'Marcar como no leído' : 'Marcar como leído';
+        div.innerHTML = `<div class="d-flex gap-2 align-items-start"><div class="flex-grow-1"><span class="unread-dot"></span>${html}</div>
+            <button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="${label}" aria-label="${label}" onclick="markSeen(this)"><i class="bi ${seen ? 'bi-eye-slash' : 'bi-eye'}"></i></button><button type="button" class="btn btn-link btn-sm p-0 text-muted att-dismiss" title="Descartar: no volverá a salir mientras siga dándose" aria-label="Descartar" onclick="dismissNotice(this)"><i class="bi bi-x-lg"></i></button></div>`;
         list.insertBefore(div, list.querySelector(':scope > .att-empty'));
         return div;
     };
@@ -130,7 +154,8 @@ function wlAttention() {
         div.querySelector('span').textContent = hits.map(tr => tr.dataset.wlTicker).join(', ');
         div.querySelector('a').addEventListener('click', () => document.querySelector('[data-wl-group="zona"]').click());
     } else hits.forEach(tr => {
-        const cagr = tr.dataset.cagr ? `; rentabilidad estimada ${parseFloat(tr.dataset.cagr).toFixed(1)}%` : '';
+        const cagr = (tr.dataset.cagr ? `; rentabilidad estimada ${parseFloat(tr.dataset.cagr).toFixed(1)}%` : '')
+            + (tr.dataset.stale === 'true' ? ' · valoración anticuada: revísala antes de comprar' : '');
         const div = make([key(tr)], `<a href="/ticker/${encodeURIComponent(tr.dataset.wlTicker)}#valoracion" class="text-decoration-none"><strong></strong></a> · Watchlist: cotiza a ${parseFloat(tr.dataset.price).toFixed(2)}, por debajo de su precio de compra al {{ '%.0f'|format(target) }}% (${parseFloat(tr.dataset.buy).toFixed(2)})${cagr}`,
                          seenKeys.has(key(tr)));
         div.querySelector('strong').textContent = tr.dataset.wlTicker;
@@ -152,6 +177,7 @@ function wlBindSort() {
         }).forEach(tr => tbody.insertBefore(tr, tbody.querySelector('.wl-empty')));
         document.querySelectorAll('.tbl-wl th.sortable').forEach(h => h.dataset.dir = '');
         th.dataset.dir = wlSort.dir > 0 ? 'asc' : 'desc';
+        wlPage = 0; wlApplyFilters();   // repaginar: la página 1 son las primeras de toda la lista ordenada
     }));
 }
 
@@ -166,7 +192,7 @@ async function wlLoad() {
         filters.classList.remove('d-none');
         wlBindSort(); wlApplyFilters(); wlAttention();
         if (typeof refreshNoticeList === 'function') body.querySelectorAll('.notice-list').forEach(refreshNoticeList);
-        if (typeof collapseList === 'function') body.querySelectorAll('[data-collapse]:not(.notice-list)').forEach(collapseList);
+        if (typeof collapseList === 'function') body.querySelectorAll('[data-collapse]:not(.notice-list)').forEach(collapseList);   // histórico
     } catch (e) { body.innerHTML = `<div class="p-3 small text-danger">No se pudo cargar la watchlist: ${e.message}</div>`; }
 }
 document.getElementById('wlAddForm').addEventListener('submit', async e => {

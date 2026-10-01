@@ -41,15 +41,21 @@ def _run_due() -> None:
     db = SessionLocal()
     try:
         repo = SqlAlchemyThesisRepository(db)
+        ran = 0
         for thesis in repo.list_theses():
             if not radar_due(thesis):
                 continue
             try:
                 digest = run_news_for_thesis(repo, thesis)
+                ran += 1
                 logger.info("Radar automático %s: %d noticias nuevas", thesis["ticker"], digest["new_items"])
             except Exception:
                 db.rollback()
                 logger.exception("Radar automático falló para %s", thesis["ticker"])
+        if ran:   # pasada del radar terminada: resumen semanal conjunto, si el último tiene ya una semana
+            from app.application.services import news_summary_service
+            if news_summary_service.due_after_radar(news_summary_service.load(db)):
+                news_summary_service.generate_in_background()
     finally:
         db.close()
         with _lock:
@@ -80,7 +86,9 @@ def trigger_due_news() -> bool:
     """Lanza en segundo plano el radar de las tesis pendientes. Devuelve True si se ha lanzado.
     Si no hay ninguna pendiente no se lanza nada (y la web no muestra «radar en curso»)."""
     global _running
-    if not auto_enabled() or _running or not any_due():
+    if not auto_enabled() or _running:
+        return False
+    if not any_due():
         return False
     with _lock:
         if _running:

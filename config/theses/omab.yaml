@@ -1,0 +1,146 @@
+# Transcrito de data/theses/OMAB_Tesis_Maestra_Framework_v2.7_actualizada (1).md (septiembre 2026)
+# Cuadro de mando: los 6 KPIs del «Dashboard mínimo — semáforo de cumplimiento de la tesis» (7.), uno por hipótesis,
+# con los umbrales de la propia tesis (🟢 cumple / 🟡 desviación tolerable / 🔴 incumplimiento claro).
+# Los 4 «Guardrails» van en un paso que no puntúa: no son KPIs centrales pero pueden cambiar la interpretación.
+# Regla de la tesis: el semáforo se aplica a la hipótesis, no al dato aislado (importa la tendencia y la persistencia).
+# Incremental ROIC es N/D al inicio (requiere varios años normalizados): semáforo manual frente al WACC.
+# El documento completo está en config/theses/omab.md.
+ticker: OMAB
+title: OMA (Grupo Aeroportuario del Centro Norte) · Tesis Maestra
+version: "Framework v2.7"
+reference_date: "2026-09"
+source_document: "data/theses/OMAB_Tesis_Maestra_Framework_v2.7_actualizada (1).md"
+document: config/theses/omab.md
+verdict: VIGILANCIA
+summary: >-
+  Operador de 13 aeropuertos concesionados en México, con Monterrey como activo estratégico (~la mitad del tráfico en
+  2025). Tráfico de pasajeros → ingresos aeronáuticos y comerciales → EBITDA → CFO → CAPEX → FCF → FCF por acción.
+  El punto crítico no es que OMA crezca, sino que el capital reinvertido del programa 2026–2030 (MDP) cree valor
+  incremental. Estado: INTACT, con WATCH en crecimiento y CAPEX.
+hypothesis: "OMA posee concesiones aeroportuarias difíciles de replicar y una posición especialmente valiosa en Monterrey. Si el tráfico sigue creciendo, aumenta el ingreso por pasajero y mantiene márgenes elevados, el EBITDA y el cash flow operativo crecerán; si además el programa de inversión genera retornos adecuados, ese crecimiento se convertirá en FCF por acción y justificará una valoración atractiva desde el precio de entrada."
+hypotheses:
+  H1: "El tráfico de OMA puede crecer estructuralmente"
+  H2: "Monterrey mantiene su importancia estratégica (WATCH)"
+  H3: "OMA aumenta la monetización por pasajero"
+  H4: "El moat permite mantener márgenes elevados"
+  H5: "El crecimiento llega al accionista"
+  H6: "El CAPEX crea valor (WATCH)"
+rules:
+  - "El semáforo se aplica a la hipótesis, no al dato aislado: un trimestre con +1,5% de pasajeros es amarillo pero no rompe H1; si se mantiene varios periodos y además cae el Revenue/Passenger, el conjunto puede pasar a rojo."
+  - "No todo CAPEX genera crecimiento: separar mantenimiento, regulatorio, calidad y expansión. Incremental ROIC = ΔNOPAT / ΔCapital invertido, contrastado con tráfico, EBITDA, capacidad añadida y FCF incremental."
+  - "La métrica clave no es el EBITDA sino CFO − CAPEX → FCF → FCF por acción/ADS. Distinguir siempre FCF total de FCF por ADS."
+  - "Una recompra no crea valor automáticamente: evaluar precio pagado, valoración, reducción real de acciones y efecto sobre el FCF por acción."
+  - "La ejecución del management se juzga con estados financieros, tráfico, CAPEX, FCF, deuda y retornos (expectativa → decisión → resultado), no con el discurso corporativo. Vigilar el incentivo a crecer con CAPEX aunque el retorno sea insuficiente."
+  - "Valoración: FCF/ADS → precio futuro → CAGR del precio. No usar el CAGR del FCF como sustituto del retorno de la acción; separar CAGR del precio y TSR (con dividendos)."
+  - "Si una métrica no cambia comprensión, hipótesis, valoración o seguimiento, se elimina."
+master_questions:
+  - "¿Ha cambiado la trayectoria del tráfico?"
+  - "¿Ha cambiado materialmente la posición de Monterrey o el poder económico de las concesiones?"
+  - "¿El capital adicional está generando retornos adecuados?"
+  - "¿El crecimiento del EBITDA está llegando al FCF?"
+  - "¿Alguna de las seis hipótesis se ha debilitado?"
+  - "¿El cambio modifica el FCF/ADS futuro o el múltiplo razonable?"
+  - "¿Qué evidencia nueva favorece a Bull y qué evidencia favorece a Bear?"
+  - "¿Cómo evoluciona la cuota y el tráfico de Viva Aerobus dentro de la red de OMA?"
+valuation:
+  question: "Parte del FCF por ADS normalizado (CFO − CAPEX); lo relevante es el CAGR del precio, no el del FCF. Los escenarios son supuestos de sensibilidad, no predicciones."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: fcf_ps_cagr, label: FCF/ADS CAGR, format: pct}
+    - {key: multiple, label: Múltiplo terminal}
+  scenarios:
+    - {name: Bear, fcf_ps_cagr: 4, multiple: "16x"}
+    - {name: Base, fcf_ps_cagr: 7, multiple: "20x"}
+    - {name: Bull, fcf_ps_cagr: 9, multiple: "22x"}
+events:
+  - date: "2026-06-30"
+    type: earnings
+    impact: neutral
+    title: "Resultados 2Q 2026 (trimestre cerrado jun-2026)"
+    body: "Margen EBITDA ajustado ~75,2%. A cierre de 2025, Net Debt / Adjusted EBITDA ~1,03x. Monterrey ~la mitad del tráfico total en 2025."
+  - date: "2026-09-29"
+    type: thesis
+    impact: neutral
+    title: "Tesis Maestra (framework v2.7) · estado INTACT / WATCH"
+    body: "Negocio y moat intactos; calidad financiera intacta. En WATCH: crecimiento, Monterrey y capital allocation / CAPEX. No hay evidencia para considerarla rota, pero tampoco para asumir que todo el CAPEX futuro creará valor."
+
+pillars:
+  - key: traffic
+    name: Tráfico
+    description: "H1 — ¿Crece de forma sostenible la principal unidad económica? La tesis contempla ~2–3% de crecimiento estructural."
+    kpis:
+      - {key: passenger_growth, name: OMA Passenger Growth YoY, unit: "%", green_threshold: 2, red_threshold: 1,
+         how_to_measure: "Crecimiento interanual de pasajeros totales de OMA (mensual / TTM)",
+         green_text: "≥2% (cumple la tesis)", amber_text: "1–2% (desviación tolerable)", red_text: "<1% durante varios periodos (cuestiona H1)",
+         frequency: Mensual, source: OMA (tráfico mensual)}
+
+  - key: monterrey
+    name: Monterrey
+    description: "H2 — ¿El activo más importante sigue creciendo? Motor de crecimiento pero también concentra riesgo (~la mitad del tráfico en 2025). Mirar varios meses: es más volátil."
+    kpis:
+      - {key: monterrey_growth, name: Monterrey Passenger Growth YoY, unit: "%", green_threshold: 2, red_threshold: 1,
+         how_to_measure: "Crecimiento interanual de pasajeros del aeropuerto de Monterrey (mensual / TTM)",
+         green_text: "≥2% (mantiene su papel de motor)", amber_text: "1–2%", red_text: "<1% de forma persistente (riesgo material)",
+         frequency: Mensual, source: OMA (tráfico mensual)}
+
+  - key: monetization
+    name: Monetización
+    description: "H3 — ¿Cada pasajero genera más valor económico (aeronáutico + comercial: parking, restauración, retail, publicidad, lounges, carga)?"
+    kpis:
+      - {key: revenue_per_passenger, name: Revenue/Passenger YoY, unit: "%", green_threshold: 1, red_threshold: 0,
+         how_to_measure: "Crecimiento interanual de los ingresos por pasajero (trimestral / TTM); puede moverse por mix, inflación o regulación",
+         green_text: "≥1% (la monetización acompaña al tráfico)", amber_text: "0–1% (vigilar)", red_text: "Cae interanualmente (contraria a H3)",
+         frequency: Trimestral, source: OMA}
+
+  - key: margins
+    name: Márgenes (moat)
+    description: "H4 — ¿La economía superior del negocio permanece intacta? El margen es la evidencia económica del moat."
+    kpis:
+      - {key: ebitda_margin, name: Adjusted EBITDA Margin, unit: "%", green_threshold: 72, red_threshold: 70,
+         how_to_measure: "EBITDA ajustado / ingresos del trimestre (trimestral / TTM); un cambio de mix o una inversión deliberada puede distorsionarlo",
+         green_text: "≥72% (rentabilidad estructural)", amber_text: "70–72% (cierta presión)", red_text: "<70% (señal material)",
+         frequency: Trimestral, source: OMA,
+         observations: [{period: 2Q 2026, date: "2026-06-30", value: 75.2, note: "~75,2% ajustado"}]}
+
+  - key: shareholder
+    name: Llega al accionista
+    description: "H5 — ¿El crecimiento operativo se convierte en crecimiento económico por acción después del CAPEX? FCF = CFO − CAPEX; FCF/ADS = FCF / ADS en circulación."
+    kpis:
+      - {key: fcf_ads_growth, name: FCF/ADS Growth, unit: "%", green_threshold: 6, red_threshold: 4,
+         how_to_measure: "Crecimiento del FCF por ADS (autocompletado: CAGR del FCF/acción a 3 años, para no depender del timing del CAPEX de un periodo)",
+         green_text: "≥6% (cumple la tesis)", amber_text: "4–6% (aceptable, inferior a lo esperado)", red_text: "<4% persistente (revisar retorno del CAPEX y conversión a FCF)",
+         frequency: Trimestral, source: yfinance, auto_metric: fcf_per_share_cagr_3y,
+         is_kill_switch: true, kill_rule: "FCF/acción estancado con CAPEX elevado: el crecimiento no llega al accionista (parte del thesis breaker)"}
+
+  - key: capex
+    name: CAPEX crea valor
+    description: "H6 — ¿Cuánto beneficio económico adicional genera el capital incremental del MDP 2026–2030? Riesgo CAPEX: potencial thesis breaker."
+    kpis:
+      - {key: incremental_roic, name: Incremental ROIC, kind: qualitative, unit: "pp vs WACC",
+         how_to_measure: "ΔNOPAT / ΔCapital invertido (anual / TTM), frente al WACC; requiere normalización y varios años de datos (N/D al inicio)",
+         green_text: ">WACC + 3 pp (crea valor con margen)", amber_text: "WACC a WACC + 3 pp", red_text: "≤WACC (el CAPEX no demuestra creación de valor)",
+         frequency: Anual, source: OMA (cálculo propio),
+         is_kill_switch: true, kill_rule: "CAPEX elevado + retorno incremental ≤WACC + FCF/acción estancado (thesis breaker)"}
+
+  - key: guardrails
+    name: Guardrails
+    weight: 0
+    description: "No son KPIs centrales, pero pueden cambiar la interpretación de la tesis."
+    kpis:
+      - {key: net_debt_ebitda, name: Net Debt / Adjusted EBITDA, kind: qualitative, unit: "x",
+         how_to_measure: "Deuda neta / EBITDA ajustado; que el MDP se financie sin deteriorar la flexibilidad financiera",
+         green_text: "Estable o creciendo en línea con el EBITDA/FCF", amber_text: "Sube", red_text: "Deuda creciendo persistentemente sin crecimiento proporcional del EBITDA/FCF",
+         baseline: "~1,03x a cierre de 2025", frequency: Trimestral, source: OMA,
+         observations: [{period: FY2025, date: "2025-12-31", value: 1.03, status: green, note: "~1,03x"}]}
+      - {key: share_count, name: Acciones en circulación, kind: qualitative, unit: "% YoY",
+         how_to_measure: "Acciones diluidas YoY (autocompletado): que el FCF total llegue al FCF por ADS",
+         green_text: "Estables o bajando (recompras)", amber_text: "Suben", red_text: "FCF total crece pero FCF/ADS estancado por más acciones",
+         frequency: Trimestral, source: yfinance, auto_metric: diluted_shares_yoy}
+      - {key: regulation, name: Regulación / Maximum Tariff, kind: qualitative,
+         how_to_measure: "Cambios en el marco regulatorio, tarifas máximas y reconocimiento del CAPEX del MDP",
+         green_text: "Permite recuperar la inversión con retornos razonables", amber_text: "Cambios en revisión", red_text: "Reduce materialmente la recuperación del CAPEX o la rentabilidad",
+         frequency: Anual, source: OMA / regulador}
+      - {key: mdp_execution, name: Ejecución del MDP, kind: qualitative,
+         how_to_measure: "CAPEX del programa de desarrollo frente a calendario y presupuesto, y su efecto en capacidad y monetización",
+         green_text: "En calendario y presupuesto", amber_text: "Retrasos o sobrecostes acotados", red_text: "Sobrecostes, retrasos o más capital empleado sin mejora económica proporcional",
+         frequency: Trimestral, source: OMA}

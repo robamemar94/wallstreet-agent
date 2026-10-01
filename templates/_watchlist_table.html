@@ -1,11 +1,19 @@
 {# Contenido de la pestaña Watchlist (lo pide el Centro de mando a /centro/watchlist): panel de avisos + tabla compacta #}
 {% from "_notices.html" import attention_list, monitor_card_body %}
 {% set zone_band = {'ganga': 'green', 'barata': 'amber', 'justo': 'orange', 'cara': 'red'} %}
-{% set origin_label = {'manual': 'a mano', 'favorita': '★', 'aceptada': 'aceptada'} %}
+{% set origin_label = {'manual': 'a mano', 'favorita': '★'} %}
+{% set roles_by_key = {} %}{% for rd in portfolio_roles() %}{% set _ = roles_by_key.update({rd.key: rd}) %}{% endfor %}
+{% macro dmy(d) %}{{ d[8:10] }}/{{ d[5:7] }}/{{ d[2:4] }}{% endmacro %}
+{% macro stale_text(st) -%}
+    {%- if st.stale and st.by_calendar -%}Valoración anticuada: revisada el {{ dmy(st.reviewed) }} y ha presentado resultados {{ st.results_since|length }} veces desde entonces ({% for d in st.results_since %}{{ dmy(d) }}{{ ', ' if not loop.last }}{% endfor %})
+    {%- elif st.stale -%}Valoración anticuada: sin revisar desde el {{ dmy(st.reviewed) }} (más de 7 meses; no hay calendario de resultados)
+    {%- elif st.results_since -%}Ha presentado resultados el {{ dmy(st.results_since[-1]) }}, después de tu revisión del {{ dmy(st.reviewed) }}
+    {%- endif -%}
+{%- endmacro %}
 
 <div class="row g-3 p-3 pb-0">
     <div class="col-12 col-xl-5"><div class="card h-100">
-        <div class="card-header bg-transparent fw-bold"><i class="bi bi-inbox me-1"></i>Requiere tu atención <span class="badge text-bg-secondary att-count">{{ attention|rejectattr('seen')|list|length }}</span></div>
+        <div class="card-header bg-transparent fw-bold"><i class="bi bi-inbox me-1"></i>Requiere tu atención <span class="badge text-bg-secondary">{{ attention|length }}</span></div>
         {{ attention_list(attention, 'wlAttList', 'Ninguna candidata en zona de compra ni cerca de ella.', list_limit) }}
     </div></div>
     <div class="col-12 col-xl-7"><div class="card h-100">
@@ -15,6 +23,7 @@
     </div></div>
 </div>
 <script type="application/json" id="wlSeenKeys">{{ seen_keys|tojson }}</script>
+<script type="application/json" id="wlDismissedKeys">{{ dismissed_keys|tojson }}</script>
 
 <div id="wlFiltersSlot"></div>
 <div class="table-responsive mt-2">
@@ -30,10 +39,12 @@
     </tr></thead>
     <tbody>
     {% for r in rows %}{% set v = r.val %}{% set band = zone_band.get(v.zone) if v else none %}
-    <tr data-wl-ticker="{{ r.ticker }}" data-group="{{ r.group }}" data-origins="{{ r.origins|join(' ') }}" data-held="{{ 'true' if r.held else 'false' }}"
-        {% if v %}data-price="{{ r.price }}" data-buy="{{ v.buy_price }}" data-cagr="{{ v.cagr if v.cagr is not none else '' }}" data-legacy="{{ 'true' if v.inputs.legacy else 'false' }}"{% endif %}>
+    <tr data-wl-ticker="{{ r.ticker }}" data-group="{{ r.group }}" data-origins="{{ r.origins|join(' ') }}" data-held="{{ 'true' if r.held else 'false' }}" data-role="{{ r.role or '' }}"
+        {% if v %}data-price="{{ r.price }}" data-buy="{{ v.buy_price }}" data-cagr="{{ v.cagr if v.cagr is not none else '' }}" data-legacy="{{ 'true' if v.inputs.legacy else 'false' }}"{% endif %}
+        data-stale="{{ 'true' if (v and v.inputs.legacy) or (r.stale and r.stale.stale) else 'false' }}">
         <td data-sort="{{ r.ticker }}"><a href="/ticker/{{ r.ticker }}" class="text-decoration-none fw-bold">{{ r.ticker }}</a>
             {% for o in r.origins %}<span class="wl-origin wl-origin-{{ o }}">{{ origin_label[o] }}</span>{% endfor %}
+            {% if r.role in roles_by_key %}{% set rd = roles_by_key[r.role] %}<span class="wl-role" style="--role-color: {{ rd.color }};" title="{{ rd.name }}">{{ rd.emoji }} {{ rd.key }}</span>{% endif %}
             {% if r.held %}<span class="badge text-bg-secondary">en cartera</span>{% endif %}
             <div class="text-muted small text-truncate" style="max-width: 220px;">{{ r.name }}</div></td>
         <td class="text-end font-monospace-data" data-sort="{{ r.price or '' }}">{{ '%.2f'|format(r.price) if r.price else '–' }} <span class="text-muted">{{ r.cur }}</span></td>
@@ -46,8 +57,8 @@
         <td class="text-end font-monospace-data {{ 'text-danger' if fh is not none and fh <= -20 else '' }}" data-sort="{{ fh if fh is not none else '' }}">{{ '%+.1f'|format(fh) ~ '%' if fh is not none else '–' }}</td>
         {% if v %}
         <td class="text-end font-monospace-data fw-bold {{ 'cagr-' ~ band if band }}" data-sort="{{ v.cagr if v.cagr is not none else '' }}"
-            title="{{ 'Zona: ' ~ v.zone if v.zone }}{{ ' · valoración antigua sin revisar' if v.inputs.legacy }}">
-            {% if band %}<i class="bi bi-circle-fill me-1" style="font-size: .5rem; vertical-align: middle;"></i>{% endif %}{{ '%.1f'|format(v.cagr) ~ '%' if v.cagr is not none else '–' }}{% if v.inputs.legacy %} <i class="bi bi-exclamation-triangle text-warning" title="Valoración antigua: revísala en la ficha; no genera avisos"></i>{% endif %}</td>
+            title="{{ 'Zona: ' ~ v.zone if v.zone }}{{ ' · valoración antigua sin revisar' if v.inputs.legacy }}{{ ' · ' ~ stale_text(r.stale) if r.stale and (r.stale.stale or r.stale.results_since) }}">
+            {% if band %}<i class="bi bi-circle-fill me-1" style="font-size: .5rem; vertical-align: middle;"></i>{% endif %}{{ '%.1f'|format(v.cagr) ~ '%' if v.cagr is not none else '–' }}{% if v.anchor and v.anchor.state == 'active' %} <i class="bi bi-pencil-fill text-primary" style="font-size: .65rem;" title="{{ metrics[v.metric].label }} {{ v.anchor.year }} corregido a mano: {{ '%.2f'|format(v.anchor.value) }} (automático {{ '%.2f'|format(v.anchor.auto) }}){% if v.anchor.cagr_auto is not none %} · sin corrección: {{ '%.1f'|format(v.anchor.cagr_auto) }}%{% endif %}"></i>{% endif %}{% if v.inputs.legacy %} <i class="bi bi-exclamation-triangle text-warning" title="Valoración antigua: revísala en la ficha; no genera avisos"></i>{% elif r.stale and r.stale.stale %} <i class="bi bi-clock-history text-danger" title="{{ stale_text(r.stale) }}"></i>{% endif %}</td>
         <td class="text-end font-monospace-data" data-sort="{{ r.drop_pct }}">{{ '%.2f'|format(v.buy_price) }}
             <div class="small {{ 'text-success fw-bold' if r.drop_pct <= 0 else ('text-warning' if r.drop_pct <= near else 'text-muted') }}">{{ 'en zona' if r.drop_pct <= 0 else '−' ~ '%.1f'|format(r.drop_pct) ~ '%' }}</div></td>
         {% else %}
@@ -56,7 +67,7 @@
         <td class="text-end text-nowrap">
             <a href="/ticker/{{ r.ticker }}#valoracion" class="btn btn-link btn-sm p-0 me-2" title="{{ 'Ver o editar los supuestos de la valoración' if v else 'Poner la valoración' }}" aria-label="Valoración de {{ r.ticker }}"><i class="bi bi-calculator"></i></a>
             <button class="btn btn-link btn-sm p-0 me-2 {{ '' if r.note else 'text-muted opacity-50' }}" title="{{ r.note or 'Añadir nota' }}" aria-label="Nota de {{ r.ticker }}" data-note="{{ r.note }}" onclick="wlEditNote('{{ r.ticker }}', this)"><i class="bi {{ 'bi-sticky-fill' if r.note else 'bi-sticky' }}"></i></button>
-            {% if 'manual' in r.origins %}<button class="btn btn-link btn-sm p-0 text-danger" title="Quitar de la watchlist{{ ' (seguirá por ser favorita o aceptada)' if r.origins|length > 1 }}" aria-label="Quitar {{ r.ticker }}" onclick="wlRemove('{{ r.ticker }}')"><i class="bi bi-x-lg"></i></button>{% endif %}
+            {% if 'manual' in r.origins %}<button class="btn btn-link btn-sm p-0 text-danger" title="Quitar de la watchlist{{ ' (seguirá por ser favorita)' if r.origins|length > 1 }}" aria-label="Quitar {{ r.ticker }}" onclick="wlRemove('{{ r.ticker }}')"><i class="bi bi-x-lg"></i></button>{% endif %}
         </td>
     </tr>
     {% endfor %}
@@ -65,6 +76,7 @@
 </table>
 </div>
 <nav class="d-flex justify-content-end align-items-center px-2 pt-2" id="wlPager" aria-label="Páginas de la watchlist"></nav>
-<div class="small text-muted px-2 py-1"><i class="bi bi-calculator"></i> abre los supuestos en la pestaña Valoración de la ficha. Entran solas las favoritas (★) y las aceptadas en la BBDD.
-    Color de la rentabilidad = zona: <span class="cagr-green">● ganga ≥{{ '%.0f'|format(target) }}%</span> <span class="cagr-amber">● barata 10–{{ '%.0f'|format(target) }}%</span>
-    <span class="cagr-orange">● justo 6–10%</span> <span class="cagr-red">● cara &lt;6%</span>.</div>
+<div class="small text-muted px-2 py-1"><i class="bi bi-calculator"></i> abre los supuestos en la pestaña Valoración de la ficha. Entran solas las favoritas (★); las demás, añadiéndolas a mano.
+    Color de la rentabilidad = zona: <span class="cagr-green">● ganga ≥{{ '%.0f'|format(ZONE.ganga) }}%</span> <span class="cagr-amber">● barata {{ '%.0f'|format(ZONE.barata) }}–{{ '%.0f'|format(ZONE.ganga) }}%</span>
+    <span class="cagr-orange">● justo {{ '%.0f'|format(ZONE.justo) }}–{{ '%.0f'|format(ZONE.barata) }}%</span> <span class="cagr-red">● cara &lt;{{ '%.0f'|format(ZONE.justo) }}%</span>.
+    <i class="bi bi-clock-history text-danger"></i> valoración anticuada: dos presentaciones de resultados desde tu última revisión (o 7 meses si no hay calendario).</div>

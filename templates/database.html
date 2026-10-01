@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Alpha-Flow · Base de Datos{% endblock %}
 {% block content %}
+{% set roles = portfolio_roles() %}{% set roles_by_key = {} %}{% for r in roles %}{% set _ = roles_by_key.update({r.key: r}) %}{% endfor %}
 <style>
     /* Estilos ultra-compactos y profesionales para la Base de Datos */
     .table-modern {
@@ -118,6 +119,10 @@
     h2, h3, h4, h5, h6 {
         color: var(--text-primary) !important;
     }
+    /* rol en cartera junto al ticker: «+ rol» solo al pasar por la fila */
+    .role-tag { white-space: nowrap; font-size: .65rem; border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: 0 .45rem; background: transparent; color: var(--bs-body-color); line-height: 1.4; }
+    .role-tag.role-empty { color: var(--bs-secondary-color); border-style: dashed; visibility: hidden; }
+    .ticker-row:hover .role-tag.role-empty, .role-dd.show .role-tag { visibility: visible; }
 </style>
 
 <div class="row">
@@ -417,6 +422,7 @@
                         <tr class="ticker-row"
                             data-ticker="{{ t.name }}"
                             data-status="{{ t.status }}"
+                            data-role="{{ t.role or '' }}"
                             data-is-favorite="{{ 'true' if t.is_favorite else 'false' }}"
                             data-is-portfolio="{{ 'true' if t.is_portfolio else 'false' }}"
                             data-country="{{ t.country }}"
@@ -433,6 +439,14 @@
                                         <i class="bi {{ 'bi-star-fill text-warning' if t.is_favorite else 'bi-star text-muted' }}"></i>
                                     </span>
                                     <span class="fw-bold ticker-name">{{ clean_ticker(t.name) }}</span>
+                                    <span class="dropdown role-dd ms-1" onclick="event.stopPropagation();">
+                                        <button type="button" class="role-tag {{ 'role-empty' if t.role not in roles_by_key }}" data-bs-toggle="dropdown" aria-expanded="false" title="{{ roles_by_key[t.role].name if t.role in roles_by_key else 'Asignar rol en cartera' }}">{{ roles_by_key[t.role].emoji ~ ' ' ~ t.role if t.role in roles_by_key else '+ rol' }}</button>
+                                        <ul class="dropdown-menu dropdown-menu-sm">
+                                            {% for r in roles %}<li><a class="dropdown-item small" href="#" onclick="event.preventDefault(); updateTickerRole('{{ t.name }}', '{{ r.key }}', this)">{{ r.emoji }} {{ r.name }}</a></li>{% endfor %}
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item small text-muted" href="#" onclick="event.preventDefault(); updateTickerRole('{{ t.name }}', '', this)">Quitar rol</a></li>
+                                        </ul>
+                                    </span>
                                 </div>
                             </td>
                             <td class="align-middle fw-semibold text-truncate" style="max-width: 200px;" data-sort-value="{{ t.company_name }}">
@@ -905,6 +919,7 @@
                         </div>
                     `;
                 }
+                if (status === 'REJECTED') setRowRole(row, '');   // al descartarla pierde el rol
                 
                 // Aplicar filtros y volver a renderizar la tabla inmediatamente en memoria sin recargar la página
                 applyFilters(false);
@@ -912,6 +927,27 @@
         } else {
             alert("Error al actualizar el estado del activo.");
         }
+    }
+
+    // Rol en el Portfolio ideal (CORE, GROWTH…): desplegable junto al ticker
+    const ROLES = {{ portfolio_roles()|tojson }};
+    function setRowRole(row, role) {
+        const r = ROLES.find(x => x.key === role);
+        row.dataset.role = role || '';
+        const tag = row.querySelector('.role-tag');
+        if (!tag) return;
+        tag.textContent = r ? `${r.emoji} ${r.key}` : '+ rol';
+        tag.title = r ? r.name : 'Asignar rol en cartera';
+        tag.classList.toggle('role-empty', !r);
+    }
+    async function updateTickerRole(ticker, role, el) {
+        const row = el.closest('tr');
+        const res = await fetch(`/api/role/${encodeURIComponent(ticker)}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role })
+        });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) { showToast('Error', d.detail || 'No se pudo guardar el rol', 'error'); return; }
+        setRowRole(row, role);
     }
 
     async function deleteTicker(ticker, buttonElement) {

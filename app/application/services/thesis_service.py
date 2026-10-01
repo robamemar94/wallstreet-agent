@@ -240,10 +240,20 @@ def ttm_fcf_per_share(quarterly_cashflow, quarterly_income, annual_cashflow=None
     return None
 
 
+# Bolsas que cotizan en la subunidad de la divisa (Londres en peniques, Johannesburgo en céntimos, Tel Aviv en agorot):
+# Yahoo da el precio en la subunidad y el BPA, el FCF y el dividendo en la divisa principal.
+MINOR_UNITS = {"GBp": ("GBP", 100.0), "GBX": ("GBP", 100.0), "ZAc": ("ZAR", 100.0), "ILA": ("ILS", 100.0)}
+
+
+def quote_unit_factor(currency: Optional[str]) -> float:
+    """Por cuánto multiplicar un importe en la divisa principal para llevarlo a la unidad en que cotiza."""
+    return MINOR_UNITS.get(currency or "", (None, 1.0))[1]
+
+
 def fetch_ttm_fcf_per_share(ticker: str) -> Optional[float]:
-    """FCF por acción TTM en la divisa de cotización. Caché en disco de 12 h (sobrevive a reinicios)."""
+    """FCF por acción TTM en la unidad de cotización (peniques en Londres). Caché en disco de 12 h."""
     from app.application.services.market_cache import cached
-    return cached("fcf_ps_ttm", ticker, lambda: _download_ttm_fcf_per_share(ticker))
+    return cached("fcf_ps_ttm_v2", ticker, lambda: _download_ttm_fcf_per_share(ticker))
 
 
 def _download_ttm_fcf_per_share(ticker: str) -> Optional[float]:
@@ -253,10 +263,13 @@ def _download_ttm_fcf_per_share(ticker: str) -> Optional[float]:
         value = ttm_fcf_per_share(stock.quarterly_cashflow, stock.quarterly_income_stmt, stock.cashflow, stock.income_stmt)
         info = stock.info or {}
         fin, trade = info.get("financialCurrency"), info.get("currency")
-        if value is not None and fin and trade and fin != trade:
+        major, factor = MINOR_UNITS.get(trade or "", (trade, 1.0))
+        if value is not None and fin and major and fin != major:
             # p.ej. Evolution reporta en EUR y cotiza en SEK: el FCF/acción debe ir en la divisa del precio
-            fx = yf.Ticker(f"{fin}{trade}=X").fast_info["last_price"]
+            fx = yf.Ticker(f"{fin}{major}=X").fast_info["last_price"]
             value = value * float(fx)
+        if value is not None:
+            value = value * factor   # Londres: libras → peniques
         return float(value) if value is not None else None
     except Exception:
         return None

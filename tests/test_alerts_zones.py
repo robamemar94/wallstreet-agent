@@ -15,11 +15,13 @@ def _setup(monkeypatch, legacy=False, high=100.0):
     db = sessionmaker(bind=engine)()
     repo = SqlAlchemyAssetRepository(db)
     repo.save_asset_data("AAA", "status", "ACCEPTED")
+    repo.toggle_favorite("AAA")   # la watchlist (y sus alertas) son las favoritas y las añadidas a mano
     if legacy:
         repo.save_asset_data("AAA", "projection_scenarios", {"initial_eps": 5, "base": {"eps_growth": 0.1, "exit_pe": 20}})
     else:
         repo.save_asset_data("AAA", bv.ASSET_KEY, VAL)
     monkeypatch.setattr(bv, "_market_info", lambda t: {"trailingEps": 5.0, "dividendRate": 0.0})
+    monkeypatch.setattr(bv, "analyst_eps_estimates", lambda t: None)
     idx = pd.date_range(end=pd.Timestamp.today().normalize(), periods=60, freq="B")
     hist = pd.DataFrame({"AAA": [high] * 60, "URTH": [100.0] * 59 + [95.0]}, index=idx)
     monkeypatch.setattr(pm, "download_history", lambda symbols, fill=True: hist)
@@ -34,9 +36,9 @@ def test_zone_change_creates_alert_but_first_pass_only_records(monkeypatch):
     db, repo = _setup(monkeypatch, high=150.0)
     alerts_service.run_alerts_scan({"AAA": 150.0}, repo, db, {})      # CAGR ≈ 1,4 %: cara (solo se registra)
     assert _alerts(db, "VALORACIÓN") == []
-    alerts_service.run_alerts_scan({"AAA": 75.0}, repo, db, {})       # precio de compra ≈ 80: ganga
+    alerts_service.run_alerts_scan({"AAA": 65.0}, repo, db, {})       # precio de compra ≈ 70: ganga
     (a,) = _alerts(db, "VALORACIÓN")
-    assert (a["old_status"], a["new_status"]) == ("CARA", "GANGA") and a["cagr"] > 15 and a["buy_price"] > 75
+    assert (a["old_status"], a["new_status"]) == ("CARA", "GANGA") and a["cagr"] > 18 and a["buy_price"] > 65
 
 
 def test_legacy_valuation_does_not_alert(monkeypatch):
@@ -90,7 +92,7 @@ def test_old_drop_alerts_are_replaced_by_silent_episodes(monkeypatch):
 
 def test_only_watchlist_and_portfolio_are_scanned(monkeypatch):
     db, repo = _setup(monkeypatch)
-    repo.save_asset_data("AAA", "status", "STANDBY")   # en espera y sin estrella: ya no se vigila
+    repo.toggle_favorite("AAA")   # sin estrella (aunque siga aceptada) ya no está en la watchlist: no se vigila
     alerts_service.run_alerts_scan({"AAA": 60.0}, repo, db, {})
     assert alerts_service.get_alerts_data(db).get("drops") == {}
 

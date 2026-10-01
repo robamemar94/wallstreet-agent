@@ -366,6 +366,26 @@
             border-left: 3px solid transparent;
         }
         
+        /* Campana y panel de notificaciones */
+        .notif-bell .notif-bell-badge {
+            position: absolute; top: -2px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px;
+            background: #dc3545; color: #fff; border-radius: 999px; font-size: .62rem; font-weight: 700;
+            display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--bs-body-bg);
+        }
+        .notif-bell .notif-bell-badge.d-none { display: none !important; }
+        .notif-filters .btn { font-size: .72rem; }
+        .notif-item { display: flex; gap: .6rem; padding: .6rem 1rem; border-bottom: 1px solid var(--bs-border-color); font-size: .8rem; }
+        .notif-item:hover { background: var(--bs-tertiary-bg); }
+        .notif-item.unread { box-shadow: inset 3px 0 0 0 #ffc107; }
+        .notif-item.read { opacity: .6; }
+        .notif-item .notif-icon { font-size: 1rem; width: 1.2rem; text-align: center; }
+        .notif-item .notif-meta { font-size: .68rem; color: var(--bs-secondary-color); }
+        .notif-item .notif-kind { font-size: .62rem; border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: 0 .4rem; }
+        .notif-item .notif-held { border-color: #58a6ff; color: #58a6ff; }
+        .notif-item.unread { font-weight: 600; }
+        .notif-item.unread { cursor: pointer; }   /* pulsar = leída; el ojo la deja otra vez sin leer */
+        .notif-item .notif-read-btn { opacity: .35; } .notif-item:hover .notif-read-btn { opacity: 1; }
+
         /* Grupos del menú: título pequeño y separador */
         .sidebar .nav-group-title {
             font-size: 0.55rem;
@@ -517,6 +537,7 @@
             justify-content: center;
             width: 24px;
             height: 24px;
+            overflow: visible;   /* el globo sobresale del icono: no recortarlo */
         }
 
         /* Badge de notificaciones estilo "burbuja" Android sobre el icono del sidebar:
@@ -533,6 +554,8 @@
             align-items: center;
             justify-content: center;
             min-width: 18px;
+            width: auto;         /* anula width:100% / overflow:hidden de ".sidebar .nav-link span" */
+            overflow: visible;
             height: 18px;
             padding: 0 4px;
             background: #dc3545;
@@ -551,6 +574,8 @@
     <!-- Mobile Topbar -->
     <div class="mobile-topbar">
         <a class="text-decoration-none text-body fw-bold fs-5" href="/">📈</a>
+        <div class="ms-auto me-2"><button type="button" class="btn btn-link text-body position-relative p-1 notif-bell" data-bs-toggle="offcanvas" data-bs-target="#notifPanel" aria-controls="notifPanel" title="Notificaciones" aria-label="Notificaciones">
+                        <i class="bi bi-bell fs-5"></i><span class="notif-bell-badge d-none">0</span></button></div>
         <button class="btn btn-outline-secondary border-0" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
             <i class="bi bi-list fs-4"></i>
         </button>
@@ -572,8 +597,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/centro') %} active{% endif %}" href="/centro" title="Centro de mando: resumen, posiciones y watchlist">
-                        <i class="bi bi-grid-1x2"></i>
+                    <a class="nav-link {% if _path.startswith('/centro') or _path.startswith('/tesis') or _path.startswith('/noticias') %} active{% endif %}" href="/centro" title="Centro de mando: resumen, watchlist, tesis y noticias">
+                        <span class="nav-icon-wrap position-relative d-inline-block">
+                            <i class="bi bi-grid-1x2"></i>
+                            <span id="sidebarThesisBadge" class="sidebar-notif-badge d-none">0</span>
+                        </span>
                         <span>Centro</span>
                     </a>
                 </li>
@@ -588,25 +616,28 @@
                 </li>
                 <li class="nav-group-title" aria-hidden="true">Cartera</li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/portfolio') or _path.startswith('/ticker') or _path.startswith('/ideal-portfolio') %} active{% endif %}" href="/portfolio" title="Cartera y portfolio ideal">
+                    <a class="nav-link {% if _path.startswith('/portfolio') or _path.startswith('/ticker') %} active{% endif %}" href="/portfolio" title="Cartera: posiciones, rendimiento y dividendos">
                         <i class="bi bi-briefcase"></i>
                         <span>Cartera</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/ideal-portfolio') %} active{% endif %}" href="/ideal-portfolio" title="Portfolio ideal: reparto por roles (Core, Growth, Quality, Optionality)">
+                        <i class="bi bi-award"></i>
+                        <span>Ideal</span>
+                    </a>
+                </li>
                 <li class="nav-group-title" aria-hidden="true">Análisis</li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/tesis') or _path.startswith('/noticias') %} active{% endif %}" href="/tesis" title="Tesis y noticias">
-                        <span class="nav-icon-wrap position-relative d-inline-block">
-                            <i class="bi bi-clipboard2-pulse"></i>
-                            <span id="sidebarThesisBadge" class="sidebar-notif-badge d-none">0</span>
-                        </span>
-                        <span>Tesis</span>
+                    <a class="nav-link {% if _path.startswith('/database') or _path.startswith('/comparar') %} active{% endif %}" href="/database" title="Base de datos y comparador">
+                        <i class="bi bi-database"></i>
+                        <span>BBDD</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/database') or _path.startswith('/lists') or _path.startswith('/comparar') %} active{% endif %}" href="/database" title="Base de datos, listas y comparador">
-                        <i class="bi bi-database"></i>
-                        <span>BBDD</span>
+                    <a class="nav-link {% if _path.startswith('/lists') %} active{% endif %}" href="/lists" title="Mis listas">
+                        <i class="bi bi-list-stars"></i>
+                        <span>Listas</span>
                     </a>
                 </li>
             </ul>
@@ -641,6 +672,10 @@
                         </form>
                         <div id="nav-search-suggestions" class="search-suggestions w-100 mt-1 shadow border rounded-3 bg-body"></div>
                     </div>
+                    <div class="position-absolute" style="right: -52px; top: 2px;">
+                        <button type="button" class="btn btn-link text-body position-relative p-1 notif-bell" data-bs-toggle="offcanvas" data-bs-target="#notifPanel" aria-controls="notifPanel" title="Notificaciones" aria-label="Notificaciones">
+                        <i class="bi bi-bell fs-5"></i><span class="notif-bell-badge d-none">0</span></button>
+                    </div>
                 </div>
             </div>
             {{ section_tabs(request.url.path) }}
@@ -662,23 +697,51 @@
     
     <!-- Contenedor para Notificaciones (Toasts) -->
     <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer" style="z-index: 1055;"></div>
+
+    <!-- Panel de notificaciones: alertas, noticias de las tesis y avisos, con un único estado de leído -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="notifPanel" aria-labelledby="notifPanelLabel" style="width: min(440px, 100vw);">
+        <div class="offcanvas-header border-bottom py-2">
+            <h6 class="offcanvas-title fw-bold mb-0" id="notifPanelLabel"><i class="bi bi-bell me-1"></i>Notificaciones</h6>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" onclick="notifMarkAll()" title="Marcar como leídas las que se ven"><i class="bi bi-check2-all me-1"></i>Marcar todo como leído</button>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+            </div>
+        </div>
+        <div class="px-3 pt-2 pb-1 d-flex flex-wrap gap-2 align-items-center border-bottom notif-filters">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Tipo">
+                <button type="button" class="btn btn-outline-secondary active" data-notif-group="">Todas <span class="badge text-bg-secondary" data-notif-count="total"></span></button>
+                <button type="button" class="btn btn-outline-secondary" data-notif-group="alertas">Alertas <span class="badge text-bg-secondary" data-notif-count="alertas"></span></button>
+                <button type="button" class="btn btn-outline-secondary" data-notif-group="noticias">Noticias <span class="badge text-bg-secondary" data-notif-count="noticias"></span></button>
+                <button type="button" class="btn btn-outline-secondary" data-notif-group="avisos">Avisos <span class="badge text-bg-secondary" data-notif-count="avisos"></span></button>
+                <button type="button" class="btn btn-outline-secondary" data-notif-group="monitor">Monitor <span class="badge text-bg-secondary" data-notif-count="monitor"></span></button>
+            </div>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Empresas">
+                <button type="button" class="btn btn-outline-secondary active" data-notif-scope="">Todas las empresas</button>
+                <button type="button" class="btn btn-outline-secondary" data-notif-scope="held" title="Solo empresas que tienes en cartera"><i class="bi bi-briefcase me-1"></i>En cartera</button>
+                <button type="button" class="btn btn-outline-secondary" data-notif-scope="other" title="Watchlist, favoritas y resto">Fuera de cartera</button>
+            </div>
+            <div class="form-check form-switch small mb-0">
+                <input class="form-check-input" type="checkbox" id="notifUnreadOnly" checked>
+                <label class="form-check-label" for="notifUnreadOnly">Solo no leídas</label>
+            </div>
+        </div>
+        <div class="px-3 py-1 small text-muted border-bottom">Puedes marcar como leída cualquiera; el globo solo cuenta las de empresas en cartera.</div>
+        <div class="offcanvas-body p-0" id="notifList"><div class="p-3 small text-muted">Cargando…</div></div>
+    </div>
     
-    <!-- Contenedor para Notificaciones (Toasts) -->
-    <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer" style="z-index: 1055;"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- Alertas de caída (ATH): resaltado "nuevo" + marcar como visto (localStorage) ---
+        // --- Alertas: resaltado "nuevo" + marcar como leída. El estado de leído está en la BBDD
+        //     (el mismo que usa el panel de notificaciones); cada fila lo trae en data-read. ---
         // Compartido entre el dashboard (index.html) y la página completa (alerts.html):
         // cualquier fila con [data-alert-key] se trata igual, así el estado "visto"
         // es consistente entre ambas vistas.
         window.applyAlertSeenState = function() {
-            // caídas heredadas de la versión anterior: se dan por vistas (vuelven a salir si empeoran)
-            document.querySelectorAll('[data-alert-key][data-silent]').forEach(r => localStorage.setItem('alert_seen_' + r.dataset.alertKey, '1'));
             document.querySelectorAll('[data-alert-key]').forEach(row => {
                 const key = row.dataset.alertKey;
                 if (!key) return;
-                const seen = localStorage.getItem('alert_seen_' + key);
+                const seen = row.dataset.read === '1';
                 const badge = row.querySelector('.alert-new-badge');
                 const btn = row.querySelector('.btn-mark-seen');
                 if (seen) {
@@ -709,7 +772,7 @@
                     ? document.querySelectorAll('#alertsTable tbody tr[data-alert-key]')
                     : document.querySelectorAll('#alertsTable tbody tr[data-type="' + t + '"][data-alert-key]');
                 let unread = 0;
-                rows.forEach(r => { if (!localStorage.getItem('alert_seen_' + r.dataset.alertKey)) unread++; });
+                rows.forEach(r => { if (r.dataset.read !== '1') unread++; });
                 badge.textContent = unread;
             });
             // Contadores del submenú de dirección (📈 Se encarece / 📉 Se abarata), no leídas.
@@ -717,44 +780,147 @@
                 const d = badge.dataset.countDirection;
                 const rows = document.querySelectorAll('#alertsTable tbody tr[data-type="VALORACIÓN"][data-direction="' + d + '"][data-alert-key]');
                 let unread = 0;
-                rows.forEach(r => { if (!localStorage.getItem('alert_seen_' + r.dataset.alertKey)) unread++; });
+                rows.forEach(r => { if (r.dataset.read !== '1') unread++; });
                 badge.textContent = unread;
             });
             window.refreshSidebarAlertBadge();
         };
+        window.markNotificationsRead = (body) => fetch('/api/notifications/read', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                                      body: JSON.stringify(body), keepalive: true}).then(() => window.refreshNotificationBadges());
         window.markAlertSeen = function(btn) {
             const row = btn.closest('[data-alert-key]');
             if (!row) return;
-            localStorage.setItem('alert_seen_' + row.dataset.alertKey, '1');
+            row.dataset.read = '1';
             window.applyAlertSeenState();
+            window.markNotificationsRead({keys: ['alert|' + row.dataset.alertKey]});
         };
         window.markAllAlertsSeen = function() {
-            document.querySelectorAll('[data-alert-key]').forEach(row => {
-                const key = row.dataset.alertKey;
-                if (key) localStorage.setItem('alert_seen_' + key, '1');
-            });
+            document.querySelectorAll('[data-alert-key]').forEach(row => row.dataset.read = '1');
             window.applyAlertSeenState();
+            window.markNotificationsRead({group: 'alertas'});
         };
 
         // --- Badge de notificaciones (estilo Android) en el icono "Alertas" del sidebar ---
         // Se calcula globalmente (todas las páginas) contra un listado ligero de claves,
         // ya que el detalle de las alertas solo se carga en /alerts y /.
-        window._alertKeysCache = null;
-        window.refreshSidebarAlertBadge = function() {
-            const badge = document.getElementById('sidebarAlertBadge');
-            if (!badge || !window._alertKeysCache) return;
-            const unread = window._alertKeysCache.filter(k => !localStorage.getItem('alert_seen_' + k.key)).length;
-            if (unread > 0) {
-                badge.textContent = unread > 99 ? '99+' : unread;
-                badge.classList.remove('d-none');
-            } else {
-                badge.classList.add('d-none');
+        // Globos de la campana y de «Alertas» en el menú: del mismo recuento que el panel de notificaciones
+        const setBadge = (el, n) => { if (!el) return; el.textContent = n > 99 ? '99+' : n; el.classList.toggle('d-none', !n); };
+        window.refreshNotificationBadges = () => fetch('/api/notifications/count').then(r => r.json()).then(c => {
+            document.querySelectorAll('.notif-bell-badge').forEach(b => setBadge(b, c.total));
+            setBadge(document.getElementById('sidebarAlertBadge'), c.alertas_all);   // Alertas: todas las empresas vigiladas
+            if (window.thesisBadgeState) {
+                window.thesisBadgeState.news = c.noticias;
+                window.thesisBadgeState.newsTitle = c.noticias ? `${c.noticias} noticias sin leer de empresas en cartera` : '';
+                window.renderThesisBadge();
             }
+            document.querySelectorAll('[data-notif-count]').forEach(b => b.textContent = c[b.dataset.notifCount] || '');
+        }).catch(() => {});
+        window.refreshSidebarAlertBadge = () => window.refreshNotificationBadges();
+
+        // Panel de notificaciones
+        const NOTIF_ICON = {alertas: 'bi-bell', noticias: 'bi-broadcast', avisos: 'bi-inbox', monitor: 'bi-activity'};
+        let notifItems = [], notifGroup = '', notifScope = '';
+        const notifInScope = i => !notifScope || (notifScope === 'held' ? i.portfolio : !i.portfolio);
+        const notifEsc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+        const notifWhen = d => {
+            if (!d) return '';
+            const dt = new Date(d.replace(' ', 'T')), days = Math.floor((Date.now() - dt) / 86400000);
+            return days <= 0 ? 'hoy ' + dt.toTimeString().slice(0, 5) : days === 1 ? 'ayer' : days < 7 ? `hace ${days} días` : dt.toLocaleDateString('es-ES');
         };
+        function notifRender() {
+            const unreadOnly = document.getElementById('notifUnreadOnly').checked;
+            // leído / no leído para todas; solo las de empresas en cartera cuentan en los globos
+            const list = notifItems.filter(i => (!notifGroup || i.group === notifGroup) && notifInScope(i) && (!unreadOnly || !i.read));
+            document.getElementById('notifList').innerHTML = list.length ? list.slice(0, 150).map(i => `
+                <div class="notif-item ${i.read ? 'read' : 'unread'} ${i.portfolio ? 'held' : ''}" data-key="${notifEsc(i.key)}">
+                    <i class="bi ${NOTIF_ICON[i.group]} notif-icon text-muted"></i>
+                    <div class="flex-grow-1">
+                        <div><a href="${notifEsc(i.href)}" class="text-decoration-none fw-bold">${notifEsc(i.ticker || '')}</a>
+                            <span class="notif-kind ms-1">${notifEsc(i.kind)}</span>${i.portfolio ? '<span class="notif-kind notif-held ms-1" title="La tienes en cartera: cuenta en el globo">cartera</span>' : ''}</div>
+                        <div>${notifEsc(i.text)}${i.url ? ` <a href="${notifEsc(i.url)}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}</div>
+                        <div class="notif-meta">${notifWhen(i.date)}</div>
+                    </div>
+                    <button type="button" class="btn btn-link btn-sm p-0 notif-read-btn align-self-start" title="${i.read ? 'Marcar como no leída' : 'Marcar como leída'}"
+                            aria-label="${i.read ? 'Marcar como no leída' : 'Marcar como leída'}" onclick="notifRead('${notifEsc(i.key)}', ${!i.read}, true)">
+                        <i class="bi ${i.read ? 'bi-eye-slash' : 'bi-eye'}"></i></button>
+                    ${i.group === 'avisos' || i.group === 'monitor' ? `<button type="button" class="btn btn-link btn-sm p-0 notif-read-btn text-muted align-self-start"
+                            title="Descartar: no volverá a salir mientras siga dándose" aria-label="Descartar" onclick="notifDismiss('${notifEsc(i.key)}')"><i class="bi bi-x-lg"></i></button>` : ''}
+                </div>`).join('')
+                : `<div class="p-4 text-center small text-muted"><i class="bi bi-check2-circle fs-3 d-block mb-1"></i>${unreadOnly ? 'Todo leído.' : 'Sin notificaciones.'}</div>`;
+        }
+        async function notifLoad() {
+            try { const d = await (await fetch('/api/notifications')).json(); notifItems = d.items || []; notifRender(); } catch (e) {}
+        }
+        window.notifRead = (key, read, rerender) => {
+            const it = notifItems.find(i => i.key === key);
+            if (it) it.read = read;
+            if (rerender) notifRender();
+            // también en la página abierta (tabla de alertas)
+            if (key.startsWith('alert|')) document.querySelectorAll(`[data-alert-key="${CSS.escape(key.slice(6))}"]`).forEach(r => { r.dataset.read = read ? '1' : ''; });
+            if (window.applyAlertSeenState) window.applyAlertSeenState();
+            return window.markNotificationsRead({keys: [key], read});
+        };
+        window.notifDismiss = async (key) => {
+            const r = await fetch('/api/notices/dismiss', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({keys: [key], seen: true})});
+            if (!r.ok) return;
+            notifItems = notifItems.filter(i => i.key !== key);
+            notifRender();
+            window.refreshNotificationBadges && window.refreshNotificationBadges();
+            // también en la página abierta (Centro de mando)
+            if (window.dismissedNoticeKeys) window.dismissedNoticeKeys.add(key);
+            document.querySelectorAll('.inbox-item').forEach(el => {
+                if ((el.dataset.keys || el.dataset.key || '').split(',').includes(key)) {
+                    const list = el.closest('.notice-list'); el.remove(); if (window.refreshNoticeList) refreshNoticeList(list);
+                }
+            });
+        };
+        window.notifMarkAll = () => {
+            const unreadOnly = document.getElementById('notifUnreadOnly').checked;
+            const keys = notifItems.filter(i => !i.read && (!notifGroup || i.group === notifGroup) && notifInScope(i)).map(i => i.key);
+            if (!keys.length) return;
+            keys.forEach(k => { const it = notifItems.find(i => i.key === k); if (it) it.read = true; });
+            notifRender();
+            window.markNotificationsRead({keys});
+        };
+        document.addEventListener('DOMContentLoaded', () => {
+            const panel = document.getElementById('notifPanel');
+            panel.addEventListener('show.bs.offcanvas', notifLoad);
+            document.querySelectorAll('[data-notif-group]').forEach(b => b.addEventListener('click', () => {
+                notifGroup = b.dataset.notifGroup;
+                document.querySelectorAll('[data-notif-group]').forEach(x => x.classList.toggle('active', x === b));
+                notifRender();
+            }));
+            document.getElementById('notifUnreadOnly').addEventListener('change', notifRender);
+            // como en el correo: pulsar una notificación sin leer la marca como leída (los botones van aparte)
+            document.getElementById('notifList').addEventListener('click', e => {
+                const row = e.target.closest('.notif-item.unread');
+                if (!row || e.target.closest('button')) return;
+                const it = notifItems.find(i => i.key === row.dataset.key);
+                if (it) notifRead(it.key, true, !e.target.closest('a'));   // si abre un enlace no hace falta repintar
+            });
+            document.querySelectorAll('[data-notif-scope]').forEach(b => b.addEventListener('click', () => {
+                notifScope = b.dataset.notifScope;
+                document.querySelectorAll('[data-notif-scope]').forEach(x => x.classList.toggle('active', x === b));
+                notifRender();
+            }));
+        });
+        // Una sola vez: las alertas que marcaste como vistas cuando se guardaban en el navegador pasan a la BBDD
+        (function migrateAlertSeen() {
+            try {
+                if (localStorage.getItem('alerts_read_migrated')) return;
+                const keys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k && k.startsWith('alert_seen_')) keys.push('alert|' + k.slice(11));
+                }
+                localStorage.setItem('alerts_read_migrated', '1');
+                if (keys.length) window.markNotificationsRead({keys}).then(() => { if (location.pathname === '/alerts') location.reload(); });
+            } catch (e) {}
+        })();
         // Noticias nuevas del radar de tesis (solo materialidad >=4)
-        // Globo de «Tesis» en el menú = avisos de tesis + noticias sin leer (Noticias es una pestaña de Tesis)
-        const thesisBadge = {notices: 0, news: 0, noticesTitle: '', newsTitle: ''};
-        const renderThesisBadge = () => {
+        // Globo de «Centro» en el menú = avisos de tesis + noticias sin leer (Tesis y Noticias son pestañas del Centro)
+        const thesisBadge = window.thesisBadgeState = {notices: 0, news: 0, noticesTitle: '', newsTitle: ''};
+        const renderThesisBadge = window.renderThesisBadge = () => {
             const b = document.getElementById('sidebarThesisBadge');
             if (!b) return;
             const n = thesisBadge.notices + thesisBadge.news;
@@ -763,10 +929,10 @@
             b.title = [thesisBadge.noticesTitle, thesisBadge.newsTitle].filter(Boolean).join('\n');
         };
         // Noticias nuevas del radar de tesis (solo materialidad >=4)
+        // el globo del menú solo suma las noticias de empresas en cartera (viene de refreshNotificationBadges);
+        // la pestaña «Noticias» muestra todas las no leídas
         window.refreshSidebarNewsBadge = () => fetch('/api/theses/news/unread-count').then(r => r.json()).then(d => {
-            thesisBadge.news = d.unread || 0;
-            thesisBadge.newsTitle = d.unread ? `${d.unread} noticias sin leer` + (d.critical ? ` (${d.critical} pueden cambiar la tesis)` : '') : '';
-            renderThesisBadge();
+            window.refreshNotificationBadges && window.refreshNotificationBadges();
             const tab = document.getElementById('tabNewsBadge');
             if (tab) { tab.textContent = d.unread > 99 ? '99+' : d.unread; tab.classList.toggle('d-none', !d.unread); }
         }).catch(() => {});
@@ -778,10 +944,7 @@
             renderThesisBadge();
         }).catch(() => {});
 
-        fetch('/api/alerts/keys').then(r => r.json()).then(data => {
-            window._alertKeysCache = data.keys || [];
-            window.refreshSidebarAlertBadge();
-        }).catch(() => {});
+        window.refreshNotificationBadges();
 
         document.addEventListener('DOMContentLoaded', () => window.applyAlertSeenState());
 

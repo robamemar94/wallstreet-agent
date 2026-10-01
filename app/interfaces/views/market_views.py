@@ -24,7 +24,7 @@ from app.infrastructure.dependencies import (
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
 from app.infrastructure.repositories.sqlalchemy_watchlist_repository import SqlAlchemyWatchlistRepository
 from app.application.services import base_valuation_service, market_cache
-from app.application.services.thesis_service import fetch_ttm_fcf_per_share
+from app.application.services.thesis_service import fetch_ttm_fcf_per_share, quote_unit_factor
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.performance_service import PerformanceService
 from app.infrastructure.templates import templates
@@ -767,7 +767,8 @@ async def database_page(
             "rules_score": rules_s if rules_s != "-" else "-",
             "valuation": val, 
             "is_favorite": asset.is_favorite,
-            "is_portfolio": t in active_portfolio_tickers
+            "is_portfolio": t in active_portfolio_tickers,
+            "role": db_d.get("portfolio_role"),
         })
 
     return templates.TemplateResponse("database.html", {
@@ -783,6 +784,15 @@ async def database_page(
 @router.post("/search")
 async def search(ticker: str = Form(...)):
     return RedirectResponse(url=f"/ticker/{ticker.upper()}", status_code=303)
+
+
+def _valuation_staleness(ticker, bval):
+    """¿Toca revisar la valoración base? (dos presentaciones de resultados desde la última revisión)"""
+    if not bval:
+        return None
+    from app.application.services.thesis_review_service import fetch_reported_dates
+    return base_valuation_service.staleness(bval, fetch_reported_dates(ticker))
+
 
 @router.get("/ticker/{ticker}", response_class=HTMLResponse)
 def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository), portfolio_service: PortfolioService = Depends(get_portfolio_service), db_session: Session = Depends(get_db), watchlist_repo: SqlAlchemyWatchlistRepository = Depends(get_watchlist_repository)):
@@ -1176,11 +1186,19 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         "events_table_html": events_table_html,
         # Valoración base (un solo escenario, BPA o FCF/acción)
         "bval": base_valuation_service.stored(db_d),
-        "bval_ttm": {"eps": info.get('trailingEps'), "fcf": fetch_ttm_fcf_per_share(ticker)},
+        "bval_stale": _valuation_staleness(ticker, base_valuation_service.stored(db_d)),
+        # BPA y dividendo de Yahoo van en la divisa principal; en Londres el precio va en peniques
+        "unit_factor": quote_unit_factor(info.get('currency')),
+        "bval_ttm": {"eps": (info.get('trailingEps') or 0) * quote_unit_factor(info.get('currency')) or None,
+                     "fcf": fetch_ttm_fcf_per_share(ticker)},
+        # cierre del último trimestre publicado: la fecha del TTM (el año en curso suma lo que le falta hasta el 31/12)
+        "bval_ttm_end": datetime.datetime.fromtimestamp(info['mostRecentQuarter'], datetime.timezone.utc).date().isoformat() if info.get('mostRecentQuarter') else None,
+        "bval_estimates": base_valuation_service.analyst_eps_estimates(ticker),
         "bval_target": base_valuation_service.TARGET_RETURN_PCT,
+        "bval_years": base_valuation_service.DEFAULT_YEARS,
         "bval_metrics": base_valuation_service.METRICS,
         "in_watchlist": watchlist_repo.get_by_ticker(ticker) is not None,   # añadida a mano
-        "watch_auto": [o for o, on in (("favorita", is_fav), ("aceptada", db_d.get("status") == "ACCEPTED")) if on],
+        "watch_auto": ["favorita"] if is_fav else [],
     })
 
 
@@ -1247,7 +1265,7 @@ def calendario_page(
 
 @router.get("/oportunidades")
 def oportunidades_page():
-    # Oportunidades se unificó con la watchlist del Centro de mando (valoración base, favoritas y aceptadas)
+    # Oportunidades se unificó con la watchlist del Centro de mando (valoración base, favoritas y añadidas a mano)
     return RedirectResponse("/centro#watchlist")
 
 

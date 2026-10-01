@@ -3,12 +3,14 @@
 {% block title %}Noticias · Alpha-Flow{% endblock %}
 
 {% block content %}
+{% from "_centro_tabs.html" import centro_tabs %}
 {{ thesis_styles() }}
 <style>
     .news-card.unread { border-left: 3px solid #58a6ff !important; }
     .mat-badge { font-size: .68rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid currentColor; }
 </style>
 <div class="container-fluid py-4">
+    {{ centro_tabs('noticias') }}
     <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <div>
             <h4 class="fw-bold mb-1"><i class="bi bi-broadcast me-2 text-primary"></i>Noticias de las tesis</h4>
@@ -18,8 +20,8 @@
             {% if unread_ids %}<button class="btn btn-outline-secondary btn-sm" id="btnAllRead" onclick="markRead(null)"><i class="bi bi-check2-all me-1"></i>Marcar todas como leídas</button>{% endif %}
             {% if radar_running %}<span class="small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Radar en curso…</span>{% endif %}
             <div class="btn-group btn-group-sm">
-                <a href="/noticias" class="btn btn-outline-secondary {{ 'active' if not selected }}">Todas</a>
-                {% for t in tickers %}<a href="/noticias?ticker={{ t }}" class="btn btn-outline-secondary {{ 'active' if selected == t }}">{{ t }}</a>{% endfor %}
+                <a href="/noticias" class="btn btn-outline-secondary {{ 'active' if not selected }}" title="Resumen semanal de todas las tesis">Resumen</a>
+                {% for t in tickers %}<a href="/noticias?ticker={{ t }}" class="btn btn-outline-secondary {{ 'active' if selected == t }}">{{ t }}{% if unread_by_ticker.get(t) %} <span class="badge text-bg-primary">{{ unread_by_ticker[t] }}</span>{% endif %}</a>{% endfor %}
             </div>
         </div>
     </div>
@@ -62,9 +64,37 @@
         </div>
 
         <div class="col-12 col-xl-4">
-            <div class="card"><div class="card-header bg-transparent fw-bold"><i class="bi bi-calendar-week me-1"></i>Estado del radar</div>
+            {% if not selected %}
+            {% set sm = summary or {} %}
+            <div class="card">
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                    <span class="fw-bold"><i class="bi bi-journal-text me-1"></i>Resumen semanal de las tesis
+                        {% if sm.created_at %}<span class="small text-muted fw-normal">· {{ sm.created_at[8:10] }}/{{ sm.created_at[5:7] }} {{ sm.created_at[11:16] }} · {{ sm.news_count }} noticias en {{ sm.window_days }} días</span>{% endif %}</span>
+                    {% if summary_running %}<span class="small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Generando…</span>
+                    {% else %}<button class="btn btn-sm btn-outline-secondary py-0" onclick="regenSummary(this)" title="Vuelve a resumir las noticias de los últimos 7 días (una llamada a Gemini, sin búsqueda)"><i class="bi bi-arrow-repeat me-1"></i>Regenerar</button>{% endif %}
+                </div>
+                <div class="card-body">
+                {% if sm.headline %}
+                    <div class="fw-semibold mb-1">{{ sm.headline }}</div>
+                    {% if sm.overview %}<p class="small text-muted mb-2">{{ sm.overview }}</p>{% endif %}
+                    {% for b in sm.by_thesis %}
+                    <div class="d-flex gap-2 small mb-1">
+                        <i class="bi {{ 'bi-arrow-up-right st-green' if b.impact == 'positive' else ('bi-arrow-down-right st-red' if b.impact == 'negative' else 'bi-dash text-muted') }}"></i>
+                        <div><a href="/noticias?ticker={{ b.ticker }}" class="fw-bold text-decoration-none">{{ b.ticker }}</a>
+                            {% if b.review %}<span class="badge text-bg-warning">revisar tesis</span>{% endif %} {{ b.summary }}</div>
+                    </div>
+                    {% endfor %}
+                    {% if sm.to_review %}<div class="mt-2 small"><div class="fw-bold mb-1"><i class="bi bi-flag me-1"></i>Qué revisar</div>
+                        <ul class="mb-0 ps-3">{% for x in sm.to_review %}<li>{{ x }}</li>{% endfor %}</ul></div>{% endif %}
+                {% else %}
+                    <div class="text-muted small">{{ 'Generando el resumen…' if summary_running else 'Aún no hay resumen: se genera solo cuando termina el radar semanal, o pulsa «Regenerar».' }}</div>
+                {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <div class="card"><div class="card-header bg-transparent fw-bold"><i class="bi bi-calendar-week me-1"></i>Radar de {{ selected }}</div>
             <ul class="list-group list-group-flush small">
-                {% for r in radars %}
+                {% for r in radars if r.ticker == selected %}
                 <li class="list-group-item">
                     <div class="d-flex justify-content-between">
                         <a href="/tesis/{{ r.id }}" class="fw-bold text-decoration-none">{{ r.ticker }}</a>
@@ -78,6 +108,7 @@
                 </li>
                 {% endfor %}
             </ul></div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -105,6 +136,15 @@ async function toTimeline(id, btn) {
     if (r.ok) { btn.outerHTML = '<span class="small text-muted"><i class="bi bi-check2"></i> en el timeline</span>'; markRead([id]); }
     else { btn.disabled = false; alert('No se pudo añadir al timeline'); }
 }
-{% if radar_running %}setTimeout(() => location.reload(), 30000);{% endif %}
+{% if radar_running or summary_running %}setTimeout(() => location.reload(), 30000);{% endif %}
+async function regenSummary(btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando…';
+    try { await fetch('/api/theses/news/summary', {method: 'POST'}); } catch (e) {}
+    const poll = setInterval(async () => {
+        try { const d = await (await fetch('/api/theses/news/summary')).json(); if (!d.running) { clearInterval(poll); location.reload(); } }
+        catch (e) { clearInterval(poll); }
+    }, 3000);
+}
 </script>
 {% endblock %}

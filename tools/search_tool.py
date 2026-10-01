@@ -266,7 +266,7 @@ Propón las hipótesis del ESCENARIO BASE (el más probable) a 5 años para {tar
 INSTRUCCIONES ANALÍTICAS CRÍTICAS:
 - VALOR DE PARTIDA ("metric_value"): el {name} de los últimos 12 meses o el estimado de consenso para el año fiscal actual.
   Si está distorsionado (extraordinarios, ciclos extremos, pérdidas de arranque, amortizaciones, reestructuraciones, capex anormal), normalízalo
-  y explica cómo en "metric_explanation". Debe ir en la divisa en la que cotiza la acción.
+  y explica cómo en "metric_explanation". Debe ir en la unidad en la que cotiza la acción (en Londres, en peniques: GBp).
 - CRECIMIENTO ("growth"): crecimiento anual del {name} alineado con el consenso y la tendencia histórica ajustada por la ley de los grandes números
   (incluye el efecto de las recompras).
 - DIVIDENDO ("div_growth"): crecimiento anual del dividendo por acción coherente con el crecimiento y el payout (0 si no paga dividendo).

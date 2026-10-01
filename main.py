@@ -13,6 +13,7 @@ from app.interfaces.views.lists_views import router as lists_router
 from app.interfaces.views.thesis_views import router as thesis_views_router
 from app.interfaces.api.thesis_api import router as thesis_api_router
 from app.interfaces.views.watchlist_views import router as watchlist_router
+from app.interfaces.api.notifications_api import router as notifications_router
 from app.infrastructure.db.database import SessionLocal
 from app.infrastructure.dependencies import get_settings_from_db
 from fastapi.staticfiles import StaticFiles
@@ -71,6 +72,7 @@ app.include_router(lists_router)
 app.include_router(thesis_views_router)
 app.include_router(thesis_api_router, prefix="/api")
 app.include_router(watchlist_router)
+app.include_router(notifications_router, prefix="/api")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

@@ -71,6 +71,7 @@ business_model:
     - Explica de forma concisa cómo la empresa mitiga estos riesgos comerciales.
 
 moat_analyst:
+  model: pro   # juicio del foso: si llega flojo, el Director no lo puede corregir
   role: Especialista en Ventaja Competitiva y Economic Moat (Moat Specialist)
   goal: >
     Determinar con criterio riguroso y basándose en la evidencia empírica si el negocio tiene ventajas competitivas reales y duraderas (Economic Moat) frente a sus rivales sectoriales.
@@ -251,6 +252,7 @@ capital_allocation_specialist:
     - 1-2: PELIGROSO / DESCARTE (Conducta poco ética, salarios abusivos desvinculados de resultados, destrucción sistemática de caja).
 
 investment_director:
+  model: pro   # razona sobre el trabajo de los demás agentes: GEMINI_PRO_MODEL (el resto, GEMINI_MODEL)
   role: Director de Inversiones — Síntesis Final
   goal: >
     Integrar los análisis de franquicia y economic moat, auditoría financiera forense, dirección y asignación de capital, y las normas de calidad en un veredicto de invertibilidad definitivo y fundado. No investiga — sintetiza y decide de forma holística.
@@ -305,6 +307,7 @@ financial_analyst:
     Eres un analista de primer nivel obsesionado con estimaciones futuras realistas. Sabes que el crecimiento histórico es solo una guía: buscas anomalías futuras, estimaciones infladas del consenso, y contrastas con el guidance de la directiva y vientos de cola sectoriales.
 
 valuation_agent:
+  model: pro   # razona sobre el trabajo de los demás agentes: GEMINI_PRO_MODEL (el resto, GEMINI_MODEL)
   role: Especialista en Modelado de TIR y Precio de Entrada
   goal: >
     Calcular la Tasa Interna de Retorno (TIR) en distintos escenarios (Pesimista, Base, Optimista) basándose en estimaciones de consenso, guidance oficial de la empresa, y el entorno de su sector para determinar el Precio de Entrada (Strike Price).
@@ -442,6 +445,7 @@ pe_forensic:
     3. Trigger de Mejora: Indica qué métrica o comportamiento financiero tendría que cambiar exactamente para que el negocio suba un nivel en tu scoring.
 
 thesis_agent:
+  model: pro   # razona sobre el trabajo de los demás agentes: GEMINI_PRO_MODEL (el resto, GEMINI_MODEL)
   role: Socio de Inversiones y Gestor de Tesis — Manual de Vigilancia
   goal: >
     Formalizar el contrato de inversión y el manual de vigilancia de la empresa,
@@ -550,6 +554,7 @@ technical_analyst:
     Un ESPERAR sin estos tres matices se considera un análisis incompleto y debe evitarse siempre.
 
 thesis_destroyer:
+  model: pro   # razona sobre el trabajo de los demás agentes: GEMINI_PRO_MODEL (el resto, GEMINI_MODEL)
   role: Socio Destructor de Tesis de Inversión (Abogado del Diablo)
   goal: >
     Desafiar y atacar de forma despiadada pero racional la tesis de inversión de la empresa,

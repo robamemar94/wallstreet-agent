@@ -62,6 +62,16 @@
     <div class="d-flex align-items-center gap-2">
         <a href="/" class="btn btn-sm btn-outline-secondary px-3"><i class="bi bi-arrow-left me-1"></i> Volver</a>
         
+        {% set role_def = (portfolio_roles()|selectattr('key', 'equalto', db.get('portfolio_role'))|list or [none])[0] %}
+        <div class="input-group input-group-sm" id="roleCard" style="width: auto;{% if role_def %} box-shadow: inset 0 -2px 0 {{ role_def.color }};{% endif %}" title="Rol en el Portfolio ideal (solo empresas en seguimiento, favoritas o en cartera)">
+            <a class="input-group-text text-decoration-none" href="/ideal-portfolio" title="Ver el Portfolio ideal"><i class="bi bi-award"></i></a>
+            <select class="form-select form-select-sm" id="roleSelect" style="width: auto; font-size: 0.78rem;" aria-label="Rol en cartera de {{ ticker }}">
+                <option value="" {{ 'selected' if not role_def }}>Sin rol en cartera</option>
+                {% for r in portfolio_roles() %}<option value="{{ r.key }}" data-color="{{ r.color }}" {{ 'selected' if role_def and role_def.key == r.key }}>{{ r.emoji }} {{ r.name }}</option>{% endfor %}
+            </select>
+            <button class="btn btn-outline-secondary" type="button" id="roleAiBtn" onclick="getTickerRoleSuggestion('{{ ticker }}')" title="Proponer rol con IA"><i class="bi bi-robot"></i></button>
+        </div>
+
         <div class="btn-group btn-group-sm shadow-xs" role="group">
             <button type="button" class="btn btn-outline-success {% if db.get('status') == 'ACCEPTED' %}active{% endif %} px-2.5" id="btn-accept" onclick="updateStatus('{{ ticker }}', 'ACCEPTED')">
                 <i class="bi bi-check-lg me-1"></i>Aceptar
@@ -1131,19 +1141,6 @@
             <i class="bi bi-info-circle me-1"></i> 
             Los agentes analizan secuencialmente. Empieza por la <strong>Auditoría</strong> para mejores resultados.
         </div>
-
-        <!-- Tarjeta de Asignación Estratégica IA -->
-        <div class="card shadow-sm border border-primary-subtle bg-primary bg-opacity-10 mt-3">
-            <div class="card-body p-3 text-center">
-                <h6 class="fw-bold text-primary mb-1" style="font-size:0.85rem;"><i class="bi bi-robot me-1"></i> Portfolio Ideal</h6>
-                <p class="text-muted mb-3" style="font-size:0.72rem; line-height:1.3;">Sugerir en qué cajón de tu Portfolio Ideal estratégicamente encaja <strong>{{ ticker }}</strong>.</p>
-                <div id="tickerAiResult">
-                    <button class="btn btn-primary btn-sm fw-bold w-100 shadow-sm" style="font-size:0.75rem;" onclick="getTickerAISuggestion('{{ ticker }}')">
-                        🎯 ¿Dónde encaja este activo?
-                    </button>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Contenido de los Informes -->
@@ -2211,12 +2208,16 @@
 
     <!-- SECCIÓN 4: VALORACIÓN BASE (un solo escenario sobre BPA o FCF/acción) -->
     {# Último BPA oficial de la auditoría local, como atajo para el valor de partida #}
-    {% set official_eps = none %}
-    {% set official_year = "" %}
-    {% if financials_hist and financials_hist.get('eps') and financials_hist.get('eps')|length > 0 %}
-        {% set official_eps = financials_hist.get('eps')[-1] %}
-        {% set official_year = financials_hist.get('years')[-1] %}
-    {% endif %}
+    {# el último año con dato (el más reciente puede venir vacío) #}
+    {% set eps_hist = (financials_hist or {}).get('eps') or [] %}
+    {% set eps_years = (financials_hist or {}).get('years') or [] %}
+    {% set ofc = namespace(eps=none, year="") %}
+    {% for i in range(eps_hist|length) if eps_hist[i] is not none %}
+        {% set ofc.eps = eps_hist[i] * (unit_factor or 1) %}
+        {% set ofc.year = eps_years[i] if i < eps_years|length else "" %}
+    {% endfor %}
+    {% set official_eps = ofc.eps %}
+    {% set official_year = ofc.year %}
     {% set current_price = custom_metrics.get('currentPrice') or info.get('currentPrice') or info.get('regularMarketPrice') or 0 %}
     {# Valores por defecto si la empresa aún no tiene valoración guardada #}
     {% set g_default = info.get('earningsGrowth') or 0.10 %}
@@ -2226,9 +2227,12 @@
     {% set bv_metric = bv.get('metric') or 'eps' %}
     {% set bv_growth = bv.get('growth') if bv.get('growth') is not none else g_default %}
     {% set bv_multiple = bv.get('exit_multiple') or db.get('fair_pe_data', {}).get('fair_forward_pe') or info.get('forwardPE') or 15.0 %}
-    {% set bv_dps = bv.get('dps') if bv.get('dps') is not none else (info.get('dividendRate') or 0.0) %}
+    {# importes de Yahoo en la divisa principal → unidad de cotización (peniques en Londres) #}
+    {% set uf = unit_factor or 1 %}
+    {% set fwd_eps = (info.get('forwardEps') or 0) * uf %}
+    {% set div_rate = (info.get('dividendRate') or 0) * uf %}
+    {% set bv_dps = bv.get('dps') if bv.get('dps') is not none else div_rate %}
     {% set bv_div_growth = bv.get('div_growth') if bv.get('div_growth') is not none else 0.05 %}
-    {% set bv_years = bv.get('years') or 5 %}
 
     <style>.text-orange { color: #f0883e !important; }</style>
     <div class="tab-pane fade" id="nav-projection" role="tabpanel">
@@ -2253,13 +2257,27 @@
                 </div>
             </div>
             <div class="card-body bg-light-subtle p-4">
+                {% set st = bval_stale %}
+                {% macro dmy(d) %}{{ d[8:10] }}/{{ d[5:7] }}/{{ d[2:4] }}{% endmacro %}
+                {% if st and (st.stale or st.results_since) %}
+                <div class="alert {{ 'alert-danger' if st.stale else 'alert-secondary' }} d-flex align-items-center gap-3 py-2 px-3 small mb-4" id="val-stale-box">
+                    <i class="bi bi-clock-history fs-5"></i>
+                    <div class="flex-grow-1">
+                        {% if st.stale and st.by_calendar %}<strong>Valoración anticuada.</strong> Revisada el {{ dmy(st.reviewed) }}; desde entonces ha presentado resultados {{ st.results_since|length }} veces ({% for d in st.results_since %}{{ dmy(d) }}{{ ', ' if not loop.last }}{% endfor %}). Repasa crecimiento, múltiplo y dividendo.
+                        {% elif st.stale %}<strong>Valoración anticuada.</strong> Sin revisar desde el {{ dmy(st.reviewed) }} (más de 7 meses; no hay calendario de resultados).
+                        {% else %}Ha presentado resultados el {{ dmy(st.results_since[-1]) }}, después de tu revisión del {{ dmy(st.reviewed) }}. Pasará a anticuada con la siguiente presentación.{% endif %}
+                    </div>
+                    <button class="btn btn-sm {{ 'btn-danger' if st.stale else 'btn-outline-secondary' }} text-nowrap" onclick="markValuationReviewed('{{ ticker }}', this)">
+                        <i class="bi bi-check2 me-1"></i>Revisada, sin cambios</button>
+                </div>
+                {% endif %}
 
                 <!-- RESULTADO -->
                 <div class="row g-3 mb-4 text-center">
                     <div class="col-6 col-lg-3"><div class="p-3 bg-white rounded-3 shadow-sm border h-100">
                         <div class="text-muted fw-bold text-uppercase" style="font-size: .65rem;">Rentabilidad estimada</div>
                         <div class="fw-bold fs-3 font-monospace-data" id="res-cagr">–</div>
-                        <div class="text-muted" style="font-size: .7rem;">anual comprando hoy, con dividendos</div>
+                        <div class="text-muted" style="font-size: .7rem;" id="res-cagr-note">anual comprando hoy, con dividendos</div>
                     </div></div>
                     <div class="col-6 col-lg-3"><div class="p-3 bg-white rounded-3 shadow-sm border h-100">
                         <div class="text-muted fw-bold text-uppercase" style="font-size: .65rem;">Precio de compra al {{ '%.0f'|format(bval_target) }}%</div>
@@ -2274,7 +2292,7 @@
                     <div class="col-6 col-lg-3"><div class="p-3 bg-white rounded-3 shadow-sm border h-100">
                         <div class="text-muted fw-bold text-uppercase" style="font-size: .65rem;">Zona</div>
                         <div class="fw-bold fs-3 text-uppercase" id="res-zone">–</div>
-                        <div class="text-muted" style="font-size: .7rem;">ganga ≥{{ '%.0f'|format(bval_target) }}% · barata ≥10% · justo ≥6% · cara</div>
+                        <div class="text-muted" style="font-size: .7rem;">ganga ≥{{ '%.0f'|format(ZONE.ganga) }}% · barata ≥{{ '%.0f'|format(ZONE.barata) }}% · justo ≥{{ '%.0f'|format(ZONE.justo) }}% · cara</div>
                     </div></div>
                 </div>
 
@@ -2307,7 +2325,6 @@
                         </div>
                         <div class="d-flex flex-wrap gap-1 mt-1" id="val-quick-eps">
                             {% if official_eps %}<button class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size: .65rem;" onclick="setMetricValue({{ official_eps }})">Histórico ({{ official_year }}): {{ "{:.2f}".format(official_eps) }}</button>{% endif %}
-                            {% if info.get('forwardEps') %}<button class="btn btn-xs btn-outline-secondary py-0 px-1" style="font-size: .65rem;" onclick="setMetricValue({{ info.get('forwardEps') }})">Estimado (forward): {{ "{:.2f}".format(info.get('forwardEps')) }}</button>{% endif %}
                         </div>
                         <div class="text-muted mt-1" style="font-size: .68rem;" id="val-ttm-label"></div>
                         <div class="text-warning mt-1 d-none" style="font-size: .68rem;" id="val-fixed-warning"><i class="bi bi-exclamation-triangle me-1"></i>Fijado a mano: no se actualiza con los resultados. Úsalo solo si el TTM está distorsionado.</div>
@@ -2319,7 +2336,7 @@
                             <span class="input-group-text bg-light text-muted">{{ currency_symbol }}</span>
                             <input type="number" step="0.01" class="form-control font-monospace-data" id="val-dps" value="{{ "{:.2f}".format(bv_dps) }}">
                         </div>
-                        {% if info.get('dividendRate') %}<button class="btn btn-xs btn-outline-secondary py-0 px-1 mt-1" style="font-size: .65rem;" onclick="document.getElementById('val-dps').value = {{ info.get('dividendRate') }}; onValChange();">Actual: {{ "{:.2f}".format(info.get('dividendRate')) }}</button>{% endif %}
+                        {% if div_rate %}<button class="btn btn-xs btn-outline-secondary py-0 px-1 mt-1" style="font-size: .65rem;" onclick="document.getElementById('val-dps').value = {{ div_rate }}; onValChange();">Actual: {{ "{:.2f}".format(div_rate) }}</button>{% endif %}
                         <div class="text-muted mt-1" style="font-size: .68rem;">Importe anual, no rentabilidad: así el precio de compra no depende de la cotización.</div>
                     </div>
 
@@ -2349,9 +2366,7 @@
                     {% endfor %}
                     <div class="col-md-3">
                         <label class="form-label fw-bold small text-muted text-uppercase mb-1">Horizonte</label>
-                        <select class="form-select form-select-sm" id="val-years">
-                            {% for y in [3, 5, 7, 10] %}<option value="{{ y }}" {{ 'selected' if y == bv_years }}>{{ y }} años</option>{% endfor %}
-                        </select>
+                        <div class="fw-bold font-monospace-data" id="val-horizon">5 años</div>
                         <div class="text-muted mt-1" style="font-size: .68rem;" id="val-multiple-now"></div>
                     </div>
                 </div>
@@ -2360,7 +2375,14 @@
                 <div class="card border border-light-subtle shadow-sm mb-4 rounded-3 bg-white">
                     <div class="card-header bg-light py-2 px-3 border-bottom">
                         <h6 class="mb-0 fw-bold text-dark small text-uppercase"><i class="bi bi-calendar-range me-1 text-primary"></i> Año a año</h6>
+                        <div class="text-muted" style="font-size: .68rem;">Pulsa <i class="bi bi-pencil"></i> para corregir el <span class="lbl-metric">BPA</span> de un año distorsionado: desde ese año sigue con tu crecimiento, y al pasar el año se reproyecta solo.</div>
                     </div>
+                    <div class="alert alert-info d-flex align-items-center gap-3 py-2 px-3 small m-2 d-none" id="val-anchor-expired">
+                        <i class="bi bi-calendar-check fs-5"></i>
+                        <div class="flex-grow-1" id="val-anchor-expired-text"></div>
+                        <button class="btn btn-sm btn-outline-secondary text-nowrap" onclick="setAnchor(null)"><i class="bi bi-x-lg me-1"></i>Quitar la corrección</button>
+                    </div>
+                    <div class="small px-3 py-2 border-bottom d-none" id="val-estimates"></div>
                     <div class="table-responsive">
                         <table class="table table-sm table-striped text-center mb-0 align-middle font-monospace-data" style="font-size: .8rem;">
                             <thead class="table-dark"><tr>
@@ -3323,6 +3345,8 @@
                 } else if (status === 'REJECTED') {
                     badgeContainer.innerHTML = '<span class="badge bg-danger fs-6">Descartada ❌</span>';
                     document.getElementById('btn-reject').classList.add('active');
+                    const roleSel = document.getElementById('roleSelect');   // al descartarla pierde el rol
+                    if (roleSel) { roleSel.value = ''; roleSel.dataset.prev = ''; document.getElementById('roleCard').style.boxShadow = ''; }
                 } else if (status === 'STANDBY') {
                     badgeContainer.innerHTML = '<span class="badge bg-warning text-dark fs-6">Dudas 🤔</span>';
                     document.getElementById('btn-standby').classList.add('active');
@@ -4696,158 +4720,58 @@
         await generateReport(ticker, key, fullPayload);
     }
 
-        // --- Asistente de Asignación de Portfolio Ideal IA ---
-        async function getTickerAISuggestion(ticker) {
-            const container = document.getElementById('tickerAiResult');
-            if (!container) return;
-
-            container.innerHTML = `
-                <div class="text-center py-2">
-                    <div class="spinner-border spinner-border-sm text-primary mb-1" role="status"></div>
-                    <div class="text-muted" style="font-size:0.7rem;">Analizando tesis con IA...</div>
-                </div>
-            `;
-
-            try {
-                const res = await fetch(`/api/portfolio/suggest_category/${ticker}`);
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.detail || "Error del servidor");
-                }
-                const data = await res.json();
-
-                // Buscar si ya está asignado en local
-                const idealRes = await fetch('/portfolio/ideal');
-                const idealData = await idealRes.json();
-                let alreadyExists = false;
-                let currentCatName = "";
-
-                idealData.groups.forEach(g => {
-                    (g.categories || []).forEach(cat => {
-                        if ((cat.candidates || []).includes(ticker)) {
-                            alreadyExists = true;
-                            currentCatName = cat.name;
-                        }
-                    });
-                });
-
-                let actionHtml = "";
-                if (alreadyExists) {
-                    actionHtml = `
-                        <span class="badge bg-success-subtle text-success py-1 w-100 border text-uppercase" style="font-size:0.65rem;">
-                            Asignado a: ${currentCatName} 🟢
-                        </span>
-                    `;
-                } else {
-                    actionHtml = `
-                        <button class="btn btn-success btn-sm fw-bold w-100 shadow-sm mt-2" style="font-size:0.7rem;" 
-                                onclick="addTickerToIdealCategory('${ticker}', '${data.category_id}', '${data.category_name}')">
-                            <i class="bi bi-plus-circle me-1"></i> Añadir a ${data.category_name}
-                        </button>
-                    `;
-                }
-
-                container.innerHTML = `
-                    <div class="text-start" style="font-size:0.75rem;">
-                        <div class="mb-1 text-primary fw-bold">🎯 Sugerencia IA:</div>
-                        <div class="text-dark fw-bold mb-1 border-bottom pb-1" style="font-size:0.8rem;">${data.category_name}</div>
-                        <div class="text-muted mb-2 fst-italic" style="line-height:1.25; font-size:0.72rem;">"${data.justification}"</div>
-                        ${actionHtml}
-                    </div>
-                `;
-            } catch (e) {
-                console.error(e);
-                container.innerHTML = `
-                    <div class="text-danger small mb-2">Error: ${e.message || "No se pudo conectar"}</div>
-                    <button class="btn btn-outline-primary btn-sm w-100" style="font-size:0.7rem;" onclick="getTickerAISuggestion('${ticker}')">
-                        Reintentar
-                    </button>
-                `;
+        // --- Rol en el Portfolio ideal ---
+        async function saveTickerRole(ticker, role) {
+            const sel = document.getElementById('roleSelect');
+            const res = await fetch(`/api/role/${encodeURIComponent(ticker)}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role })
+            });
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                showToast("Error", d.detail || "No se pudo guardar el rol", "error");
+                sel.value = sel.dataset.prev;
+                return;
             }
+            sel.value = role || '';
+            sel.dataset.prev = sel.value;
+            const opt = sel.selectedOptions[0];
+            document.getElementById('roleCard').style.boxShadow = role ? `inset 0 -2px 0 ${opt.dataset.color}` : '';
+            showToast("Rol guardado", role ? `${ticker} → ${opt.textContent.trim()}` : `${ticker} sin rol`, "success");
         }
 
-        async function addTickerToIdealCategory(ticker, categoryId, categoryName) {
-            const container = document.getElementById('tickerAiResult');
-            container.innerHTML = `
-                <div class="text-center py-2">
-                    <div class="spinner-border spinner-border-sm text-success mb-1" role="status"></div>
-                    <div class="text-muted" style="font-size:0.7rem;">Guardando...</div>
-                </div>
-            `;
+        document.addEventListener('DOMContentLoaded', () => {
+            const sel = document.getElementById('roleSelect');
+            if (!sel) return;
+            sel.dataset.prev = sel.value;
+            sel.addEventListener('change', () => saveTickerRole('{{ ticker }}', sel.value));
+        });
 
+        async function getTickerRoleSuggestion(ticker) {
+            const btn = document.getElementById('roleAiBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
             try {
-                // 1. Obtener estructura actual del portfolio ideal
-                const idealRes = await fetch('/portfolio/ideal');
-                const idealData = await idealRes.json();
-
-                // 2. Modificar el objeto para añadir el ticker a la categoría destino
-                let found = false;
-                idealData.groups.forEach(g => {
-                    (g.categories || []).forEach(cat => {
-                        if (cat.id === categoryId) {
-                            if (!cat.candidates) cat.candidates = [];
-                            if (!cat.candidates.includes(ticker)) {
-                                cat.candidates.push(ticker);
-                            }
-                            found = true;
-                        }
-                    });
-                });
-
-                if (!found) {
-                    throw new Error("Categoría sugerida no encontrada.");
-                }
-
-                // 3. Serializar y guardar asíncronamente en backend
-                const cleanPayload = {
-                    groups: idealData.groups.map(g => ({
-                        id: g.id,
-                        name: g.name,
-                        target_weight_pct: parseFloat(g.target_weight_pct) || 0,
-                        categories: (g.categories || []).map(cat => ({
-                            id: cat.id,
-                            name: cat.name,
-                            role_description: cat.role_description,
-                            ideal_tickers: cat.ideal_tickers || [],
-                            positions: parseInt(cat.positions) || 1,
-                            candidates: cat.candidates || []
-                        }))
-                    }))
-                };
-
-                const saveRes = await fetch('/api/portfolio/ideal', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(cleanPayload)
-                });
-
-                if (!saveRes.ok) {
-                    throw new Error("No se pudo guardar la estructura.");
-                }
-
-                container.innerHTML = `
-                    <div class="text-center py-2">
-                        <i class="bi bi-check-circle-fill text-success fs-4 d-block mb-1"></i>
-                        <div class="fw-bold text-success" style="font-size:0.75rem;">¡Añadido con éxito!</div>
-                        <div class="text-muted mt-1" style="font-size:0.7rem;">Se ha asignado a ${categoryName}.</div>
-                    </div>
-                `;
-                if (typeof showToast === 'function') {
-                    showToast("Asignado con Éxito", `${ticker} ha sido añadido a tu Portfolio Ideal mediante Inteligencia Artificial.`, "success");
-                }
+                const res = await fetch(`/api/portfolio/suggest_role/${encodeURIComponent(ticker)}`);
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.detail || "Error del servidor");
+                if (confirm(`La IA propone: ${d.role_name}\n\n${d.justification}\n\n¿Asignar este rol?`)) await saveTickerRole(ticker, d.role);
             } catch (e) {
-                console.error(e);
-                container.innerHTML = `
-                    <div class="text-danger small mb-2">Error guardando: ${e.message || "Error"}</div>
-                    <button class="btn btn-outline-success btn-sm w-100" style="font-size:0.7rem;" onclick="addTickerToIdealCategory('${ticker}', '${categoryId}', '${categoryName}')">
-                        Reintentar Guardado
-                    </button>
-                `;
+                showToast("Error", e.message || "No se pudo obtener la propuesta", "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-robot"></i>';
             }
         }
 
         // VALORACIÓN BASE (mismo cálculo que app/application/services/base_valuation_service.py)
-        const VAL = {{ {'ttm': bval_ttm, 'target': bval_target, 'metrics': bval_metrics}|tojson }};
+        const VAL = {{ {'ttm': bval_ttm, 'ttm_end': bval_ttm_end, 'estimates': bval_estimates, 'target': bval_target, 'metrics': bval_metrics, 'years': bval_years, 'anchor': bv.get('anchor'), 'year0_source': bv.get('year0_source') or 'analysts', 'zone': ZONE}|tojson }};
+        const YEAR0 = new Date().getFullYear();   // año en curso; el año t es YEAR0 + t
+        const BASIS_GAP_PCT = 10;   // como base_valuation_service.BASIS_GAP_PCT
+        const COVERED_DAYS = 46;    // como base_valuation_service.COVERED_DAYS
+        const DAY = 864e5, dateOf = iso => new Date(iso + 'T00:00:00Z'), dec31 = y => Date.UTC(y, 11, 31);
+        const fmtDate = iso => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}`;
+        let valAnchor = VAL.anchor;   // corrección manual de un año: {year, value, metric, set_on} o null
+        let valYear0Source = VAL.year0_source;   // de dónde sale el año en curso: 'analysts' | 'mean' | 'ttm'
         let autosaveTimer = null;
         const num = id => parseFloat(document.getElementById(id).value);
         const valMetric = () => document.querySelector('input[name="val-metric"]:checked').value;
@@ -4860,23 +4784,55 @@
                 metric0: auto ? ttm : num('val-metric-value'),
                 growth: (num('input-growth') || 0) / 100, div_growth: (num('input-div-growth') || 0) / 100,
                 exit_multiple: num('input-multiple') || 0, dps: num('val-dps') || 0,
-                years: parseInt(document.getElementById('val-years').value) || 5,
+                years: VAL.years, anchor: valAnchor,
+                ttm_end: auto ? VAL.ttm_end : null,   // la métrica fijada a mano cuenta como la del año en curso
+                year0_source: valYear0Source,
+                estimates: auto && valMetric() === 'eps' ? VAL.estimates : null,   // solo BPA automático
             };
         }
-        // Lo que valen hoy, a la tasa r (%), los dividendos y el precio de venta del año N
-        function presentValue(v, r) {
+        // Estimaciones de los analistas por año natural: cada año fiscal llevado a su 31/12 con g
+        function calendarEstimates(v) {
+            const out = {};
+            for (const e of (v.estimates || {}).estimates || []) {
+                const fy = dateOf(e.fy_end), year = fy.getUTCMonth() >= 6 ? fy.getUTCFullYear() : fy.getUTCFullYear() - 1;
+                out[year] = {...e, year, value: e.value * Math.pow(1 + v.growth, (dec31(year) - fy) / DAY / 365.25)};
+            }
+            return out;
+        }
+        // Año en curso sin corrección manual: de los analistas, la media o el TTM llevado al 31/12
+        function year0Start(v) {
+            const ttm = v.metric0 * Math.pow(1 + v.growth, ttmOffset(v)), est = (calendarEstimates(v)[YEAR0] || {}).value;
+            if (!est || v.year0_source === 'ttm') return {value: ttm, source: 'ttm', ttm, analysts: est};
+            return {value: v.year0_source === 'mean' ? (est + ttm) / 2 : est, source: v.year0_source, ttm, analysts: est};
+        }
+        // Años de crecimiento entre el cierre del TTM y el 31/12 del año en curso (sin fecha, 0)
+        const ttmOffset = v => v.ttm_end ? Math.min(2, Math.max(0, (dec31(YEAR0) - dateOf(v.ttm_end)) / DAY / 365.25)) : 0;
+        // La corrección cuenta si es de la métrica elegida; caduca cuando el TTM ya cubre su año (sin fecha, al pasar el año)
+        function anchorState(v) {
+            const a = v.anchor;
+            if (!a || !a.year || !(a.value > 0) || (a.metric || 'eps') !== v.metric) return [null, null];
+            const covered = v.ttm_end ? (dec31(a.year) - dateOf(v.ttm_end)) / DAY <= COVERED_DAYS : a.year < YEAR0;
+            return [covered ? 'expired' : 'active', a];
+        }
+        const autoAt = (v, t) => year0Start(v).value * Math.pow(1 + v.growth, t);
+        function metricAt(v, t) {
+            const [state, a] = anchorState(v);
+            return state === 'active' ? a.value * Math.pow(1 + v.growth, t - (a.year - YEAR0)) : autoAt(v, t);
+        }
+        // Lo que valen hoy, a la tasa r (%), los dividendos y el precio de venta del año N (métrica del año N: metricN)
+        function presentValue(v, metricN, r) {
             r = r / 100;
             let pv = 0;
             for (let t = 1; t <= v.years; t++) pv += v.dps * Math.pow(1 + v.div_growth, t) / Math.pow(1 + r, t);
-            return pv + v.metric0 * Math.pow(1 + v.growth, v.years) * v.exit_multiple / Math.pow(1 + r, v.years);
+            return pv + metricN * v.exit_multiple / Math.pow(1 + r, v.years);
         }
-        function irr(v, price) {
+        function irr(v, metricN, price) {
             let lo = -99, hi = 1000;
-            if (presentValue(v, lo) < price || presentValue(v, hi) > price) return null;
-            for (let i = 0; i < 100; i++) { const mid = (lo + hi) / 2; if (presentValue(v, mid) > price) lo = mid; else hi = mid; }
+            if (presentValue(v, metricN, lo) < price || presentValue(v, metricN, hi) > price) return null;
+            for (let i = 0; i < 100; i++) { const mid = (lo + hi) / 2; if (presentValue(v, metricN, mid) > price) lo = mid; else hi = mid; }
             return (lo + hi) / 2;
         }
-        const zoneOf = c => c === null ? null : c >= VAL.target ? ['ganga', 'text-success'] : c >= 10 ? ['barata', 'text-warning'] : c >= 6 ? ['justo', 'text-orange'] : ['cara', 'text-danger'];
+        const zoneOf = c => c === null ? null : c >= VAL.target ? ['ganga', 'text-success'] : c >= VAL.zone.barata ? ['barata', 'text-warning'] : c >= VAL.zone.justo ? ['justo', 'text-orange'] : ['cara', 'text-danger'];
 
         function syncMetricLabels() {
             const m = VAL.metrics[valMetric()], auto = valAuto(), ttm = VAL.ttm[valMetric()];
@@ -4887,24 +4843,35 @@
             input.disabled = auto;
             document.getElementById('val-fixed-warning').classList.toggle('d-none', auto);
             if (auto) input.value = ttm ? ttm.toFixed(2) : '';
-            document.getElementById('val-ttm-label').textContent = ttm ? `${m.label} últimos 12 meses: ${ttm.toFixed(2)}` : `No hay ${m.label} de los últimos 12 meses: fíjalo a mano.`;
+            document.getElementById('val-ttm-label').textContent = ttm ? `${m.label} últimos 12 meses: ${ttm.toFixed(2)}${VAL.ttm_end ? ` (hasta ${fmtDate(VAL.ttm_end)}; el año en curso suma lo que falta hasta el 31/12)` : ''}` : `No hay ${m.label} de los últimos 12 meses: fíjalo a mano.`;
         }
 
         function recalculateValuation() {
             const v = valInputs(), price = num('proj-current-price'), m = VAL.metrics[v.metric];
             const set = (id, text, cls) => { const el = document.getElementById(id); el.textContent = text; if (cls !== undefined) el.className = cls; };
             const body = document.getElementById('val-years-body');
-            const startYear = new Date().getFullYear();
+            const startYear = YEAR0, [state, anchor] = anchorState(v);
+            set('val-horizon', `${v.years} años (${startYear} → ${startYear + v.years})`);
+            const expiredBox = document.getElementById('val-anchor-expired');
+            expiredBox.classList.toggle('d-none', state !== 'expired');
             if (!(v.metric0 > 0) || !(price > 0) || !(v.exit_multiple > 0)) {
                 ['res-cagr', 'res-buy', 'res-target', 'res-zone'].forEach(id => set(id, '–'));
                 set('res-margin', v.metric0 > 0 ? '–' : `Necesita un ${m.label} positivo`); set('res-divs', '–');
+                set('res-cagr-note', 'anual comprando hoy, con dividendos');
                 body.innerHTML = ''; document.getElementById('val-multiple-now').textContent = '';
                 return;
             }
-            const metricN = v.metric0 * Math.pow(1 + v.growth, v.years), priceN = metricN * v.exit_multiple;
+            if (state === 'expired')
+                set('val-anchor-expired-text', `Tu ${m.label} ${anchor.year} corregido (${anchor.value.toFixed(2)}) ya ha pasado: el de los últimos 12 meses es ${v.metric0.toFixed(2)} ` +
+                    `(${(100 * (v.metric0 / anchor.value - 1)).toFixed(1)}% frente a tu corrección). La corrección ya no se aplica: revisa el crecimiento.`);
+            const metricN = metricAt(v, v.years), priceN = metricN * v.exit_multiple;
             let divs = 0; for (let t = 1; t <= v.years; t++) divs += v.dps * Math.pow(1 + v.div_growth, t);
-            const cagr = irr(v, price), buy = presentValue(v, VAL.target), margin = 100 * (buy / price - 1), z = zoneOf(cagr);
+            const cagr = irr(v, metricN, price), buy = presentValue(v, metricN, VAL.target), margin = 100 * (buy / price - 1), z = zoneOf(cagr);
             set('res-cagr', cagr === null ? '–' : cagr.toFixed(1) + '%', 'fw-bold fs-3 font-monospace-data ' + (z ? z[1] : ''));
+            if (state === 'active') {
+                const cagrAuto = irr(v, autoAt(v, v.years), price);
+                document.getElementById('res-cagr-note').innerHTML = `<i class="bi bi-pencil-fill text-primary me-1"></i>con tu ${m.label} ${anchor.year} · sin corrección: ${cagrAuto === null ? '–' : cagrAuto.toFixed(1) + '%'}`;
+            } else set('res-cagr-note', 'anual comprando hoy, con dividendos');
             set('res-buy', buy.toFixed(2));
             set('res-margin', margin >= 0 ? `Cotiza un ${margin.toFixed(1)}% por debajo` : `Tendría que caer un ${(100 * (1 - buy / price)).toFixed(1)}%`,
                 margin >= 0 ? 'text-success fw-bold' : 'text-muted');
@@ -4914,13 +4881,54 @@
             set('res-divs', `+ ${divs.toFixed(2)} en dividendos · ${m.label} ${metricN.toFixed(2)}`);
             set('res-zone', z ? z[0] : '–', 'fw-bold fs-3 text-uppercase ' + (z ? z[1] : ''));
             document.getElementById('val-multiple-now').textContent = `${m.multiple} actual: ${(price / v.metric0).toFixed(1)}x`;
-            let rows = '';
-            for (let t = 1; t <= v.years; t++) {
-                const mt = v.metric0 * Math.pow(1 + v.growth, t);
-                rows += `<tr><td class="text-start ps-3 fw-bold">${startYear + t}</td><td>${mt.toFixed(2)}</td><td class="text-muted">${(v.dps * Math.pow(1 + v.div_growth, t)).toFixed(2)}</td><td>${(mt * v.exit_multiple).toFixed(2)}</td></tr>`;
+            const auto0 = valAuto(), start = year0Start(v);
+            let rows = auto0
+                ? `<tr class="text-muted"><td class="text-start ps-3">TTM <span style="font-size: .65rem;">${v.ttm_end ? `(hasta ${fmtDate(v.ttm_end)})` : ''}</span></td><td>${v.metric0.toFixed(2)}</td><td>${v.dps.toFixed(2)}</td><td>–</td></tr>`
+                : `<tr class="text-muted"><td class="text-start ps-3">${startYear} <span style="font-size: .65rem;">(partida)</span></td><td>${v.metric0.toFixed(2)}</td><td>${v.dps.toFixed(2)}</td><td>–</td></tr>`;
+            const srcLabel = {analysts: 'analistas', mean: 'media analistas/TTM', ttm: `TTM + ${(100 * ttmOffset(v)).toFixed(0)}% de un año hasta el 31/12`};
+            for (let t = auto0 ? 0 : 1; t <= v.years; t++) {
+                const year = startYear + t, mt = metricAt(v, t), auto = autoAt(v, t);
+                const isAnchor = state === 'active' && anchor.year === year, after = state === 'active' && year > anchor.year;
+                const pct = x => `${x >= 0 ? '+' : ''}${x.toFixed(0)}%`;
+                let cell = `<span class="${isAnchor ? 'fw-bold text-primary' : ''}">${isAnchor ? '<i class="bi bi-pencil-fill me-1" style="font-size: .6rem;"></i>' : ''}${mt.toFixed(2)}</span>`;
+                if (isAnchor || after)   // lo que saldría sin tu corrección, tachado
+                    cell += ` <s class="text-muted" style="font-size: .68rem;" title="Automático, sin corrección">${auto.toFixed(2)}</s>`;
+                if (isAnchor)
+                    cell += ` <span class="text-muted" style="font-size: .68rem;">(${pct(100 * (mt / auto - 1))})</span>` +
+                            ` <button class="btn btn-link btn-sm p-0 text-danger" title="Quitar la corrección" onclick="setAnchor(null)"><i class="bi bi-x-lg"></i></button>`;
+                else
+                    cell += ` <button class="btn btn-link btn-sm p-0 text-muted" title="Corregir el ${m.label} de ${year}" onclick="editAnchor(this, ${year}, ${mt.toFixed(4)})"><i class="bi bi-pencil"></i></button>`;
+                const yearLabel = t === 0 ? `${year}e <span class="fw-normal text-muted" style="font-size: .65rem;">(${srcLabel[start.source]})</span>` : year;
+                rows += `<tr class="${isAnchor ? 'table-primary' : ''}"><td class="text-start ps-3 fw-bold">${yearLabel}</td><td>${cell}</td><td class="text-muted">${(v.dps * Math.pow(1 + v.div_growth, t)).toFixed(2)}</td><td>${(mt * v.exit_multiple).toFixed(2)}</td></tr>`;
             }
             body.innerHTML = rows;
+            renderEstimates(v);
         }
+
+        // Analistas (BPA): de dónde sale el año en curso (analistas, media o TTM) y su estimación de los años siguientes
+        function renderEstimates(v) {
+            const box = document.getElementById('val-estimates'), est = VAL.estimates;
+            const items = Object.values(calendarEstimates(v)).filter(e => e.year >= YEAR0).sort((a, b) => a.year - b.year);
+            if (!v.estimates || !items.length) { box.classList.add('d-none'); return; }
+            box.classList.remove('d-none');
+            const s0 = year0Start(v), fmt = x => x === undefined || x === null ? '–' : x.toFixed(2);
+            const opt = (key, label, value) => `<button type="button" class="btn btn-sm py-0 px-2 ${s0.source === key ? 'btn-primary' : 'btn-outline-secondary'}"
+                onclick="setYear0Source('${key}')" ${key !== 'ttm' && !s0.analysts ? 'disabled' : ''}>${label} <span class="font-monospace-data">${fmt(value)}</span></button>`;
+            let html = `<div class="d-flex flex-wrap align-items-center gap-2"><span class="text-muted"><i class="bi bi-people me-1"></i>${YEAR0}e con:</span>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Origen del año en curso">
+                ${opt('analysts', 'Analistas', s0.analysts)}${opt('mean', 'Media', s0.analysts ? (s0.analysts + s0.ttm) / 2 : null)}${opt('ttm', 'TTM', s0.ttm)}</div>`;
+            const e0 = items.find(e => e.year === YEAR0);
+            if (e0) html += `<span class="text-muted" style="font-size: .68rem;">${e0.analysts} analistas${e0.fy_end.endsWith('-12-31') ? '' : ` · año fiscal hasta ${fmtDate(e0.fy_end)}, llevado al 31/12 con tu crecimiento`}</span>`;
+            const later = items.filter(e => e.year > YEAR0);
+            if (later.length) html += `<span class="ms-auto">` + later.map(e => `<strong>${e.year}e</strong> <span class="font-monospace-data">${e.value.toFixed(2)}</span>
+                <span class="text-muted" style="font-size: .68rem;">(${e.analysts})</span>
+                <button class="btn btn-link btn-sm p-0" style="font-size: .7rem;" onclick="setAnchor({year: ${e.year}, value: ${e.value.toFixed(4)}, metric: 'eps'})" title="Usarlo como corrección del BPA de ${e.year}">usar</button>`).join(' ') + `</span>`;
+            html += `</div>`;
+            if (est.basis_gap_pct !== null && Math.abs(est.basis_gap_pct) > BASIS_GAP_PCT)
+                html += `<div class="text-warning mt-1" style="font-size: .7rem;"><i class="bi bi-exclamation-triangle me-1"></i>Parecen BPA <strong>ajustado</strong>: su último año cerrado es ${est.year_ago.toFixed(2)} frente a ${est.gaap_last_fy.toFixed(2)} contable (${est.basis_gap_pct > 0 ? '+' : ''}${est.basis_gap_pct.toFixed(0)}%). Con «Analistas» tu PER de salida debería ser también sobre BPA ajustado.</div>`;
+            box.innerHTML = html;
+        }
+        function setYear0Source(src) { valYear0Source = src; onValChange(); }
 
         function onValChange() { syncMetricLabels(); recalculateValuation(); triggerAutosave(); }
         function setMetricValue(val) {
@@ -4941,17 +4949,32 @@
             const payload = {...v, rationale: document.getElementById('proj-rationale').value,
                              metric_suggested: parseFloat(document.getElementById('btn-use-suggested').dataset.value) || null,
                              metric_explanation: expBox.classList.contains('d-none') ? '' : document.getElementById('eps-explanation-text').innerText};
-            delete payload.metric0;
+            delete payload.metric0; delete payload.estimates; delete payload.ttm_end;
             try {
                 const r = await fetch('/api/valuation/' + encodeURIComponent(ticker), {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
                 const result = await r.json();
                 if (result.status !== 'success') throw new Error(result.message || 'Error desconocido');
                 const badge = document.getElementById('proj-status-badge');
                 badge.innerText = isAutosave ? 'Manual (autoguardado)' : 'Manual (guardado)'; badge.className = 'badge bg-success';
+                document.getElementById('val-stale-box')?.remove();   // guardar también cuenta como revisión
                 if (!isAutosave && typeof showToast === 'function') showToast("Éxito", "Valoración guardada", "success");
             } catch (e) {
                 console.error(e);
                 if (!isAutosave) alert("No se pudo guardar: " + e.message);
+            }
+        }
+
+        async function markValuationReviewed(ticker, btn) {
+            btn.disabled = true;
+            try {
+                const r = await fetch(`/api/valuation/${encodeURIComponent(ticker)}/reviewed`, {method: 'POST'});
+                const result = await r.json();
+                if (result.status !== 'success') throw new Error(result.message || 'Error desconocido');
+                document.getElementById('val-stale-box')?.remove();
+                if (typeof showToast === 'function') showToast("Éxito", "Valoración dada por revisada", "success");
+            } catch (e) {
+                btn.disabled = false;
+                alert("No se pudo marcar como revisada: " + e.message);
             }
         }
 
@@ -4969,7 +4992,6 @@
                 setPair('div-growth', (100 * d.div_growth).toFixed(1));
                 setPair('multiple', d.exit_multiple.toFixed(1));
                 document.getElementById('val-dps').value = (d.dps || 0).toFixed(2);
-                document.getElementById('val-years').value = d.years;
                 const sug = document.getElementById('btn-use-suggested');   // el valor de la IA queda como sugerencia
                 sug.dataset.value = d.metric_suggested || '';
                 document.getElementById('suggested-value').textContent = d.metric_suggested ? d.metric_suggested.toFixed(2) : '';

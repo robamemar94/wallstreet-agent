@@ -42,6 +42,7 @@ master_questions:
   - "¿Está creciendo FCF/share?"
   - "¿Las recompras están creando valor por acción?"
   - "¿Qué evidencia nueva favorece a Bull y qué evidencia favorece a Bear?"
+  - "¿Está el crecimiento del segmento B2B diluyendo los unit economics del negocio B2C core?"
 valuation:
   question: "Parte del FCF/share normalizado; lo relevante es el CAGR del precio a 5 y 10 años, no el crecimiento del FCF."
   columns:

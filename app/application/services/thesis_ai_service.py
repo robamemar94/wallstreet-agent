@@ -57,11 +57,18 @@ def _client(api_key: Optional[str] = None):
     return genai.Client(api_key=api_key)
 
 
-# --- Radar con la clave gratuita (opcional) ---
-# Si hay GEMINI_FREE_API_KEY (proyecto de AI Studio SIN facturación), el radar semanal la usa con un modelo cuya
-# búsqueda de Google es gratis en el nivel gratuito (2.5 Flash: hasta 500 búsquedas/día). Si falla (cuota, límite
-# diario…) se repite con la clave de pago. Ojo: en el nivel gratuito Google usa los datos para mejorar sus productos.
-FREE_NEWS_MODEL = os.getenv("THESIS_NEWS_FREE_MODEL", "gemini-2.5-flash")
+# --- Clave gratuita (opcional) ---
+# GEMINI_FREE_API_KEY = proyecto de AI Studio SIN facturación. Ojo: en el nivel gratuito Google usa los datos para
+# mejorar sus productos. Comprobado el 29/09/2026: gemini-2.5-flash ya no existe para cuentas nuevas (404) y la
+# búsqueda de Google con la clave gratuita da «cuota agotada» (429) con todos los modelos. Por eso:
+# · el radar (necesita búsqueda) va con la clave de pago; THESIS_NEWS_FREE_SEARCH=true para volver a probar la gratuita;
+# · lo que no busca (resumen semanal) usa la gratuita con FREE_TEXT_MODELS, en orden, y si fallan la de pago.
+FREE_NEWS_MODEL = os.getenv("THESIS_NEWS_FREE_MODEL", "gemini-flash-latest")
+FREE_TEXT_MODELS = [m.strip() for m in os.getenv("GEMINI_FREE_TEXT_MODELS", "gemini-flash-latest,gemini-flash-lite-latest").split(",") if m.strip()]
+
+
+def free_search_enabled() -> bool:
+    return os.getenv("THESIS_NEWS_FREE_SEARCH", "false").lower() in ("1", "true", "yes", "on")
 
 
 def free_news_key() -> Optional[str]:
@@ -225,7 +232,7 @@ def _run_news(client, model: str, thesis: Dict[str, Any], ev: Dict[str, Any], da
 def run_news_digest(thesis: Dict[str, Any], ev: Dict[str, Any]) -> Dict[str, Any]:
     days = news_window_days(thesis["extra"].get("news_digest"))
     digest = None
-    if free_news_key():
+    if free_news_key() and free_search_enabled():
         try:
             digest = _run_news(_client(free_news_key()), FREE_NEWS_MODEL, thesis, ev, days)
             digest["free_tier"] = True

@@ -6,12 +6,14 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.application.services.thesis_service import (
     AUTO_METRICS, DECISION_ACTIONS, EVENT_TYPES, STATUSES, VERDICTS, classify, evaluate_thesis, fetch_auto_metrics,
     load_thesis_yaml,
 )
 from app.application.services import thesis_ai_service, thesis_changes_service, thesis_news_runner, thesis_review_service
+from app.infrastructure.db.database import get_db
 from app.infrastructure.dependencies import get_asset_repository, get_portfolio_service, get_thesis_repository
 from app.infrastructure.repositories.sqlalchemy_thesis_repository import SqlAlchemyThesisRepository
 
@@ -276,6 +278,19 @@ def news_unread_count(repo: SqlAlchemyThesisRepository = Depends(get_thesis_repo
 @router.get("/theses/news/all")
 def list_all_news(unread: bool = False, repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository)):
     return repo.list_news(unread_only=unread)
+
+
+@router.post("/theses/news/summary")
+def regenerate_news_summary():
+    """Vuelve a generar el resumen semanal conjunto (en segundo plano)."""
+    from app.application.services import news_summary_service
+    return {"status": "started" if news_summary_service.generate_in_background(force=True) else "running"}
+
+
+@router.get("/theses/news/summary")
+def news_summary_status(db: Session = Depends(get_db)):
+    from app.application.services import news_summary_service
+    return {"running": news_summary_service.is_running(), "summary": news_summary_service.load(db)}
 
 
 @router.post("/theses/news/seen")

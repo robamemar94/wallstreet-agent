@@ -33,7 +33,7 @@ from utils import llm_usage
 logger = logging.getLogger(__name__)
 
 EXTRACT_MODEL = os.getenv("THESIS_REVIEW_MODEL", GEMINI_MODEL)
-JUDGE_MODEL = os.getenv("THESIS_JUDGE_MODEL", "gemini-3.1-pro-preview")
+JUDGE_MODEL = os.getenv("THESIS_JUDGE_MODEL", os.getenv("GEMINI_PRO_MODEL", "gemini-3.1-pro-preview"))
 VERDICTS = ("REFORZADA", "INTACTA", "VIGILANCIA", "DEBILITADA", "ROTA")
 PROMISE_RESULTS = {"cumplida": 1.0, "parcial": 0.5, "incumplida": 0.0}
 DOC_CHARS_FOR_EXTRACTION = 120_000
@@ -43,27 +43,31 @@ EARNINGS_TTL = 12 * 3600
 # --- Paso 0: datos gratuitos ---
 
 def _earnings_info(ticker: str) -> Dict[str, Any]:
-    """Última presentación publicada (fecha + BPA real vs consenso) y próxima fecha prevista. Caché en disco de 12 h."""
+    """Última presentación publicada (fecha + BPA real vs consenso), fechas de las publicadas antes («reported», de la más
+    reciente a la más antigua) y próxima fecha prevista. Caché en disco de 12 h."""
     from app.application.services.market_cache import cached
-    return cached("earnings", ticker, lambda: _download_earnings_info(ticker), EARNINGS_TTL / 3600)
+    return cached("earnings_v2", ticker, lambda: _download_earnings_info(ticker), EARNINGS_TTL / 3600)
 
 
 def _download_earnings_info(ticker: str) -> Dict[str, Any]:
-    info: Dict[str, Any] = {"last": None, "next": None}
+    info: Dict[str, Any] = {"last": None, "next": None, "reported": []}
     try:
         import math
         import yfinance as yf
-        df = yf.Ticker(ticker).get_earnings_dates(limit=8)
+        df = yf.Ticker(ticker).get_earnings_dates(limit=12)
         for ts, row in df.iterrows():  # más reciente primero
             reported = row.get("Reported EPS")
             if reported is None or (isinstance(reported, float) and math.isnan(reported)):
-                info["next"] = ts.date().isoformat()        # aún sin publicar: la más cercana queda la última vista
+                if not info["last"]:
+                    info["next"] = ts.date().isoformat()    # aún sin publicar: la más cercana queda la última vista
+                continue
+            info["reported"].append(ts.date().isoformat())
+            if info["last"]:
                 continue
             est, surprise = row.get("EPS Estimate"), row.get("Surprise(%)")
             info["last"] = {"date": ts.date().isoformat(), "eps_reported": float(reported),
                             "eps_estimate": None if est is None or math.isnan(est) else float(est),
                             "surprise_pct": None if surprise is None or math.isnan(surprise) else float(surprise)}
-            break
     except Exception as e:
         logger.warning("Sin calendario de resultados para %s: %s", ticker, e)
     return info
@@ -71,6 +75,11 @@ def _download_earnings_info(ticker: str) -> Dict[str, Any]:
 
 def fetch_last_earnings(ticker: str) -> Optional[Dict[str, Any]]:
     return _earnings_info(ticker)["last"]
+
+
+def fetch_reported_dates(ticker: str) -> List[str]:
+    """Fechas de las presentaciones de resultados ya publicadas (vacío si yfinance no tiene calendario)."""
+    return _earnings_info(ticker).get("reported") or []
 
 
 def in_results_week(ticker: str, today: Optional[date] = None) -> bool:

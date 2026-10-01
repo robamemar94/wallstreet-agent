@@ -3,42 +3,48 @@
 
 {% macro notice_styles() %}
 <style>
-    .att-item .att-dismiss { opacity: .35; } .att-item:hover .att-dismiss { opacity: 1; }
-    .notice-list:not(.show-seen) .att-seen { display: none !important; }
-    .notice-list.show-seen .att-seen { opacity: .5; }
+    /* como una bandeja de correo: lo no leído destacado, lo leído se queda atenuado (reversible) */
+    .inbox-item .att-dismiss { opacity: .35; } .inbox-item:hover .att-dismiss { opacity: 1; }
+    .inbox-item:not(.att-seen) { font-weight: 600; cursor: pointer; }   /* pulsar = leído */
+    .inbox-item:not(.att-seen) .unread-dot { display: inline-block; }
+    .inbox-item.att-seen { opacity: .55; font-weight: 400; }
+    .unread-dot { display: none; width: 7px; height: 7px; border-radius: 50%; background: #58a6ff; margin-right: 4px; vertical-align: middle; }
     .mon-tabs .btn { font-size: .72rem; padding: .05rem .5rem; }
 </style>
 {% endmacro %}
 
-{% macro attention_list(items, list_id, empty_text, collapse=6) %}
+{# held: empresas en cartera. Todos los avisos se pueden marcar como leídos; solo los de cartera cuentan
+   en el contador (data-held). #}
+{% macro attention_list(items, list_id, empty_text, collapse=6, held=[]) %}
 <div class="card-body small notice-list" id="{{ list_id }}" data-collapse="{{ collapse }}">
     {% for a in items %}
-    <div class="att-item p{{ [a.prio, 3]|min }} {{ 'att-seen' if a.seen }}" data-key="{{ a.key }}">
+        <div class="att-item inbox-item p{{ [a.prio, 3]|min }} {{ 'att-seen' if a.seen }}" data-key="{{ a.key }}"{{ ' data-held=1' if a.ticker in held }}>
         <div class="d-flex gap-2 align-items-start">
-            <div class="flex-grow-1">{% if a.href %}<a href="{{ a.href }}" class="text-decoration-none"><strong>{{ a.label or a.ticker }}</strong></a>{% else %}<strong>{{ a.label or a.ticker }}</strong>{% endif %} · {{ a.text }}</div>
-            <button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="{{ 'Volver a marcar como pendiente' if a.seen else 'Marcar como visto (vuelve a salir si desaparece y reaparece)' }}" aria-label="Marcar como visto" onclick="markSeen(this)"><i class="bi {{ 'bi-arrow-counterclockwise' if a.seen else 'bi-check2' }}"></i></button>
+            <div class="flex-grow-1"><span class="unread-dot"></span>{% if a.href %}<a href="{{ a.href }}" class="text-decoration-none"><strong>{{ a.label or a.ticker }}</strong></a>{% else %}<strong>{{ a.label or a.ticker }}</strong>{% endif %} · {{ a.text }}</div>
+            <button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="{{ 'Marcar como no leído' if a.seen else 'Marcar como leído' }}" aria-label="{{ 'Marcar como no leído' if a.seen else 'Marcar como leído' }}" onclick="markSeen(this)"><i class="bi {{ 'bi-eye-slash' if a.seen else 'bi-eye' }}"></i></button><button type="button" class="btn btn-link btn-sm p-0 text-muted att-dismiss" title="Descartar: no volverá a salir mientras siga dándose" aria-label="Descartar" onclick="dismissNotice(this)"><i class="bi bi-x-lg"></i></button>
         </div>
     </div>
     {% endfor %}
-    <div class="text-muted att-empty d-none"><i class="bi bi-check2-circle st-green me-1"></i>{{ empty_text }}</div>
-    <button type="button" class="btn btn-link btn-sm p-0 text-muted seen-toggle d-none" onclick="this.closest('.notice-list').classList.toggle('show-seen'); refreshNoticeList(this.closest('.notice-list'))"></button>
+    <div class="text-muted att-empty {{ 'd-none' if items }}"><i class="bi bi-check2-circle st-green me-1"></i>{{ empty_text }}</div>
 </div>
 {% endmacro %}
 
-{% macro monitor_card_body(signals, history, list_id, scope, theses_ids={}) %}
+{% macro monitor_card_body(signals, history, list_id, scope, theses_ids={}, held=[]) %}
 <div class="px-3 pt-2 mon-tabs d-flex gap-1" data-mon="{{ list_id }}">
-    <button type="button" class="btn btn-outline-secondary active" onclick="showMonTab(this, 'active')">Activas <span class="badge text-bg-secondary">{{ signals|length }}</span></button>
+    {% set held_unread = signals|selectattr('ticker', 'in', held)|rejectattr('seen')|list|length %}
+    <button type="button" class="btn btn-outline-secondary active" onclick="showMonTab(this, 'active')">Activas {{ signals|length }}{% if held %} <span class="badge text-bg-primary mon-unread" title="Sin leer de empresas en cartera">{{ held_unread }}</span>{% endif %}</button>
     <button type="button" class="btn btn-outline-secondary" onclick="showMonTab(this, 'history')" title="Señales que ya no están activas: no se borran">Histórico <span class="badge text-bg-secondary">{{ history|length }}</span></button>
 </div>
-<div class="card-body small" id="{{ list_id }}" data-collapse="8">
+<div class="card-body small notice-list" id="{{ list_id }}" data-collapse="8">
     {% for s in signals %}
-    <div class="d-flex gap-2 mb-1 align-items-start sig-item">
+        <div class="d-flex gap-2 mb-1 align-items-start sig-item inbox-item {{ 'att-seen' if s.seen }}" data-key="{{ s.key }}"{{ ' data-held=1' if s.ticker in held }}>
         <i class="bi {{ 'bi-arrow-down-right' if s.tone == 'down' else ('bi-arrow-up-right' if s.tone == 'up' else 'bi-dot') }} sig-{{ s.tone }}"></i>
         <span class="text-muted font-monospace-data text-nowrap" style="min-width: 5.2rem;" title="{{ 'Del ' ~ s.since ~ ' al ' ~ s.date if s.since else s.date }}">{% if s.since %}{{ s.since[8:10] }}/{{ s.since[5:7] }}–{% endif %}{{ (s.date or '')[8:10] }}/{{ (s.date or '')[5:7] }}</span>
-        <span class="flex-grow-1"><a href="/ticker/{{ s.ticker }}" class="text-decoration-none"><strong>{{ s.ticker }}</strong></a> <span class="badge bg-light text-dark border">{{ s.kind }}</span> {{ s.text }}</span>
+        <span class="flex-grow-1"><span class="unread-dot"></span><a href="/ticker/{{ s.ticker }}" class="text-decoration-none"><strong>{{ s.ticker }}</strong></a> <span class="badge bg-light text-dark border">{{ s.kind }}</span> {{ s.text }}</span>
         {% if theses_ids.get(s.ticker) %}<button class="btn btn-link btn-sm p-0 text-info" title="¿Por qué se mueve? Busca noticias de {{ s.ticker }} (radar de la tesis)" aria-label="¿Por qué se mueve {{ s.ticker }}?" onclick="whyMoves({{ theses_ids[s.ticker] }}, '{{ s.ticker }}', this)"><i class="bi bi-search"></i></button>{% endif %}
+        <button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="{{ 'Marcar como no leída' if s.seen else 'Marcar como leída' }}" aria-label="{{ 'Marcar como no leída' if s.seen else 'Marcar como leída' }}" onclick="markSeen(this)"><i class="bi {{ 'bi-eye-slash' if s.seen else 'bi-eye' }}"></i></button><button type="button" class="btn btn-link btn-sm p-0 text-muted att-dismiss" title="Descartar: no volverá a salir mientras siga dándose" aria-label="Descartar" onclick="dismissNotice(this)"><i class="bi bi-x-lg"></i></button>
     </div>
-    {% else %}<div class="text-muted">Sin movimientos fuera de lo normal ni niveles relevantes.</div>{% endfor %}
+    {% else %}<div class="text-muted att-empty">Sin movimientos fuera de lo normal ni niveles relevantes.</div>{% endfor %}
 </div>
 <div class="card-body small d-none" id="{{ list_id }}History" data-collapse="10" data-scope="{{ scope }}">
     {% if history %}<div class="d-flex justify-content-between align-items-center mb-2 text-muted">

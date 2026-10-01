@@ -5,13 +5,14 @@ import time
 import datetime
 import concurrent.futures
 import os
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.infrastructure.db.database import get_db
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
-from app.application.services import market_cache
+from app.application.services import market_cache, base_valuation_service as bv, portfolio_roles_service as roles_service
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.performance_service import PerformanceService
 from app.infrastructure.dependencies import (
@@ -23,8 +24,13 @@ from app.infrastructure.dependencies import (
 from app.infrastructure.templates import templates
 from app.interfaces.views.market_views import get_currency_symbol, is_reload_request, INDEX_CACHE, ensure_prices_cached, prices_banner_context
 from app.domain.models import TransactionType
+from app.infrastructure.db.models import DBAsset
+from app.interfaces.views.thesis_views import portfolio_exposure
+from app.interfaces.views.watchlist_views import proximity
 from utils.financial_math import calculate_position_cagr
 # from tools.download_logos import download_logo
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Portfolio Views"])
 
@@ -47,6 +53,23 @@ FALLBACK_RATES = {
 def get_current_rate(currency_code: str) -> float:
     ccy = (currency_code or "USD").upper()
     return GLOBAL_CACHE.get("rates", {}).get(ccy) or FALLBACK_RATES.get(ccy, 1.0)
+
+
+def day_change(shares: float, price: Optional[float], prev: Optional[float], last_date, currency: str,
+               today: Optional[datetime.date] = None) -> Dict[str, Any]:
+    """Variación del día de una posición con los precios en directo: en € incluye la de la divisa; si su mercado aún no
+    ha abierto hoy (EE. UU. por la mañana), closed=True y sin variación. La usan Contable, la tarjeta del día y Seguimiento."""
+    today = today or datetime.date.today()
+    ccy = (currency or "USD").upper()
+    rate = get_current_rate(ccy)
+    closed = bool(today.weekday() < 5 and last_date and last_date != today)
+    if closed or not prev:
+        prev = price
+    fx = INDEX_CACHE["data"].get(f"{ccy}EUR=X") or {}
+    rate_prev = rate if closed or ccy == "EUR" else (fx.get("prev") or rate)
+    price = price or 0.0
+    return {"closed": closed, "last_date": last_date, "rate": rate, "rate_prev": rate_prev, "prev": prev,
+            "eur": shares * (price * rate - prev * rate_prev), "pct": ((price / prev) - 1) * 100 if prev else 0.0}
 
 def _shares_held_at(ledger_entries, as_of_date):
     """Acciones en cartera a fecha `as_of_date`, reconstruidas a partir del ledger persistido (BUY/SELL/SPLIT)."""
@@ -443,11 +466,9 @@ def portfolio_page(
         p_prev = p_data['prev']
         p_last_date = p_data.get('last_date')
         
-        today_date = datetime.date.today()
-        is_weekday = today_date.weekday() < 5
-        if is_weekday and p_last_date and p_last_date != today_date:
-            p_prev = p_price
-            
+        day = day_change(item['shares'], p_price, p_prev, p_last_date, curr)
+        p_prev, rate_prev, closed_today = day["prev"], day["rate_prev"], day["closed"]
+
         current_value = item['shares'] * p_price
         current_value_eur = current_value * rate
         invested_value = item['shares'] * item['average_price']
@@ -464,8 +485,10 @@ def portfolio_page(
             'invested_value_eur': invested_value_eur,
             'currency_symbol': get_currency_symbol(curr, ticker),
             'daily_change_abs': p_price - p_prev,
-            'daily_change_total_eur': (item['shares'] * (p_price - p_prev)) * rate,
-            'daily_change_pct': ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0,
+            'daily_change_total_eur': day["eur"],
+            'daily_change_pct': day["pct"],
+            'closed_today': closed_today,
+            'last_date': p_last_date,
             'total_profit_closed': item.get('realized_pnl', 0) + item.get('dividends_collected', 0),
             'total_fees_eur': round(total_fees_eur, 2),
         })
@@ -478,7 +501,7 @@ def portfolio_page(
         
         total_invested_eur += item['invested_value_eur']
         total_current_value_eur += item['current_value_eur']
-        total_prev_value_eur += (item['shares'] * p_prev) * rate
+        total_prev_value_eur += item['shares'] * p_prev * rate_prev
         total_realized_pnl_eur += item['total_profit_closed_eur']
         total_fees_all_eur += item.get('total_fees_eur', 0.0)
         chart_data.append({"ticker": ticker, "value": item['current_value_eur']})
@@ -903,10 +926,45 @@ def portfolio_page(
 @router.get("/ideal-portfolio", response_class=HTMLResponse)
 def ideal_portfolio_page(
     request: Request,
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
+    asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
     db_session: Session = Depends(get_db)
 ):
+    """Portfolio ideal por roles: cada grupo se llena con las empresas a las que les has dado ese rol."""
+    exposure = portfolio_exposure(portfolio_service, asset_repo)
+    positions = exposure["positions"]
+    held = {i.ticker for i in portfolio_service.get_active_portfolio() if i.shares > 0}
+    assets = {a.ticker: a for a in db_session.query(DBAsset).all()}
+    data = {t: dict(a.data or {}) for t, a in assets.items()}
+    tickers = sorted(t for t, a in assets.items()
+                     if roles_service.eligible(data[t], bool(a.is_favorite), t in held) or data[t].get(roles_service.ROLE_KEY))
+    tickers += sorted(held - set(tickers))
+    ensure_prices_cached(tickers, asset_repo)
+
+    def company(t):
+        d, a = data.get(t, {}), assets.get(t)
+        role = d.get(roles_service.ROLE_KEY)
+        price = (INDEX_CACHE["data"].get(t) or {}).get("price")
+        val = None
+        if role:   # la valoración base solo para las clasificadas (la de las demás no se muestra)
+            try:
+                val = bv.live(t, d, price)
+            except Exception:
+                logger.exception("Portfolio ideal: no se pudo evaluar la valoración de %s", t)
+        group, drop = proximity(val, price)
+        return {"ticker": t, "name": d.get("company_name") or t, "role": role, "held": t in held,
+                "value_eur": (positions.get(t) or {}).get("value_eur") or 0.0,
+                "favorite": bool(a and a.is_favorite), "status": d.get("status"),
+                "val": val, "group": group, "drop_pct": drop}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:   # la métrica TTM puede descargarse por empresa
+        companies = list(pool.map(company, tickers))
+    roles = roles_service.load_roles()
     return templates.TemplateResponse("ideal_portfolio.html", {
         "request": request,
-        "settings": get_settings_from_db(db_session)
+        "settings": get_settings_from_db(db_session),
+        "roles": roles,
+        "ideal": roles_service.build(roles, companies, exposure["total_eur"]),
+        "target": bv.TARGET_RETURN_PCT,
     })
 

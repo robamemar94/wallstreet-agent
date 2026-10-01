@@ -1,0 +1,81 @@
+# Roles de cartera: cada empresa en seguimiento, favorita o en cartera puede tener uno (assets.data.portfolio_role).
+# El Portfolio ideal agrupa por rol y compara el peso real con el rango objetivo (min–max, % de la cartera).
+roles:
+  - key: CORE
+    name: Core / Compounder
+    emoji: "🟢"
+    color: "#22c55e"
+    min: 30
+    max: 40
+    objective: Empresas que queremos poder mantener 10–20+ años y que compongan capital de forma relativamente predecible.
+    question: "Si cierro la bolsa durante 10 años, quiero estar razonablemente tranquilo."
+    traits:
+      - Moat fuerte y demostrable
+      - ROIC/ROCE elevado y sostenible
+      - Crecimiento orgánico ~8–12%+
+      - Recurrente o muy predecible
+      - Balance sólido
+      - Alta capacidad de reinversión
+      - Management con buen historial de asignación de capital
+      - TAM suficiente para crecer muchos años
+      - Baja probabilidad de obsolescencia
+      - No necesita una valoración extraordinariamente baja (pero no a cualquier precio)
+    examples: [MSFT, DSGX, HLMA.L, DPLM.L, LIFCO-B.ST, VIT-B.ST, SECT-B.ST, TOI.V]
+
+  - key: GROWTH
+    name: Growth
+    emoji: "🔵"
+    color: "#3b82f6"
+    min: 25
+    max: 35
+    objective: Empresas con un runway excepcional, cuyo crecimiento futuro pueda ser claramente superior al del CORE. Aceptamos algo más de incertidumbre.
+    question: "¿Cuánto puede crecer esta empresa si ejecuta bien durante los próximos 10–15 años?"
+    traits:
+      - TAM enorme o en rápida expansión
+      - Ventas creciendo 10–15%+ durante muchos años
+      - BPA/FCF creciendo aún más rápido por apalancamiento operativo
+      - Moat existente o en consolidación
+      - Reinversión elevada
+      - Oportunidad de ganar cuota de mercado
+      - Más volatilidad
+      - Valoración normalmente más exigente
+    examples: [META, NVDA, MELI, UBER, GOOGL]
+
+  - key: QUALITY
+    name: Quality / Defensive Growth
+    emoji: "🟡"
+    color: "#eab308"
+    min: 20
+    max: 30
+    objective: Defensa + crecimiento. Negocios que una recesión afecta menos porque venden algo necesario, recurrente o difícil de sustituir, y que aún crecen ~7–10% a largo plazo. No utilities ni telecos al 2–4%.
+    question: "Que cuando el mundo se complique, esta empresa siga generando caja."
+    traits:
+      - Demanda relativamente no discrecional
+      - Recurrencia elevada
+      - Pricing power
+      - Switching costs
+      - Regulación / certificación
+      - Productos críticos
+      - Baja sensibilidad al ciclo
+      - Balance fuerte
+      - FCF muy predecible
+      - Moat muy difícil de erosionar
+    examples: [IDXX, WST, ROL, CTAS, MSCI]
+
+  - key: OPTIONALITY
+    name: Optionality / Asymmetric
+    emoji: "🟠"
+    color: "#f97316"
+    min: 5
+    max: 10
+    objective: Mucho upside si la tesis funciona y pérdida estructuralmente limitada por una posición pequeña. Small/mid caps, expansión, turnarounds, moats en construcción.
+    question: "Si sale bien, ¿puede multiplicar el capital? Si sale mal, ¿lo aguanta una posición pequeña?"
+    traits:
+      - Mayor incertidumbre y volatilidad
+      - Historial más corto
+      - Moat menos probado
+      - TAM potencialmente enorme
+      - Crecimiento potencial muy alto
+      - Posibilidad de multiplicar capital
+      - Posibilidad de equivocarnos
+    examples: [EVO.ST, MIPS.ST, DYVOX.ST, TEQ.ST, ROKO-B.ST, SDIP-B.ST, NCAB.ST]

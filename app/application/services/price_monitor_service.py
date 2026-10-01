@@ -12,6 +12,8 @@ Señales:
 """
 import logging
 import math
+import os
+import threading
 import time
 from typing import Any, Dict, List, Optional
 
@@ -39,23 +41,95 @@ _cache: Dict[str, Any] = {}
 
 # --- Datos ---
 
+BACKUP_FILE = os.path.join("data", "price_history_backup.pkl")
+_backup_lock = threading.Lock()
+
+
+def _load_backup() -> Dict[str, pd.Series]:
+    try:
+        return pd.read_pickle(BACKUP_FILE)
+    except Exception:
+        return {}
+
+
+def _save_backup(good: Dict[str, pd.Series]) -> None:
+    with _backup_lock:
+        data = _load_backup()
+        data.update(good)
+        os.makedirs(os.path.dirname(BACKUP_FILE), exist_ok=True)
+        pd.to_pickle(data, BACKUP_FILE + ".tmp")
+        os.replace(BACKUP_FILE + ".tmp", BACKUP_FILE)
+
+
+def _single_history(sym: str) -> Optional[pd.Series]:
+    """Reintento de un solo valor (la descarga en bloque de Yahoo a veces se deja algunos)."""
+    import yfinance as yf
+    try:
+        h = yf.Ticker(sym).history(period="18mo", auto_adjust=True)["Close"].dropna()
+        if h.empty:
+            return None
+        h.index = pd.DatetimeIndex(h.index).tz_localize(None).normalize()
+        return h[~h.index.duplicated(keep="last")]
+    except Exception:
+        return None
+
+
 def download_history(symbols: List[str], fill: bool = True) -> pd.DataFrame:
     """Cierres diarios de ~1 año y medio (para 52 semanas y media de 200). Cacheado 30 min.
-    fill=False: sin rellenar los días en que ese valor no cotizó (p. ej. EE. UU. antes de abrir, mientras Europa ya cotiza)."""
+    fill=False: sin rellenar los días en que ese valor no cotizó (p. ej. EE. UU. antes de abrir, mientras Europa ya cotiza).
+    Si Yahoo no devuelve algún valor en la descarga en bloque, se reintenta ese valor solo y, si tampoco, se usa su último
+    histórico bueno guardado en disco (así un precio que falla no deja la cartera incompleta)."""
     key = ",".join(sorted(set(symbols)))
     cached = _cache.get(key)
     if not (cached and time.time() - cached[0] < CACHE_TTL):
         import yfinance as yf
-        raw = yf.download(sorted(set(symbols)), period="18mo", auto_adjust=True, progress=False)
-        df = raw["Close"] if isinstance(raw.columns, pd.MultiIndex) or "Close" in raw.columns else raw
-        if isinstance(df, pd.Series):
-            df = df.to_frame(symbols[0])
+        syms = sorted(set(symbols))
+        try:
+            raw = yf.download(syms, period="18mo", auto_adjust=True, progress=False)
+            df = raw["Close"] if isinstance(raw.columns, pd.MultiIndex) or "Close" in raw.columns else raw
+            if isinstance(df, pd.Series):
+                df = df.to_frame(syms[0])
+        except Exception as e:
+            logger.warning("Descarga en bloque fallida (%s): se reintenta valor a valor", e)
+            df = pd.DataFrame()
         df = df.sort_index()
+        bad = [s for s in syms if s not in df.columns or df[s].dropna().empty]
+        if bad:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=6) as pool:
+                retried = dict(zip(bad, pool.map(_single_history, bad)))
+            backup = _load_backup()
+            for sym, series in retried.items():
+                if series is None and sym in backup:
+                    series = backup[sym]
+                    logger.warning("Sin precio de %s en Yahoo: se usa su último histórico guardado (hasta %s)", sym, series.index[-1].date())
+                if series is not None:
+                    # Yahoo puede haber devuelto la columna vacía (todo NaN): se sustituye
+                    df = df.drop(columns=[sym], errors="ignore")
+                    df = df.join(series.rename(sym), how="outer") if not df.empty else series.to_frame(sym)
+            df = df.sort_index()
+        good = {s: df[s].dropna() for s in syms if s in df.columns and not df[s].dropna().empty}
+        try:
+            _save_backup(good)
+        except Exception as e:
+            logger.warning("No se pudo guardar el respaldo de precios: %s", e)
         cached = _cache[key] = (time.time(), df.ffill(), df)
     return cached[1] if fill else cached[2]
 
 
-# --- Cartera ---
+def stale_symbols(df: pd.DataFrame, symbols: List[str], days: int = 4) -> Dict[str, str]:
+    """{valor: fecha del último precio} de los que van con datos viejos (respaldo) frente al resto."""
+    if df is None or df.empty:
+        return {}
+    latest = df.index.max()
+    out = {}
+    for s in symbols:
+        if s in df.columns:
+            last = df[s].last_valid_index()
+            if last is not None and (latest - last).days > days:
+                out[s] = last.date().isoformat()
+    return out
+
 
 def period_starts(index: pd.DatetimeIndex) -> Dict[str, pd.Timestamp]:
     """Cierre de referencia de cada periodo: la sesión anterior (día), el último cierre antes del lunes de esta semana
@@ -139,8 +213,10 @@ def portfolio_changes(df: pd.DataFrame, transactions: List[Dict[str, Any]], spli
     now_s = now.date().isoformat()
     current = {t: shares_at(t, now_s) for t in tickers}
     values_now = {t: current[t] * (price_eur(t, now) or 0) for t in tickers if current[t] > 0}
+    # posiciones sin precio o sin tipo de cambio (Yahoo falló): cuentan 0 € y los pesos no son fiables
+    missing = sorted(t for t in values_now if price_eur(t, now) is None)
     total_now = sum(values_now.values())
-    periods, contrib = {}, {t: {} for t in tickers}
+    periods, contrib, pnl_eur = {}, {t: {} for t in tickers}, {t: {} for t in tickers}
     for key, start in starts.items():
         start_s, span = start.date().isoformat(), max((now - start).days, 1)
         v0_total, pnl_total, weighted_flows = 0.0, 0.0, 0.0
@@ -160,13 +236,14 @@ def portfolio_changes(df: pd.DataFrame, transactions: List[Dict[str, Any]], spli
         periods[key] = {"pct": 100 * pnl_total / denom if denom > 0 else None, "abs_eur": pnl_total}
         for t in tickers:
             contrib[t][key] = 100 * pnl[t] / denom if t in pnl and denom > 0 else None
+            pnl_eur[t][key] = pnl.get(t)   # ganancia o pérdida en euros del periodo (sin contar compras ni ventas)
         if benchmark and benchmark in df.columns:
             bs = df[benchmark].dropna()
             b0 = bs.loc[:start]
             periods[key]["benchmark_pct"] = 100 * (bs.iloc[-1] / b0.iloc[-1] - 1) if len(b0) else None
-    pos = {t: {"value_eur": v, "weight": 100 * v / total_now if total_now else 0.0, "contribution": contrib[t]}
+    pos = {t: {"value_eur": v, "weight": 100 * v / total_now if total_now else 0.0, "contribution": contrib[t], "pnl_eur": pnl_eur[t]}
            for t, v in values_now.items()}
-    return {"total_eur": total_now, "as_of": now.date().isoformat(), "periods": periods, "positions": pos}
+    return {"total_eur": total_now, "as_of": now.date().isoformat(), "periods": periods, "positions": pos, "missing": missing}
 
 
 # --- Señales de precio ---
@@ -279,3 +356,28 @@ def load_transactions(portfolio_service, db) -> tuple:
     for e in db.query(DBLedgerEntry).filter(DBLedgerEntry.type == "SPLIT").all():
         splits.setdefault(e.ticker.upper(), []).append((str(e.date)[:10], float(e.shares)))
     return txs, splits
+
+
+def all_time_high(ticker: str) -> Optional[Dict[str, Any]]:
+    """Máximo histórico de cierre (ajustado por splits y dividendos) y su fecha, en la unidad de cotización.
+    Una descarga de toda la serie por valor; caché en disco de 24 h."""
+    from app.application.services import market_cache
+
+    def download():
+        try:
+            import yfinance as yf
+            close = yf.Ticker(ticker).history(period="max", auto_adjust=True)["Close"].dropna()
+            if close.empty:
+                return None
+            return {"high": float(close.max()), "date": close.idxmax().date().isoformat()}
+        except Exception:
+            return None
+    return market_cache.cached("all_time_high_v1", ticker, download, ttl_hours=24)
+
+
+def from_all_time_high(ath: Optional[Dict[str, Any]], price: Optional[float]) -> Optional[float]:
+    """Caída (en %) desde el máximo histórico; si hoy cotiza por encima, 0."""
+    if not ath or not price:
+        return None
+    high = max(ath["high"], price)
+    return 100 * (price / high - 1) if high > 0 else None

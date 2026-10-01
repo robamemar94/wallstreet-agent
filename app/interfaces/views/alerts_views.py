@@ -24,8 +24,11 @@ async def alerts_page(
 
     # Sort history descending (newest first)
     history.sort(key=lambda x: x.get("date", ""), reverse=True)
+    read = set(alerts_data.get("read") or [])
     for alert in history:
         alert["_key"] = build_alert_key(alert)
+        # caídas heredadas de la versión anterior (silenciosas): se dan por leídas
+        alert["_read"] = bool(alert.get("silent")) or ("alert|" + alert["_key"]) in read
         if alert.get("type", "VALORACIÓN") == "VALORACIÓN":
             alert["_direction"] = valuation_direction(alert.get("old_status"), alert.get("new_status"))
 
@@ -54,7 +57,8 @@ def get_alert_keys(db_session: Session = Depends(get_db)):
     history = alerts_data.get("history", [])
     return {
         "keys": [
-            {"key": build_alert_key(a), "type": a.get("type", "VALORACIÓN")}
+            {"key": build_alert_key(a), "type": a.get("type", "VALORACIÓN"),
+             "read": ("alert|" + build_alert_key(a)) in set(alerts_data.get("read") or [])}
             for a in history if not a.get("silent")   # caídas heredadas de la versión anterior: no cuentan como nuevas
         ]
     }

@@ -87,7 +87,7 @@
             {% set closed = alert.status == 'cerrada' %}
             {% set when = alert.closed_date or alert.updated or alert.date %}
             <tr data-type="{{ alert_type }}" data-direction="{{ alert._direction or '' }}" data-drop="{{ alert.status or '' }}" data-alert-key="{{ alert._key }}"
-                data-search="{{ (alert.ticker ~ ' ' ~ (alert.company_name or ''))|lower }}"{% if alert.silent %} data-silent="1"{% endif %}{% if closed %} class="al-closed"{% endif %}>
+                data-search="{{ (alert.ticker ~ ' ' ~ (alert.company_name or ''))|lower }}"{% if alert._read %} data-read="1"{% endif %}{% if closed %} class="al-closed"{% endif %}>
                 <td class="ps-3 al-date" title="{{ 'Abierta el ' ~ alert.date ~ ' · actualizada ' ~ when if alert.episode and not closed else when }}">
                     {{ when[8:10] }}/{{ when[5:7] }}/{{ when[2:4] }} <span class="text-muted">{{ when[11:16] }}</span><span class="alert-new-badge d-none">NUEVA</span></td>
                 <td><a href="/ticker/{{ alert.ticker }}" class="text-decoration-none fw-bold">{{ clean_ticker(alert.ticker) }}</a>
@@ -113,7 +113,7 @@
                 {% else %}
                 <td><span class="al-type al-type-val">Valoración</span></td>
                 <td class="text-nowrap">{{ zone(alert.old_status) }} <i class="bi bi-arrow-right text-muted mx-1"></i> {{ zone(alert.new_status) }}</td>
-                <td class="al-detail">{% if alert.cagr is defined and alert.cagr is not none %}CAGR {{ '%.1f'|format(alert.cagr) }}% · compra al 15% {{ '%.2f'|format(alert.buy_price) }} · cotizaba {{ '%.2f'|format(alert.price) }}{% else %}Por PER justo (método anterior){% endif %}</td>
+                <td class="al-detail">{% if alert.cagr is defined and alert.cagr is not none %}CAGR {{ '%.1f'|format(alert.cagr) }}% · compra al {{ '%.0f'|format(ZONE.ganga) }}% {{ '%.2f'|format(alert.buy_price) }} · cotizaba {{ '%.2f'|format(alert.price) }}{% else %}Por PER justo (método anterior){% endif %}</td>
                 {% endif %}
                 <td class="text-end pe-3 text-nowrap al-actions">
                     <button type="button" class="btn btn-link btn-mark-seen d-none" title="Marcar como leída" aria-label="Marcar como leída" onclick="markAlertSeen(this);"><i class="bi bi-check2"></i></button>

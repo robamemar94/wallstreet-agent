@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Set
 
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.infrastructure.db.models import DBAlerts
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
@@ -67,11 +68,12 @@ def save_alerts_data(db: Session, data: dict):
         db.add(db_alert)
     else:
         db_alert.data = data
+        flag_modified(db_alert, "data")   # el dict puede ser el mismo objeto: sin esto no siempre se guarda
     db.commit()
 
 
 def eligible_tickers(db: Session, asset_repo: SqlAlchemyAssetRepository) -> Set[str]:
-    """Empresas que se vigilan: la watchlist (a mano, favoritas y aceptadas) y la cartera."""
+    """Empresas que se vigilan: la watchlist (a mano y favoritas) y la cartera."""
     from app.infrastructure.db.models import DBPortfolioItem, DBWatchlistItem
     held = {p.ticker for p in db.query(DBPortfolioItem).all() if (p.shares or 0) > 0}
     manual = {w.ticker for w in db.query(DBWatchlistItem).all()}
@@ -184,7 +186,7 @@ def run_alerts_scan(
             "current_price": round(current_price, 2),
             "days": (now.date() - datetime.fromisoformat(high_date).date()).days,   # desde el máximo: lo que dura la caída
             "bench_pct": bench_pct, "updated": today_str,
-            # distancia al precio de compra al 15 % (≤0: ya está por debajo)
+            # distancia al precio de compra (≤0: ya está por debajo)
             "buy_gap": round(100 * (1 - fresh_val["buy_price"] / current_price), 1) if fresh_val else None,
         })
         if worse:   # otro 10 % más abajo: mismo episodio, pero vuelve a salir como nuevo (aunque lo ignoraras)
