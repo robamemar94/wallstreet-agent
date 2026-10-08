@@ -4,6 +4,10 @@ from fastapi import FastAPI
 from dotenv import load_dotenv
 
 from app.interfaces.views.market_views import router as market_views_router
+from app.interfaces.views.ticker_views import router as ticker_views_router
+from app.interfaces.views.database_views import router as database_views_router
+from app.interfaces.views.calendar_views import router as calendar_views_router
+from app.interfaces.views.comparar_views import router as comparar_views_router
 from app.interfaces.views.portfolio_views import router as portfolio_views_router
 from app.interfaces.views.alerts_views import router as alerts_views_router
 from app.interfaces.api.portfolio_api import router as portfolio_api_router
@@ -63,6 +67,10 @@ async def llm_usage_middleware(request, call_next):
 
 
 app.include_router(market_views_router)
+app.include_router(ticker_views_router)
+app.include_router(database_views_router)
+app.include_router(calendar_views_router)
+app.include_router(comparar_views_router)
 app.include_router(portfolio_views_router)
 app.include_router(alerts_views_router)
 app.include_router(portfolio_api_router, prefix="/api")

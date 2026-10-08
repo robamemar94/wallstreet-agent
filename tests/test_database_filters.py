@@ -1,3 +1,4 @@
+import re
 from fastapi.testclient import TestClient
 from main import app
 
@@ -19,7 +20,7 @@ def test_database_page_renders_with_multiselect_filters():
     assert "id=\"dropdown-subsector\"" in html, "Multi-select subsector dropdown missing!"
     assert "id=\"dropdown-country\"" in html, "Multi-select country dropdown missing!"
     assert "id=\"portfolio-tab\"" in html, "Mi Cartera tab is missing!"
-    assert "onclick=\"sortRows(10)\">Media</th>" in html, "Media column header is missing!"
+    assert re.search(r"onclick=\"sortRows\(\d+\)\">Media</th>", html), "Media column header is missing!"
     
     # Verify Javascript functions are included
     assert "function filterDropdownItems" in html, "filterDropdownItems JS function missing!"

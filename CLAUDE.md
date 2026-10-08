@@ -30,15 +30,18 @@ PYTHONPATH=. uv run --with pytest python -m pytest -q tests/test_notices.py   # 
 | Centro de mando (pestaña de Mercado; se carga aparte) | `/mercado/centro`, `/centro` | `thesis_views.py` (`mercado_centro_fragment`) | `_mercado_centro.html`, `_agenda.html` (Agenda + Resumen), `_notices.html` (avisos, monitor, leído/no leído), `_centro_tabs.html` | `agenda_service`, `notice_service`, `notification_service` |
 | Cartera | `/portfolio`, `/portfolio/seguimiento` | `portfolio_views.py`, `thesis_views.py` | `portfolio.html`, `_positions_tracking.html` | `portfolio_service`, `performance_service`, `distribution_service`, `dividend_forecast` |
 | Ficha de una posición | `/portfolio/ticker/{t}` | `portfolio_views.py` | `portfolio_ticker.html` | |
-| Ficha de una empresa | `/ticker/{t}` | `market_views.py` | `ticker.html` | `base_valuation_service`, `market_cap_service` |
+| Ficha de una empresa | `/ticker/{t}`, `/api/history/{t}` | `ticker_views.py` | `ticker.html` | `base_valuation_service`, `market_cap_service` |
 | Watchlist | `/watchlist` | `watchlist_views.py` | `watchlist.html`, `_watchlist.html`, `_watchlist_table.html` | `alerts_service` (zonas) |
 | Tesis | `/tesis`, `/tesis/{id}` | `thesis_views.py` | `theses.html`, `thesis_detail.html`, `_thesis_macros.html`, `_thesis_review.html` | `thesis_service`, `thesis_review_service`, `thesis_ai_service` |
 | Noticias (radar) | `/noticias` | `thesis_views.py` | `news.html` | `thesis_news_runner`, `news_summary_service` |
-| Calendario, Oportunidades, Comparar | `/calendario`, `/oportunidades`, `/comparar` | `market_views.py` | `comparar.html`… | `results_calendar` |
-| Base de datos de empresas | `/database` | `market_views.py` | `database.html` | |
+| Calendario (ventana sobre Mercado) | `/api/calendario` | `calendar_views.py` | (en `base.html`) | `results_calendar` |
+| Comparar | `/comparar` | `comparar_views.py` | `comparar.html` | |
+| Base de datos de empresas | `/database`, `/search`, `/api/database/variacion` | `database_views.py` | `database.html` | |
 | Listas | `/lists` | `lists_views.py` | `lists.html` | |
 | Ajustes / uso de IA | `/settings`, `/settings/ia`, `/ia` | `settings_views.py` | `settings.html`, `settings_ai.html` | `ai_usage_service` |
 
+- `market_views.py` guarda lo común de precios: `INDEX_CACHE`, `ensure_prices_cached`, `get_currency_symbol`, refresco de precios
+  (lo importan las demás vistas y `price_scheduler`). `/oportunidades` redirige a `/watchlist`.
 - Las vistas HTML están en `app/interfaces/views/`; la API JSON en `app/interfaces/api/` (prefijo `/api`).
 - Los servicios están en `app/application/services/`.
 - `base.html` lleva el menú, la campana de notificaciones, los globos de no leídos y los helpers JS comunes (`fmtNum`…).

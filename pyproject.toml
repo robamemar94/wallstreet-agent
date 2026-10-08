@@ -3,7 +3,7 @@ name = "alpha-flow"
 version = "0.1.0"
 description = "Alpha-Flow: Terminal and Streamlit app for investment analysis using CrewAI"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "crewai>=0.100.0",
     "crewai-tools>=0.12.0",
