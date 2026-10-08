@@ -2,6 +2,7 @@
 {% block title %}Alpha-Flow · Mi Portfolio{% endblock %}
 
 {% block content %}
+{% from "_ui_macros.html" import chg_pill %}
 <style>
     .cagr-green { color: var(--fin-green) !important; } .cagr-amber { color: #e3b341 !important; } .cagr-orange { color: #f0883e !important; } .cagr-red { color: var(--fin-red) !important; }
     /* .table-modern pinta todos los enlaces del color del texto: el CAGR conserva su color de zona */
@@ -19,32 +20,90 @@
     #activeTable td, .tbl-pt td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #activeTable th:nth-child(1), .tbl-pt th:nth-child(1) { width: 6%; }
     #activeTable th:nth-child(2), .tbl-pt th:nth-child(2) { width: 14%; }
-    #activeTable th:nth-child(3), .tbl-pt th:nth-child(3) { width: 8%; }
-    #activeTable th:nth-child(4), .tbl-pt th:nth-child(4) { width: 8%; }
-    #activeTable th:nth-child(5), .tbl-pt th:nth-child(5) { width: 8%; }
-    #activeTable th:nth-child(6), .tbl-pt th:nth-child(6) { width: 8%; }
+    #activeTable th:nth-child(2) { width: 11%; }
+    #activeTable th:nth-child(3), .tbl-pt th:nth-child(3) { width: 10%; }
+    #activeTable th:nth-child(4), .tbl-pt th:nth-child(4) { width: 9%; }
+    #activeTable th:nth-child(5), .tbl-pt th:nth-child(5) { width: 9%; }
     #activeTable th, .tbl-pt th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #activeTable th:nth-child(7) { width: 7%; }
-    #activeTable th:nth-child(8) { width: 9%; }
-    #activeTable th:nth-child(9) { width: 10%; }
-    #activeTable th:nth-child(10) { width: 7%; }
-    .tbl-pt th:nth-child(7), .tbl-pt th:nth-child(10) { width: 7%; }
-    .tbl-pt th:nth-child(8) { width: 6%; }
-    .tbl-pt th:nth-child(9) { width: 8%; }
-    .tbl-pt th:nth-child(11) { width: 10%; }
+    #activeTable th:nth-child(3) { width: 9%; }
+    #activeTable th:nth-child(4) { width: 8%; }
+    #activeTable th:nth-child(6) { width: 6%; }
+    #activeTable th:nth-child(7) { width: 9%; }
+    #activeTable th:nth-child(8) { width: 9%; }   /* Invertido */
+    #activeTable th:nth-child(9) { width: 10%; }  /* Valor mercado */
+    #activeTable th:nth-child(10) { width: 8%; }  /* Peso */
+    .tbl-pt th:nth-child(6), .tbl-pt th:nth-child(9) { width: 7%; }
+    .tbl-pt th:nth-child(7) { width: 7%; }
+    .tbl-pt th:nth-child(8) { width: 8%; }
+    .tbl-pt th:nth-child(10) { width: 10%; }
+    /* Último: precio y, debajo y en pequeño, su movimiento en su moneda */
+    .price-main { font-weight: 600; line-height: 1.15; }
+    .price-move { font-size: .72rem; line-height: 1.1; }
     #activeTable th:last-child { width: 48px; }
     .pos-toolbar .btn { font-size: .75rem; }
+    /* filas más bajas para que quepan más posiciones (el estilo común pone 10 px arriba y abajo) */
+    #activeTable tbody td, .tbl-pt tbody td { padding-top: .25rem; padding-bottom: .25rem; }
+    #activeTable thead th, .tbl-pt thead th { padding-top: .4rem; padding-bottom: .4rem; }
+    /* Fundamentales: cifras de las fichas y secciones del desglose */
+    .fund-big { font-size: 1.05rem !important; } .fund-small { font-size: .88rem !important; }
+    #fundamentalsTable .fund-sep { border-left: 1px solid var(--bs-border-color); }
+    #fundamentalsTable .fund-groups th { font-size: .62rem; text-transform: uppercase; letter-spacing: .06em; color: var(--bs-secondary-color); font-weight: 600; padding: .35rem .5rem .1rem; border-bottom: 0; }
+    /* Rendimiento: todo en una pantalla */
+    .perf-kpis { display: flex; flex-wrap: wrap; gap: .3rem; }
+    .perf-kpi { display: flex; align-items: center; gap: .3rem; background: var(--bs-secondary-bg); border-radius: 6px; padding: .2rem .5rem; font-size: .78rem; }
+    .perf-kpi .lbl { color: var(--bs-secondary-color); font-size: .64rem; text-transform: uppercase; letter-spacing: .02em; }
+    .perf-kpi .lbl small, .perf-kpi .lbl span { font-size: .62rem; }
+    .perf-kpi .sub { color: var(--bs-secondary-color); font-size: .58rem; line-height: 1.1; }
+    .perf-kpi .fs-4, .perf-kpi .fs-6 { font-size: .95rem !important; }
+    #perfTableCard { display: flex; flex-direction: column; }
+    #perfTableCard .perf-table-body { overflow-y: auto; flex: 1; min-height: 0; }
+    #perfTableCard table { font-size: .78rem !important; }
+    #perfTableCard td, #perfTableCard th { padding: .3rem .4rem; }
+    .mth-cell { border-radius: 4px; }
+    /* Distribución */
+    .dist-small-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 767.98px) { .dist-small-grid { grid-template-columns: 1fr; grid-template-rows: none; height: auto !important; } }
+    .dist-chip { background: var(--bs-secondary-bg); border-radius: 6px; padding: .3rem .6rem; }
+    .dist-donut-wrap { position: relative; }
+    .dist-logos { position: absolute; inset: 0; pointer-events: none; }
+    .dist-tag { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: auto; }
+    .dist-logo { width: 20px; height: 20px; object-fit: contain; background: #fff; border-radius: 50%; padding: 1px; box-shadow: 0 0 0 1px rgba(0,0,0,.08); }
+    .dist-sym { font-size: .72rem; font-weight: 700; line-height: 1; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+    .dist-pct { font-size: .66rem; line-height: 1; color: #fff; opacity: .9; text-shadow: 0 1px 2px rgba(0,0,0,.6); font-variant-numeric: tabular-nums; }
+    .dist-legend td { padding: .22rem .3rem; vertical-align: middle; font-size: .8rem; background: transparent; white-space: nowrap; }
+    .dist-legend tr { cursor: default; }
+    .dist-legend tr.active td { background: var(--bs-secondary-bg); }
+    .dist-legend-dot { width: 14px; } .dist-legend-logo { width: 26px; }
+    .dist-dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; margin-right: .4rem; }
+    .dist-roles { gap: .35rem; }
+    .dist-bar { position: relative; height: 8px; border-radius: 4px; background: var(--bs-secondary-bg); margin-top: 3px; overflow: hidden; }
+    .dist-bar-range { position: absolute; top: 0; bottom: 0; background: rgba(148, 163, 184, .35); border-left: 1px dashed var(--bs-secondary-color); border-right: 1px dashed var(--bs-secondary-color); }
+    .dist-bar-fill { position: absolute; top: 2px; bottom: 2px; left: 0; border-radius: 3px; }
 </style>
 {% include "_prices_banner.html" %}
 <style>
     /* Estilos ultra-compactos y profesionales para la página de Mi Portfolio */
-    /* Tarjetas resumen: todas en una línea desde 1200px (8 tarjetas: Bootstrap solo llega a row-cols-6) */
-    @media (min-width: 1200px) {
-        .kpi-row > .col { flex: 1 1 0; width: auto; max-width: none; min-width: 0; }
-        .kpi-row .card-body { padding: .45rem .55rem !important; }
-        .kpi-row h4 { font-size: .95rem !important; white-space: nowrap; }
-        .kpi-row h4 small { display: block; margin-left: 0 !important; }
-        .kpi-row h6 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Resumen: dos barras (lo que tienes · variación por periodo) con tramos del mismo estilo; desde 1300px van en una
+       línea (con el menú lateral, ~120 px por cifra). En la de variación, el tramo activo es el que muestra Seguimiento */
+    .summary-strip { display: flex; flex-direction: column; gap: .5rem; }
+    .sum-group { overflow-x: auto; }
+    .sum-row { display: flex; min-width: 560px; height: 100%; }
+    .sum-seg { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0; padding: .3rem .6rem;
+               border: 0; border-right: 1px solid var(--bs-border-color); background: transparent; color: inherit; text-align: left; }
+    .sum-seg:last-child { border-right: 0; }
+    button.sum-seg:hover { background: rgba(127, 127, 127, .08); }
+    .var-band.picking .sum-seg.active { box-shadow: inset 0 -2px 0 var(--bs-primary); background: rgba(127, 127, 127, .06); }
+    .sum-label { font-size: .65rem; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--bs-secondary-color); white-space: nowrap; }
+    .sum-label .bi { font-size: .7rem; cursor: pointer; }
+    .sum-val { font-size: .98rem; font-weight: 700; white-space: nowrap; }
+    .sum-sub { font-size: .72rem; font-weight: 600; }
+    .sum-bench { font-size: .66rem; color: var(--bs-secondary-color); white-space: nowrap; }
+    @media (min-width: 1300px) {
+        .summary-strip { flex-direction: row; }
+        .sum-group { flex: 1 1 0; min-width: 0; }
+        .sum-row { min-width: 0; }
+        .sum-seg { padding: .4rem .55rem; }
+        .sum-val { font-size: .88rem; }
     }
     .tab-content {
         font-size: 0.78rem;
@@ -164,6 +223,9 @@
     <button class="nav-link active fw-bold" id="active-tab" data-bs-toggle="tab" data-bs-target="#active-pane" type="button" role="tab" aria-controls="active-pane" aria-selected="true"><i class="bi bi-bar-chart-steps me-1"></i>Cartera</button>
   </li>
   <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-muted" id="dist-tab" data-bs-toggle="tab" data-bs-target="#dist-pane" type="button" role="tab" aria-controls="dist-pane" aria-selected="false"><i class="bi bi-pie-chart-fill me-1"></i>Distribución</button>
+  </li>
+  <li class="nav-item" role="presentation">
     <button class="nav-link fw-bold text-muted" id="perf-tab" data-bs-toggle="tab" data-bs-target="#perf-pane" type="button" role="tab" aria-controls="perf-pane" aria-selected="false"><i class="bi bi-graph-up-arrow me-1"></i>Rendimiento</button>
   </li>
   <li class="nav-item" role="presentation">
@@ -176,10 +238,7 @@
     <button class="nav-link fw-bold text-muted" id="closed-tab" data-bs-toggle="tab" data-bs-target="#closed-pane" type="button" role="tab" aria-controls="closed-pane" aria-selected="false"><i class="bi bi-archive me-1"></i>Historial</button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-muted" id="fiscal-tab" data-bs-toggle="tab" data-bs-target="#fiscal-pane" type="button" role="tab" aria-controls="fiscal-pane" aria-selected="false"><i class="bi bi-receipt me-1"></i>Fiscal</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-muted" id="add-tab" data-bs-toggle="tab" data-bs-target="#add-pane" type="button" role="tab" aria-controls="add-pane" aria-selected="false"><i class="bi bi-plus-lg me-1"></i>Nueva Operación</button>
+    <button class="nav-link fw-bold text-primary" type="button" data-bs-toggle="modal" data-bs-target="#addOpModal" title="Anotar una compra o una venta"><i class="bi bi-plus-lg me-1"></i>Operación</button>
   </li>
 </ul>
 
@@ -187,134 +246,60 @@
   <!-- Pestaña Posiciones Abiertas -->
   <div class="tab-pane fade show active" id="active-pane" role="tabpanel" aria-labelledby="active-tab">
     
-    <!-- Resumen de Saldos y Variación -->
-    <div class="mb-3 mt-1">
-        <p class="text-muted mb-0" style="font-size:0.9rem;">
-            Valor de mercado: <strong>{{ num(total_current_value, 0) }} €</strong>
-            &nbsp;·&nbsp;
-            P&amp;L no realizado:
-            <strong class="{% if total_return_abs >= 0 %}text-success{% else %}text-danger{% endif %}">
-                {% if total_return_abs >= 0 %}+{% endif %}{{ num(total_return_abs, 0) }} €
-                ({% if total_return_pct >= 0 %}+{% endif %}{{ num(total_return_pct, 1) }}%)
-            </strong>
-        </p>
+    <!-- Resumen: lo que tienes y cómo se ha movido, dos barras con tramos iguales (en pantallas anchas, en una línea) -->
+    <div class="summary-strip mb-2">
+    <div class="card border-0 sum-group" style="background-color: var(--fin-card-bg);">
+        <div class="sum-row">
+            <div class="sum-seg">
+                <span class="sum-label">Invertido <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" title="✂️ Comisiones Totales: {{ num(total_fees, 2) }} €"></i></span>
+                <span class="sum-val num-font">{{ num(total_invested, 2) }} €</span>
+            </div>
+            <div class="sum-seg">
+                <span class="sum-label">Valor actual</span>
+                <span class="sum-val num-font">{{ num(total_current_value, 2) }} €</span>
+            </div>
+            <div class="sum-seg">
+                <span class="sum-label">Rent. latente <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" data-bs-html="true" title="📈 Efecto Acción: {% if global_unrealized_price_pnl >= 0 %}+{% endif %}{{ num(global_unrealized_price_pnl, 0) }} €<br>💵 Efecto Divisa: {% if global_unrealized_fx_pnl >= 0 %}+{% endif %}{{ num(global_unrealized_fx_pnl, 0) }} €"></i></span>
+                <span class="sum-val num-font {{ 'text-success' if total_return_abs > 0 else ('text-danger' if total_return_abs < 0 else 'text-muted') }}">{{ '+' if total_return_abs > 0 }}{{ num(total_return_abs, 2) }} €</span>
+                <span class="sum-sub num-font {{ 'text-success' if total_return_pct > 0 else ('text-danger' if total_return_pct < 0 else 'text-muted') }}">{{ '+' if total_return_pct > 0 }}{{ num(total_return_pct, 2) }}%</span>
+            </div>
+            <div class="sum-seg">
+                <span class="sum-label">Bº realizado <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" data-bs-html="true" title="📈 Ventas cerradas: {% if global_realized_price_pnl >= 0 %}+{% endif %}{{ num(global_realized_price_pnl, 0) }} €<br>💵 Efecto divisa: {% if global_realized_fx_pnl >= 0 %}+{% endif %}{{ num(global_realized_fx_pnl, 0) }} €<br>💰 Dividendos: +{{ num(global_total_dividends, 0) }} €<br>Igual que el resultado neto de Historial"></i></span>
+                <span class="sum-val num-font {{ 'text-success' if total_realized_pnl > 0 else ('text-danger' if total_realized_pnl < 0 else 'text-muted') }}">{{ '+' if total_realized_pnl > 0 }}{{ num(total_realized_pnl, 2) }} €</span>
+            </div>
+            <div class="sum-seg">
+                <span class="sum-label">Total histórico <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" data-bs-html="true" title="📈 Acción: {% if global_total_price_pnl >= 0 %}+{% endif %}{{ num(global_total_price_pnl, 0) }} €<br>💵 Divisa: {% if global_total_fx_pnl >= 0 %}+{% endif %}{{ num(global_total_fx_pnl, 0) }} €<br>💰 Dividendos: +{{ num(global_total_dividends, 0) }} €<br>✂️ Comisiones: {{ num(total_fees, 2) }} €"></i></span>
+                <span class="sum-val num-font {{ 'text-success' if global_total_profits > 0 else ('text-danger' if global_total_profits < 0 else 'text-muted') }}">{{ '+' if global_total_profits > 0 }}{{ num(global_total_profits, 2) }} €</span>
+            </div>
+        </div>
     </div>
 
-    <!-- Resumen Global de Tarjetas -->
-    <div class="row mb-4 row-cols-2 row-cols-md-4 g-2 kpi-row">
-        <!-- Valor Invertido -->
-        <div class="col">
-            <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
-                <div class="card-body d-flex flex-column justify-content-between p-2.5">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h6 class="text-muted fw-bold mb-0" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px;">Invertido</h6>
-                        <i class="bi bi-info-circle text-muted cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="top" title="✂️ Comisiones Totales: {{ num(total_fees, 2) }} €" style="font-size: 0.72rem;"></i>
-                    </div>
-                    <h4 class="mb-0 text-white num-font mt-1" style="font-size: 1.05rem; font-weight: 700;">{{ num(total_invested, 2) }} €</h4>
-                </div>
-            </div>
+    <!-- Variación por periodos (corridos, salvo YTD): pulsar uno lo muestra en Seguimiento (tabla y mapa) -->
+    {% set band = [('1d', '1D', 'Desde el cierre anterior, con los precios en directo'),
+                   ('1w', '1S', 'Desde el último cierre de hace 7 días'),
+                   ('1m', '1M', 'Desde el último cierre de hace un mes'),
+                   ('ytd', 'YTD', 'Desde el último cierre del año pasado'),
+                   ('1y', '1A', 'Desde el último cierre de hace un año')] %}
+    <div class="card border-0 sum-group var-band" style="background-color: var(--fin-card-bg);">
+        <div class="sum-row">
+        {% for k, label, tip in band %}
+            {% set pc = period_changes.get(k) or {} %}
+            {% set v_abs = total_daily_abs if k == '1d' else pc.get('abs_eur') %}
+            {% set v_pct = total_daily_pct if k == '1d' else pc.get('pct') %}
+            <button type="button" class="sum-seg {{ 'active' if k == '1d' }}" data-band-period="{{ k }}"
+                    title="{{ tip }}. Las compras y ventas del periodo no cuentan como ganancia.{% if pc.get('incomplete') %} Sin precio al inicio: {{ pc.incomplete|join(', ') }}.{% endif %} Pulsa para verlo por posición en Seguimiento.">
+                <span class="sum-label">{{ label }}{% if pc.get('incomplete') %} <i class="bi bi-exclamation-triangle text-warning"></i>{% endif %}</span>
+                {% if v_pct is not none and v_abs is not none %}
+                <span class="sum-val num-font {{ 'text-success' if v_abs > 0 else ('text-danger' if v_abs < 0 else 'text-muted') }}">{{ '+' if v_abs > 0 }}{{ num(v_abs, 2) }} €</span>
+                <span class="sum-sub num-font {{ 'text-success' if v_pct > 0 else ('text-danger' if v_pct < 0 else 'text-muted') }}">{{ '+' if v_pct > 0 }}{{ num(v_pct, 2) }}%</span>
+                {% else %}<span class="sum-val num-font text-muted">–</span><span class="sum-sub">&nbsp;</span>{% endif %}
+                {% if pc.get('benchmark_pct') is not none %}
+                <span class="sum-bench" title="Índice de referencia ({{ benchmark }}) en el mismo periodo{{ ', último cierre' if k == '1d' }}">{{ benchmark }} {{ '+' if pc.benchmark_pct > 0 }}{{ num(pc.benchmark_pct, 2) }}%</span>
+                {% endif %}
+            </button>
+        {% endfor %}
         </div>
-        
-        <!-- Valor Actual -->
-        <div class="col">
-            <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
-                <div class="card-body d-flex flex-column justify-content-between p-2.5">
-                    <h6 class="text-muted fw-bold mb-0" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px;">Valor Actual</h6>
-                    <h4 class="mb-0 text-white num-font mt-1" style="font-size: 1.05rem; font-weight: 700;">{{ num(total_current_value, 2) }} €</h4>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Variación Diaria -->
-        <div class="col">
-            <div class="card border-0 h-100 {% if total_daily_abs > 0 %}bg-success text-white{% elif total_daily_abs < 0 %}bg-danger text-white{% else %}bg-light{% endif %}" style="background-color: var(--fin-card-bg);">
-                <div class="card-body d-flex flex-column justify-content-between p-2.5">
-                    <h6 class="fw-bold mb-0 {% if total_daily_abs == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Var. Diaria</h6>
-                    <h4 class="mb-0 num-font mt-1 {% if total_daily_abs > 0 %}text-success{% elif total_daily_abs < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
-                        {% if total_daily_abs > 0 %}+{% endif %}{{ num(total_daily_abs, 2) }} €
-                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if total_daily_pct > 0 %}+{% endif %}{{ (num(total_daily_pct, 2) ~ '%') }})</small>
-                    </h4>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Var. Semanal -->
-        {% set pc = period_changes.get('wtd') %}
-        <div class="col">
-            <div class="card border-0 h-100 {% if pc and pc.abs_eur > 0 %}bg-success text-white{% elif pc and pc.abs_eur < 0 %}bg-danger text-white{% else %}bg-light{% endif %}" style="background-color: var(--fin-card-bg);" title="Desde el cierre del viernes anterior; se reinicia cada lunes. Con las posiciones actuales.">
-                <div class="card-body d-flex flex-column justify-content-between p-2.5">
-                    <h6 class="fw-bold mb-0 {% if not pc or pc.abs_eur == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Var. Semanal</h6>
-                    {% if pc and pc.pct is not none %}
-                    <h4 class="mb-0 num-font mt-1 {% if pc.abs_eur > 0 %}text-success{% elif pc.abs_eur < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
-                        {% if pc.abs_eur > 0 %}+{% endif %}{{ num(pc.abs_eur, 2) }} €
-                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if pc.pct > 0 %}+{% endif %}{{ (num(pc.pct, 2) ~ '%') }})</small>
-                    </h4>
-                    {% else %}<h4 class="mb-0 num-font mt-1 text-muted" style="font-size: 1.05rem;">–</h4>{% endif %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Var. Mensual -->
-        {% set pc = period_changes.get('mtd') %}
-        <div class="col">
-            <div class="card border-0 h-100 {% if pc and pc.abs_eur > 0 %}bg-success text-white{% elif pc and pc.abs_eur < 0 %}bg-danger text-white{% else %}bg-light{% endif %}" style="background-color: var(--fin-card-bg);" title="Desde el cierre del último día del mes anterior; se reinicia cada día 1. Con las posiciones actuales.">
-                <div class="card-body d-flex flex-column justify-content-between p-2.5">
-                    <h6 class="fw-bold mb-0 {% if not pc or pc.abs_eur == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Var. Mensual</h6>
-                    {% if pc and pc.pct is not none %}
-                    <h4 class="mb-0 num-font mt-1 {% if pc.abs_eur > 0 %}text-success{% elif pc.abs_eur < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
-                        {% if pc.abs_eur > 0 %}+{% endif %}{{ num(pc.abs_eur, 2) }} €
-                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if pc.pct > 0 %}+{% endif %}{{ (num(pc.pct, 2) ~ '%') }})</small>
-                    </h4>
-                    {% else %}<h4 class="mb-0 num-font mt-1 text-muted" style="font-size: 1.05rem;">–</h4>{% endif %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Rentabilidad Latente -->
-        <div class="col">
-            <div class="card border-0 h-100 {% if total_return_abs > 0 %}bg-success text-white{% elif total_return_abs < 0 %}bg-danger text-white{% else %}bg-light{% endif %}" style="background-color: var(--fin-card-bg);">
-                <div class="card-body d-flex flex-column justify-content-between p-2.5">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h6 class="fw-bold mb-0 {% if total_return_abs == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Rent. Latente</h6>
-                        <i class="bi bi-info-circle text-muted cursor-pointer" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="📈 Efecto Acción: {% if global_unrealized_price_pnl >= 0 %}+{% endif %}{{ num(global_unrealized_price_pnl, 0) }} €<br>💵 Efecto Divisa: {% if global_unrealized_fx_pnl >= 0 %}+{% endif %}{{ num(global_unrealized_fx_pnl, 0) }} €" style="font-size: 0.72rem;"></i>
-                    </div>
-                    <h4 class="mb-0 num-font mt-1 {% if total_return_abs > 0 %}text-success{% elif total_return_abs < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
-                        {% if total_return_abs > 0 %}+{% endif %}{{ num(total_return_abs, 2) }} €
-                        <small class="opacity-75 ms-1" style="font-size: 0.7rem;">({% if total_return_pct > 0 %}+{% endif %}{{ (num(total_return_pct, 2) ~ '%') }})</small>
-                    </h4>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Beneficio Realizado -->
-        <div class="col">
-            <div class="card border-0 h-100 {% if total_realized_pnl > 0 %}bg-success text-white{% elif total_realized_pnl < 0 %}bg-danger text-white{% else %}bg-light{% endif %}" style="background-color: var(--fin-card-bg);">
-                <div class="card-body d-flex flex-column justify-content-between p-2.5">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h6 class="fw-bold mb-0 {% if total_realized_pnl == 0 %}text-muted{% endif %}" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.85;">Bº Realizado</h6>
-                        <i class="bi bi-info-circle text-muted cursor-pointer" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="📈 Ventas Cerradas: {% if global_realized_price_pnl >= 0 %}+{% endif %}{{ num(global_realized_price_pnl, 0) }} €<br>💵 Efecto Divisa: {% if global_realized_fx_pnl >= 0 %}+{% endif %}{{ num(global_realized_fx_pnl, 0) }} €" style="font-size: 0.72rem;"></i>
-                    </div>
-                    <h4 class="mb-0 num-font mt-1 {% if total_realized_pnl > 0 %}text-success{% elif total_realized_pnl < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 1.05rem; font-weight: 700;">
-                        {% if total_realized_pnl > 0 %}+{% endif %}{{ num(total_realized_pnl, 2) }} €
-                    </h4>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Ganancias Totales -->
-        <div class="col">
-            <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
-                <div class="card-body d-flex flex-column justify-content-between p-2.5">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h6 class="text-white-50 fw-bold mb-0" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px;">Total Histórico</h6>
-                        <i class="bi bi-info-circle text-white-50 cursor-pointer" data-bs-toggle="tooltip" data-bs-html="true" data-bs-placement="top" title="📈 Acción: {% if global_total_price_pnl >= 0 %}+{% endif %}{{ num(global_total_price_pnl, 0) }} €<br>💵 Divisa: {% if global_total_fx_pnl >= 0 %}+{% endif %}{{ num(global_total_fx_pnl, 0) }} €<br>💰 Dividendos: +{{ num(global_total_dividends, 0) }} €<br>✂️ Comisiones: {{ num(total_fees, 2) }} €" style="font-size: 0.72rem;"></i>
-                    </div>
-                    <h4 class="mb-0 text-white num-font mt-1" style="font-size: 1.05rem; font-weight: 700;">
-                        {% if global_total_profits >= 0 %}+{% endif %}{{ num(global_total_profits, 2) }} €
-                    </h4>
-                </div>
-            </div>
-        </div>
+    </div>
     </div>
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 pos-toolbar">
         <div class="d-flex flex-wrap align-items-center gap-2">
@@ -326,55 +311,17 @@
             <button type="button" class="btn btn-outline-secondary active" data-pt-sub="tabla"><i class="bi bi-table me-1"></i>Tabla</button>
             <button type="button" class="btn btn-outline-secondary" data-pt-sub="mapa"><i class="bi bi-grid-3x3-gap me-1"></i>Mapa</button>
         </div>
-        <div class="btn-group btn-group-sm d-none" role="group" aria-label="Periodo" id="ptPeriods">
-            {% for k, label in [('1d', 'Día'), ('wtd', 'Semana'), ('mtd', 'Mes'), ('ytd', 'Año')] %}
-            <button type="button" class="btn btn-outline-secondary {{ 'active' if k == '1d' }}" data-pt-period="{{ k }}">{{ label }}</button>
-            {% endfor %}
         </div>
-        <button class="btn btn-sm btn-outline-secondary" type="button"
-                data-bs-toggle="collapse" data-bs-target="#distPanel" aria-expanded="false">
-            <i class="bi bi-pie-chart-fill me-1"></i>Distribución
-        </button>
-        </div>
+        <span class="dropdown d-none" id="ptInfo">
+            <button type="button" class="btn btn-link btn-sm p-0 text-muted" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Qué significa cada columna"><i class="bi bi-info-circle"></i></button>
+            <div class="dropdown-menu dropdown-menu-end p-3 small text-wrap" style="max-width: 28rem; min-width: 20rem;">CAGR estimado: valoración base de la ficha al precio de hoy (pulsa para ver los supuestos) ·
+    <span class="cagr-green">ganga ≥{{ num(ZONE.ganga, 0) }}%</span> · <span class="cagr-amber">barata {{ num(ZONE.barata, 0) }}–{{ num(ZONE.ganga, 0) }}%</span> · <span class="cagr-orange">justo {{ num(ZONE.justo, 0) }}–{{ num(ZONE.barata, 0) }}%</span> · <span class="cagr-red">cara &lt;{{ num(ZONE.justo, 0) }}%</span> ·
+    <i class="bi bi-exclamation-triangle text-warning"></i> valoración antigua · <i class="bi bi-clock-history text-danger"></i> anticuada · <i class="bi bi-pencil-fill text-primary"></i> año corregido a mano.
+    La contribución respeta las fechas de compra y venta.</div>
+        </span>
         <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('activeTable', 'portfolio-open-positions.csv')" title="Exportar a CSV">
             <i class="bi bi-download me-1"></i>Exportar CSV
         </button>
-    </div>
-    <div class="collapse mb-3" id="distPanel">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-transparent border-0 pb-0 pt-2">
-                <ul class="nav nav-pills card-header-pills justify-content-center" id="distTabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active py-1 px-3" id="dist-asset-tab" data-bs-toggle="pill" data-bs-target="#dist-asset-pane" type="button" role="tab" aria-controls="dist-asset-pane" aria-selected="true">
-                            <i class="bi bi-pie-chart-fill me-1"></i>Activos
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link py-1 px-3 text-muted" id="dist-country-tab" data-bs-toggle="pill" data-bs-target="#dist-country-pane" type="button" role="tab" aria-controls="dist-country-pane" aria-selected="false">
-                            <i class="bi bi-globe me-1"></i>Países
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link py-1 px-3 text-muted" id="dist-sector-tab" data-bs-toggle="pill" data-bs-target="#dist-sector-pane" type="button" role="tab" aria-controls="dist-sector-pane" aria-selected="false">
-                            <i class="bi bi-diagram-3 me-1"></i>Sectores
-                        </button>
-                    </li>
-                </ul>
-            </div>
-            <div class="card-body py-2">
-                <div class="tab-content" id="distTabsContent">
-                    <div class="tab-pane fade show active" id="dist-asset-pane" role="tabpanel" aria-labelledby="dist-asset-tab">
-                        <div id="dist-chart" style="height:260px;"></div>
-                    </div>
-                    <div class="tab-pane fade" id="dist-country-pane" role="tabpanel" aria-labelledby="dist-country-tab">
-                        <div id="dist-country-chart" style="height:260px;"></div>
-                    </div>
-                    <div class="tab-pane fade" id="dist-sector-pane" role="tabpanel" aria-labelledby="dist-sector-tab">
-                        <div id="dist-sector-chart" style="height:260px;"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
     <div class="d-none" id="viewSeguimiento">
         <div class="bg-white rounded shadow-sm mb-3" id="ptTable">
@@ -382,7 +329,7 @@
         </div>
         <div class="row g-3 mb-3 d-none" id="ptMap">
             <div class="col-12 col-xl-7"><div class="card h-100">
-                <div class="card-header bg-transparent fw-bold"><i class="bi bi-grid-3x3-gap me-1"></i>Mapa de la cartera <span class="small text-muted fw-normal">· tamaño = peso, color = variación del <span class="pt-period-label">día</span></span></div>
+                <div class="card-header bg-transparent fw-bold"><i class="bi bi-grid-3x3-gap me-1"></i>Mapa de la cartera <span class="small text-muted fw-normal">· tamaño = peso, color = variación <span class="pt-period-label">1D</span></span></div>
                 <div class="card-body p-1"><div id="treemap" style="height: 380px;"></div></div>
             </div></div>
             <div class="col-12 col-xl-5"><div class="card h-100">
@@ -397,12 +344,12 @@
                 <tr style="cursor: pointer; user-select: none;">
                     <th class="ps-4" onclick="sortTable('activeTable', 0, false)">Activo <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
                     <th onclick="sortTable('activeTable', 1, false)">Empresa <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 2, true)">Último <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 3, true)" title="Cuánto se ha movido hoy el precio, en su moneda">Var. día <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 4, true)">Var. día % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 5, true)">Var. día € <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 6, true)">Títulos <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
-                    <th class="text-end" onclick="sortTable('activeTable', 7, true)">Precio Medio <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 2, true)" title="Precio y, debajo, cuánto se ha movido hoy en su moneda">Último <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 3, true)">Var. día % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 4, true)">Var. día € <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 5, true)">Títulos <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 6, true)">Precio Medio <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 7, true)" title="Títulos × precio medio, en euros al cambio de hoy (la misma base que el P&amp;L de esta tabla, que no incluye el efecto divisa)">Invertido <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
                     <th class="text-end" onclick="sortTable('activeTable', 8, true)">Valor Mercado <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
                     <th class="text-end" onclick="sortTable('activeTable', 9, true)">Peso % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
                     <th class="text-end" onclick="sortTable('activeTable', 10, true)">P&amp;L <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
@@ -410,7 +357,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for item in portfolio %}
+                {% for item in portfolio|sort(attribute="current_value_eur", reverse=true) %}{# por peso, como Seguimiento #}
                 <tr class="portfolio-row">
                     <td class="ps-4 align-middle">
                         <div class="d-flex align-items-center gap-2">
@@ -419,32 +366,36 @@
                         </div>
                     </td>
                     <td class="text-muted align-middle text-truncate" style="max-width: 150px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
-                    <td class="text-end fw-bold num-font align-middle" data-sort-value="{{ item.current_price }}">{{ num(item.current_price, 2) }} {{ item.currency_symbol }}</td>
                     {% if item.closed_today %}{% set why = 'Su mercado no ha abierto hoy' ~ (' (última sesión ' ~ item.last_date.strftime('%d/%m') ~ ')' if item.last_date else '') %}
-                    <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.current_price }}">
+                        <div class="price-main">{{ num(item.current_price, 2) }} {{ item.currency_symbol }}</div>
+                        <div class="price-move text-body-secondary" title="{{ why }}">–</div></td>
                     <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
                     <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
                     {% else %}{% set dc = item.daily_change_total_eur %}
                     {% set da = item.daily_change_abs %}
-                    <td class="text-end num-font align-middle {{ 'text-success' if da > 0 else ('text-danger' if da < 0 else 'text-muted') }}" data-sort-value="{{ item.daily_change_pct }}">{{ num(da, 2, sign=True) }} {{ item.currency_symbol }}</td>
-                    <td class="text-end num-font align-middle {{ 'text-success' if item.daily_change_pct > 0 else ('text-danger' if item.daily_change_pct < 0 else 'text-muted') }}" data-sort-value="{{ item.daily_change_pct }}">{{ '+' if item.daily_change_pct > 0 }}{{ (num(item.daily_change_pct, 2) ~ '%') }}</td>
-                    <td class="text-end fw-bold num-font align-middle {{ 'text-success' if dc > 0 else ('text-danger' if dc < 0 else 'text-muted') }}" data-sort-value="{{ dc }}" title="Incluye el cambio de la divisa">{{ '+' if dc > 0 }}{{ num(dc, 2) }} €</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.current_price }}">
+                        <div class="price-main">{{ num(item.current_price, 2) }} {{ item.currency_symbol }}</div>
+                        <div class="price-move {{ 'text-success' if da > 0 else ('text-danger' if da < 0 else 'text-muted') }}" title="Movimiento de hoy, en su moneda">{{ num(da, 2, sign=True) }} {{ item.currency_symbol }}</div></td>
+                    <td class="text-end align-middle" data-sort-value="{{ item.daily_change_pct }}">{{ chg_pill(item.daily_change_pct) }}</td>
+                    <td class="text-end num-font align-middle {{ 'text-success' if dc > 0 else ('text-danger' if dc < 0 else 'text-muted') }}" data-sort-value="{{ dc }}" title="Incluye el cambio de la divisa">{{ '+' if dc > 0 }}{{ num(dc, 2) }} €</td>
                     {% endif %}
                     <td class="text-end num-font align-middle" data-sort-value="{{ item.shares }}">{{ num(item.shares, 0 if item.shares == item.shares|int else 2) }}</td>
                     <td class="text-end num-font align-middle" data-sort-value="{{ item.average_price }}">{{ num(item.average_price, 2) }} {{ item.currency_symbol }}</td>
-                    <td class="text-end fw-bold num-font align-middle" data-sort-value="{{ item.current_value_eur }}">{{ num(item.current_value_eur, 2) }} €</td>
+                    <td class="text-end num-font align-middle text-body-secondary" data-sort-value="{{ item.invested_value_eur }}">{{ num(item.invested_value_eur, 2) }} €</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.current_value_eur }}">{{ num(item.current_value_eur, 2) }} €</td>
                     {% set peso = (item.current_value_eur / total_current_value * 100) if total_current_value > 0 else 0 %}
                     <td class="text-end align-middle" data-sort-value="{{ peso }}">
-                        <span class="fw-semibold num-font">{{ num(peso, 1) }}%</span>
-                        <div class="progress mt-1 ms-auto" style="height:3px; width:60px;">
-                            <div class="progress-bar bg-primary" style="width:{{ "{:.1f}".format(peso) }}%"></div>
+                        <div class="d-flex align-items-center justify-content-end gap-2">
+                            <div class="progress" style="height:3px; width:40px;"><div class="progress-bar bg-primary" style="width:{{ "{:.1f}".format(peso) }}%"></div></div>
+                            <span class="fw-semibold num-font">{{ num(peso, 1) }}%</span>
                         </div>
                     </td>
                     {% set pnl_total = item.current_value_eur - item.invested_value_eur %}
-                    <td class="text-end fw-bold num-font align-middle {% if pnl_total > 0 %}text-success{% elif pnl_total < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ pnl_total }}">
-                        <div style="line-height: 1.2;">
-                            <span class="d-block">{% if pnl_total > 0 %}+{% endif %}{{ num(pnl_total, 2) }} €</span>
-                            <small class="d-block fw-normal" style="font-size: 0.75rem; opacity: 0.85;">
+                    <td class="text-end num-font align-middle {% if pnl_total > 0 %}text-success{% elif pnl_total < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ pnl_total }}">
+                        <div class="text-nowrap">
+                            <span>{% if pnl_total > 0 %}+{% endif %}{{ num(pnl_total, 2) }} €</span>
+                            <small class="fw-normal ms-1" style="font-size: 0.75rem; opacity: 0.85;">
                                 ({% if item.return_pct > 0 %}+{% endif %}{{ (num(item.return_pct, 2) ~ '%') }})
                                 {% if item.cagr is not none %}
                                 <i class="bi bi-info-circle text-muted ms-1 cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="top" title="Rentabilidad Anualizada (CAGR): {% if item.cagr > 0 %}+{% endif %}{{ (num(item.cagr, 1) ~ '%') }}" style="font-size: 0.68rem; vertical-align: middle;"></i>
@@ -481,16 +432,90 @@
   </div>
 
   <!-- Pestaña Rendimiento -->
+  <!-- Pestaña Distribución: todo en una pantalla (el alto se ajusta a la ventana); lo de menos del 1 % va en «Otros» -->
+  <div class="tab-pane fade" id="dist-pane" role="tabpanel" aria-labelledby="dist-tab">
+    {% if distribution %}{% set cz = distribution.concentration %}
+        <div class="d-flex flex-wrap gap-2 mb-3 small" id="distChips">
+            <span class="dist-chip" title="La posición que más pesa"><span class="text-muted">Mayor posición</span> <strong>{{ clean_ticker(cz.max_ticker) }} {{ num(cz.max_pct, 1) }}%</strong></span>
+            <span class="dist-chip" title="Lo que suman las 5 posiciones más grandes"><span class="text-muted">Top 5</span> <strong>{{ num(cz.top5_pct, 1) }}%</strong></span>
+            <span class="dist-chip" title="Número efectivo de posiciones (1/Σ peso²): con N posiciones iguales sale N. Cuanto más lejos del número real, más concentrada está la cartera.">
+                <span class="text-muted">Equivale a</span> <strong>{{ num(cz.effective_n, 1) }}</strong> <span class="text-muted">posiciones iguales (de {{ cz.positions }})</span></span>
+            <span class="dist-chip" title="Divisa en la que está la mayor parte de la cartera: su cambio frente al euro te mueve el valor"><span class="text-muted">Divisa principal</span> <strong>{{ cz.main_currency }} {{ num(cz.main_currency_pct, 1) }}%</strong></span>
+            <i class="bi bi-info-circle text-muted align-self-center" title="Lo que pesa menos del 1 % se agrupa en «Otros» (pasa el ratón para ver qué incluye). País: sede de la empresa, no dónde vende. Pasa el ratón por la leyenda para resaltar cada empresa."></i>
+        </div>
+        <div class="row g-3">
+            <div class="col-12 col-xl-6">
+                <div class="card shadow-sm border-0" id="distAssetsCard"><div class="card-body">
+                    <div class="fw-bold small mb-1"><i class="bi bi-pie-chart-fill me-1"></i>Por activo</div>
+                    <div class="row g-2 align-items-center">
+                        <div class="col-12 col-md-8"><div class="dist-donut-wrap"><div id="distAssets"></div><div class="dist-logos" id="distAssetLogos"></div></div></div>
+                        <div class="col-12 col-md-4">
+                            <table class="table table-sm table-borderless mb-0 dist-legend" id="distLegend">
+                            {% for a in distribution.assets %}
+                                <tr data-i="{{ loop.index0 }}" title="{{ a.name }}{{ ' · ' ~ a.members|join(', ') if a.members else '' }}">
+                                    <td class="dist-legend-dot"><span class="dist-dot" data-i="{{ loop.index0 }}"></span></td>
+                                    <td class="dist-legend-logo">{% if a.ticker %}<img src="/logo/{{ a.ticker|urlencode }}" alt="" class="dist-logo" onerror="this.remove()">{% endif %}</td>
+                                    <td><strong>{{ clean_ticker(a.ticker) if a.ticker else a.label }}</strong></td>
+                                    <td class="text-end num-font fw-semibold">{{ num(a.pct, 1) }}%</td>
+                                </tr>
+                            {% endfor %}
+                            </table>
+                        </div>
+                    </div>
+                </div></div>
+            </div>
+            <div class="col-12 col-xl-6">
+                <div class="dist-small-grid" id="distSmallGrid">
+                    {% for key, title, icon in [('roles', 'Por rol', 'bi-bookmark-star'), ('currency', 'Por divisa', 'bi-currency-exchange'), ('sector', 'Por sector', 'bi-diagram-3'), ('country', 'Por país', 'bi-globe')] %}
+                    <div>
+                        <div class="card shadow-sm border-0 dist-small-card h-100"><div class="card-body pb-2 d-flex flex-column">
+                            <div class="fw-bold small mb-1"><i class="bi {{ icon }} me-1"></i>{{ title }}</div>
+                            {% if key == 'roles' %}
+                            {# barra por rol: relleno = peso actual; franja = rango objetivo #}
+                            {% set scale = [60, (distribution.roles|map(attribute='pct')|max) + 5]|max %}
+                            <div class="dist-roles flex-grow-1 d-flex flex-column justify-content-around">
+                                {% for r in distribution.roles %}
+                                <div title="{{ ('Sin rol: ' ~ r.members|join(', ')) if r.members else (r.label ~ ': ' ~ num(r.pct, 1) ~ '%' ~ (' · objetivo ' ~ r.min ~ '–' ~ r.max ~ '%' if r.min is not none else '')) }}">
+                                    <div class="d-flex align-items-center gap-2 small">
+                                        <span class="text-truncate"><span class="dist-dot" style="background: {{ r.color or '#9ca3af' }}"></span>{{ r.label }}</span>
+                                        <span class="ms-auto num-font fw-semibold">{{ num(r.pct, 1) }}%</span>
+                                        {% if r.min is not none %}<span class="text-muted num-font text-nowrap" style="font-size: .7rem;">{{ r.min }}–{{ r.max }}%</span>{% endif %}
+                                        {% if r.band == 'en_rango' %}<i class="bi bi-check-circle-fill st-green" title="Dentro del rango objetivo"></i>
+                                        {% elif r.band == 'bajo' %}<i class="bi bi-arrow-down-circle-fill text-warning" title="Por debajo del rango objetivo"></i>
+                                        {% elif r.band == 'alto' %}<i class="bi bi-arrow-up-circle-fill text-warning" title="Por encima del rango objetivo"></i>{% endif %}
+                                    </div>
+                                    <div class="dist-bar">
+                                        {% if r.min is not none %}<div class="dist-bar-range" style="left: {{ '%.1f'|format(r.min / scale * 100) }}%; width: {{ '%.1f'|format((r.max - r.min) / scale * 100) }}%;"></div>{% endif %}
+                                        <div class="dist-bar-fill" style="width: {{ '%.1f'|format(r.pct / scale * 100) }}%; background: {{ r.color or '#9ca3af' }};"></div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="text-end small"><a href="/ideal-portfolio" class="text-decoration-none">Portfolio ideal →</a></div>
+                            {% else %}
+                            <div id="dist-{{ key }}" class="dist-small flex-grow-1"></div>
+                            {% endif %}
+                        </div></div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <script type="application/json" id="distData">{{ distribution|tojson }}</script>
+    {% else %}<div class="p-3 small text-muted">No hay posiciones abiertas.</div>{% endif %}
+    </div>
+
   <div class="tab-pane fade" id="perf-pane" role="tabpanel" aria-labelledby="perf-tab">
 
     <!-- BARRA DE CONTROL GLOBAL (UNIFICADA AL INICIO) -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 p-3 bg-white border rounded shadow-sm gap-2">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
       <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="fw-bold text-dark me-2" style="font-size:0.85rem;">Ver como:</span>
+        <span class="fw-bold me-1" style="font-size:0.85rem;">Ver como:</span>
         <div class="btn-group btn-group-sm" role="group">
           <button type="button" class="btn btn-primary active" id="btnNav" onclick="setMode('nav')">Índice (TWR)</button>
           <button type="button" class="btn btn-outline-primary" id="btnReal" onclick="setMode('real')">€ Real</button>
         </div>
+        <span class="small text-muted d-none d-lg-inline" id="perfModeHint" style="font-size:.72rem;">Índice que empieza en 10: las aportaciones no cuentan como rentabilidad</span>
         <button id="refreshPerfBtn" class="btn btn-outline-secondary btn-sm" onclick="refreshPerformance()" title="Recalcular">
           <i class="bi bi-arrow-clockwise"></i>
         </button>
@@ -527,87 +552,35 @@
       </div>
     </div>
 
-    <!-- BARRA DE ESTADÍSTICAS HORIZONTAL ULTRA-COMPACTA (ESTILO TICKER / KOYFIN) -->
-    <div class="card border border-light-subtle shadow-sm mb-3 bg-white rounded-3">
-      <div class="card-body p-2.5">
-        <div class="row g-2 align-items-center text-center">
-          <!-- Rentabilidad Total -->
-          <div class="col-6 col-md border-end border-light-subtle">
-            <div class="text-muted text-uppercase mb-1" id="kpiTotalLabel" style="font-size:0.58rem; letter-spacing:0.04em; font-weight:700;">Rentabilidad Total</div>
-            <span class="fw-bold fs-6 lh-1" id="kpiTotal">—</span>
-          </div>
-          <!-- CAGR -->
-          <div class="col-6 col-md border-end border-light-subtle">
-            <div class="text-muted text-uppercase mb-1" id="kpiCagrLabel" style="font-size:0.58rem; letter-spacing:0.04em; font-weight:700;">CAGR</div>
-            <span class="fw-bold fs-6 lh-1" id="kpiCagr">—</span>
-            <div id="kpiBenchCagr" class="text-muted mt-1" style="font-size:0.55rem; line-height:1.1;"></div>
-          </div>
-          <!-- Máx. Drawdown -->
-          <div class="col-6 col-md border-end border-light-subtle">
-            <div class="text-muted text-uppercase mb-1" id="kpiDDLabel" style="font-size:0.58rem; letter-spacing:0.04em; font-weight:700;">Máx. Drawdown</div>
-            <span class="fw-bold fs-6 text-danger lh-1" id="kpiDD">—</span>
-          </div>
-          <!-- Beneficio Realizado -->
-          <div class="col-6 col-md border-end border-light-subtle">
-            <div class="text-muted text-uppercase mb-1" style="font-size:0.58rem; letter-spacing:0.04em; font-weight:700;">Bf. Realizado</div>
-            <span class="fw-bold fs-6 lh-1 {% if total_realized_pnl >= 0 %}text-success{% else %}text-danger{% endif %}">
-              {% if total_realized_pnl >= 0 %}+{% endif %}{{ num(total_realized_pnl, 0) }} €
-            </span>
-          </div>
-          <!-- Mejor Mes -->
-          <div class="col-6 col-md border-end border-light-subtle">
-            <div class="text-muted text-uppercase mb-0.5" style="font-size:0.58rem; letter-spacing:0.04em;">Mejor Mes</div>
-            <span id="kpiBestMonth" class="fw-bold fs-6 text-success lh-1">—</span>
-            <span id="kpiBestMonthLabel" class="text-muted d-block mt-0.5" style="font-size:0.55rem; line-height: 1.1;"></span>
-          </div>
-          <!-- Peor Mes -->
-          <div class="col-6 col-md border-end border-light-subtle">
-            <div class="text-muted text-uppercase mb-0.5" style="font-size:0.58rem; letter-spacing:0.04em;">Peor Mes</div>
-            <span id="kpiWorstMonth" class="fw-bold fs-6 text-danger lh-1">—</span>
-            <span id="kpiWorstMonthLabel" class="text-muted d-block mt-0.5" style="font-size:0.55rem; line-height: 1.1;"></span>
-          </div>
-          <!-- Volatilidad Anual -->
-          <div class="col-6 col-md border-end border-light-subtle">
-            <div class="text-muted text-uppercase mb-0.5" style="font-size:0.58rem; letter-spacing:0.04em;">Volatilidad Anual</div>
-            <span id="kpiVol" class="fw-bold fs-6 text-dark lh-1">—</span>
-            <span class="text-muted d-block mt-0.5" style="font-size:0.55rem; line-height: 1.1;">(desv. × √12)</span>
-          </div>
-          <!-- Meses Positivos -->
-          <div class="col-6 col-md">
-            <div class="text-muted text-uppercase mb-0.5" style="font-size:0.58rem; letter-spacing:0.04em;">Meses Positivos</div>
-            <span id="kpiPosMths" class="fw-bold fs-6 text-success lh-1">—</span>
-            <span id="kpiPosMthsSub" class="text-muted d-block mt-0.5" style="font-size:0.55rem; line-height: 1.1;"></span>
-          </div>
-        </div>
-      </div>
+    <!-- CIFRAS: una línea de fichas (los valores los rellena updateKPIs) -->
+    <div class="perf-kpis mb-2">
+      <div class="perf-kpi"><span class="lbl" id="kpiTotalLabel">Rentabilidad total</span><span id="kpiTotal">—</span></div>
+      <div class="perf-kpi"><span class="lbl" id="kpiCagrLabel">CAGR</span><span id="kpiCagr">—</span><span id="kpiBenchCagr" class="sub"></span></div>
+      <div class="perf-kpi"><span class="lbl" id="kpiDDLabel">Máx. drawdown</span><span class="fw-bold text-danger" id="kpiDD">—</span></div>
+      <div class="perf-kpi"><span class="lbl">Mejor mes</span><span id="kpiBestMonth" class="fw-bold text-success">—</span><span id="kpiBestMonthLabel" class="sub"></span></div>
+      <div class="perf-kpi"><span class="lbl">Peor mes</span><span id="kpiWorstMonth" class="fw-bold text-danger">—</span><span id="kpiWorstMonthLabel" class="sub"></span></div>
+      <div class="perf-kpi" title="Volatilidad anual: desviación de los retornos mensuales × √12"><span class="lbl">Volatilidad</span><span id="kpiVol" class="fw-bold">—</span></div>
+      <div class="perf-kpi"><span class="lbl">Meses positivos</span><span id="kpiPosMths" class="fw-bold text-success">—</span><span id="kpiPosMthsSub" class="sub"></span></div>
     </div>
 
-    <!-- Gráfica principal (mejorada y profesional) -->
-    <div class="card shadow-sm border-0 mb-4">
-      <div class="card-body">
-        
-        <!-- Contenedor a pantalla completa para el gráfico -->
-        <div class="row">
-          <div class="col-12">
-            <div id="perf-chart" style="height:340px;"></div>
-            
-            <!-- Leyenda Interactiva con botón de Ojo para ocultar/mostrar -->
-            <div id="custom-legend" class="d-flex flex-wrap gap-2 justify-content-center mt-3 mb-2"></div>
-            
-            <div class="border-top mt-3 pt-3">
-              <div class="text-muted mb-1" style="font-size:0.7rem;letter-spacing:.05em;text-transform:uppercase;">Drawdown desde máximo</div>
-              <div id="drawdown-chart" style="height:100px;"></div>
-            </div>
-          </div>
-        </div>
-
+    <div class="row g-3">
+    <div class="col-12 col-xl-8">
+    <!-- Gráfico + drawdown, con el mismo eje de fechas -->
+    <div class="card shadow-sm border-0" id="perfChartCard">
+      <div class="card-body py-2 d-flex flex-column">
+        <div id="perf-chart"></div>
+        <div id="custom-legend" class="d-flex flex-wrap gap-2 justify-content-center my-1"></div>
+        <div class="text-muted" style="font-size:0.66rem;letter-spacing:.05em;text-transform:uppercase;">Drawdown desde máximo</div>
+        <div id="drawdown-chart"></div>
       </div>
     </div>
-
-    <!-- Tablas anuales + mensuales en una sola card con sub-tabs -->
-    <div class="card shadow-sm border-0 mb-4">
-      <div class="card-header bg-white border-0 pt-2 pb-0">
-        <ul class="nav nav-pills gap-1 pb-2" role="tablist">
+    </div>
+    <div class="col-12 col-xl-4">
+    <!-- Por año / por mes (mapa de calor), a la derecha; con scroll propio si no cabe -->
+    <div class="card shadow-sm border-0" id="perfTableCard">
+      <div class="card-header bg-transparent border-0 pt-2 pb-0">
+        <button class="btn btn-sm btn-outline-secondary float-end py-0 mt-1" id="perfTableExpand" onclick="togglePerfTable()" title="Ampliar la tabla a todo el ancho"><i class="bi bi-arrows-angle-expand"></i></button>
+        <ul class="nav nav-pills nav-sm gap-1 pb-1" role="tablist">
           <li class="nav-item" role="presentation">
             <button class="nav-link active fw-semibold" id="tab-annual-btn"
                     data-bs-toggle="tab" data-bs-target="#pane-annual" type="button" role="tab">Por año</button>
@@ -618,7 +591,7 @@
           </li>
         </ul>
       </div>
-      <div class="tab-content">
+      <div class="tab-content perf-table-body">
         <!-- Sub-tab: Por año -->
         <div class="tab-pane fade show active" id="pane-annual" role="tabpanel">
           {% if annual_returns %}
@@ -631,7 +604,7 @@
           </div>
           <div class="table-responsive">
             <table class="table table-hover align-middle mb-0 text-center" style="font-size:0.88rem;" id="annualTable">
-              <thead class="table-light">
+              <thead>
                 <tr>
                   <th class="ps-4 text-start">Año</th>
                   <th>Mi Cartera</th>
@@ -691,63 +664,60 @@
         </div>
       </div>
     </div>
+    </div>
+    </div>
 
   </div>
 
   <!-- Pestaña Fundamentales -->
   <div class="tab-pane fade" id="fund-pane" role="tabpanel" aria-labelledby="fund-tab">
-    
-    <div class="row g-4 mb-4">
+    <div class="row g-3 mb-3">
       <!-- Tarjeta 1: Calidad, Crecimiento y Riesgo (Ponderadas) -->
       <div class="col-12 col-xl-6">
         <div class="card h-100 shadow-sm border-0 bg-white rounded-3">
-          <div class="card-header bg-white border-bottom border-light-subtle py-3">
+          <div class="card-header bg-white border-bottom border-light-subtle py-2">
             <div class="d-flex justify-content-between align-items-center">
               <div>
-                <h6 class="fw-bold mb-0 text-dark" style="font-size:0.9rem;">
+                <h6 class="fw-bold mb-0" style="font-size:0.9rem;">
                   <i class="bi bi-cpu text-primary me-1.5"></i>Calidad, Crecimiento y Riesgo (Ponderado)
                 </h6>
-                <div class="text-muted small mt-0.5" style="font-size:0.72rem;">Eficiencia operativa, velocidad de crecimiento y perfil de volatilidad.</div>
               </div>
             </div>
           </div>
-          <div class="card-body p-3">
-            <div class="row g-3 align-items-center text-center">
+          <div class="card-body py-2 px-3">
+            <div class="row g-2 align-items-center text-center">
               <!-- ROIC -->
               <div class="col-4 border-end border-light-subtle">
-                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">ROIC (TTM)</div>
-                <span class="fw-bold fs-5 text-success lh-1">{{ (num(port_roic, 1) ~ '%') }}</span>
-                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Retorno Capital</div>
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">ROIC (TTM)</div>
+                <span class="fw-bold fund-big {{ 'text-success' if port_roic >= 15 else ('text-danger' if port_roic < 8 else '') }} lh-1">{{ (num(port_roic, 1) ~ '%') }}</span>
               </div>
               <!-- Crecimiento -->
               <div class="col-4 border-end border-light-subtle">
-                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Crecimiento (NTM)</div>
-                <span class="fw-bold fs-5 text-success lh-1">{{ (num(port_growth, 1) ~ '%') }}</span>
-                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Ingresos Esperados</div>
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Crecimiento (NTM)</div>
+                <span class="fw-bold fund-big {{ 'text-success' if port_growth >= 12 else ('text-danger' if port_growth < 5 else '') }} lh-1">{{ (num(port_growth, 1) ~ '%') }}</span>
               </div>
               <!-- Beta -->
               <div class="col-4">
-                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Beta Cartera</div>
-                <span class="fw-bold fs-5 text-secondary lh-1">{{ num(port_beta, 2) }}</span>
-                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">vs. MSCI World</div>
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Beta Cartera</div>
+                <span class="fw-bold fund-big text-secondary lh-1">{{ num(port_beta, 2) }}</span>
               </div>
               
-              <div class="col-12 border-top border-light-subtle pt-3">
+              <div class="col-12 border-top border-light-subtle pt-2">
                 <div class="row text-center">
                   <!-- M. Bruto -->
                   <div class="col-4 border-end border-light-subtle">
-                    <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Margen Bruto</div>
-                    <span class="fw-bold fs-6 text-dark lh-1">{{ (num(port_gross_margin, 1) ~ '%') }}</span>
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Margen Bruto</div>
+                    <span class="fw-bold fund-small lh-1">{{ (num(port_gross_margin, 1) ~ '%') }}</span>
                   </div>
                   <!-- M. Operativo -->
                   <div class="col-4 border-end border-light-subtle">
-                    <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Margen Operativo</div>
-                    <span class="fw-bold fs-6 text-dark lh-1">{{ (num(port_operating_margin, 1) ~ '%') }}</span>
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Margen Operativo</div>
+                    <span class="fw-bold fund-small lh-1">{{ (num(port_operating_margin, 1) ~ '%') }}</span>
                   </div>
                   <!-- Alfa -->
                   <div class="col-4">
-                    <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Alfa de Jensen</div>
-                    <span class="fw-bold fs-6 {% if port_alpha >= 0 %}text-success{% else %}text-danger{% endif %} lh-1">
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Alfa de Jensen</div>
+                    <span class="fw-bold fund-small {% if port_alpha >= 0 %}text-success{% else %}text-danger{% endif %} lh-1">
                       {% if port_alpha >= 0 %}+{% endif %}{{ (num(port_alpha, 2) ~ '%') }}
                     </span>
                   </div>
@@ -761,59 +731,54 @@
       <!-- Tarjeta 2: Valoración, Dividendos y Solvencia (Ponderadas) -->
       <div class="col-12 col-xl-6">
         <div class="card h-100 shadow-sm border-0 bg-white rounded-3">
-          <div class="card-header bg-white border-bottom border-light-subtle py-3">
+          <div class="card-header bg-white border-bottom border-light-subtle py-2">
             <div class="d-flex justify-content-between align-items-center">
               <div>
-                <h6 class="fw-bold mb-0 text-dark" style="font-size:0.9rem;">
+                <h6 class="fw-bold mb-0" style="font-size:0.9rem;">
                   <i class="bi bi-wallet2 text-primary me-1.5"></i>Valoración, Dividendos y Solvencia (Ponderado)
                 </h6>
-                <div class="text-muted small mt-0.5" style="font-size:0.72rem;">Múltiplos de precio, rendimiento por caja, dividendo y apalancamiento.</div>
               </div>
             </div>
           </div>
-          <div class="card-body p-3">
-            <div class="row g-3 align-items-center text-center">
+          <div class="card-body py-2 px-3">
+            <div class="row g-2 align-items-center text-center">
               <!-- PER Forward -->
               <div class="col-3 border-end border-light-subtle">
-                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PER Forward</div>
-                <span class="fw-bold fs-5 text-dark lh-1">{{ "{:,.1f}x".format(port_forward_pe) }}</span>
-                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Beneficios NTM</div>
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PER Forward</div>
+                <span class="fw-bold fund-big lh-1">{{ num(port_forward_pe, 1) ~ "x" }}</span>
               </div>
               <!-- FCF Yield -->
               <div class="col-3 border-end border-light-subtle">
-                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">FCF Yield</div>
-                <span class="fw-bold fs-5 text-success lh-1">{{ (num(port_fcf_yield, 2) ~ '%') }}</span>
-                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Rendimiento Caja</div>
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">FCF Yield</div>
+                <span class="fw-bold fund-big {{ 'text-success' if port_fcf_yield >= 4 else ('text-danger' if port_fcf_yield < 2 else '') }} lh-1">{{ (num(port_fcf_yield, 2) ~ '%') }}</span>
               </div>
               <!-- Deuda Neta / EBITDA -->
               <div class="col-3 border-end border-light-subtle">
-                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Deuda / EBITDA</div>
-                <span class="fw-bold fs-5 {% if port_net_debt_ebitda <= 1.5 %}text-success{% else %}text-warning{% endif %} lh-1">{{ "{:,.2f}x".format(port_net_debt_ebitda) }}</span>
-                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Solvencia</div>
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Deuda / EBITDA</div>
+                <span class="fw-bold fund-big {{ 'text-success' if port_net_debt_ebitda <= 1 else ('text-danger' if port_net_debt_ebitda > 3 else '') }} lh-1">{{ num(port_net_debt_ebitda, 2) ~ "x" }}</span>
               </div>
               <!-- Dividend Yield -->
               <div class="col-3">
-                <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Div. Yield</div>
-                <span class="fw-bold fs-5 text-primary lh-1">{{ (num(port_yield, 2) ~ '%') }}</span>
-                <div class="text-muted mt-1" style="font-size:0.52rem; line-height:1.1;">Dividendo Cartera</div>
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Div. Yield</div>
+                <span class="fw-bold fund-big lh-1">{{ (num(port_yield, 2) ~ '%') }}</span>
               </div>
               
-              <div class="col-12 border-top border-light-subtle pt-3">
+              <div class="col-12 border-top border-light-subtle pt-2">
                 <div class="row text-center">
                   <!-- PER Trailing -->
                   <div class="col-4 border-end border-light-subtle">
-                    <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PER Trailing</div>
-                    <span class="fw-bold fs-6 text-dark lh-1">{{ "{:,.1f}x".format(port_trailing_pe) }}</span>
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PER Trailing</div>
+                    <span class="fw-bold fund-small lh-1">{{ num(port_trailing_pe, 1) ~ "x" }}</span>
                   </div>
                   <!-- PEG Ratio -->
                   <div class="col-4 border-end border-light-subtle">
-                    <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PEG Ratio</div>
-                    <span class="fw-bold fs-6 text-dark lh-1">{{ num(port_peg, 2) }}</span>
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PEG Ratio</div>
+                    <span class="fw-bold fund-small lh-1">{{ num(port_peg, 2) }}</span>
                   </div>
                   <!-- Liquidez -->
                   <div class="col-4">
-                    <div class="text-muted text-uppercase mb-1" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Liquidez Corr.</div>
-                    <span class="fw-bold fs-6 text-success lh-1">{{ num(port_current_ratio, 2) }}</span>
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Liquidez Corr.</div>
+                    <span class="fw-bold fund-small lh-1">{{ num(port_current_ratio, 2) }}</span>
                   </div>
                 </div>
               </div>
@@ -826,30 +791,39 @@
     <!-- Tabla Detallada por Compañía -->
     <div class="card shadow-sm border-0 mb-4 bg-white rounded-3">
       <div class="card-header bg-white border-bottom border-light-subtle py-3">
-        <h5 class="fw-bold mb-0 text-dark" style="font-size:0.95rem;">
+        <h5 class="fw-bold mb-0 " style="font-size:0.95rem;">
           <i class="bi bi-building text-primary me-1.5"></i>Desglose de Fundamentales por Compañía
+          <i class="bi bi-info-circle text-muted ms-1" style="font-size:.8rem;" title="Verde = bueno · rojo = flojo · sin color = normal. ROIC ≥15 % / <8 % · Crecimiento ≥12 % / <5 % · M. bruto ≥50 % / <25 % · M. oper. ≥20 % / <10 % · PER fwd ≤20x / >35x · PEG ≤1,5 / >2,5 · Yield FCF ≥4 % / <2 % · Deuda/EBITDA ≤1x / >3x. Dividendo y beta, sin color: no son buenos ni malos por sí solos."></i>
+          <span class="small text-muted fw-normal ms-2" style="font-size:.7rem;"><span class="text-success">verde</span> bueno · <span class="text-danger">rojo</span> flojo</span>
         </h5>
       </div>
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-modern align-middle mb-0" id="fundamentalsTable" style="font-size:0.85rem;">
             <thead>
-              <tr style="cursor: pointer; user-select: none; font-size:0.75rem;" class="table-light">
+              <tr class="fund-groups">
+                <th colspan="3" class="text-center"></th>
+                <th colspan="3" class="fund-sep text-center">Calidad</th>
+                <th colspan="1" class="fund-sep text-center">Crecimiento</th>
+                <th colspan="3" class="fund-sep text-center">Valoración</th>
+                <th colspan="1" class="fund-sep text-center">Balance</th>
+                <th colspan="1" class="fund-sep text-center">Accionista</th>
+                <th colspan="1" class="fund-sep text-center">Riesgo</th>
+              </tr>
+              <tr style="cursor: pointer; user-select: none; font-size:0.75rem;">
                 <th class="ps-4" onclick="sortTable('fundamentalsTable', 0, false)">Activo <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th onclick="sortTable('fundamentalsTable', 1, false)">Compañía <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="" onclick="sortTable('fundamentalsTable', 1, false)">Compañía <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
                 <th class="text-end" onclick="sortTable('fundamentalsTable', 2, true)">Peso % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 3, true)">Beta <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 4, true)">ROIC <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 5, true)">Crecimiento <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 6, true)">M. Bruto <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 7, true)">M. Oper. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 8, true)">PER Trail. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 9, true)">PER Fwd. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 10, true)">PEG <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 11, true)">Yield FCF <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 12, true)">Deuda/EBITDA <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 13, true)">Liquidez <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end pe-4" onclick="sortTable('fundamentalsTable', 14, true)">Yield Div. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 3, true)">ROIC <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 4, true)">M. bruto <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 5, true)">M. oper. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 6, true)">Crec. NTM <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 7, true)">PER fwd <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 8, true)">PEG <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 9, true)">Yield FCF <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 10, true)">Deuda/EBITDA <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 11, true)">Yield div. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep pe-4" onclick="sortTable('fundamentalsTable', 12, true)">Beta <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
               </tr>
             </thead>
             <tbody>
@@ -857,52 +831,39 @@
               {% set peso = (item.current_value_eur / total_current_value * 100) if total_current_value > 0 else 0 %}
               <tr>
                 <td class="ps-4 align-middle">
-                  <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(item.ticker) }}</a>
+                  <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none  fw-bold">{{ clean_ticker(item.ticker) }}</a>
                 </td>
                 <td class="text-muted align-middle text-truncate" style="max-width: 140px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
                 <td class="text-end num-font align-middle fw-semibold" data-sort-value="{{ peso }}">{{ (num(peso, 1) ~ '%') }}</td>
-                <td class="text-end num-font align-middle text-muted" data-sort-value="{{ item.beta if item.beta is not none else -100 }}">
-                  {{ num(item.beta, 2) if item.beta is not none else '—' }}
-                </td>
-                <td class="text-end num-font align-middle fw-bold {% if item.roic is not none %}{% if item.roic > 15 %}text-success{% elif item.roic > 8 %}text-dark{% else %}text-danger{% endif %}{% endif %}" data-sort-value="{{ item.roic if item.roic is not none else -100 }}">
+                <td class="fund-sep text-end num-font align-middle fw-bold {{ ('text-success' if item.roic >= 15 else ('text-danger' if item.roic < 8 else '')) if item.roic is not none else '' }}" data-sort-value="{{ item.roic if item.roic is not none else -100 }}">
                   {{ (num(item.roic, 1) ~ '%') if item.roic is not none else '—' }}
                 </td>
-                <td class="text-end num-font align-middle fw-bold {% if item.expected_growth is not none %}{% if item.expected_growth > 12 %}text-success{% elif item.expected_growth > 5 %}text-dark{% else %}text-danger{% endif %}{% endif %}" data-sort-value="{{ item.expected_growth if item.expected_growth is not none else -100 }}">
-                  {{ (num(item.expected_growth, 1) ~ '%') if item.expected_growth is not none else '—' }}
-                </td>
-                <td class="text-end num-font align-middle text-muted" data-sort-value="{{ item.gross_margin if item.gross_margin is not none else -100 }}">
+                <td class="text-end num-font align-middle {{ ('text-success' if item.gross_margin >= 50 else ('text-danger' if item.gross_margin < 25 else '')) if item.gross_margin is not none else '' }}" data-sort-value="{{ item.gross_margin if item.gross_margin is not none else -100 }}">
                   {{ (num(item.gross_margin, 1) ~ '%') if item.gross_margin is not none else '—' }}
                 </td>
-                <td class="text-end num-font align-middle text-muted" data-sort-value="{{ item.operating_margin if item.operating_margin is not none else -100 }}">
+                <td class="text-end num-font align-middle {{ ('text-success' if item.operating_margin >= 20 else ('text-danger' if item.operating_margin < 10 else '')) if item.operating_margin is not none else '' }}" data-sort-value="{{ item.operating_margin if item.operating_margin is not none else -100 }}">
                   {{ (num(item.operating_margin, 1) ~ '%') if item.operating_margin is not none else '—' }}
                 </td>
-                <!-- PER Trailing -->
-                <td class="text-end num-font align-middle" data-sort-value="{{ item.trailing_pe if item.trailing_pe is not none else -100 }}">
-                  {{ "{:,.1f}x".format(item.trailing_pe) if item.trailing_pe is not none else '—' }}
+                <td class="fund-sep text-end num-font align-middle fw-bold {{ ('text-success' if item.expected_growth >= 12 else ('text-danger' if item.expected_growth < 5 else '')) if item.expected_growth is not none else '' }}" data-sort-value="{{ item.expected_growth if item.expected_growth is not none else -100 }}">
+                  {{ (num(item.expected_growth, 1) ~ '%') if item.expected_growth is not none else '—' }}
                 </td>
-                <!-- PER Forward -->
-                <td class="text-end num-font align-middle fw-semibold" data-sort-value="{{ item.forward_pe if item.forward_pe is not none else -100 }}">
-                  {{ "{:,.1f}x".format(item.forward_pe) if item.forward_pe is not none else '—' }}
+                <td class="fund-sep text-end num-font align-middle fw-semibold {{ ('text-success' if item.forward_pe <= 20 else ('text-danger' if item.forward_pe > 35 else '')) if item.forward_pe is not none else '' }}" data-sort-value="{{ item.forward_pe if item.forward_pe is not none else -100 }}">
+                  {{ num(item.forward_pe, 1) ~ "x" if item.forward_pe is not none else '—' }}
                 </td>
-                <!-- PEG Ratio -->
-                <td class="text-end num-font align-middle {% if item.peg_ratio is not none %}{% if item.peg_ratio <= 1.5 %}text-success{% else %}text-muted{% endif %}{% endif %}" data-sort-value="{{ item.peg_ratio if item.peg_ratio is not none else 100 }}">
+                <td class="text-end num-font align-middle {{ ('text-success' if item.peg_ratio <= 1.5 else ('text-danger' if item.peg_ratio > 2.5 else '')) if item.peg_ratio is not none else '' }}" data-sort-value="{{ item.peg_ratio if item.peg_ratio is not none else 100 }}">
                   {{ num(item.peg_ratio, 2) if item.peg_ratio is not none else '—' }}
                 </td>
-                <!-- Yield FCF -->
-                <td class="text-end num-font align-middle fw-semibold text-success" data-sort-value="{{ item.fcf_yield if item.fcf_yield is not none else -100 }}">
+                <td class="text-end num-font align-middle fw-semibold {{ ('text-success' if item.fcf_yield >= 4 else ('text-danger' if item.fcf_yield < 2 else '')) if item.fcf_yield is not none else '' }}" data-sort-value="{{ item.fcf_yield if item.fcf_yield is not none else -100 }}">
                   {{ (num(item.fcf_yield, 1) ~ '%') if item.fcf_yield is not none else '—' }}
                 </td>
-                <!-- Deuda / EBITDA -->
-                <td class="text-end num-font align-middle fw-semibold {% if item.net_debt_ebitda is not none %}{% if item.net_debt_ebitda <= 1.0 %}text-success{% elif item.net_debt_ebitda <= 2.5 %}text-dark{% else %}text-warning{% endif %}{% endif %}" data-sort-value="{{ item.net_debt_ebitda if item.net_debt_ebitda is not none else 100 }}">
-                  {{ "{:,.2f}x".format(item.net_debt_ebitda) if item.net_debt_ebitda is not none else '—' }}
+                <td class="fund-sep text-end num-font align-middle fw-semibold {{ ('text-success' if item.net_debt_ebitda <= 1 else ('text-danger' if item.net_debt_ebitda > 3 else '')) if item.net_debt_ebitda is not none else '' }}" data-sort-value="{{ item.net_debt_ebitda if item.net_debt_ebitda is not none else 100 }}">
+                  {{ num(item.net_debt_ebitda, 2) ~ "x" if item.net_debt_ebitda is not none else '—' }}
                 </td>
-                <!-- Liquidez corriente -->
-                <td class="text-end num-font align-middle" data-sort-value="{{ item.current_ratio if item.current_ratio is not none else -100 }}">
-                  {{ num(item.current_ratio, 2) if item.current_ratio is not none else '—' }}
-                </td>
-                <!-- Dividend Yield -->
-                <td class="text-end num-font align-middle pe-4 text-primary fw-semibold" data-sort-value="{{ item.dividend_yield if item.dividend_yield is not none else -100 }}">
+                <td class="fund-sep text-end num-font align-middle" data-sort-value="{{ item.dividend_yield if item.dividend_yield is not none else -100 }}">
                   {{ (num(item.dividend_yield, 2) ~ '%') if item.dividend_yield is not none else '—' }}
+                </td>
+                <td class="pe-4 fund-sep text-end num-font align-middle text-muted" data-sort-value="{{ item.beta if item.beta is not none else -100 }}">
+                  {{ num(item.beta, 2) if item.beta is not none else '—' }}
                 </td>
               </tr>
               {% endfor %}
@@ -945,6 +906,11 @@
             <div class="fw-bold num-font" style="font-size:1.25rem;">{{ num(div_kpis.avg_monthly, 2) }} €</div>
             <small class="text-muted" style="font-size:0.78rem;">≈ {{ num(div_kpis.avg_monthly * 12, 2) }} €/año</small>
           </div>
+          <div class="col border-end pe-4 me-4">
+            <div class="text-muted" style="font-size:0.72rem;" title="Bruto en euros de lo anunciado y de lo estimado con el calendario de los últimos 12 meses, con las acciones de hoy">PREVISTO 12 MESES</div>
+            <div class="fw-bold num-font" style="font-size:1.25rem;">{{ num(div_forecast.total_gross, 2) }} €</div>
+            <small class="text-muted" style="font-size:0.78rem;">≈ {{ num(div_forecast.total_net, 2) }} € netos{% if div_forecast.yield_on_cost is not none %} · {{ num(div_forecast.yield_on_cost, 2) }}% s/coste{% endif %}</small>
+          </div>
           <div class="col">
             <div class="text-muted" style="font-size:0.72rem;">PRÓXIMO PAGO</div>
             {% if upcoming_dividends %}
@@ -963,73 +929,73 @@
       </div>
     </div>
 
-    <!-- Gráfico -->
-    <div class="card shadow-sm border-0 mb-4">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">Cobrados por Año</h6>
-        <div id="div-chart" style="height:260px;"></div>
-      </div>
-    </div>
-
-    <!-- Dos paneles lado a lado: Próximos | Últimos Cobrados -->
-    <div class="row g-3">
-
-      <!-- Próximos Estimados -->
-      <div class="col-xl-6">
-        <div class="card shadow-sm border-0 h-100">
-          <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
-            <div>
-              <h6 class="fw-bold mb-0"><i class="bi bi-calendar-check me-1 text-success"></i>Próximos Estimados</h6>
-              <small class="text-muted" style="font-size:0.72rem;">Dividendos pendientes de cobro</small>
-            </div>
-            <span class="badge bg-success bg-opacity-10 text-success fw-semibold" id="upcomingCount">{{ upcoming_dividends | length }}</span>
-          </div>
-          <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-modern align-middle mb-0" style="font-size:0.85rem;">
-                <thead>
-                  <tr>
-                    <th class="ps-3">Activo</th>
-                    <th>Cobro</th>
-                    <th>Ex-Date</th>
-                    <th class="text-end">Por acc.</th>
-                    <th class="text-end pe-3">Total est.</th>
-                  </tr>
-                </thead>
-                <tbody id="upcomingBody">
-                  {% if upcoming_dividends %}
-                    {% for div in upcoming_dividends %}
-                    <tr class="div-upcoming-row">
-                      <td class="ps-3 fw-bold">{{ clean_ticker(div.ticker) }}</td>
-                      <td class="num-font">{{ div.pay_date.strftime('%d/%m/%Y') if div.pay_date else '—' }}</td>
-                      <td class="num-font">{{ div.date.strftime('%d/%m/%Y') if div.date else '—' }}</td>
-                      <td class="text-end num-font">{{ num(div.amount_per_share, 4) }} {{ div.currency_code }}</td>
-                      <td class="text-end pe-3 fw-bold text-success num-font">+{{ num(div.total_amount, 2) }} {{ div.currency_code }}</td>
-                    </tr>
-                    {% endfor %}
-                  {% else %}
-                    <tr><td colspan="5" class="text-center text-muted py-4 small">Sin dividendos confirmados próximamente</td></tr>
-                  {% endif %}
-                </tbody>
-              </table>
-            </div>
-            {% if upcoming_dividends | length > 8 %}
-            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
-              <small class="text-muted" id="upcomingPageInfo"></small>
-              <div class="btn-group btn-group-sm">
-                <button class="btn btn-outline-secondary" onclick="divPage('upcoming', -1)"><i class="bi bi-chevron-left"></i></button>
-                <button class="btn btn-outline-secondary" onclick="divPage('upcoming', 1)"><i class="bi bi-chevron-right"></i></button>
-              </div>
-            </div>
-            {% endif %}
-          </div>
+    <!-- Dos vistas en una pantalla cada una: previsión (gráfico + tabla por empresa) y cobrados (gráfico + últimos) -->
+    <ul class="nav nav-pills sub-nav small mb-3" role="tablist">
+      <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#div-sub-forecast" id="div-sub-forecast-tab" type="button"><i class="bi bi-calendar-range me-1"></i>Previsión 12 meses</button></li>
+      <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#div-sub-paid" id="div-sub-paid-tab" type="button"><i class="bi bi-check2-circle me-1"></i>Cobrados</button></li>
+    </ul>
+    <div class="tab-content">
+    <div class="tab-pane fade show active" id="div-sub-forecast">
+      <div class="row g-3">
+        <div class="col-12 col-xl-7">
+          <div class="card shadow-sm border-0 h-100"><div class="card-body">
+            <h6 class="fw-bold mb-1">Por mes <span class="small text-muted fw-normal">(bruto, €)</span>
+              <i class="bi bi-info-circle text-muted small ms-1" title="Anunciado: lo publicado por la empresa. Estimado: el mismo calendario que los últimos 12 meses, con el último importe si paga 4+ veces al año. Mes de cobro si se conoce; si no, el de la fecha ex. Acciones de hoy, cambio de hoy. Pulsa una barra para ver de qué empresas viene."></i></h6>
+            <div id="div-forecast-chart" style="height:380px;"></div>
+            <div id="div-forecast-detail" class="small"></div>
+          </div></div>
+        </div>
+        <div class="col-12 col-xl-5">
+          <div class="card shadow-sm border-0 h-100"><div class="card-body p-0">
+            <h6 class="fw-bold px-3 pt-3 mb-2">Por empresa</h6>
+        {% if div_forecast.by_ticker %}
+        <div class="table-responsive">
+          <table class="table table-modern align-middle mb-0" style="font-size:0.8rem;">
+            <thead>
+              <tr>
+                <th class="ps-3">Activo</th>
+                <th>Frecuencia</th>
+                <th>Próximo</th>
+                <th class="text-end">Bruto 12m</th>
+                <th class="text-end" title="Retención en origen que suele aplicar el bróker (en España, la del IRPF)">Retención</th>
+                <th class="text-end" title="Tras la retención en origen y el 19 % del IRPF menos la deducción por doble imposición (tope del 15 %)">Neto 12m</th>
+                <th class="text-end" title="Rentabilidad sobre lo que te costó la posición">S/coste</th>
+                <th class="text-end pe-3" title="Rentabilidad al precio de hoy">Actual</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in div_forecast.by_ticker %}
+              <tr>
+                <td class="ps-3 fw-bold" title="{{ r.name }}">{{ clean_ticker(r.ticker) }}</td>
+                <td class="small">{{ r.frequency }}</td>
+                <td class="num-font small">{{ r.next.date.strftime('%d/%m/%Y') }}
+                  <span class="badge {{ 'bg-secondary bg-opacity-25 text-secondary' if r.next.estimated else 'bg-success bg-opacity-10 text-success' }} fw-normal ms-1">{{ 'estimado' if r.next.estimated else ('pago' if r.next.pay_date else 'ex') }}</span></td>
+                <td class="text-end num-font fw-bold">{{ num(r.gross_eur, 2) }} €</td>
+                <td class="text-end num-font text-muted">{{ num(r.withholding * 100, 1) }}%</td>
+                <td class="text-end num-font">{{ num(r.net_eur, 2) }} €</td>
+                <td class="text-end num-font">{{ (num(r.yield_on_cost, 2) ~ '%') if r.yield_on_cost is not none else '—' }}</td>
+                <td class="text-end pe-3 num-font">{{ (num(r.yield_now, 2) ~ '%') if r.yield_now is not none else '—' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+          </div></div>
         </div>
       </div>
-
-      <!-- Últimos Cobrados -->
-      <div class="col-xl-6">
+    </div>
+    <div class="tab-pane fade" id="div-sub-paid">
+      <div class="row g-3">
+        <div class="col-12 col-xl-7">
+          <div class="card shadow-sm border-0 h-100"><div class="card-body">
+            <h6 class="fw-bold mb-1">Por año <span class="small text-muted fw-normal">(€)</span></h6>
+            <div id="div-chart" style="height:380px;"></div>
+          </div></div>
+        </div>
+        <div class="col-12 col-xl-5">
         <div class="card shadow-sm border-0 h-100">
-          <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
+          <div class="card-header bg-transparent border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
             <div>
               <h6 class="fw-bold mb-0"><i class="bi bi-check2-circle me-1 text-primary"></i>Últimos Cobrados</h6>
               <small class="text-muted" style="font-size:0.72rem;">Dividendos recibidos</small>
@@ -1038,7 +1004,7 @@
           </div>
           <div class="card-body p-0">
             <div class="table-responsive">
-              <table class="table table-modern align-middle mb-0" style="font-size:0.85rem;">
+              <table class="table table-modern align-middle mb-0" style="font-size:0.8rem;">
                 <thead>
                   <tr>
                     <th class="ps-3">Activo</th>
@@ -1076,60 +1042,38 @@
             {% endif %}
           </div>
         </div>
+        </div>
       </div>
-
+    </div>
     </div>
   </div>
 
   <!-- Pestaña Histórico Cerrado -->
   <div class="tab-pane fade" id="closed-pane" role="tabpanel" aria-labelledby="closed-tab">
     
-    <!-- KPI Cards de Historial -->
-    <div class="row g-3 mb-4">
-      <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center py-3">
-            <div class="text-muted small mb-1">Ganancias Realizadas</div>
-            <div class="fw-bold fs-5 text-success" id="histGains">0,00 €</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center py-3">
-            <div class="text-muted small mb-1">Pérdidas Realizadas</div>
-            <div class="fw-bold fs-5 text-danger" id="histLosses">0,00 €</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center py-3">
-            <div class="text-muted small mb-1">Dividendos Cobrados</div>
-            <div class="fw-bold fs-5 text-primary" id="histDividends">0,00 €</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body text-center py-3">
-            <div class="text-muted small mb-1">Resultado Neto</div>
-            <div class="fw-bold fs-5" id="histNet">0,00 €</div>
-          </div>
-        </div>
-      </div>
+    <!-- Cifras de Historial: una línea de fichas (las rellena applyHistFilters) -->
+    <div class="perf-kpis mb-2">
+      <div class="perf-kpi"><span class="lbl">Ganancias realizadas</span><span class="fw-bold text-success" id="histGains">0,00 €</span></div>
+      <div class="perf-kpi"><span class="lbl">Pérdidas realizadas</span><span class="fw-bold text-danger" id="histLosses">0,00 €</span></div>
+      <div class="perf-kpi"><span class="lbl">Dividendos cobrados</span><span class="fw-bold text-primary" id="histDividends">0,00 €</span></div>
+      <div class="perf-kpi"><span class="lbl">Resultado neto</span><span class="fw-bold" id="histNet">0,00 €</span></div>
     </div>
 
     <!-- Selector de Sub-pestañas en Historial -->
-    <ul class="nav nav-pills justify-content-center gap-2 mb-4" id="closedSubTabs" role="tablist">
+    <ul class="nav nav-pills sub-nav small mb-2" id="closedSubTabs" role="tablist">
       <li class="nav-item" role="presentation">
-        <button class="nav-link active fw-bold px-4 py-2 shadow-sm border" id="closed-summary-tab" data-bs-toggle="pill" data-bs-target="#closed-summary-pane" type="button" role="tab" aria-controls="closed-summary-pane" aria-selected="true">
+        <button class="nav-link active" id="closed-summary-tab" data-bs-toggle="pill" data-bs-target="#closed-summary-pane" type="button" role="tab" aria-controls="closed-summary-pane" aria-selected="true">
           <i class="bi bi-collection-fill me-1_5"></i>Posiciones Cerradas
         </button>
       </li>
       <li class="nav-item" role="presentation">
-        <button class="nav-link text-muted fw-bold px-4 py-2 shadow-sm border" id="closed-tx-tab" data-bs-toggle="pill" data-bs-target="#closed-tx-pane" type="button" role="tab" aria-controls="closed-tx-pane" aria-selected="false">
+        <button class="nav-link" id="closed-tx-tab" data-bs-toggle="pill" data-bs-target="#closed-tx-pane" type="button" role="tab" aria-controls="closed-tx-pane" aria-selected="false">
           <i class="bi bi-list-ul me-1_5"></i>Detalle de Operaciones
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="closed-fiscal-tab" data-bs-toggle="pill" data-bs-target="#closed-fiscal-pane" type="button" role="tab" aria-controls="closed-fiscal-pane" aria-selected="false">
+          <i class="bi bi-receipt me-1_5"></i>Fiscal por año
         </button>
       </li>
     </ul>
@@ -1386,132 +1330,140 @@
         </div>
       </div> <!-- fin closed-tx-pane -->
 
+      <!-- Sub-pestaña C: Fiscal por año -->
+      <div class="tab-pane fade" id="closed-fiscal-pane" role="tabpanel" aria-labelledby="closed-fiscal-tab">
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="fw-bold mb-0">Resumen Fiscal por Año</h5>
+              <small class="text-muted" style="font-size:0.72rem;">
+                Ganancias/pérdidas patrimoniales realizadas + dividendos. EUR aproximado usando tipos de cambio actuales.
+              </small>
+            </div>
+            <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('fiscalTable','fiscal-resumen.csv')">
+              <i class="bi bi-download me-1"></i>CSV
+            </button>
+          </div>
+          <div class="card-body p-0">
+            {% if fiscal_data %}
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0 text-center" style="font-size:0.9rem;" id="fiscalTable">
+                <thead>
+                  <tr>
+                    <th class="ps-4 text-start">Año</th>
+                    <th class="text-end text-success">Ganancias</th>
+                    <th class="text-end text-danger">Pérdidas</th>
+                    <th class="text-end text-primary">Dividendos</th>
+                    <th class="text-end fw-bold">Base Imponible</th>
+                    <th class="text-end pe-4">Impuesto Est.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% set ns = namespace(total_gains=0, total_losses=0, total_divs=0, total_net=0, total_tax=0) %}
+                  {% for row in fiscal_data %}
+                  {% set ns.total_gains = ns.total_gains + row.gains %}
+                  {% set ns.total_losses = ns.total_losses + row.losses %}
+                  {% set ns.total_divs = ns.total_divs + row.dividends %}
+                  {% set ns.total_net = ns.total_net + row.net %}
+                  {% set ns.total_tax = ns.total_tax + row.tax_estimate %}
+                  <tr>
+                    <td class="ps-4 text-start fw-bold">{{ row.year }}</td>
+                    <td class="text-end text-success fw-semibold">
+                      {% if row.gains > 0 %}+{{ num(row.gains, 2) }} €{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end text-danger fw-semibold">
+                      {% if row.losses < 0 %}{{ num(row.losses, 2) }} €{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end text-primary fw-semibold">
+                      {% if row.dividends > 0 %}+{{ num(row.dividends, 2) }} €{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end fw-bold {% if row.net > 0 %}text-success{% elif row.net < 0 %}text-danger{% else %}text-muted{% endif %}">
+                      {% if row.net > 0 %}+{% endif %}{{ num(row.net, 2) }} €
+                    </td>
+                    <td class="text-end pe-4 fw-semibold">
+                      {% if row.tax_estimate > 0 %}{{ num(row.tax_estimate, 2) }} €{% else %}—{% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+                <tfoot class="fw-bold border-top border-2">
+                  <tr>
+                    <td class="ps-4 text-start">Total</td>
+                    <td class="text-end text-success">
+                      {% if ns.total_gains > 0 %}+{{ num(ns.total_gains, 2) }} €{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end text-danger">
+                      {% if ns.total_losses < 0 %}{{ num(ns.total_losses, 2) }} €{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end text-primary">
+                      {% if ns.total_divs > 0 %}+{{ num(ns.total_divs, 2) }} €{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end {% if ns.total_net > 0 %}text-success{% else %}text-danger{% endif %}">
+                      {% if ns.total_net > 0 %}+{% endif %}{{ num(ns.total_net, 2) }} €
+                    </td>
+                    <td class="text-end pe-4">{{ num(ns.total_tax, 2) }} €</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div class="px-4 py-3">
+              <small class="text-muted" style="font-size:0.72rem;">
+                <strong>Tramos IRPF base del ahorro (desde 2025):</strong>
+                0–6.000 € → 19% · 6.000–50.000 € → 21% · 50.000–200.000 € → 23% · 200.000–300.000 € → 27% · &gt;300.000 € → 30%.
+                Dividendos en bruto y pasados a euros con el cambio de hoy.
+                Las pérdidas de un año pueden compensarse con ganancias de los 4 años siguientes.
+                Consulta con tu asesor fiscal — este cálculo es orientativo.
+              </small>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-5 small">
+              <i class="bi bi-receipt fs-3 d-block mb-2 opacity-50"></i>
+              Sin datos de transacciones para generar el resumen fiscal.
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div> <!-- fin closed-fiscal-pane -->
+
     </div> <!-- fin closedSubTabsContent -->
   </div> <!-- fin closed-pane -->
 
-  <!-- Pestaña Fiscal -->
-  <div class="tab-pane fade" id="fiscal-pane" role="tabpanel" aria-labelledby="fiscal-tab">
-    <div class="card shadow-sm border-0">
-      <div class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center">
-        <div>
-          <h5 class="fw-bold mb-0">Resumen Fiscal por Año</h5>
-          <small class="text-muted" style="font-size:0.72rem;">
-            Ganancias/pérdidas patrimoniales realizadas + dividendos. EUR aproximado usando tipos de cambio actuales.
-          </small>
-        </div>
-        <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('fiscalTable','fiscal-resumen.csv')">
-          <i class="bi bi-download me-1"></i>CSV
-        </button>
-      </div>
-      <div class="card-body p-0">
-        {% if fiscal_data %}
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0 text-center" style="font-size:0.9rem;" id="fiscalTable">
-            <thead class="table-light">
-              <tr>
-                <th class="ps-4 text-start">Año</th>
-                <th class="text-end text-success">Ganancias</th>
-                <th class="text-end text-danger">Pérdidas</th>
-                <th class="text-end text-primary">Dividendos</th>
-                <th class="text-end fw-bold">Base Imponible</th>
-                <th class="text-end pe-4">Impuesto Est.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% set ns = namespace(total_gains=0, total_losses=0, total_divs=0, total_net=0, total_tax=0) %}
-              {% for row in fiscal_data %}
-              {% set ns.total_gains = ns.total_gains + row.gains %}
-              {% set ns.total_losses = ns.total_losses + row.losses %}
-              {% set ns.total_divs = ns.total_divs + row.dividends %}
-              {% set ns.total_net = ns.total_net + row.net %}
-              {% set ns.total_tax = ns.total_tax + row.tax_estimate %}
-              <tr class="{% if row.net > 0 %}table-success bg-opacity-25{% elif row.net < 0 %}table-danger bg-opacity-25{% endif %}">
-                <td class="ps-4 text-start fw-bold">{{ row.year }}</td>
-                <td class="text-end text-success fw-semibold">
-                  {% if row.gains > 0 %}+{{ num(row.gains, 2) }} €{% else %}—{% endif %}
-                </td>
-                <td class="text-end text-danger fw-semibold">
-                  {% if row.losses < 0 %}{{ num(row.losses, 2) }} €{% else %}—{% endif %}
-                </td>
-                <td class="text-end text-primary fw-semibold">
-                  {% if row.dividends > 0 %}+{{ num(row.dividends, 2) }} €{% else %}—{% endif %}
-                </td>
-                <td class="text-end fw-bold {% if row.net > 0 %}text-success{% elif row.net < 0 %}text-danger{% else %}text-muted{% endif %}">
-                  {% if row.net > 0 %}+{% endif %}{{ num(row.net, 2) }} €
-                </td>
-                <td class="text-end pe-4 fw-semibold">
-                  {% if row.tax_estimate > 0 %}{{ num(row.tax_estimate, 2) }} €{% else %}—{% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-            <tfoot class="table-light fw-bold border-top border-2">
-              <tr>
-                <td class="ps-4 text-start">Total</td>
-                <td class="text-end text-success">
-                  {% if ns.total_gains > 0 %}+{{ num(ns.total_gains, 2) }} €{% else %}—{% endif %}
-                </td>
-                <td class="text-end text-danger">
-                  {% if ns.total_losses < 0 %}{{ num(ns.total_losses, 2) }} €{% else %}—{% endif %}
-                </td>
-                <td class="text-end text-primary">
-                  {% if ns.total_divs > 0 %}+{{ num(ns.total_divs, 2) }} €{% else %}—{% endif %}
-                </td>
-                <td class="text-end {% if ns.total_net > 0 %}text-success{% else %}text-danger{% endif %}">
-                  {% if ns.total_net > 0 %}+{% endif %}{{ num(ns.total_net, 2) }} €
-                </td>
-                <td class="text-end pe-4">{{ num(ns.total_tax, 2) }} €</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        <div class="px-4 py-3">
-          <small class="text-muted" style="font-size:0.72rem;">
-            <strong>Tramos IRPF base del ahorro 2024:</strong>
-            0–6.000 € → 19% · 6.001–50.000 € → 21% · 50.001–200.000 € → 23% · &gt;200.000 € → 27%.
-            Las pérdidas de un año pueden compensarse con ganancias de los 4 años siguientes.
-            Consulta con tu asesor fiscal — este cálculo es orientativo.
-          </small>
-        </div>
-        {% else %}
-        <div class="text-center text-muted py-5 small">
-          <i class="bi bi-receipt fs-3 d-block mb-2 opacity-50"></i>
-          Sin datos de transacciones para generar el resumen fiscal.
-        </div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
+</div>
 
-  <!-- Pestaña Añadir Operación -->
-  <div class="tab-pane fade" id="add-pane" role="tabpanel" aria-labelledby="add-tab">
-    <div class="card shadow-sm border-0">
-        <div class="card-body">
+<!-- Nueva operación (compra o venta): ventana emergente desde el botón «+ Operación» de la cabecera -->
+<div class="modal fade" id="addOpModal" tabindex="-1" aria-labelledby="addOpModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold" id="addOpModalLabel"><i class="bi bi-plus-lg me-1"></i>Nueva operación</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
             <form id="add-portfolio-form" class="row g-3">
-                <div class="col-md-3">
+                <div class="col-sm-6 col-lg-3">
                     <label class="form-label small fw-bold">Fecha</label>
                     <input type="date" class="form-control" id="add-date" required>
                 </div>
-                <div class="col-md-3">
+                <div class="col-sm-6 col-lg-3">
                     <label class="form-label small fw-bold">Tipo</label>
                     <select class="form-select" id="add-type" required>
                         <option value="BUY">Compra</option>
                         <option value="SELL">Venta</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-sm-6 col-lg-3">
                     <label class="form-label small fw-bold">Ticker</label>
                     <input type="text" class="form-control" id="add-ticker" placeholder="Ej. AAPL" required>
                 </div>
-                <div class="col-md-3">
+                <div class="col-sm-6 col-lg-3">
                     <label class="form-label small fw-bold">Acciones</label>
                     <input type="number" class="form-control" id="add-shares" step="0.01" oninput="calculateEstimatedFee()" required>
                 </div>
-                <div class="col-md-3">
+                <div class="col-sm-6 col-lg-3">
                     <label class="form-label small fw-bold">Precio Unitario</label>
                     <input type="number" class="form-control" id="add-price" step="0.0001" oninput="calculateEstimatedFee()" required>
                 </div>
-                <div class="col-md-3">
+                <div class="col-sm-6 col-lg-3">
                     <label class="form-label small fw-bold">Moneda</label>
                     <select class="form-select" id="add-currency" onchange="calculateEstimatedFee()" required>
                         <option value="USD">USD ($)</option>
@@ -1525,21 +1477,21 @@
                         <option value="MXN">MXN ($)</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-sm-6 col-lg-3">
                     <label class="form-label small fw-bold">Comisión <span class="text-muted fw-normal">(opcional)</span></label>
                     <div class="input-group">
                         <input type="number" class="form-control" id="add-fee" step="0.01" min="0" value="0" placeholder="0.00">
                         <span class="input-group-text" id="fee-currency-label">$</span>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-sm-6 col-lg-3">
                     <label class="form-label small fw-bold">Broker</label>
                     <select class="form-select" id="add-broker" onchange="calculateEstimatedFee()" required>
                         <option value="IBKR" selected>🟢 Interactive Brokers (IBKR)</option>
                         <option value="DEGIRO">🟠 DEGIRO</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-sm-6 col-lg-3">
                     <label class="form-label small fw-bold">
                         Tipo de cambio EUR/<span id="fx-currency-label">USD</span>
                         <span class="text-muted fw-normal small">(auto)</span>
@@ -1547,21 +1499,41 @@
                     <input type="number" class="form-control" id="add-fx-rate" step="0.0001" min="0" placeholder="Auto">
                     <div class="form-text text-muted" id="fx-rate-hint">Se obtiene automáticamente</div>
                 </div>
+                <div class="col-12">
+                    <label class="form-label small fw-bold" for="add-comment">Comentario <span class="text-muted fw-normal">(opcional)</span></label>
+                    <textarea class="form-control" id="add-comment" rows="2" maxlength="1000"
+                              placeholder="Por qué compras o vendes: tesis, precio, señal… Si la empresa tiene tesis, se anota también en su diario de decisiones."></textarea>
+                </div>
                 <div class="col-12 d-flex align-items-end">
                     <button type="submit" id="submit-btn" class="btn btn-primary fw-bold px-4">➕ Guardar Transacción</button>
                 </div>
             </form>
-        </div>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
+// Etiqueta al pasar el ratón por los gráficos: Plotly la pinta con el color de la serie y en oscuro no se lee
+window.plotHover = () => {
+    const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    return { bgcolor: dark ? '#161b22' : '#ffffff', bordercolor: dark ? '#30363d' : '#d0d7de',
+             font: { color: dark ? '#e6edf3' : '#1f2328', size: 12 } };
+};
+</script>
+<script>
 // --- Posiciones: vista Contable (por defecto) / Seguimiento (se carga aparte; se abre directa con #seguimiento) ---
 (() => {
-    const PT_LABELS = {'1d': 'día', 'wtd': 'semana', 'mtd': 'mes', 'ytd': 'año'};
+    const PT_LABELS = {'1d': '1D', '1w': '1S', '1m': '1M', 'ytd': 'YTD', '1y': '1A'};
     const fmtPct = v => (v === null || v === undefined) ? '–' : (v > 0 ? '+' : '') + fmtNum(v, 2) + '%';
     const cls = v => v === null || v === undefined ? '' : (v >= 0 ? 'text-success' : 'text-danger');
+    // misma píldora que chg_pill() de Contable: más intensa cuanto mayor el movimiento (llena a partir de ±3 %)
+    function chgPill(p) {
+        if (p === null || p === undefined) return '<span class="text-muted">–</span>';
+        const a = (0.12 + Math.min(Math.abs(p) / 3, 1) * 0.6).toFixed(2);
+        const k = p > 0 ? 'chg-up' : (p < 0 ? 'chg-down' : 'chg-flat');
+        return `<span class="chg-pill ${k}${Math.abs(p) >= 2 ? ' chg-strong' : ''}" style="--a: ${a}">${fmtPct(p)}</span>`;
+    }
     let ptData = null, ptLoading = null, ptPeriod = '1d', ptSort = null, ptSub = 'tabla';
     // mapa: tamaño = peso, color = variación del periodo; barras: contribución a la variación de la cartera
     function ptRenderMap() {
@@ -1578,7 +1550,7 @@
             text: tm.map(x => x.v === null || x.v === undefined ? 'cerrado' : fmtPct(x.v)), textinfo: 'label+text', branchvalues: 'total',
             marker: {colors: tm.map(x => x.v || 0), colorscale: [[0, red], [0.5, mid], [1, green]], cmin: -lim, cmax: lim, line: {width: 2, color: surface}},
             hovertemplate: '<b>%{label}</b><br>Peso %{value:.1f}%<br>Variación %{text}<extra></extra>', textfont: {color: '#fff', size: 13},
-        }], {margin: {l: 0, r: 0, t: 0, b: 0}, paper_bgcolor: 'rgba(0,0,0,0)'}, {displayModeBar: false, responsive: true});
+        }], {margin: {l: 0, r: 0, t: 0, b: 0}, separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)'}, {displayModeBar: false, responsive: true});
         const contrib = ptData.chart.filter(open).map(c => ({t: c.ticker, v: c.contribution[ptPeriod]}))
                                     .filter(c => c.v !== null && c.v !== undefined).sort((x, y) => x.v - y.v);
         Plotly.react('contrib', [{
@@ -1586,7 +1558,7 @@
             marker: {color: contrib.map(c => c.v >= 0 ? green : red)},
             text: contrib.map(c => (c.v >= 0 ? '+' : '') + fmtNum(c.v, 2)), textposition: 'auto', insidetextanchor: 'middle', textfont: {size: 11}, cliponaxis: false,
             hovertemplate: '<b>%{y}</b><br>%{x:+.2f} pp de la variación de la cartera<extra></extra>',
-        }], {margin: {l: 70, r: 40, t: 10, b: 30}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: {color: ink, size: 11},
+        }], {margin: {l: 70, r: 40, t: 10, b: 30}, separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: {color: ink, size: 11},
              xaxis: {gridcolor: grid, zeroline: true, zerolinecolor: ink, ticksuffix: ' pp'}, yaxis: {automargin: true}, bargap: 0.35},
             {displayModeBar: false, responsive: true});
     }
@@ -1617,24 +1589,25 @@
         document.querySelectorAll('.pt-period-label').forEach(el => el.textContent = PT_LABELS[ptPeriod]);
         document.querySelectorAll('#ptBody tr[data-ticker]').forEach(tr => {
             const c = ptData.chart.find(x => x.ticker === tr.dataset.ticker);
-            const cells = ['.cell-move', '.cell-change', '.cell-eur', '.cell-contrib'].map(sel => tr.querySelector(sel));
+            const cells = ['.cell-change', '.cell-eur', '.cell-contrib'].map(sel => tr.querySelector(sel)), cm = tr.querySelector('.cell-move');
             // su mercado aún no ha abierto hoy: sin variación del día (lo que se mueve en € es solo la divisa)
             if (c && c.closed_today && ptPeriod === '1d') {
                 const fx = c.pnl_eur ? c.pnl_eur['1d'] : null, d = c.last_session;
                 const why = `Su mercado no ha abierto hoy (última sesión ${d.slice(8, 10)}/${d.slice(5, 7)})` +
                     (fx ? ` · el cambio de divisa mueve ${(fx >= 0 ? '+' : '') + fmtNum(fx, 2)} € su valor` : '');
                 cells.forEach(cell => { cell.textContent = '–'; cell.className = 'text-end num-font align-middle text-body-secondary ' + cell.className.split(' ').find(k => k.startsWith('cell-')); cell.dataset.sort = ''; cell.title = why; });
+                cm.textContent = '–'; cm.className = 'price-move cell-move text-body-secondary'; cm.title = why;
                 return;
             }
-            cells.forEach(cell => cell.title = '');
+            cells.forEach(cell => cell.title = ''); cm.title = '';
             const ch = c ? (c.change || {})[ptPeriod] : null, cv = c ? c.contribution[ptPeriod] : null;
-            // precio de hoy menos el de inicio del periodo, en su moneda
-            const mv = c && c.price && ch !== null && ch !== undefined ? c.price - c.price / (1 + ch / 100) : null, cm = tr.querySelector('.cell-move');
-            cm.textContent = mv === null ? '–' : fmtNum(mv, 2, true) + ' ' + (c.cur || ''); cm.className = 'text-end num-font align-middle cell-move ' + cls(mv); cm.dataset.sort = ch ?? '';
-            const cc = tr.querySelector('.cell-change'); cc.textContent = fmtPct(ch); cc.className = 'text-end num-font align-middle cell-change ' + cls(ch); cc.dataset.sort = ch ?? '';
+            // debajo del precio: precio de hoy menos el de inicio del periodo, en su moneda
+            const mv = c && c.price && ch !== null && ch !== undefined ? c.price - c.price / (1 + ch / 100) : null;
+            cm.textContent = mv === null ? '–' : fmtNum(mv, 2, true) + ' ' + (c.cur || ''); cm.className = 'price-move cell-move ' + cls(mv);
+            const cc = tr.querySelector('.cell-change'); cc.innerHTML = chgPill(ch); cc.className = 'text-end align-middle cell-change'; cc.dataset.sort = ch ?? '';
             const pe = c && c.pnl_eur ? c.pnl_eur[ptPeriod] : null, ce = tr.querySelector('.cell-eur');
             ce.textContent = pe === null || pe === undefined ? '–' : (pe > 0 ? '+' : '') + fmtNum(pe, 2) + ' €';   // como Contable
-            ce.className = 'text-end fw-bold num-font align-middle cell-eur ' + cls(pe); ce.dataset.sort = pe ?? '';
+            ce.className = 'text-end num-font align-middle cell-eur ' + cls(pe); ce.dataset.sort = pe ?? '';
             const ct = tr.querySelector('.cell-contrib'); ct.textContent = cv === null || cv === undefined ? '–' : (cv > 0 ? '+' : '') + fmtNum(cv, 2) + ' pp'; ct.className = 'text-end num-font align-middle cell-contrib ' + cls(cv); ct.dataset.sort = cv ?? '';
         });
         ptSortRows();   // si está ordenada por variación o contribución, se reordena con el nuevo periodo
@@ -1661,24 +1634,158 @@
         })();
         return ptLoading;
     }
+    // ── Distribución: roscos (Plotly) y, en el de activos, el logo de cada empresa sobre su porción ──
+    const DIST_PALETTE = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d', '#ea580c', '#4f46e5',
+                          '#0d9488', '#ca8a04', '#9333ea', '#e11d48', '#0284c7', '#84cc16', '#c2410c', '#6366f1', '#059669', '#a21caf'];
+    const DIST_OTHERS = '#9ca3af';
+    let distDone = false;
+    function distDonut(id, rows, opts = {}) {
+        const el = document.getElementById(id);
+        if (!el || !rows || !rows.length) return;
+        const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark' || document.body.classList.contains('dark-mode');
+        const text = getComputedStyle(document.body).color;
+        let k = 0;
+        const colors = rows.map(r => r.label === 'Otros' || r.label === 'Sin rol' ? DIST_OTHERS : (r.color || DIST_PALETTE[k++ % DIST_PALETTE.length]));
+        const hover = rows.map(r => `<b>${opts.names ? (r.name || r.label) : r.label}</b><br>${fmtNum(r.pct, 1)}% · ${fmtNum(r.value, 0)} €` +
+            (r.members ? `<br><span style="font-size:11px">${r.members.join(', ')}</span>` : ''));
+        Plotly.newPlot(el, [{
+            type: 'pie', hole: opts.hole || 0.55, sort: false, direction: 'clockwise', rotation: 0,
+            labels: rows.map(r => r.ticker ? r.label.replace(/\.[A-Z]+$/, '') : r.label), values: rows.map(r => r.value),
+            marker: { colors, line: { color: dark ? '#161b22' : '#fff', width: 2 } },
+            textinfo: opts.logos ? 'none' : 'percent', texttemplate: opts.logos ? undefined : '%{percent:.0%}',
+            textposition: 'inside', insidetextfont: { color: '#fff', size: 11 }, hovertext: hover, hoverinfo: 'text',
+        }], {
+            margin: opts.logos ? { t: 10, b: 10, l: 10, r: 10 } : { t: 6, b: 6, l: 6, r: 6 }, separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', showlegend: opts.legend !== false,
+            legend: { font: { color: text, size: 11 }, orientation: 'v', x: 1, y: 0.5 },
+            annotations: opts.center ? [{ text: opts.center, showarrow: false, font: { color: text, size: 13 } }] : [],
+        }, { responsive: true, displayModeBar: false });
+        if (opts.logos) {
+            const place = () => distPlaceLogos(el, rows, opts.hole || 0.55);
+            el.on('plotly_afterplot', place); place();
+            distLegend(el, colors);
+        }
+    }
+    // Dentro de cada porción, solo lo que cabe: logo + ticker + % si es ancha, solo el logo si es mediana, nada si es
+    // pequeña. La lista completa está en la leyenda de la derecha.
+    function distPlaceLogos(el, rows, hole) {
+        const box = document.getElementById('distAssetLogos'), tr = el.querySelector('.pielayer .trace');
+        if (!box || !tr) return;
+        // centro y radio del rosco medidos en pantalla, relativos a la capa de las etiquetas
+        const pie = tr.getBoundingClientRect(), base = box.getBoundingClientRect();
+        if (!pie.width) return;
+        const cx = pie.left - base.left + pie.width / 2, cy = pie.top - base.top + pie.height / 2;
+        const r = Math.min(pie.width, pie.height) / 2, mid = r * (1 + hole) / 2, ring = r * (1 - hole);
+        box.innerHTML = '';
+        let acc = 0;
+        rows.forEach(row => {
+            const a = 2 * Math.PI * (acc + row.pct / 2) / 100; acc += row.pct;
+            const arc = 2 * Math.PI * mid * row.pct / 100;               // ancho de la porción a media altura del anillo
+            const symbol = row.ticker ? row.label.replace(/\.[A-Z]+$/, '') : row.label;
+            const full = arc >= Math.max(44, symbol.length * 8 + 10) && ring >= 54, logoOnly = !full && row.ticker && arc >= 26 && ring >= 26;
+            if (!full && !logoOnly) return;
+            const d = document.createElement('div');
+            d.className = 'dist-tag'; d.title = `${row.name} · ${fmtNum(row.pct, 1)}%`;
+            Object.assign(d.style, { left: (cx + mid * Math.sin(a)) + 'px', top: (cy - mid * Math.cos(a)) + 'px' });
+            if (row.ticker) {
+                const img = document.createElement('img');
+                img.src = '/logo/' + encodeURIComponent(row.ticker); img.alt = ''; img.className = 'dist-logo';
+                img.onerror = () => img.remove();
+                d.appendChild(img);
+            }
+            if (full) d.insertAdjacentHTML('beforeend', `<span class="dist-sym">${symbol}</span><span class="dist-pct">${fmtNum(row.pct, 1)}%</span>`);
+            box.appendChild(d);
+        });
+    }
+    // Leyenda: mismos colores que el rosco y, al pasar el ratón por una fila, se resalta su porción
+    function distLegend(el, colors) {
+        const table = document.getElementById('distLegend');
+        if (!table) return;
+        table.querySelectorAll('.dist-dot[data-i]').forEach(dot => dot.style.background = colors[+dot.dataset.i]);
+        const pull = i => Plotly.restyle(el, { pull: [colors.map((_, k) => k === i ? 0.06 : 0)] });
+        table.querySelectorAll('tr[data-i]').forEach(row => {
+            row.addEventListener('mouseenter', () => { pull(+row.dataset.i); row.classList.add('active'); });
+            row.addEventListener('mouseleave', () => { pull(-1); row.classList.remove('active'); });
+        });
+    }
+    // Alto disponible hasta el borde de la ventana: el rosco grande ocupa todo y los cuatro pequeños, la mitad cada uno
+    function distLayout() {
+        const card = document.getElementById('distAssetsCard'), small = document.getElementById('distSmallGrid');
+        if (!card) return;
+        const set = h => {
+            card.style.height = h + 'px'; small.style.height = h + 'px';
+            document.getElementById('distAssets').style.height = (h - 60) + 'px';
+        };
+        // lo que queda por debajo se mide con la tarjeta muy alta (la página siempre más larga que la ventana)
+        set(window.innerHeight * 2);
+        const below = document.documentElement.scrollHeight - (card.getBoundingClientRect().bottom + window.scrollY);
+        set(Math.max(380, Math.floor(window.innerHeight - card.getBoundingClientRect().top - below)));
+    }
+    function distRender() {
+        distLayout();
+        const raw = document.getElementById('distData');
+        if (!raw) return;
+        if (distDone) { ['distAssets', 'dist-currency', 'dist-sector', 'dist-country'].forEach(id => document.getElementById(id) && Plotly.Plots.resize(id)); return; }
+        distDone = true;
+        const d = JSON.parse(raw.textContent);
+        distDonut('distAssets', d.assets, { logos: true, names: true, legend: false, hole: 0.45, center: `<b>${fmtNum(d.total, 0)} €</b><br><span style="font-size:11px">${d.concentration.positions} posiciones</span>` });
+        distDonut('dist-currency', d.currency);
+        distDonut('dist-sector', d.sector);
+        distDonut('dist-country', d.country);
+    }
+    const fitDividends = () => {
+        fitChartHeight('div-forecast-chart'); fitChartHeight('div-chart');
+        document.querySelectorAll('#div-sub-forecast.active .table-responsive').forEach(el => fitScroll(el));
+        divPage('latest', 0);
+    };
+    const fitCartera = () => {
+        if (!document.getElementById('active-pane')?.classList.contains('active')) return;
+        fitScroll('viewContable');
+        fitScroll(document.querySelector('#ptTable .table-responsive'));
+    };
+    const fitFund = () => fitScroll(document.getElementById('fundamentalsTable')?.closest('.table-responsive'), 140);
+    document.getElementById('active-tab')?.addEventListener('shown.bs.tab', fitCartera);
+    document.getElementById('fund-tab')?.addEventListener('shown.bs.tab', fitFund);
+    window.addEventListener('resize', () => {
+        fitCartera();
+        if (document.getElementById('fund-pane')?.classList.contains('active')) fitFund();
+    });
+    window.addEventListener('load', fitCartera);
+    window.fitCartera = fitCartera;
+    document.getElementById('div-sub-paid-tab')?.addEventListener('shown.bs.tab', fitDividends);
+    document.getElementById('div-sub-forecast-tab')?.addEventListener('shown.bs.tab', fitDividends);
+    document.getElementById('div-tab')?.addEventListener('shown.bs.tab', fitDividends);
+    window.addEventListener('resize', () => { if (document.getElementById('div-pane')?.classList.contains('active')) fitDividends(); });
+    document.getElementById('dist-tab')?.addEventListener('shown.bs.tab', () => { distRender(); history.replaceState(null, '', '#distribucion'); });
+    window.addEventListener('resize', () => { if (document.getElementById('dist-pane')?.classList.contains('active')) distRender(); });
+    document.querySelectorAll('#portfolioTabs [data-bs-toggle="tab"]:not(#dist-tab)').forEach(b => b.addEventListener('shown.bs.tab', () => {
+        if (location.hash === '#distribucion') history.replaceState(null, '', location.pathname + location.search);
+    }));
     function showView(view) {
         document.querySelectorAll('[data-pos-view]').forEach(b => b.classList.toggle('active', b.dataset.posView === view));
         document.getElementById('viewContable').classList.toggle('d-none', view !== 'contable');
         document.getElementById('viewSeguimiento').classList.toggle('d-none', view !== 'seguimiento');
-        document.getElementById('ptPeriods').classList.toggle('d-none', view !== 'seguimiento');
+        document.querySelector('.var-band').classList.toggle('picking', view === 'seguimiento');
         document.getElementById('ptSubviews').classList.toggle('d-none', view !== 'seguimiento');
+        document.getElementById('ptInfo').classList.toggle('d-none', view !== 'seguimiento');
         history.replaceState(null, '', view === 'seguimiento' ? (ptSub === 'mapa' ? '#mapa' : '#seguimiento') : location.pathname + location.search);
-        if (view === 'seguimiento') ptLoad();
+        if (view === 'seguimiento') ptLoad().then(() => window.fitCartera && window.fitCartera()); else window.fitCartera && window.fitCartera();
     }
     document.querySelectorAll('[data-pos-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.posView)));
-    document.querySelectorAll('[data-pt-period]').forEach(b => b.addEventListener('click', () => {
-        ptPeriod = b.dataset.ptPeriod;
-        document.querySelectorAll('[data-pt-period]').forEach(x => x.classList.toggle('active', x === b));
+    // la banda de variación hace de selector de periodo: lo abre en Seguimiento
+    document.querySelectorAll('[data-band-period]').forEach(b => b.addEventListener('click', () => {
+        ptPeriod = b.dataset.bandPeriod;
+        document.querySelectorAll('[data-band-period]').forEach(x => x.classList.toggle('active', x === b));
+        if (document.getElementById('viewSeguimiento').classList.contains('d-none')) showView('seguimiento');
         ptRender();
     }));
     document.querySelectorAll('[data-pt-sub]').forEach(b => b.addEventListener('click', () => showSub(b.dataset.ptSub)));
     if (location.hash === '#seguimiento') showView('seguimiento');
     if (location.hash === '#mapa') { showView('seguimiento'); showSub('mapa'); }
+    // bootstrap.bundle se carga después del contenido: las pestañas, cuando ya está disponible
+    document.addEventListener('DOMContentLoaded', () => {
+        const tab = {'#distribucion': 'dist-tab', '#dividendos': 'div-tab'}[location.hash];
+        if (tab) bootstrap.Tab.getOrCreateInstance(document.getElementById(tab)).show();
+    });
 })();
 
     const perfDates      = {{ perf_dates | tojson | safe }};
@@ -1788,81 +1895,125 @@
         };
 
         // ── Render principal ────────────────────────────────────────────────
+        // Se pinta toda la serie con un navegador debajo (como Fiscal.ai): los botones de periodo y el arrastre del
+        // navegador solo eligen la ventana visible [si, ei]; el índice se rebasa a 10 en su primer día y el drawdown y
+        // los KPIs son de esa ventana.
+        let perfRangeIdx = null;   // [si, ei] si el usuario ha movido la ventana a mano
+        function perfWindow() {
+            return perfRangeIdx || [getStartIndex(currentPeriod), perfDates.length - 1];
+        }
         function renderPerfChart() {
-            const si    = getStartIndex(currentPeriod);
-            const dates = perfDates.slice(si);
+            const [si, ei] = perfWindow();
+            const dates = perfDates;
             const cfg   = { responsive: true, displayModeBar: false };
+            const xaxis = { showgrid: false, tickfont: { color: textColor }, type: 'date',
+                            range: [dates[si], dates[ei]], rangeslider: rangeSliderStyle() };
+            const traces = [];
 
             if (currentMode === 'real') {
-                const vals = perfValuesEur.slice(si);
-                const traces = [];
-                
                 if (seriesVisibility['Mi Cartera'] !== false) {
                     traces.push({
-                        x: dates, y: vals, mode: 'lines', name: 'Cartera (€)',
+                        x: dates, y: perfValuesEur, mode: 'lines', name: 'Cartera (€)',
                         line: { color: '#0d6efd', width: 3 },
                         fill: 'tozeroy', fillcolor: 'rgba(13,110,253,0.08)'
                     });
                 }
-                
                 const layout = {
-                    xaxis: { showgrid: false, tickfont: { color: textColor } },
-                    yaxis: { tickformat: ',.0f', ticksuffix: ' €',
-                             tickfont: { color: textColor }, gridcolor: gridColor,
-                             showgrid: true },
-                    margin: { t: 10, b: 40, l: 75, r: 10 },
+                    xaxis,
+                    yaxis: { tickformat: ',.0f', ticksuffix: ' €', tickfont: { color: textColor }, gridcolor: gridColor, showgrid: true,
+                             range: yRangeFor(traces.map(t => t.y), si, ei) || undefined },
+                    margin: { t: 10, b: 34, l: 75, r: 10 },
                     hovermode: 'x unified', showlegend: false,
-                    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+                    separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
                 };
                 Plotly.react('perf-chart', traces, layout, cfg);
-                renderDrawdown(vals, dates);
-                
+                renderDrawdown(perfValuesEur.slice(si, ei + 1), dates.slice(si, ei + 1));
                 // KPIs en modo real usan NAV igualmente (rentabilidad pura)
-                const portSliceNav = perfPortfolio.slice(si);
-                updateKPIs(portSliceNav, dates);
+                updateKPIs(perfPortfolio.slice(si, ei + 1), dates.slice(si, ei + 1));
             } else {
-                // NAV normalizado al período seleccionado
+                // NAV rebasado a 10 en el primer día de la ventana
                 const base = perfPortfolio[si] || 10;
-                const portSlice = perfPortfolio.slice(si).map(v => Math.round(v / base * 1000) / 100);
-                const traces = [];
-                
+                const port = perfPortfolio.map(v => Math.round(v / base * 1000) / 100);
                 if (seriesVisibility['Mi Cartera'] !== false) {
-                    traces.push({
-                        x: dates, y: portSlice, mode: 'lines', name: 'Mi Cartera',
-                        line: { color: '#0d6efd', width: 3 }
-                    });
+                    traces.push({ x: dates, y: port, mode: 'lines', name: 'Mi Cartera', line: { color: '#0d6efd', width: 3 } });
                 }
-                
                 Object.entries(perfBenchmarks).forEach(([name, vals]) => {
                     if (seriesVisibility[name] !== false) {
                         const bBase = vals[si] || 10;
                         traces.push({
-                            x: dates,
-                            y: vals.slice(si).map(v => Math.round(v / bBase * 1000) / 100),
-                            mode: 'lines', name,
+                            x: dates, y: vals.map(v => Math.round(v / bBase * 1000) / 100), mode: 'lines', name,
                             line: { color: benchColors[name] || '#adb5bd', width: 2, dash: 'dot' }
                         });
                     }
                 });
-                
                 const layout = {
-                    xaxis: { showgrid: false, tickfont: { color: textColor } },
-                    yaxis: { title: { text: 'Valor Cuota', font: { color: textColor } },
-                             showgrid: true, gridcolor: gridColor,
-                             tickfont: { color: textColor } },
-                    margin: { t: 10, b: 40, l: 50, r: 10 },
+                    xaxis,
+                    yaxis: { title: { text: 'Valor Cuota', font: { color: textColor } }, showgrid: true, gridcolor: gridColor,
+                             tickfont: { color: textColor }, range: yRangeFor(traces.map(t => t.y), si, ei) || undefined },
+                    margin: { t: 10, b: 34, l: 50, r: 10 },
                     showlegend: false, // Ocultar nativo, usamos el nuestro interactivo
                     hovermode: 'x unified',
-                    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+                    separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
                 };
                 Plotly.react('perf-chart', traces, layout, cfg);
-                renderDrawdown(portSlice, dates);
-                updateKPIs(portSlice, dates);
+                renderDrawdown(port.slice(si, ei + 1), dates.slice(si, ei + 1));
+                updateKPIs(port.slice(si, ei + 1), dates.slice(si, ei + 1));
+            }
+
+            // al arrastrar o estirar el navegador (o hacer zoom): nueva ventana, sin periodo marcado
+            const el = document.getElementById('perf-chart');
+            if (el && el.on && !el._rangeHooked) {
+                el._rangeHooked = true;
+                rangeSliderYears(el);   // años bajo el navegador
+                el.on('plotly_relayout', ev => {
+                    const rg = relayoutXRange(ev);
+                    if (rg === undefined) return;
+                    perfRangeIdx = rg === 'all' ? [0, perfDates.length - 1] : rangeIndices(perfDates, rg[0], rg[1]);
+                    document.querySelectorAll('#periodTabs button').forEach(b => b.className = 'btn btn-sm btn-outline-secondary');
+                    renderPerfChart();
+                });
             }
             
             // Re-renderizar leyenda personalizada
             renderCustomLegend();
+            perfLayout();
         }
+
+        // Todo en una pantalla: gráfico + drawdown a la izquierda y tabla a la derecha, del alto que quede en la ventana
+        // Tabla de la derecha a todo el ancho (oculta el gráfico) y vuelta
+        window.togglePerfTable = function () {
+            const tableCol = document.getElementById('perfTableCard').parentElement, chartCol = document.getElementById('perfChartCard').parentElement;
+            const wide = tableCol.classList.toggle('col-xl-12');
+            tableCol.classList.toggle('col-xl-4', !wide);
+            chartCol.classList.toggle('d-none', wide);
+            document.querySelector('#perfTableExpand i').className = wide ? 'bi bi-arrows-angle-contract' : 'bi bi-arrows-angle-expand';
+            document.getElementById('perfTableExpand').title = wide ? 'Volver a ver el gráfico' : 'Ampliar la tabla a todo el ancho';
+            if (!wide) perfLayout();
+        };
+        function perfLayout() {
+            const card = document.getElementById('perfChartCard'), table = document.getElementById('perfTableCard');
+            if (!card) return;
+            const wide = window.innerWidth >= 1200;
+            const set = h => {
+                const dd = Math.round(Math.max(70, h * 0.22));
+                card.style.height = h + 'px';
+                if (table) table.style.height = wide ? h + 'px' : '';
+                document.getElementById('drawdown-chart').style.height = dd + 'px';
+                document.getElementById('perf-chart').style.height = (h - dd - 16 - 38 - 14) + 'px';   // padding · leyenda · rótulo
+            };
+            // lo que la página deja por debajo de la tarjeta (su margen y los rellenos de los contenedores) también cabe;
+            // se mide con la tarjeta muy alta para que la página sea más larga que la ventana
+            set(window.innerHeight * 2);
+            const below = document.documentElement.scrollHeight - (card.getBoundingClientRect().bottom + window.scrollY);
+            set(Math.max(340, Math.floor(window.innerHeight - card.getBoundingClientRect().top - below)));
+            ['perf-chart', 'drawdown-chart'].forEach(id => { const el = document.getElementById(id); if (el && el.data) Plotly.Plots.resize(el); });
+        }
+        window.addEventListener('resize', () => { if (document.getElementById('perf-pane')?.classList.contains('active')) perfLayout(); });
+        // las cifras se rellenan después y pueden pasar a ocupar otra línea: se reajusta cuando cambian de tamaño
+        const perfKpis = document.querySelector('.perf-kpis');
+        if (perfKpis && window.ResizeObserver) new ResizeObserver(() => {
+            if (document.getElementById('perf-pane')?.classList.contains('active')) perfLayout();
+        }).observe(perfKpis);
 
         function renderDrawdown(vals, dates) {
             const dd = calcDrawdown(vals);
@@ -1875,7 +2026,7 @@
                 yaxis: { tickformat: '.1f', ticksuffix: '%',
                          tickfont: { color: textColor }, gridcolor: gridColor },
                 margin: { t: 5, b: 35, l: 50, r: 10 },
-                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
                 showlegend: false
             }, { responsive: true, displayModeBar: false });
         }
@@ -1913,11 +2064,14 @@
                 '10y': 'Últimos 10 Años (10A)',
                 'all': 'Historial Completo'
             };
-            const periodLabel = {
+            // ventana movida a mano con el navegador: sus fechas
+            const dm = d => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}`;
+            const custom = perfRangeIdx ? `${dm(dates[0])}–${dm(dates[dates.length - 1])}` : null;
+            const periodLabel = custom || {
                 'all':'Todo','1d':'1D','7d':'7D','1m':'1M','3m':'3M','6m':'6M','ytd':'YTD','1y':'1A','3y':'3A','5y':'5A','10y':'10A'
             }[currentPeriod] || 'Todo';
 
-            const periodTitle = labelMap[currentPeriod] || 'Detalle';
+            const periodTitle = custom ? `Del ${dm(dates[0])} al ${dm(dates[dates.length - 1])}` : (labelMap[currentPeriod] || 'Detalle');
 
             // Actualizar Título del Panel Lateral
             const elPeriodTitle = document.getElementById('infoPeriodTitle');
@@ -2063,6 +2217,7 @@
         // ── Controles período y modo ────────────────────────────────────────
         window.setPeriod = function(p) {
             currentPeriod = p;
+            perfRangeIdx = null;   // el periodo manda sobre la ventana movida a mano
             document.querySelectorAll('#periodTabs button').forEach(b => {
                 b.className = b.id === 'period-' + p
                     ? 'btn btn-sm btn-dark'
@@ -2076,62 +2231,12 @@
             const isReal = m === 'real';
             document.getElementById('btnNav').className  = isReal ? 'btn btn-outline-primary' : 'btn btn-primary active';
             document.getElementById('btnReal').className = isReal ? 'btn btn-primary active' : 'btn btn-outline-primary';
-            document.getElementById('chartTitle').textContent = isReal
-                ? 'Valor Real de la Cartera (€)'
-                : 'Retorno Acumulado vs Benchmarks';
-            document.getElementById('chartSubtitle').textContent = isReal
-                ? 'Valor total en EUR incluyendo aportaciones. No comparable con benchmarks.'
-                : 'Valor Liquidativo (TWR) normalizado a 10. Las aportaciones no afectan el rendimiento.';
+            // aclaración del modo junto a los botones (antes buscaba un título que ya no existe y el modo € no cambiaba)
+            const hint = document.getElementById('perfModeHint');
+            if (hint) hint.textContent = isReal
+                ? 'Valor en € de la cartera, con aportaciones (no comparable con los índices)'
+                : 'Índice que empieza en 10: las aportaciones no cuentan como rentabilidad';
             if (perfChartInit) renderPerfChart();
-        };
-
-        // Gráfico de Distribución
-        const labels = {{ chart_labels | tojson | safe }};
-        const values = {{ chart_values | tojson | safe }};
-        const traceDist = [{
-            values: values, labels: labels, type: 'pie', hole: 0.4,
-            textinfo: 'percent', marker: { colors: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6610f2'] },
-            insidetextfont: { color: '#fff' },
-            outsidetextfont: { color: textColor }
-        }];
-        
-        const layoutDist = { 
-            title: { text: 'Por Activo', font: { color: textColor, size: 14, bold: true } },
-            margin: { t: 40, b: 10, l: 10, r: 10 },
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            legend: { font: { color: textColor } }
-        };
-
-        const countryLabels = {{ country_labels | tojson | safe }};
-        const countryValues = {{ country_values | tojson | safe }};
-        const traceCountryDist = [{
-            values: countryValues, labels: countryLabels, type: 'pie', hole: 0.4,
-            textinfo: 'percent',
-            insidetextfont: { color: '#fff' },
-            outsidetextfont: { color: textColor }
-        }];
-
-        const layoutCountryDist = { 
-            title: { text: 'Por País', font: { color: textColor, size: 14, bold: true } },
-            margin: { t: 40, b: 10, l: 10, r: 10 },
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            legend: { font: { color: textColor } }
-        };
-
-        const sectorLabels = {{ sector_labels | tojson | safe }};
-        const sectorValues = {{ sector_values | tojson | safe }};
-        const traceSectorDist = [{
-            values: sectorValues, labels: sectorLabels, type: 'pie', hole: 0.4,
-            textinfo: 'percent',
-            insidetextfont: { color: '#fff' },
-            outsidetextfont: { color: textColor }
-        }];
-
-        const layoutSectorDist = { 
-            title: { text: 'Por Sector', font: { color: textColor, size: 14, bold: true } },
-            margin: { t: 40, b: 10, l: 10, r: 10 },
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            legend: { font: { color: textColor } }
         };
 
         // Gráfico de Dividendos
@@ -2158,24 +2263,21 @@
 
         const layoutDiv = {
             barmode: 'stack',
-            xaxis: { title: { text: 'Año', font: { color: textColor } }, tickfont: { color: textColor } },
-            yaxis: { title: { text: 'Dividendos (€)', font: { color: textColor } }, tickfont: { color: textColor }, gridcolor: gridColor },
+            // años como categorías: sin 2.022,5 entre barras; sin título de eje (se montaba sobre la leyenda)
+            xaxis: { type: 'category', tickfont: { color: textColor } },
+            yaxis: { title: { text: 'Dividendos (€)', font: { color: textColor } }, tickfont: { color: textColor }, gridcolor: gridColor, separatethousands: true },
             margin: { t: 10, b: 40, l: 60, r: 10 },
             legend: { orientation: 'h', y: -0.2, font: { color: textColor } },
-            paper_bgcolor: 'rgba(0,0,0,0)',
+            separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)',
             plot_bgcolor: 'rgba(0,0,0,0)'
         };
 
         const config = { responsive: true, displayModeBar: false };
 
-        // Renderizar distribución al cargar (pestaña Cartera es la activa por defecto)
-        Plotly.newPlot('dist-chart', traceDist, layoutDist, config);
-        Plotly.newPlot('dist-country-chart', traceCountryDist, layoutCountryDist, config);
-        Plotly.newPlot('dist-sector-chart', traceSectorDist, layoutSectorDist, config);
-
         // Renderizar cuando se cambie a la pestaña Rendimiento
         const perfTab = document.getElementById('perf-tab');
         perfTab.addEventListener('shown.bs.tab', function() {
+            perfLayout();
             const cfg = { responsive: true, displayModeBar: false };
             if (!perfChartInit) {
                 perfChartInit = true;
@@ -2193,6 +2295,60 @@
             }
         });
 
+        // Previsión de dividendos: anunciado y estimado por mes
+        const cleanTk = t => t.includes('.') ? t.slice(0, t.lastIndexOf('.')) : t;   // como clean_ticker
+        const divForecast = {{ div_forecast.months | tojson | safe }};
+        function renderDivForecast() {
+            const el = document.getElementById('div-forecast-chart');
+            if (!divForecast.some(m => m.announced_eur + m.estimated_eur > 0)) {
+                el.innerHTML = '<div class="text-center text-muted py-5 small">Ninguna posición abierta reparte dividendo</div>';
+                return;
+            }
+            const names = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+            const x = divForecast.map(m => names[parseInt(m.month.slice(5, 7)) - 1] + ' ' + m.month.slice(2, 4));
+            // al pasar el ratón: total del tramo y de qué empresas viene
+            const tips = (m, est) => m.items.filter(i => i.estimated === est)
+                .map(i => `${cleanTk(i.ticker)}: ${fmtNum(i.gross_eur, 2)} €`).join('<br>');
+            const bar = (key, name, color, est) => ({
+                x, y: divForecast.map(m => m[key]), name, type: 'bar', marker: { color },
+                hovertemplate: divForecast.map(m => `<b>%{x} · ${name}: ${fmtNum(m[key], 2)} €</b><br>${tips(m, est)}<extra></extra>`),
+            });
+            Plotly.newPlot('div-forecast-chart', [bar('announced_eur', 'Anunciado', '#089981', false), bar('estimated_eur', 'Estimado', 'rgba(8,153,129,0.4)', true)], {
+                barmode: 'stack',
+                xaxis: { tickfont: { color: textColor }, fixedrange: true },
+                yaxis: { title: { text: '€', font: { color: textColor } }, tickfont: { color: textColor }, gridcolor: gridColor, fixedrange: true, separatethousands: true },
+                separators: ',.',
+                margin: { t: 10, b: 30, l: 50, r: 10 },
+                legend: { orientation: 'h', y: 1.12, font: { color: textColor } },
+                separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+            }, { responsive: true, displayModeBar: false });
+            // al pulsar una barra: desglose del mes por empresa, anunciado y estimado por separado
+            document.getElementById('div-forecast-chart').on('plotly_click', ev => {
+                const idx = ev.points[0].pointIndex;
+                showForecastMonth(idx, x[idx]);
+            });
+        }
+        function showForecastMonth(idx, label) {
+            const m = divForecast[idx], el = document.getElementById('div-forecast-detail');
+            if (!m.items.length) { el.innerHTML = `<div class="text-muted py-2">Sin cobros previstos en ${label}.</div>`; return; }
+            const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+            const dmy = d => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+            const group = (est, title, total) => {
+                const rows = m.items.filter(i => i.estimated === est);
+                if (!rows.length) return '';
+                return `<div class="col-12 col-md-6"><div class="fw-bold mb-1">${title} <span class="text-success">${fmtNum(total, 2)} €</span></div>
+                    <table class="table table-sm mb-0"><tbody>${rows.map(i => `<tr>
+                        <td class="fw-bold" title="${esc(i.name)}">${esc(cleanTk(i.ticker))}</td>
+                        <td class="num-font text-muted">${dmy(i.date)} <span class="small">${i.kind === 'pago' ? 'cobro' : 'fecha ex'}</span></td>
+                        <td class="text-end num-font">${fmtNum(i.gross_eur, 2)} €</td>
+                        <td class="text-end num-font text-muted">${fmtNum(i.net_eur, 2)} € netos</td></tr>`).join('')}</tbody></table></div>`;
+            };
+            el.innerHTML = `<div class="border-top pt-2 mt-1">
+                <div class="d-flex justify-content-between align-items-center mb-2"><span class="fw-bold text-capitalize">${label}</span>
+                <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="document.getElementById('div-forecast-detail').innerHTML=''"><i class="bi bi-x-lg"></i></button></div>
+                <div class="row g-3">${group(false, 'Anunciado', m.announced_eur)}${group(true, 'Estimado', m.estimated_eur)}</div></div>`;
+        }
+
         // Renderizar gráfico al cambiar a la pestaña Dividendos
         let divChartInit = false;
         const divTabBtn = document.getElementById('div-tab');
@@ -2200,6 +2356,7 @@
             divTabBtn.addEventListener('shown.bs.tab', function() {
                 if (!divChartInit) {
                     divChartInit = true;
+                    renderDivForecast();
                     if (divTraces.length > 0) {
                         Plotly.newPlot('div-chart', divTraces, layoutDiv, { responsive: true, displayModeBar: false });
                     } else {
@@ -2208,42 +2365,7 @@
                     }
                 } else {
                     Plotly.Plots.resize('div-chart');
-                }
-            });
-        }
-
-        // Toggle text-muted class y redimensionar gráficos de distribución al cambiar de pestaña
-        const distTabEls = document.querySelectorAll('#distTabs button[data-bs-toggle="pill"]');
-        distTabEls.forEach(tabEl => {
-            tabEl.addEventListener('shown.bs.tab', function (event) {
-                event.target.classList.remove('text-muted');
-                if (event.relatedTarget) {
-                    event.relatedTarget.classList.add('text-muted');
-                }
-                
-                if (event.target.id === 'dist-asset-tab') {
-                    Plotly.Plots.resize('dist-chart');
-                } else if (event.target.id === 'dist-country-tab') {
-                    Plotly.Plots.resize('dist-country-chart');
-                } else if (event.target.id === 'dist-sector-tab') {
-                    Plotly.Plots.resize('dist-sector-chart');
-                }
-            });
-        });
-
-        // Resize dist-charts cuando se abre el panel de distribución (sólo el gráfico activo)
-        const distPanel = document.getElementById('distPanel');
-        if (distPanel) {
-            distPanel.addEventListener('shown.bs.collapse', function() {
-                const activeTab = document.querySelector('#distTabs button.active');
-                if (activeTab) {
-                    if (activeTab.id === 'dist-asset-tab') {
-                        Plotly.Plots.resize('dist-chart');
-                    } else if (activeTab.id === 'dist-country-tab') {
-                        Plotly.Plots.resize('dist-country-chart');
-                    } else if (activeTab.id === 'dist-sector-tab') {
-                        Plotly.Plots.resize('dist-sector-chart');
-                    }
+                    Plotly.Plots.resize('div-forecast-chart');
                 }
             });
         }
@@ -2251,12 +2373,23 @@
 
     // ── Paginación tablas de dividendos ────────────────────────────────────
     const divPagState = { upcoming: 1, latest: 1 };
-    const DIV_PER_PAGE = 8;
+    let DIV_PER_PAGE = 8;   // «Últimos cobrados»: se ajusta a lo que cabe
+    // al cambiar el tamaño de la ventana, las tablas paginadas vuelven a calcular cuántas filas caben
+    window.addEventListener('resize', () => {
+        clearTimeout(window.__pfResize);
+        window.__pfResize = setTimeout(() => {
+            if (document.getElementById('closed-summary-pane')?.classList.contains('active') && document.getElementById('closed-pane')?.classList.contains('active')) closedPosPage(0);
+            if (document.getElementById('closed-tx-pane')?.classList.contains('active') && document.getElementById('closed-pane')?.classList.contains('active')) applyHistFilters(false);
+            if (document.getElementById('div-sub-paid')?.classList.contains('active') && document.getElementById('div-pane')?.classList.contains('active')) divPage('latest', 0);
+        }, 150);
+    });
 
     function divPage(which, delta) {
         const rows = document.querySelectorAll(`.div-${which}-row`);
         const total = rows.length;
         if (total === 0) return;
+        const table = rows[0].closest('table');
+        if (table && table.offsetParent) { rows.forEach(r => r.style.display = ''); DIV_PER_PAGE = rowsPerPage(table, DIV_PER_PAGE); }
         const pages = Math.ceil(total / DIV_PER_PAGE);
         divPagState[which] = Math.min(pages, Math.max(1, divPagState[which] + delta));
         const start = (divPagState[which] - 1) * DIV_PER_PAGE;
@@ -2267,12 +2400,14 @@
 
     // ── Paginación Posiciones Cerradas (Summary Table) ─────────────────────
     let closedPosPageState = 1;
-    const CLOSED_POS_PER_PAGE = 8;
+    let CLOSED_POS_PER_PAGE = 8;
 
     function closedPosPage(delta) {
         const rows = document.querySelectorAll('.closed-pos-row');
         const total = rows.length;
         if (total === 0) return;
+        rows.forEach(r => r.style.display = '');
+        CLOSED_POS_PER_PAGE = rowsPerPage('closedPositionsTable', CLOSED_POS_PER_PAGE);   // sin scroll: las filas que caben
         const pages = Math.ceil(total / CLOSED_POS_PER_PAGE);
         closedPosPageState = Math.min(pages, Math.max(1, closedPosPageState + delta));
         const start = (closedPosPageState - 1) * CLOSED_POS_PER_PAGE;
@@ -2283,7 +2418,6 @@
 
     // Inicializar paginación al abrir la pestaña
     document.getElementById('div-tab')?.addEventListener('shown.bs.tab', function() {
-        divPage('upcoming', 0);
         divPage('latest', 0);
     });
 
@@ -2313,9 +2447,7 @@
     }
 
     function fmtEur(v) {
-        return (v >= 0 ? '+' : '') + new Intl.NumberFormat('es-ES', {
-            style: 'currency', currency: 'EUR', maximumFractionDigits: 0
-        }).format(v);
+        return fmtNum(v, 0, true) + ' €';   // fmtNum agrupa también los miles de 4 cifras (Intl es-ES no)
     }
 
     window.setAnnualMode = function(mode) {
@@ -2451,9 +2583,15 @@
         }
         const { years, matrix, yearTotals } = data;
         const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-        const fmtEur = v => (v >= 0 ? '+' : '') + new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+        const fmtEur = v => fmtNum(v, 0, true) + ' €';
         const fmtPct = v => (v >= 0 ? '+' : '') + fmtNum(v, 2) + '%';
         const fmt    = v => monthlyMode === 'pct' ? fmtPct(v) : fmtEur(v);
+        // fondo verde/rojo más intenso cuanto mayor el mes (lleno a ±10 % o al mayor importe en €)
+        const maxEur = Math.max(1, ...years.flatMap(yr => Object.values(matrix[yr] || {}).filter(c => c && c.hasData).map(c => Math.abs(c.eur))));
+        const heat = v => {
+            const a = Math.min(Math.abs(v) / (monthlyMode === 'pct' ? 10 : maxEur), 1) * 0.35 + 0.05;
+            return `color-mix(in srgb, var(${v >= 0 ? '--fin-green' : '--fin-red'}) ${Math.round(a * 100)}%, transparent)`;
+        };
 
         // Cabecera: Mes | 2022 | 2023 | 2024 | ...
         thead.innerHTML = `<th class="ps-3 text-start text-muted" style="min-width:46px;font-weight:600;">Mes</th>` +
@@ -2466,13 +2604,13 @@
                 const c = matrix[yr] && matrix[yr][m];
                 if (!c || !c.hasData) { row += `<td class="text-center text-muted" style="opacity:.4;">—</td>`; return; }
                 const val = monthlyMode === 'pct' ? c.pct : c.eur;
-                row += `<td class="text-center fw-semibold ${val >= 0 ? 'text-success' : 'text-danger'}">${fmt(val)}</td>`;
+                row += `<td class="text-center fw-semibold ${val >= 0 ? 'text-success' : 'text-danger'}"><span class="mth-cell d-block" style="background:${heat(val)}">${fmt(val)}</span></td>`;
             });
             return row + `</tr>`;
         }).join('');
 
         // Fila total anual
-        html += `<tr style="border-top:2px solid #dee2e6;"><td class="ps-3 fw-bold">Total</td>`;
+        html += `<tr style="border-top:2px solid var(--bs-border-color);"><td class="ps-3 fw-bold">Total</td>`;
         years.forEach(yr => {
             const yt = yearTotals[yr];
             if (!yt || !yt.hasData) { html += `<td class="text-center text-muted">—</td>`; return; }
@@ -2577,7 +2715,8 @@
                     currency: document.getElementById('add-currency').value,
                     fee: feeVal,
                     fx_rate_at_purchase: fxRate,
-                    broker: document.getElementById('add-broker').value
+                    broker: document.getElementById('add-broker').value,
+                    comment: document.getElementById('add-comment').value.trim() || null
                 })
             });
             
@@ -2586,7 +2725,7 @@
                 if (typeof showToast === 'function') {
                     showToast('✅ Éxito', 'Transacción guardada correctamente. Recargando...', 'success');
                 }
-                setTimeout(() => location.reload(), 1000);
+                setTimeout(() => location.reload(), 400);
             } else {
                 throw new Error(data.detail || 'Error al guardar la transacción');
             }
@@ -2728,12 +2867,13 @@ function exportTableToCSV(tableId, filename) {
 
     // ── Historial P&L Filtering, KPI Calculation, and Pagination ──────────────
     let closedTxPageState = 1;
-    const CLOSED_TX_PER_PAGE = 10;
+    let CLOSED_TX_PER_PAGE = 10;
 
     function applyHistFilters(resetPage = true) {
         if (resetPage) {
             closedTxPageState = 1;
         }
+        CLOSED_TX_PER_PAGE = rowsPerPage('closedTable', CLOSED_TX_PER_PAGE);   // sin scroll: las filas que caben
 
         const fromVal = document.getElementById('histDateFrom').value;
         const toVal = document.getElementById('histDateTo').value;
@@ -2817,7 +2957,7 @@ function exportTableToCSV(tableId, filename) {
         const netEl = document.getElementById('histNet');
         if (netEl) {
             netEl.innerText = formatCurrency(totalNet);
-            netEl.className = 'fw-bold fs-5 ' + (totalNet >= 0 ? 'text-success' : 'text-danger');
+            netEl.className = 'fw-bold ' + (totalNet >= 0 ? 'text-success' : 'text-danger');
         }
     }
 
@@ -2925,7 +3065,7 @@ function exportTableToCSV(tableId, filename) {
     }
 
     function formatCurrency(val) {
-        return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(val);
+        return fmtNum(val, 2) + ' €';   // con separador de miles también en 4 cifras (Intl es-ES no lo pone)
     }
 
     // Auxiliar de Debouncing para suavizar el filtrado de búsqueda en tiempo real

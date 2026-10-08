@@ -17,7 +17,7 @@ class PortfolioService:
         txs = self.repository.load_manual_transactions()
         txs.append(tx)
         self.repository.save_manual_transactions(txs)
-        self.rebuild_portfolio()
+        self.rebuild_portfolio(force_tickers={tx.ticker})   # sus splits y dividendos, recién pedidos
 
     def delete_manual_transaction(self, target_tx: Transaction):
         txs = self.repository.load_manual_transactions()
@@ -103,88 +103,99 @@ class PortfolioService:
             ))
         return transactions
 
-    def _get_pending_dividend_ex_dates(self, tickers: set) -> Dict[str, str]:
+    # Datos de Yahoo por empresa (splits, dividendos y fechas del próximo dividendo). Antes se pedían uno a uno y sin
+    # caché en cada recálculo de la cartera: ~165 consultas seguidas, ~45 s por cada operación nueva. Ahora se piden en
+    # paralelo y se guardan 12 h; la empresa de la operación que se acaba de apuntar se vuelve a pedir (force).
+    YAHOO_TTL_H = 12
+
+    @staticmethod
+    def _per_ticker(kind: str, tickers: set, fetch, force: set = frozenset()) -> Dict[str, Any]:
+        from concurrent.futures import ThreadPoolExecutor
+        from app.application.services import market_cache
+        tickers = sorted(t for t in tickers if t)
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            values = pool.map(lambda t: market_cache.cached(kind, t, lambda: fetch(t), ttl_hours=PortfolioService.YAHOO_TTL_H,
+                                                            force=t in force), tickers)
+            return dict(zip(tickers, values))
+
+    @staticmethod
+    def _yahoo_splits(ticker: str) -> Dict[str, float]:
+        try:
+            splits = yf.Ticker(ticker).splits
+            if splits is None or splits.empty:
+                return {}
+            splits.index = splits.index.tz_convert(None)
+            return {d.strftime('%Y-%m-%d'): float(r) for d, r in splits.items()}
+        except Exception:
+            return None   # error de red: no se guarda como «sin splits» (cached sí guarda None, pero caduca)
+
+    @staticmethod
+    def _yahoo_dividends(ticker: str) -> Dict[str, float]:
+        try:
+            divs = yf.Ticker(ticker).dividends
+            if divs is None or divs.empty:
+                return {}
+            divs.index = divs.index.tz_convert(None)
+            return {d.strftime('%Y-%m-%d'): float(v) for d, v in divs.items()}
+        except Exception:
+            return None
+
+    @staticmethod
+    def _yahoo_dividend_dates(ticker: str) -> Dict[str, Any]:
+        try:
+            info = yf.Ticker(ticker).info or {}
+            return {"ex": info.get('exDividendDate') or info.get('dividendExDate'),
+                    "pay": info.get('dividendDate') or info.get('dividendPaymentDate')}
+        except Exception:
+            return None
+
+    def _get_pending_dividend_ex_dates(self, tickers: set, force: set = frozenset()) -> Dict[str, str]:
         """Para cada ticker, si el dividendo más reciente (ex-date) todavía no se ha
         pagado (pay-date en el futuro), devuelve {ticker: ex_date_str}. yfinance solo
         expone la pay-date del próximo/último evento vía `.info`, no un histórico, así
         que solo podemos detectar como "pendiente de cobro" ese último evento."""
         pending = {}
         today = datetime.now().date()
-        for ticker in tickers:
+        for ticker, d in self._per_ticker("div_dates", tickers, self._yahoo_dividend_dates, force).items():
             try:
-                info = yf.Ticker(ticker).info
-                ex_ts = info.get('exDividendDate') or info.get('dividendExDate')
-                pay_ts = info.get('dividendDate') or info.get('dividendPaymentDate')
-                if not ex_ts or not pay_ts:
+                if not d or not d.get("ex") or not d.get("pay"):
                     continue
-                ex_date = datetime.fromtimestamp(ex_ts).date()
-                pay_date = datetime.fromtimestamp(pay_ts).date()
+                ex_date = datetime.fromtimestamp(d["ex"]).date()
+                pay_date = datetime.fromtimestamp(d["pay"]).date()
                 if ex_date <= today and pay_date > today:
                     pending[ticker] = ex_date.strftime('%Y-%m-%d')
             except Exception:
                 pass
         return pending
 
-    def _sync_dividends(self, tickers: set):
-        if os.path.exists(DIV_CACHE_FILE):
-            with open(DIV_CACHE_FILE, 'r') as f:
-                master_dividend_history = json.load(f)
-        else:
-            master_dividend_history = {}
+    @staticmethod
+    def _merge_history(path: str, fresh: Dict[str, Any]) -> Dict[str, Any]:
+        """Historial guardado en disco + lo recién descargado (no se pierde lo que Yahoo deje de dar)."""
+        history = {}
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                history = json.load(f)
+        for ticker, events in fresh.items():
+            history.setdefault(ticker, {})
+            history[ticker].update(events or {})
+        with open(path, 'w') as f:
+            json.dump(history, f, indent=4)
+        return history
 
-        for ticker in tickers:
-            if ticker not in master_dividend_history: 
-                master_dividend_history[ticker] = {}
-            try:
-                stock = yf.Ticker(ticker)
-                divs = stock.dividends
-                if not divs.empty:
-                    divs.index = divs.index.tz_convert(None)
-                    for div_date, div_amount in divs.items():
-                        d_str = div_date.strftime('%Y-%m-%d')
-                        master_dividend_history[ticker][d_str] = float(div_amount)
-            except Exception:
-                pass
+    def _sync_dividends(self, tickers: set, force: set = frozenset()):
+        return self._merge_history(DIV_CACHE_FILE, self._per_ticker("dividends_hist", tickers, self._yahoo_dividends, force))
 
-        with open(DIV_CACHE_FILE, 'w') as f:
-            json.dump(master_dividend_history, f, indent=4)
-            
-        return master_dividend_history
+    def _sync_splits(self, tickers: set, force: set = frozenset()):
+        return self._merge_history(SPLIT_CACHE_FILE, self._per_ticker("splits_hist", tickers, self._yahoo_splits, force))
 
-    def _sync_splits(self, tickers: set):
-        if os.path.exists(SPLIT_CACHE_FILE):
-            with open(SPLIT_CACHE_FILE, 'r') as f:
-                master_split_history = json.load(f)
-        else:
-            master_split_history = {}
-
-        for ticker in tickers:
-            if ticker not in master_split_history: 
-                master_split_history[ticker] = {}
-            try:
-                stock = yf.Ticker(ticker)
-                splits = stock.splits
-                if not splits.empty:
-                    splits.index = splits.index.tz_convert(None)
-                    for split_date, split_ratio in splits.items():
-                        d_str = split_date.strftime('%Y-%m-%d')
-                        master_split_history[ticker][d_str] = float(split_ratio)
-            except Exception:
-                pass
-
-        with open(SPLIT_CACHE_FILE, 'w') as f:
-            json.dump(master_split_history, f, indent=4)
-            
-        return master_split_history
-
-    def rebuild_portfolio(self):
+    def rebuild_portfolio(self, force_tickers: set = frozenset()):
         csv_txs = self.load_csv_transactions()
         manual_txs = self.repository.load_manual_transactions()
         
         # 1. Obtener tickers de transacciones iniciales para buscar splits
         all_tx_raw = csv_txs + manual_txs
         tickers_seen_initial = {tx.ticker for tx in all_tx_raw}
-        master_split_history = self._sync_splits(tickers_seen_initial)
+        master_split_history = self._sync_splits(tickers_seen_initial, force_tickers)
         
         # Encontrar la fecha de la primera transacción para cada ticker
         first_tx_dates = {}
@@ -319,8 +330,8 @@ class PortfolioService:
                     p.total_shares_sold *= ratio
                     # total_cost y total_cost_eur se mantienen iguales
 
-        master_dividend_history = self._sync_dividends(tickers_seen)
-        pending_ex_dates = self._get_pending_dividend_ex_dates(tickers_seen)
+        master_dividend_history = self._sync_dividends(tickers_seen, force_tickers)
+        pending_ex_dates = self._get_pending_dividend_ex_dates(tickers_seen, force_tickers)
 
         for ticker, txs in ledger.items():
             daily_balance = {}
@@ -393,6 +404,20 @@ class PortfolioService:
     def delete_ticker_data(self, ticker: str) -> None:
         self.repository.delete_ticker_data(ticker)
 
+    def dividends_eur(self, fx_rates: dict = None) -> list:
+        """Dividendos cobrados (del ledger, que es donde se guardan) pasados a EUR con el cambio de hoy:
+        [{date, ticker, currency, native, eur}]. Lo usan Fiscal, la pestaña Dividendos e Historial."""
+        fx = fx_rates or {}
+        out = []
+        for p in self.get_active_portfolio() + self.get_closed_portfolio():
+            ccy = (p.currency_code or 'USD').upper()
+            rate = 1.0 if ccy == 'EUR' else fx.get(ccy, 1.0)
+            for entry in self.get_ledger(p.ticker):
+                if entry.type == TransactionType.DIVIDEND:
+                    out.append({'date': entry.date, 'ticker': p.ticker, 'currency': ccy,
+                                'native': entry.total, 'eur': entry.total * rate})
+        return out
+
     def get_fiscal_summary(self, fx_rates: dict = None) -> list:
         """P&L realizado y dividendos agrupados por año (en EUR aproximado)."""
         fx = fx_rates or {}
@@ -434,8 +459,10 @@ class PortfolioService:
                     yearly[year]['losses'] += pnl
                 h['shares'] = max(0.0, h['shares'] - tx.shares)
                 yearly[year]['fees'] += fee_eur
-            elif tx.type.value == 'DIVIDEND':
-                yearly[year]['dividends'] += tx.shares * tx.price * rate
+
+        # los dividendos están en el ledger (sincronizados del bróker), no entre las operaciones
+        for d in self.dividends_eur(fx):
+            yearly.setdefault(d['date'][:4], {'gains': 0.0, 'losses': 0.0, 'dividends': 0.0, 'fees': 0.0})['dividends'] += d['eur']
 
         result = []
         for year in sorted(yearly.keys()):
@@ -454,10 +481,10 @@ class PortfolioService:
 
     @staticmethod
     def _spanish_tax(amount: float) -> float:
-        """IRPF base del ahorro 2024 (tramos de ganancias patrimoniales)."""
+        """IRPF, base del ahorro (desde 2025): límite superior acumulado de cada tramo y su tipo."""
         if amount <= 0:
             return 0.0
-        brackets = [(6_000, 0.19), (44_000, 0.21), (150_000, 0.23), (float('inf'), 0.27)]
+        brackets = [(6_000, 0.19), (50_000, 0.21), (200_000, 0.23), (300_000, 0.27), (float('inf'), 0.30)]
         tax, prev = 0.0, 0.0
         for limit, rate in brackets:
             chunk = min(amount - prev, (limit - prev) if limit != float('inf') else amount)
@@ -607,29 +634,15 @@ class PortfolioService:
         realized_trades.sort(key=lambda x: x['date'][:10], reverse=True)
         return realized_trades
 
-    def get_yearly_dividends(self) -> Dict[str, Any]:
-        """Agrega dividendos por año y por empresa."""
-        active = self.get_active_portfolio()
-        closed = self.get_closed_portfolio()
-        all_tickers = list(set([p.ticker for p in active] + [p.ticker for p in closed]))
-        
-        data_by_year_ticker = {} # {year: {ticker: total}}
-        years = set()
-        
-        for ticker in all_tickers:
-            ledger = self.get_ledger(ticker)
-            for entry in ledger:
-                if entry.type == TransactionType.DIVIDEND:
-                    year = entry.date[:4]
-                    years.add(year)
-                    if year not in data_by_year_ticker:
-                        data_by_year_ticker[year] = {}
-                    data_by_year_ticker[year][ticker] = data_by_year_ticker[year].get(ticker, 0) + entry.total
-        
-        sorted_years = sorted(list(years))
+    def get_yearly_dividends(self, fx_rates: dict = None) -> Dict[str, Any]:
+        """Dividendos cobrados por año y por empresa, en EUR."""
+        data_by_year_ticker: Dict[str, Dict[str, float]] = {}
+        for d in self.dividends_eur(fx_rates):
+            year = data_by_year_ticker.setdefault(d['date'][:4], {})
+            year[d['ticker']] = year.get(d['ticker'], 0) + d['eur']
         return {
-            "years": sorted_years,
-            "tickers": all_tickers,
+            "years": sorted(data_by_year_ticker),
+            "tickers": sorted({t for y in data_by_year_ticker.values() for t in y}),
             "data": data_by_year_ticker
         }
 
@@ -656,32 +669,25 @@ class PortfolioService:
         all_dividends.sort(key=lambda x: x["date"], reverse=True)
         return all_dividends[:limit]
 
-    def get_dividend_kpis(self) -> Dict[str, Any]:
+    def get_dividend_kpis(self, fx_rates: dict = None) -> Dict[str, Any]:
         """KPIs de dividendos: YTD, año anterior, media mensual."""
         from datetime import date, timedelta
         today = date.today()
         current_year = str(today.year)
         last_year = str(today.year - 1)
 
-        active = self.get_active_portfolio()
-        closed = self.get_closed_portfolio()
-        all_tickers = list(set([p.ticker for p in active] + [p.ticker for p in closed]))
-
         total_ytd = 0.0
         total_last_year = 0.0
         monthly_totals: Dict[str, float] = {}
 
-        for ticker in all_tickers:
-            for entry in self.get_ledger(ticker):
-                if entry.type != TransactionType.DIVIDEND:
-                    continue
-                year = entry.date[:4]
-                if year == current_year:
-                    total_ytd += entry.total
-                elif year == last_year:
-                    total_last_year += entry.total
-                ym = entry.date[:7]
-                monthly_totals[ym] = monthly_totals.get(ym, 0) + entry.total
+        for d in self.dividends_eur(fx_rates):
+            year = d['date'][:4]
+            if year == current_year:
+                total_ytd += d['eur']
+            elif year == last_year:
+                total_last_year += d['eur']
+            ym = d['date'][:7]
+            monthly_totals[ym] = monthly_totals.get(ym, 0) + d['eur']
 
         # Promedio mensual últimos 12 meses
         months_12 = []

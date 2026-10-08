@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.infrastructure.db.database import get_db
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
-from app.application.services import market_cache, base_valuation_service as bv, portfolio_roles_service as roles_service
+from app.application.services import market_cache, base_valuation_service as bv, distribution_service, dividend_forecast, portfolio_roles_service as roles_service
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.performance_service import PerformanceService
 from app.infrastructure.dependencies import (
@@ -61,32 +61,21 @@ def day_change(shares: float, price: Optional[float], prev: Optional[float], las
     ha abierto hoy (EE. UU. por la mañana), closed=True y sin variación. La usan Contable, la tarjeta del día y Seguimiento."""
     today = today or datetime.date.today()
     ccy = (currency or "USD").upper()
-    rate = get_current_rate(ccy)
     closed = bool(today.weekday() < 5 and last_date and last_date != today)
     if closed or not prev:
         prev = price
+    # el cambio de hoy y el de ayer, de la misma fuente: mezclar el de reserva (GLOBAL_CACHE) con el cierre de ayer de
+    # Yahoo se leía como un movimiento de la divisa que no existe (+3 % de golpe en todo lo que está en dólares)
     fx = INDEX_CACHE["data"].get(f"{ccy}EUR=X") or {}
-    rate_prev = rate if closed or ccy == "EUR" else (fx.get("prev") or rate)
+    rate = 1.0 if ccy == "EUR" else (fx.get("price") or get_current_rate(ccy))
+    rate_prev = rate if closed or ccy == "EUR" or not fx.get("price") else (fx.get("prev") or rate)
     price = price or 0.0
     return {"closed": closed, "last_date": last_date, "rate": rate, "rate_prev": rate_prev, "prev": prev,
             "eur": shares * (price * rate - prev * rate_prev), "pct": ((price / prev) - 1) * 100 if prev else 0.0}
 
 def _shares_held_at(ledger_entries, as_of_date):
     """Acciones en cartera a fecha `as_of_date`, reconstruidas a partir del ledger persistido (BUY/SELL/SPLIT)."""
-    balance = 0.0
-    for entry in sorted(ledger_entries, key=lambda e: e.date):
-        e_date = pd.to_datetime(entry.date).date()
-        if e_date > as_of_date:
-            break
-        if entry.type == TransactionType.DIVIDEND:
-            continue
-        elif entry.type == TransactionType.SPLIT:
-            balance *= entry.shares
-        elif entry.type == TransactionType.BUY:
-            balance += entry.shares
-        elif entry.type == TransactionType.SELL:
-            balance -= entry.shares
-    return balance
+    return dividend_forecast.shares_held_at(ledger_entries, as_of_date)
 
 @router.get("/portfolio/ticker/{ticker}", response_class=HTMLResponse)
 def portfolio_ticker_page(
@@ -248,6 +237,7 @@ def portfolio_ticker_page(
     return templates.TemplateResponse("portfolio_ticker.html", {
         "request": request, "ticker": ticker, "item": item, "is_active": is_active,
         "ledger": ledger_data, "currency_symbol": currency_symbol,
+        "tx_notes": asset_data.get("tx_notes") or {},   # comentarios de las operaciones
         "total_profit_closed": total_profit_closed,
         "settings": get_settings_from_db(db_session)
     })
@@ -338,9 +328,8 @@ def portfolio_page(
     # 1. Rendimiento histórico (ya tiene su propia caché interna)
     perf_data = performance_service.get_performance_data(perf_start_date)
     
-    # F5: se piden precios nuevos en segundo plano (la página no espera; se recarga sola al llegar)
-    if is_reload_request(request) and time.time() - INDEX_CACHE.get("prices_update", 0) > 30:
-        INDEX_CACHE["prices_update"] = 0
+    # F5: se piden precios nuevos y se espera (~3 s), para no tener que recargar otra vez al llegar
+    reload_prices = is_reload_request(request) and time.time() - INDEX_CACHE.get("prices_update", 0) > 30
 
     # 2. Actualizar caché de precios y divisas (compartida con el dashboard vía INDEX_CACHE,
     # para que "Var. Diaria" aquí y "MI CARTERA" en el dashboard nunca diverjan)
@@ -348,7 +337,7 @@ def portfolio_page(
     tickers = [p['ticker'] for p in portfolio_data] + [p['ticker'] for p in closed_portfolio_data]
     missing_tickers = any(t for t in tickers if t not in GLOBAL_CACHE.get("prices", {}))
 
-    ensure_prices_cached(tickers, asset_repo)
+    ensure_prices_cached(tickers, asset_repo, wait=reload_prices)
     GLOBAL_CACHE["prices"] = INDEX_CACHE["data"]
 
     currencies = {asset_repo.get_asset_data(p['ticker']).get("currency", "USD") for p in portfolio_data + closed_portfolio_data}
@@ -448,7 +437,6 @@ def portfolio_page(
 
     # 3. Procesar Activos con datos de Caché
     total_invested_eur, total_current_value_eur, total_prev_value_eur, total_realized_pnl_eur, total_fees_all_eur = 0, 0, 0, 0, 0
-    chart_data = []
     
     for item in portfolio_data:
         ticker = item['ticker']
@@ -502,9 +490,7 @@ def portfolio_page(
         total_invested_eur += item['invested_value_eur']
         total_current_value_eur += item['current_value_eur']
         total_prev_value_eur += item['shares'] * p_prev * rate_prev
-        total_realized_pnl_eur += item['total_profit_closed_eur']
         total_fees_all_eur += item.get('total_fees_eur', 0.0)
-        chart_data.append({"ticker": ticker, "value": item['current_value_eur']})
         
     for item in closed_portfolio_data:
         ticker = item['ticker']
@@ -548,7 +534,6 @@ def portfolio_page(
         else:
             item['opp_diff_eur'] = 0.0
         
-        total_realized_pnl_eur += item['total_profit_closed_eur']
 
     # 3.1 Calcular efectos precio vs divisa globales
     realized_trades_data = portfolio_service.get_realized_trades(GLOBAL_CACHE.get("rates", {}))
@@ -595,19 +580,13 @@ def portfolio_page(
     global_total_price_pnl = global_unrealized_price_pnl + global_realized_price_pnl
     global_total_fx_pnl = global_unrealized_fx_pnl + global_realized_fx_pnl
     global_total_profits = global_total_price_pnl + global_total_fx_pnl + global_total_dividends
+    # Bº realizado = lo mismo que Historial y Fiscal: ventas en EUR con el cambio de compra y de venta + dividendos
+    # (antes: P&L en su moneda × cambio de hoy, que no cuadraba con Historial ni con su propio desglose)
+    total_realized_pnl_eur = global_realized_price_pnl + global_realized_fx_pnl + global_total_dividends
 
-    # 4. Preparar datos para gráficos
-    labels, values = [], []
-    country_labels, country_values = [], []
-    sector_labels, sector_values = [], []
-
+    # 4. Distribución (vista «Distribución»): activo, rol, divisa, sector y país
+    distribution = None
     if total_current_value_eur > 0:
-        chart_data.sort(key=lambda x: x['value'], reverse=True)
-        labels = [d['ticker'] for d in chart_data if d['value']/total_current_value_eur > 0.02]
-        values = [d['value'] for d in chart_data if d['value']/total_current_value_eur > 0.02]
-        if (otros := sum(d['value'] for d in chart_data if d['value']/total_current_value_eur <= 0.02)) > 0:
-            labels.append("Otros"); values.append(otros)
-
         COUNTRY_TRANSLATIONS = {
             "United States": "Estados Unidos",
             "Spain": "España",
@@ -652,28 +631,19 @@ def portfolio_page(
             "Basic Materials": "Materiales Básicos",
         }
 
-        country_totals = {}
-        sector_totals = {}
+        positions = []
         for item in portfolio_data:
-            ticker = item['ticker']
             val = item.get('current_value_eur', 0.0)
             if val <= 0:
                 continue
-            asset_info = asset_repo.get_asset_data(ticker)
-            country_raw = asset_info.get("country")
-            country = COUNTRY_TRANSLATIONS.get(country_raw, country_raw or "Desconocido")
-            sector_raw = asset_info.get("sector")
-            sector = SECTOR_TRANSLATIONS.get(sector_raw, sector_raw or "Desconocido")
-            country_totals[country] = country_totals.get(country, 0.0) + val
-            sector_totals[sector] = sector_totals.get(sector, 0.0) + val
-
-        sorted_countries = sorted(country_totals.items(), key=lambda x: x[1], reverse=True)
-        country_labels = [k for k, v in sorted_countries]
-        country_values = [v for k, v in sorted_countries]
-
-        sorted_sectors = sorted(sector_totals.items(), key=lambda x: x[1], reverse=True)
-        sector_labels = [k for k, v in sorted_sectors]
-        sector_values = [v for k, v in sorted_sectors]
+            asset_info = asset_repo.get_asset_data(item['ticker'])
+            country_raw, sector_raw = asset_info.get("country"), asset_info.get("sector")
+            positions.append({
+                "ticker": item['ticker'], "name": item.get('company_name') or item['ticker'], "value": val,
+                "currency": (asset_info.get("currency") or "USD").upper(), "role": asset_info.get(roles_service.ROLE_KEY),
+                "country": COUNTRY_TRANSLATIONS.get(country_raw, country_raw or "Desconocido"),
+                "sector": SECTOR_TRANSLATIONS.get(sector_raw, sector_raw or "Desconocido")})
+        distribution = distribution_service.build(positions, roles_service.load_roles())
 
     # ── Calcular Métricas Ponderadas de la Cartera Activa ────────────────────
     weighted_beta = 0.0
@@ -853,21 +823,23 @@ def portfolio_page(
     benchmark_ann_return = perf_data.get("benchmark_annualized_return", 0.0)
     port_alpha = portfolio_ann_return - (port_beta * benchmark_ann_return)
 
-    # Variación semanal (desde el lunes) y mensual (desde el día 1) con las posiciones actuales
+    # Variación de 1 semana, 1 mes, YTD y 1 año (respetando las fechas de compra y venta) frente al índice de referencia
     period_changes = {}
+    benchmark = (get_settings_from_db(db_session).get("performance") or {}).get("benchmark_ticker") or "URTH"
     try:
         from app.application.services import price_monitor_service as pm
         txs, splits = pm.load_transactions(portfolio_service, db_session)   # respeta fechas de compra/venta y splits
         ccys = {("GBP" if t.get("currency") == "GBp" else t.get("currency") or "USD") for t in txs} - {"EUR"}
-        hist = pm.download_history(sorted({t["ticker"] for t in txs}) + [f"{c}EUR=X" for c in ccys])
-        period_changes = pm.portfolio_changes(hist, txs, splits)["periods"]
+        hist = pm.download_history(sorted({t["ticker"] for t in txs}) + [f"{c}EUR=X" for c in ccys] + [benchmark])
+        period_changes = pm.portfolio_changes(hist, txs, splits, benchmark)["periods"]
     except Exception as e:
-        logging.getLogger(__name__).warning("No se pudo calcular la variación semanal/mensual: %s", e)
+        logging.getLogger(__name__).warning("No se pudo calcular la variación por periodos: %s", e)
 
+    div_forecast = dividend_forecast.portfolio_forecast(portfolio_service, asset_repo, INDEX_CACHE["data"], portfolio_raw)
     return templates.TemplateResponse("portfolio.html", {
         "request": request, "portfolio": portfolio_data, "closed_portfolio": closed_portfolio_data,
         **prices_banner_context(),
-        "period_changes": period_changes,
+        "period_changes": period_changes, "benchmark": benchmark,
         "total_invested": total_invested_eur,
         "total_current_value": total_current_value_eur,
         "total_daily_abs": total_current_value_eur - total_prev_value_eur,
@@ -909,16 +881,18 @@ def portfolio_page(
         "port_fcf_yield":        round(port_fcf_yield, 2),
         "port_net_debt_ebitda":  round(port_net_debt_ebitda, 2),
         "port_current_ratio":    round(port_current_ratio, 2),
-        "div_data": portfolio_service.get_yearly_dividends(),
-        "div_kpis": portfolio_service.get_dividend_kpis(),
+        "div_data": portfolio_service.get_yearly_dividends(GLOBAL_CACHE.get("rates", {})),
+        "div_kpis": portfolio_service.get_dividend_kpis(GLOBAL_CACHE.get("rates", {})),
         "div_by_ticker": portfolio_service.get_dividend_by_ticker(),
         "fiscal_data": portfolio_service.get_fiscal_summary(GLOBAL_CACHE.get("rates", {})),
         "realized_trades": portfolio_service.get_realized_trades(GLOBAL_CACHE.get("rates", {})),
-        "upcoming_dividends": GLOBAL_CACHE.get("upcoming_dividends", []),
+        # solo lo anunciado por la empresa (lo estimado está en la previsión)
+        "upcoming_dividends": [{"ticker": e["ticker"], "date": e["ex_date"], "pay_date": e["pay_date"], "amount_per_share": e["amount"],
+                                "total_amount": e["amount_local"], "currency_code": e["currency"], "gross_eur": e["gross_eur"]}
+                               for e in div_forecast["events"] if not e["estimated"]],
+        "div_forecast": div_forecast,
         "latest_dividends": portfolio_service.get_latest_collected_dividends(limit=20),
-        "chart_labels": labels, "chart_values": values,
-        "country_labels": country_labels, "country_values": country_values,
-        "sector_labels": sector_labels, "sector_values": sector_values,
+        "distribution": distribution,
         "settings": settings,
         "perf_start_date": perf_start_date,
     })
@@ -944,7 +918,12 @@ def ideal_portfolio_page(
     def company(t):
         d, a = data.get(t, {}), assets.get(t)
         role = d.get(roles_service.ROLE_KEY)
-        price = (INDEX_CACHE["data"].get(t) or {}).get("price")
+        quote = INDEX_CACHE["data"].get(t) or {}
+        price = quote.get("price")
+        # variación del día, solo si su mercado ya ha cotizado hoy (si no, «–», como en el resto de tablas)
+        day_pct = None
+        if price and quote.get("prev") and quote.get("last_date") == datetime.date.today():
+            day_pct = (price / quote["prev"] - 1) * 100
         val = None
         if role:   # la valoración base solo para las clasificadas (la de las demás no se muestra)
             try:
@@ -952,7 +931,7 @@ def ideal_portfolio_page(
             except Exception:
                 logger.exception("Portfolio ideal: no se pudo evaluar la valoración de %s", t)
         group, drop = proximity(val, price)
-        return {"ticker": t, "name": d.get("company_name") or t, "role": role, "held": t in held,
+        return {"ticker": t, "name": d.get("company_name") or t, "role": role, "held": t in held, "day_pct": day_pct,
                 "value_eur": (positions.get(t) or {}).get("value_eur") or 0.0,
                 "favorite": bool(a and a.is_favorite), "status": d.get("status"),
                 "val": val, "group": group, "drop_pct": drop}

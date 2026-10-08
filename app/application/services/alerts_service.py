@@ -16,6 +16,8 @@ DROP_STEP = 10          # un episodio se abre al caer un 10 % desde el máximo d
 RECOVERY_PCT = 5        # se cierra al volver a menos de un 5 % del máximo (no al primer rebote)
 HIGH_WINDOW_DAYS = 365
 AUTO_CLEAN_DAYS = 180   # las alertas se borran solas a los ~6 meses (las caídas abiertas nunca: siguen activas)
+ZONE_MARGIN = 0.5       # pp de CAGR que hay que pasar un límite de zona para cambiar (si no, vaivén en el borde)
+REOPEN_DAYS = 30        # una caída que vuelve dentro de este plazo desde el mismo máximo reabre el episodio sin avisar
 
 
 def alert_when(a: Dict[str, Any]) -> str:
@@ -44,13 +46,27 @@ def build_alert_key(alert: dict) -> str:
     ticker = alert.get("ticker")
     date = alert.get("date")
     if alert_type == "CAÍDA":
-        # episodio: fecha de inicio fija; el escalón cambia al empeorar (y vuelve a salir como nuevo) o al cerrarse
-        return f"{ticker}_{date}_{alert.get('escalon')}"
+        # episodio: fecha de inicio fija; el escalón cambia al empeorar (y vuelve a salir como nuevo). Al cerrarse se
+        # mantiene la clave del último escalón: si ya lo viste, la recuperación no sale como nueva
+        level = alert.get("level") if alert.get("escalon") == "cerrada" and alert.get("level") is not None else alert.get("escalon")
+        return f"{ticker}_{date}_{level}"
     return f"{ticker}_{date}_{alert.get('old_status')}-{alert.get('new_status')}"
 
 
 VALUATION_RANK = {"GANGA": 0, "BARATA": 1, "PRECIO JUSTO": 2, "CARA": 3, "BURBUJA": 4}
 ZONE_STATUS = {"ganga": "GANGA", "barata": "BARATA", "justo": "PRECIO JUSTO", "cara": "CARA"}
+
+
+def zone_with_margin(cagr: Optional[float], last_status: Optional[str]) -> Optional[str]:
+    """Zona (como ZONE_STATUS) que se da por buena frente a la anterior: para cambiar hay que pasar el límite de
+    zona por ZONE_MARGIN puntos de CAGR; si no, se queda la anterior (un CAGR en el borde no hace vaivén)."""
+    raw = ZONE_STATUS.get(base_valuation_service.zone(cagr)) if cagr is not None else None
+    if raw is None or last_status is None or raw == last_status or last_status not in VALUATION_RANK:
+        return raw
+    cheaper = VALUATION_RANK[raw] < VALUATION_RANK[last_status]   # ha subido el CAGR: zona más barata
+    confirmed = ZONE_STATUS.get(base_valuation_service.zone(cagr - ZONE_MARGIN if cheaper else cagr + ZONE_MARGIN))
+    moved = VALUATION_RANK.get(confirmed, 2) < VALUATION_RANK[last_status] if cheaper else VALUATION_RANK.get(confirmed, 2) > VALUATION_RANK[last_status]
+    return confirmed if moved else last_status
 
 
 def valuation_direction(old_status: str, new_status: str) -> str:
@@ -107,6 +123,7 @@ def run_alerts_scan(
     last_zones = dict(alerts_data.get("last_zones", {}))
     history = list(alerts_data.get("history", []))
     drops = dict(alerts_data.get("drops", {}))
+    closed = dict(alerts_data.get("drops_closed", {}))   # último episodio cerrado por empresa (para reabrirlo)
     migrating = not alerts_data.get("drops_v2")
     if migrating:   # las caídas antiguas (desde máximo histórico, una alerta por escalón) se sustituyen por episodios
         history = [h for h in history if not (h.get("type") == "CAÍDA" and not h.get("episode"))]
@@ -132,17 +149,22 @@ def run_alerts_scan(
         # a este precio. Las valoraciones antiguas sin revisar no avisan.
         val = base_valuation_service.live(t, db_data, current_price)
         fresh_val = val if val and not val["inputs"].get("legacy") else None
-        current_status = ZONE_STATUS.get(fresh_val["zone"]) if fresh_val else None
+        old_status = last_zones.get(t)
+        current_status = zone_with_margin(fresh_val["cagr"], old_status) if fresh_val else None
         if current_status:
-            old_status = last_zones.get(t)
             if old_status and old_status != current_status:
-                history.append({
-                    "type": "VALORACIÓN", "ticker": t, "company_name": name,
-                    "old_status": old_status, "new_status": current_status,
-                    "cagr": fresh_val["cagr"], "buy_price": fresh_val["buy_price"], "price": round(current_price, 2),
-                    "date": today_str,
-                })
-                new_count += 1
+                info = {"cagr": fresh_val["cagr"], "buy_price": fresh_val["buy_price"], "price": round(current_price, 2)}
+                # una alerta por empresa y día: si ya cambió hoy, se actualiza esa (desde la zona con la que empezó el día)
+                same_day = next((i for i, h in enumerate(history) if h.get("type") == "VALORACIÓN" and h.get("ticker") == t
+                                 and (h.get("date") or "")[:10] == today_str[:10]), None)
+                if same_day is None:
+                    history.append({"type": "VALORACIÓN", "ticker": t, "company_name": name,
+                                    "old_status": old_status, "new_status": current_status, **info, "date": today_str})
+                    new_count += 1
+                elif history[same_day]["old_status"] == current_status:
+                    history.pop(same_day)   # ha vuelto a la zona con la que empezó el día: no ha cambiado nada
+                else:
+                    history[same_day].update({"new_status": current_status, **info, "updated": today_str})
             last_zones[t] = current_status
 
         # ── 2. Episodio de caída desde el máximo de 52 semanas ───────────
@@ -162,12 +184,12 @@ def run_alerts_scan(
             if entry_idx is not None:
                 history.pop(entry_idx)
             days = (now.date() - datetime.fromisoformat(ep.get("high_date") or ep["date"][:10]).date()).days
-            history.append(_drop_entry(t, name, {**ep, "status": "cerrada", "escalon": "cerrada", "closed_date": today_str,
-                                                 "drop_pct": round(drop, 1), "current_price": round(current_price, 2),
-                                                 "days": days, "date": ep["date"], "silent": False}))
+            history.append(_drop_entry(t, name, {**ep, "status": "cerrada", "escalon": "cerrada", "level": ep["escalon"],
+                                                 "closed_date": today_str, "drop_pct": round(drop, 1),
+                                                 "current_price": round(current_price, 2), "days": days, "date": ep["date"], "silent": False}))
+            closed[t] = {**ep, "closed_date": today_str}
             del drops[t]
-            new_count += 1
-            continue
+            continue   # la recuperación queda en el historial, pero no cuenta como alerta nueva
         if not ep and drop < DROP_STEP:
             continue
 
@@ -178,7 +200,17 @@ def run_alerts_scan(
             if len(b_high) > 1:
                 bench_pct = round(100 * (b_high.iloc[-1] / b_high.iloc[0] - 1), 1)
         level = int(drop // DROP_STEP) * DROP_STEP
-        ep = ep or {"date": today_str, "escalon": level, "max_drop": 0.0, "silent": migrating}
+        if not ep:
+            prev = closed.get(t)
+            recent = prev and prev.get("high_date") == high_date and \
+                (now - datetime.fromisoformat(prev["closed_date"])).days <= REOPEN_DAYS
+            if recent:   # vuelve a caer desde el mismo máximo poco después: se reabre el mismo episodio, sin avisar
+                history[:] = [h for h in history if not (h.get("episode") and h.get("ticker") == t and h.get("date") == prev["date"])]
+                ep = {k: prev[k] for k in ("date", "escalon", "max_drop", "dismissed") if k in prev}
+                ep["silent"] = True
+            else:
+                ep = {"date": today_str, "escalon": level, "max_drop": 0.0, "silent": migrating}
+            closed.pop(t, None)
         worse = level > ep["escalon"]
         ep.update({
             "status": "abierta", "high": round(high, 2), "high_date": high_date,
@@ -205,6 +237,8 @@ def run_alerts_scan(
     alerts_data["last_zones"] = last_zones
     alerts_data["history"] = purge_old(history, AUTO_CLEAN_DAYS)
     alerts_data["drops"] = drops
+    cutoff = (now - timedelta(days=REOPEN_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+    alerts_data["drops_closed"] = {k: v for k, v in closed.items() if v.get("closed_date", "") >= cutoff}
     alerts_data["drops_v2"] = True
     for old_key in ("ath_refs", "ath_alerted_levels", "ath_source", "ath_last_backfill", "last_statuses"):
         alerts_data.pop(old_key, None)

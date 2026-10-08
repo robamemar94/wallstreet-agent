@@ -1,0 +1,195 @@
+# Transcrito de data/theses/UBER_Tesis_Inversion_Definitiva_v1.md (02/10/2026)
+# El documento venía de pandoc: config/theses/uber.md es la misma tesis con las tablas pasadas a Markdown normal,
+# sin los escapes (\$, \~) y con el estado «STRENGTHENING» (11) como texto en negrita (no es un apartado).
+# Cuadro de mando: los 9 KPIs del «Dashboard KPI definitivo» (7) agrupados por hipótesis (6, H1–H9), con sus umbrales;
+# los «Thesis Killers» (13) van como kill switches de su KPI (1 y 9, densidad y regulación, en un paso propio; el 10,
+# deterioro simultáneo, es una regla). STRENGTHENING de la tesis = REFORZADA en la app.
+# Regla de la tesis: un KPI rojo aislado no rompe la tesis; se busca convergencia de señales. FCF/share es el KPI
+# financiero final y pesa más. Las preguntas maestras salen de 12 (WATCH / WEAKENING / BROKEN), 14 (checklist) y 15.
+# Donde la tesis no da cifra actual (EBITDA/GB en pb, FCF/share YoY, share count) no hay observación inicial.
+ticker: UBER
+title: Uber · Tesis de inversión
+version: "Framework v3.2 · Tesis v1"
+reference_date: "2026-10-02"
+reference_price: 67.6
+source_document: "data/theses/UBER_Tesis_Inversion_Definitiva_v1.md"
+document: config/theses/uber.md
+verdict: REFORZADA
+summary: >-
+  Infraestructura global de movilidad y comercio bajo demanda: densidad local, efectos de red, escala, marca, datos y
+  ecosistema (switching costs bajos). Q2 2026: MAPCs 208M (+16%), Trips +18%, Trips/MAPC +2%, Gross Bookings $58,0B
+  (+22% CC; Mobility +20%, Delivery ~+25%), Adjusted EBITDA +33%, Non-GAAP Operating Income +40% y FCF TTM >$10B.
+  Delivery ya es un segundo motor; Delivery Hero (€41,50/acción) está en WATCH hasta demostrar ROIC/FCF incremental y la
+  autonomía (AV) es opcionalidad fuera del caso base. Estado: STRENGTHENING (la cadena económica completa funciona).
+hypothesis: "Uber evoluciona de ride-hailing a infraestructura global de demanda y oferta bajo demanda: consumidores ↑ → densidad ↑ → frecuencia ↑ → Trips ↑ → Gross Bookings ↑ → operating leverage ↑ → FCF ↑ → FCF/share ↑. Sigue intacta mientras el marketplace crezca, el engagement se mantenga, el operating leverage continúe, el FCF/share crezca aproximadamente a doble dígito y el capital allocation no destruya ese valor. El caso base no necesita AV."
+hypotheses:
+  H1: "Crecimiento de consumidores (MAPCs +10–12% anual)"
+  H2: "Engagement (Trips/MAPC +2–4%)"
+  H3: "Crecimiento del marketplace (Gross Bookings +15–20% CC)"
+  H4: "Operating leverage (expansión gradual de EBITDA/GB)"
+  H5: "Delivery como segundo motor (Delivery GB +15–20% CC)"
+  H6: "Crecimiento del valor por acción (FCF/share +8–12% anual)"
+  H7: "Las recompras superan la dilución (reducción neta ~1–3% anual)"
+  H8: "Delivery Hero crea valor (WATCH)"
+  H9: "Uber mantiene la capa de distribución AV"
+rules:
+  - "Los semáforos son herramientas de investigación: un KPI rojo aislado no rompe la tesis; se busca convergencia de señales."
+  - "FCF/share es la métrica financiera final: crecer Gross Bookings no basta si no genera valor por acción."
+  - "WATCH: un mecanismo empieza a deteriorarse sin evidencia de cambio estructural (p. ej. MAPCs a ~8–10% con GB y FCF sólidos). WEAKENING: convergen varias señales negativas (menos usuarios, frecuencia negativa, GB <10%, margen estancado o bajando). BROKEN: el mecanismo económico central ya no funciona (pérdida de densidad/moat, desintermediación AV, FCF/share estructuralmente bajo o asignación de capital destructiva)."
+  - "Thesis Killer 10: deterioro simultáneo de usuarios + frecuencia + margen + FCF/share."
+  - "Las recompras no son creación de valor automática: el KPI es la reducción neta de acciones después de SBC. Delivery Hero no se considera creadora de valor por defecto."
+  - "No usar el beneficio neto sin normalizar (Q2 2026 incluye ~$1,6B pre-tax de revalorización de inversiones): EBITDA y beneficio contable son secundarios frente al FCF normalizado."
+  - "No asumir que el margen deba expandirse indefinidamente. El caso base no incluye valor significativo de AV, crecimiento extraordinario indefinido de Delivery, múltiplos extremos ni sinergias máximas de Delivery Hero."
+  - "No actualizar la tesis porque la acción suba o baje, sino cuando cambie la evidencia económica: evento → cambio observado → hipótesis afectada → KPI/señal → mecanismo económico → valoración → estado de tesis → siguiente watchpoint."
+  - "Los umbrales son parámetros propios de seguimiento, no guidance de Uber: revisarlos si cambia estructuralmente la economía del negocio."
+master_questions:
+  - "¿Siguen creciendo los MAPCs por encima del 12% y la frecuencia (Trips/MAPC) por encima del 2%?"
+  - "¿Mantienen Gross Bookings y Delivery un crecimiento ≥15% CC?"
+  - "¿Se sigue expandiendo el margen EBITDA/Gross Bookings?"
+  - "¿Crece el FCF/share ≥10% y baja el número neto de acciones después de SBC?"
+  - "¿Demuestra Delivery Hero ROIC incremental, sinergias y FCF/share?"
+  - "¿Captura Uber la distribución de los operadores AV o la controlan ellos directamente?"
+  - "¿Hay convergencia de señales negativas (usuarios, frecuencia, margen, FCF/share) o solo un KPI aislado?"
+  - "¿Qué evidencia nueva favorece el Bull case?"
+  - "¿Qué evidencia nueva favorece el Bear case?"
+valuation:
+  target_year: 2031
+  question: "FCF/share × múltiplo terminal de FCF. Precio ~$67,6, FCF TTM ~$10,1B y ~2,04B acciones → FCF/share ≈ $4,95, P/FCF ≈ 13,7x, FCF yield ≈ 7,3%. Escenarios de sensibilidad a 5 años, no predicciones."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: fcf_ps_cagr, label: FCF/share CAGR, format: pct}
+    - {key: multiple, label: Múltiplo terminal}
+    - {key: price, label: Precio 2031, format: usd}
+    - {key: cagr_doc, label: CAGR 5a (tesis), format: pct}
+    - {key: note, label: Interpretación}
+  scenarios:
+    - {name: Bear, fcf_ps_cagr: 7, multiple: "18x", price: 119, cagr_doc: 12, note: "Operating leverage limitado, Delivery desacelera, AV aporta poca economía"}
+    - {name: Base, fcf_ps_cagr: 10, multiple: "20x", price: 160, cagr_doc: 19, note: "GB a doble dígito alto, margen se expande gradualmente, recompras reducen acciones, sinergias razonables de Delivery Hero, sin AV"}
+    - {name: Bull, fcf_ps_cagr: 13, multiple: "22x", price: 190, cagr_doc: 23, note: "Crecimiento superior más tiempo, fuerte operating leverage y cross-selling, sinergias importantes y AV con economics relevantes"}
+events:
+  - date: "2026-06-30"
+    type: earnings
+    impact: positive
+    title: "Resultados Q2 2026"
+    body: "MAPCs 208M (+16%), Trips 3,867B (+18%), Trips/MAPC +2%. Gross Bookings $58,0B (+22% CC): Mobility ~$29,0B (+20% CC), Delivery ~$27,5B (~+25% CC). Adjusted EBITDA $2,819B (+33%; ~4,9% de GB), Non-GAAP Operating Income $2,143B (+40%), Non-GAAP EPS +35%. FCF TTM >$10B por primera vez. Incluye ~$1,6B pre-tax de revalorización de inversiones. Recompras H1 2026: ~46,6M acciones por ~$3,5B."
+  - date: "2026-10-02"
+    type: thesis
+    impact: positive
+    title: "Tesis v1 (framework v3.2) · estado STRENGTHENING"
+    body: "La cadena económica completa funciona: usuarios, frecuencia, Gross Bookings, Delivery, EBITDA, Operating Income, FCF y reducción de acciones. Moat Durability Score 82/100. Oferta por Delivery Hero (€41,50/acción, equity ~$14,8B) en WATCH hasta demostrar ROIC/FCF incremental. Precio de referencia ~$67,6."
+
+pillars:
+  - key: consumers
+    name: Consumidores
+    description: "H1 — ¿Crece la base? Objetivo MAPCs +10–12% anual a medio plazo. Falsificación: estancamiento persistente sin compensación por frecuencia o monetización."
+    kpis:
+      - {key: mapcs_growth, name: MAPCs YoY, unit: "%", green_threshold: 12, red_threshold: 7,
+         how_to_measure: "Crecimiento interanual de los consumidores activos mensuales (MAPCs)",
+         green_text: "≥12%", amber_text: "7–12%", red_text: "<7% de forma persistente",
+         frequency: Trimestral, source: Uber,
+         is_kill_switch: true, kill_rule: "Killer 2: MAPCs y frecuencia estancados durante varios años",
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 16, note: "208M MAPCs, +16%"}]}
+
+  - key: engagement
+    name: Engagement
+    description: "H2 — ¿Aumenta la frecuencia? Objetivo Trips/MAPC +2–4%."
+    kpis:
+      - {key: trips_per_mapc, name: Trips/MAPC YoY, unit: "%", green_threshold: 2, red_threshold: 0,
+         how_to_measure: "Crecimiento interanual de los viajes/servicios por consumidor activo mensual",
+         green_text: "≥2%", amber_text: "0–2%", red_text: "<0% persistente",
+         frequency: Trimestral, source: Uber,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 2, note: "Trips 3,867B (+18%); Trips/MAPC +2%"}]}
+
+  - key: marketplace
+    name: Marketplace
+    description: "H3 — ¿Crece el marketplace? Objetivo Gross Bookings +15–20% CC."
+    kpis:
+      - {key: gross_bookings_cc, name: Gross Bookings YoY (CC), unit: "%", green_threshold: 15, red_threshold: 10,
+         how_to_measure: "Crecimiento interanual de Gross Bookings a divisa constante",
+         green_text: "≥15%", amber_text: "10–15%", red_text: "<10% persistente",
+         frequency: Trimestral, source: Uber,
+         is_kill_switch: true, kill_rule: "Killer 3: Gross Bookings <10% de forma estructural",
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 22, note: "$58,0B, +22% CC"}]}
+
+  - key: operating_leverage
+    name: Operating leverage
+    description: "H4 — ¿Hay leverage? Expansión gradual del margen Adjusted EBITDA / Gross Bookings (~4,9% en Q2 2026). No se asume que deba expandirse indefinidamente."
+    kpis:
+      - {key: ebitda_gb_change, name: Cambio del margen EBITDA/GB YoY, unit: "pb", green_threshold: 20, red_threshold: -20,
+         how_to_measure: "Variación anual del margen Adjusted EBITDA / Gross Bookings, en puntos básicos",
+         green_text: "+20 pb o más al año", amber_text: "0–20 pb", red_text: "Contracción >20 pb/año persistente",
+         baseline: "Margen EBITDA/GB ~4,9% en Q2 2026 (EBITDA +33% frente a GB +22%)", frequency: Trimestral, source: Uber / cálculo propio,
+         is_kill_switch: true, kill_rule: "Killer 4: el operating leverage desaparece permanentemente"}
+
+  - key: delivery
+    name: Delivery
+    description: "H5 — ¿Crece el segundo motor? Objetivo Delivery GB +15–20% CC."
+    kpis:
+      - {key: delivery_gb_cc, name: Delivery Gross Bookings YoY (CC), unit: "%", green_threshold: 15, red_threshold: 10,
+         how_to_measure: "Crecimiento interanual de los Gross Bookings de Delivery a divisa constante",
+         green_text: "≥15%", amber_text: "10–15%", red_text: "<10% persistente",
+         frequency: Trimestral, source: Uber,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 25, note: "~$27,5B, ~+25% CC (Mobility ~$29,0B, +20% CC)"}]}
+      - {key: uber_one_cross_sell, name: Uber One / cross-sell, kind: qualitative,
+         how_to_measure: "Socios de Uber One, penetración cross-platform (Mobility + Delivery), publicidad y grocery/retail: ¿aumenta el valor por usuario?",
+         green_text: "Mejora (↑)", amber_text: "Estable (→)", red_text: "Empeora (↓)",
+         frequency: Trimestral, source: Uber,
+         observations: [{period: Q2 2026, date: "2026-06-30", status: green, note: "Tendencia positiva"}]}
+
+  - key: fcf_share
+    name: FCF por acción
+    weight: 2
+    description: "H6 — ¿Llega al accionista? FCF/share es el KPI financiero final de la tesis. Objetivo +8–12% anual; FCF/share TTM ≈ $4,95."
+    kpis:
+      - {key: fcf_per_share, name: FCF por acción YoY, unit: "%", green_threshold: 10, red_threshold: 5,
+         how_to_measure: "Crecimiento del FCF por acción (autocompletado); FCF 2025 ~$9,76B, TTM Q2 2026 >$10B",
+         green_text: "≥10%", amber_text: "5–10%", red_text: "<5% persistente",
+         baseline: "FCF/share TTM ≈ $4,95 (FCF ~$10,1B / ~2,04B acciones)", frequency: Trimestral, source: yfinance, auto_metric: fcf_per_share_yoy,
+         is_kill_switch: true, kill_rule: "Killer 5: FCF/share <5% durante varios años"}
+
+  - key: share_count
+    name: Recompras vs dilución
+    description: "H7 — ¿Está controlado el SBC? Objetivo: reducción neta de acciones ~1–3% anual después de SBC. H1 2026: ~46,6M acciones recompradas por ~$3,5B."
+    kpis:
+      - {key: net_share_count, name: Acciones diluidas YoY, unit: "%", direction: lower, green_threshold: -1, red_threshold: 1,
+         how_to_measure: "Variación interanual de las acciones diluidas (autocompletado)",
+         green_text: "Reducción ≥1%", amber_text: "−1% a +1%", red_text: "Crecimiento neto >1%",
+         baseline: "Bajando (↓) en Q2 2026", frequency: Trimestral, source: yfinance, auto_metric: diluted_shares_yoy,
+         is_kill_switch: true, kill_rule: "Killer 6: dilución neta persistente pese a recompras"}
+
+  - key: delivery_hero
+    name: Delivery Hero
+    description: "H8 — Oferta de €41,50/acción (equity ~$14,8B; ~$13,7B ajustado por compras previas): 99 mercados y ~$236B de Gross Bookings pro forma 2025. WATCH hasta demostrar ROIC/FCF incremental."
+    kpis:
+      - {key: delivery_hero_roic, name: ROIC / FCF incremental de Delivery Hero, kind: qualitative,
+         how_to_measure: "ROIC incremental, sinergias, FCF incremental y FCF/share tras la integración; balance",
+         green_text: "ROIC incremental atractivo, sinergias y FCF incremental", amber_text: "Sin evidencia todavía (WATCH)", red_text: "Crecimiento sin mejora de FCF, retorno bajo sobre capital o deterioro material del balance",
+         frequency: Trimestral, source: Uber,
+         is_kill_switch: true, kill_rule: "Killer 7: Delivery Hero destruye ROIC/FCF",
+         observations: [{period: Q2 2026, date: "2026-10-02", status: amber, note: "WATCH hasta demostrar ROIC/FCF incremental"}]}
+
+  - key: autonomy
+    name: Autonomía (AV)
+    description: "H9 — ¿Uber captura la distribución? Opcionalidad fuera del caso base: capa de demanda de múltiples operadores autónomos frente al riesgo de desintermediación."
+    kpis:
+      - {key: av_distribution, name: Distribución AV, kind: qualitative,
+         how_to_measure: "Operadores integrados, ciudades, AV trips, economics y quién es dueño de la relación con el consumidor",
+         green_text: "Avance claro: más operadores, ciudades, trips y economics positivos", amber_text: "Incierto", red_text: "Desintermediación: los operadores AV controlan consumidor y economics",
+         frequency: Trimestral, source: Uber / sector,
+         is_kill_switch: true, kill_rule: "Killer 8: AV desintermedia Uber",
+         observations: [{period: Q2 2026, date: "2026-10-02", status: amber, note: "Fase inicial"}]}
+
+  - key: moat
+    name: Densidad y regulación
+    description: "Moat Durability Score 82/100: efectos de red locales y densidad, con switching costs bajos, competencia (Lyft, Bolt, DiDi, DoorDash, Waymo…) y regulación estructurales."
+    kpis:
+      - {key: density, name: Densidad frente a competidores, kind: qualitative,
+         how_to_measure: "Consumidores, conductores/repartidores activos, merchants y pricing frente a competidores en cada mercado",
+         green_text: "Densidad y cuota se mantienen o mejoran", amber_text: "Presión competitiva en algunos mercados", red_text: "Pérdida estructural de densidad",
+         frequency: Trimestral, source: Uber / sector,
+         is_kill_switch: true, kill_rule: "Killer 1: pérdida estructural de densidad frente a competidores"}
+      - {key: regulation, name: Regulación, kind: qualitative,
+         how_to_measure: "Legislación y litigios (estatus de conductores, seguros, restricciones) y su efecto en costes por viaje",
+         green_text: "Sin impacto material", amber_text: "Mayores costes o restricciones acotadas", red_text: "Reduce materialmente los economics",
+         frequency: Trimestral, source: Uber / prensa,
+         is_kill_switch: true, kill_rule: "Killer 9: la regulación reduce materialmente los economics"}

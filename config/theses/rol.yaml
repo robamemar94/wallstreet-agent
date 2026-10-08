@@ -1,21 +1,25 @@
-# Transcrito de data/theses/ROLLINS_Master_Thesis_Framework_v2.7_CORREGIDA.md (septiembre 2026)
-# Se monitorizan los KPIs CUANTIFICABLES del «7.2 KPI Dashboard maestro». Umbrales: los del dashboard y, donde el
-# dashboard solo dice «recuperación»/«monitorizar», las cifras explícitas de 8.2 Thesis breakers, 9.1 Bull evidence,
-# 9.2 Bear evidence y 6.3. Leads, CAC, clientes nuevos, retención y ROIC M&A están N/D en la tesis: van a vigilancia.
+# Transcrito de data/theses/ROLLINS_Master_Thesis_Framework_v2.8_MEJORADA.md (7 de octubre de 2026).
+# Sustituye a la v2.7 (septiembre 2026), guardada en config/theses/history/.
+# Cuadro de mando: los KPIs CUANTIFICABLES del nuevo «7.2 KPI Dashboard maestro» (12 KPIs, semáforo de 4 niveles),
+# con las mismas claves que antes para no perder lo ya registrado. La app usa 3 zonas: verde = 🟢, rojo = 🔴 y
+# amarillo = 🟡 + 🟠 (el texto amarillo dice dónde empieza el naranja). M&A ROIC, leads, CAC, clientes nuevos y
+# retención siguen N/D en la tesis: van a vigilancia / preguntas maestras.
+# Valoración: el método principal pasa a ser FCF/share (8.5); EBITA queda como comprobación (8.6).
 # El documento completo está en config/theses/rol.md.
 ticker: ROL
 title: Rollins · Master Thesis
-version: "v2.7"
-reference_date: "2026-09"
-reference_price: 30
-source_document: data/theses/ROLLINS_Master_Thesis_Framework_v2.7_CORREGIDA.md
+version: "v2.8"
+reference_date: "2026-10-07"
+reference_price: 30.35
+source_document: data/theses/ROLLINS_Master_Thesis_Framework_v2.8_MEJORADA.md
 document: config/theses/rol.md
 verdict: VIGILANCIA
 summary: >-
   Plataforma de control de plagas con una gran base de clientes recurrentes: marca + densidad de rutas + escala operativa
   + distribución + M&A en un mercado fragmentado. La tesis es que puede seguir componiendo el FCF por acción durante años.
   Estado WATCH: la cuestión de 2026 es si el cambio en búsqueda/AI altera de forma estructural la economía de captación
-  de nuevos clientes residenciales, no si ha tenido un trimestre peor.
+  de nuevos clientes residenciales, no si ha tenido un trimestre peor. Empeora de verdad si la debilidad de adquisición
+  se traduce de forma persistente en menor orgánico + peor retención/CAC + menor margen incremental + menor FCF/share.
 hypothesis: "Algoritmo de management: 7–8% orgánico + 2–3% M&A ≈ 9–11% total (objetivo de medio plazo, no una certeza para valorar)."
 hypotheses:
   H1: "Recurrencia: la base recurrente mantiene una economía atractiva (VERDE/AMARILLO)"
@@ -31,6 +35,8 @@ rules:
   - "La debilidad residencial puede ser estacional, climática, cíclica, de canal o estructural: no clasificarla como thesis breaker hasta observar duración."
   - "No asumir que M&A o recompras crean valor sin analizar precio, integración, dilución y retornos. No usar el beneficio neto anualizado como ROIC."
   - "No inventar KPIs, umbrales ni precisión que la evidencia no permita. Separar hechos, inferencias, hipótesis y supuestos."
+  - "No cambiar un semáforo por un titular aislado: identificar el dato nuevo, la hipótesis afectada, si cambia el mecanismo, si es temporal o persistente y qué otros KPIs lo confirman."
+  - "No asumir a la vez crecimiento alto, expansión de margen y múltiplo terminal alto: exigir evidencia para cada uno."
 master_questions:
   - "¿Ha cambiado la trayectoria del crecimiento?"
   - "¿Ha cambiado la economía de adquisición de clientes (leads, CAC, clientes nuevos)?"
@@ -40,20 +46,22 @@ master_questions:
   - "¿Management está asignando capital correctamente?"
   - "¿El problema actual es ruido, headwind, material o thesis breaker?"
   - "¿Qué evidencia resolvería la incertidumbre?"
+  - "¿Hay ya dato de CAC/LTV por canal, churn residencial o clientes nuevos netos?"
+  - "¿Cuánto del deterioro residencial procede de AI/search frente a demanda, clima, mix y estacionalidad?"
 valuation:
-  target_year: 2031
-  question: "Base normalizada: FCF ~$600–625M, ~481M acciones, FCF/share ~$1,25–1,30; EBITA 2026 ~$780–790M. Zona central actual ~$34–36."
+  question: "Método principal: FCF/share (EBITA ~$780–790M y ~20–24x EV/EBITA solo como comprobación). Base: precio ~$30,35 (6-oct-2026), ~481M acciones, FCF normalizado ~$620M → FCF/share ~$1,29, FCF yield ~4,25%, P/FCF ~23,5x. Zonas: <$25 muy atractiva · $25–30 atractiva · $30–35 interesante · $35–40 razonable · $40–50 ≈ valor base · >$50 exige más crecimiento, margen o múltiplo."
   columns:
     - {key: name, label: Escenario}
-    - {key: growth, label: Crecimiento total}
-    - {key: ebita_margin, label: EBITA margin}
-    - {key: multiple, label: EV/EBITA terminal}
-    - {key: price, label: Valor 2031, format: usd}
-    - {key: cagr_doc, label: CAGR 5a (tesis)}
+    - {key: fcf_ps_cagr, label: FCF/share CAGR, format: pct}
+    - {key: discount, label: Descuento, format: pct}
+    - {key: multiple, label: P/FCF terminal}
+    - {key: fair_value, label: Valor razonable hoy, format: usd}
+    - {key: cagr_5y, label: CAGR precio 5a, format: pct}
+    - {key: cagr_doc, label: CAGR precio 10a, format: pct}
   scenarios:
-    - {name: Bear, growth: "~5%", ebita_margin: "~19%", multiple: "18x", price: 36, cagr_doc: "~3–4%"}
-    - {name: Base, growth: "~7%", ebita_margin: "~21%", multiple: "21x", price: 52, cagr_doc: "~11–12%"}
-    - {name: Bull, growth: "~9%", ebita_margin: "~22,5%", multiple: "24x", price: 70, cagr_doc: "~18–19%"}
+    - {name: Bear, fcf_ps_cagr: 6, discount: 9, multiple: "23x", fair_value: 34, cagr_5y: 5.5, cagr_doc: 5.7}
+    - {name: Base, fcf_ps_cagr: 7.5, discount: 8.5, multiple: "28x", fair_value: 45, cagr_5y: 11.3, cagr_doc: 9.4}
+    - {name: Bull, fcf_ps_cagr: 10, discount: 8, multiple: "32x", fair_value: 64, cagr_5y: 16.9, cagr_doc: 13.4}
 events:
   - date: "2026-06-30"
     type: earnings
@@ -65,14 +73,19 @@ events:
     impact: negative
     title: "Journal de tesis (septiembre 2026) · estado WATCH"
     body: "Debilidad residencial + caída de leads en determinados canales + fuerte reacción del mercado. Hipótesis afectadas: H3, H4, H6. Próximo punto crítico: Q3 2026."
+  - date: "2026-10-07"
+    type: thesis
+    impact: neutral
+    title: "Tesis v2.8 · sigue WATCH 🟡"
+    body: "Dashboard reducido a 12 KPIs con semáforo de 4 niveles (residential e incremental EBITDA margin en 🟠). Valoración por FCF/share: base ~$45 (FCF/share ~7,5%, 28x), bear ~$34, bull ~$64; a ~$30,35 el FCF yield normalizado es ~4,25%. Nueva lista de N/D (CAC/LTV por canal, churn residencial, clientes nuevos netos, ROIC del M&A) que decide el paso a INTACT. Q3 2026 aún no incorporado: es el próximo punto de verificación."
 
 pillars:
   - key: organic
     name: Organic growth
     description: "H3 — ¿Puede sostener ~7–8% a medio plazo? Guía 2026: ≥6% orgánico."
     kpis:
-      - {key: organic_growth, name: Organic growth, unit: "%", green_threshold: 7, red_threshold: 5,
-         green_text: ">~7% deseable", amber_text: "5–7%", red_text: "<5% durante 2–3 años (TB1)",
+      - {key: organic_growth, name: Organic growth, unit: "%", green_threshold: 7, red_threshold: 4,
+         green_text: "≥7%", amber_text: "5–7% (🟠 4–5%)", red_text: "<4% persistente",
          baseline: "Q2 2026 +5,7%; H1 +6,1%", frequency: Trimestral, source: Rollins,
          is_kill_switch: true, kill_rule: "TB1: organic growth <5% durante 2–3 años sin explicación cíclica",
          observations: [{period: Q1 2026, date: "2026-03-31", value: 6.6},
@@ -80,65 +93,80 @@ pillars:
 
   - key: residential
     name: Residential organic
-    description: "H4 — Principal foco de investigación: ¿el problema de captación es de canal o estructural?"
+    description: "H4 — Principal foco de investigación: ¿el problema de captación es de canal o estructural? Secundarios: leads → CAC → conversión → clientes nuevos."
     kpis:
-      # 9.1 bull: vuelve a ~6–8%; 9.2 bear: <4–5% durante varios trimestres
-      - {key: residential_organic, name: Residential organic, unit: "%", green_threshold: 6, red_threshold: 4,
-         green_text: "Recupera ~6–8%", amber_text: "4–6%", red_text: "<4–5% durante varios trimestres",
-         baseline: "Q2 2026 +3,6% (H1 +3,9%)", frequency: Trimestral, source: Rollins,
+      - {key: residential_organic, name: Residential organic, unit: "%", green_threshold: 6, red_threshold: 2,
+         green_text: "≥6%", amber_text: "4–6% (🟠 2–4%)", red_text: "<2% + deterioro de adquisición",
+         baseline: "Q2 2026 +3,6% (H1 +3,9%) · 🟠", frequency: Trimestral, source: Rollins,
          observations: [{period: Q2 2026, date: "2026-06-30", value: 3.6}]}
 
   - key: commercial
     name: Commercial organic
     description: "La diversificación defiende la tesis si commercial mantiene high-single-digit mientras residential se debilita."
     kpis:
-      - {key: commercial_organic, name: Commercial organic, unit: "%", green_threshold: 7,
-         green_text: ">7%", amber_text: "<7%", red_text: "También desacelera",
-         baseline: "Q2 2026 +7,2%", frequency: Trimestral, source: Rollins,
+      - {key: commercial_organic, name: Commercial organic, unit: "%", green_threshold: 7, red_threshold: 3,
+         green_text: "≥7%", amber_text: "5–7% (🟠 3–5%)", red_text: "<3% persistente",
+         baseline: "Q2 2026 +7,2% (H1 +7,4%)", frequency: Trimestral, source: Rollins,
          observations: [{period: Q2 2026, date: "2026-06-30", value: 7.2}]}
 
   - key: termite
     name: Termite/ancillary organic
     description: "Categorías que amplían revenue por cliente y reducen la dependencia de un solo motor."
     kpis:
-      - {key: termite_organic, name: Termite/ancillary organic, unit: "%", green_threshold: 8,
-         green_text: ">8%", amber_text: "<8%", red_text: "Pierde el diferencial frente a residential",
-         baseline: "Q2 2026 +8,9% (H1 total +11,9%)", frequency: Trimestral, source: Rollins,
+      - {key: termite_organic, name: Termite/ancillary organic, unit: "%", green_threshold: 8, red_threshold: 4,
+         green_text: "≥8%", amber_text: "6–8% (🟠 4–6%)", red_text: "<4%",
+         baseline: "Q2 2026 +8,9% (H1 +9,3%)", frequency: Trimestral, source: Rollins,
          observations: [{period: Q2 2026, date: "2026-06-30", value: 8.9}]}
 
   - key: operating_leverage
-    name: Incremental EBITDA margin
-    description: "H6 — Operating leverage: referencia de management ≥10% en 2026 y ~30–35% a medio plazo."
+    name: Operating leverage
+    description: "H6 — El crecimiento debe volver a producir expansión de margen. Secundarios (densidad): clientes/técnico → servicios/técnico → millas/vehículo → coste/servicio."
     kpis:
-      - {key: incremental_ebitda_margin, name: Incremental EBITDA margin, unit: "%", green_threshold: 10,
-         green_text: "≥10% (2026)", amber_text: "<10%", red_text: "Muy por debajo del objetivo durante varios años (TB5)",
-         baseline: "Q2 2026 ~6,5%", frequency: Trimestral, source: Rollins,
+      - {key: incremental_ebitda_margin, name: Incremental EBITDA margin, unit: "%", green_threshold: 15, red_threshold: 5,
+         green_text: "≥15–20%", amber_text: "10–15% (🟠 5–10%)", red_text: "<5% persistente",
+         baseline: "Q2 2026 ~6,5% · 🟠 (objetivo de management 2026: ≥10%)", frequency: Trimestral, source: Rollins,
          is_kill_switch: true, kill_rule: "TB5: incremental EBITDA margin muy por debajo del objetivo durante varios años",
          observations: [{period: Q2 2026, date: "2026-06-30", value: 6.5}]}
+      - {key: adjusted_ebitda_margin, name: Adjusted EBITDA margin, unit: "%", green_threshold: 22.5, red_threshold: 19,
+         green_text: "≥22,5%", amber_text: "21–22,5% (🟠 19–21%)", red_text: "<19% persistente",
+         baseline: "Q2 2026 ~21,9% (-120 pb)", frequency: Trimestral, source: Rollins,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 21.9}]}
+
+  - key: recurring
+    name: Recurring revenue
+    description: "H1/H7 — La recurrencia es el pilar central de la tesis y del moat. Retención/CAC entrarán cuando se divulguen."
+    kpis:
+      - {key: recurring_revenue, name: Recurring revenue, unit: "% revenue", green_threshold: 75, red_threshold: 65,
+         green_text: "≥75%", amber_text: "70–75% (🟠 65–70%)", red_text: "<65%",
+         baseline: "~75% (>75% según la compañía)", frequency: Anual, source: Rollins 10-K,
+         observations: [{period: FY2025, date: "2025-12-31", value: 75}]}
 
   - key: mna
     name: M&A growth
-    description: "H5 — Segundo motor: ~2–3% de crecimiento por M&A. Vigilar que no se acelere para tapar debilidad orgánica."
+    description: "H5 — Segundo motor: ~2–3% de crecimiento por M&A con buen ROIC. Vigilar que no se acelere (>3%) para tapar debilidad orgánica. ROIC del M&A: N/D (>WACC con margen = verde)."
     kpis:
       - {key: mna_growth, name: M&A growth, unit: "%", green_threshold: 2,
-         green_text: "~2–3%", amber_text: "<2%", red_text: "Se acelera para compensar la debilidad orgánica",
+         green_text: "2–3% + buen ROIC", amber_text: "1–2% (🟠 >3% por necesidad)", red_text: "Crecimiento sin retorno",
          baseline: "H1 2026 +2,8%", frequency: Trimestral, source: Rollins,
          observations: [{period: H1 2026, date: "2026-06-30", value: 2.8}]}
 
   - key: shares
     name: Share count
-    description: "El crecimiento debe medirse por acción: ¿recompras reducen de verdad el número de acciones?"
+    description: "El crecimiento debe medirse por acción: ¿recompras reducen de verdad el número de acciones? Secundarios: precio de recompras → SBC → deuda neta."
     kpis:
       - {key: share_count, name: Share count, unit: "% YoY", direction: lower, green_threshold: 0,
          how_to_measure: "Acciones diluidas YoY (autocompletado)",
-         green_text: "↓ neto", amber_text: "Sube", red_text: "Dilución sostenida", auto_metric: diluted_shares_yoy}
+         green_text: "↓", amber_text: "Estable (🟠 ↑ leve)", red_text: "↑ persistente", auto_metric: diluted_shares_yoy}
 
   - key: fcf_share
     name: FCF/share
-    description: "El dato relevante para el accionista es el FCF por acción, no solo el FCF total."
+    description: "El dato relevante para el accionista es el FCF por acción, no solo el FCF total. El caso base exige ~7,5% de crecimiento."
     kpis:
-      # 9.1 bull: FCF/share crece a doble dígito; 9.2 bear: FCF/share se estanca
-      - {key: fcf_per_share_growth, name: FCF/share growth, unit: "%", green_threshold: 10, red_threshold: 0,
+      - {key: fcf_margin, name: FCF margin, unit: "%", green_threshold: 16, red_threshold: 12,
+         how_to_measure: "Margen FCF (autocompletado)",
+         green_text: "≥16%", amber_text: "14–16% (🟠 12–14%)", red_text: "<12%",
+         baseline: "~17,3% FY25", auto_metric: fcf_margin}
+      - {key: fcf_per_share_growth, name: FCF/share growth, unit: "%", green_threshold: 8, red_threshold: 2,
          how_to_measure: "CAGR del FCF por acción a 3 años (autocompletado)",
-         green_text: "Crece a doble dígito", amber_text: "0–10%", red_text: "Se estanca",
-         baseline: "FCF/share normalizado ~$1,25–1,30; H1 2026 FCF ~10% inferior", auto_metric: fcf_per_share_cagr_3y}
+         green_text: "≥8%", amber_text: "5–8% (🟠 2–5%)", red_text: "<2%",
+         baseline: "FCF/share normalizado ~$1,29 (FCF ~$620M / ~481M acciones); H1 2026 FCF ~10% inferior", auto_metric: fcf_per_share_cagr_3y}

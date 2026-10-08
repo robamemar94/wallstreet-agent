@@ -1,0 +1,164 @@
+# Transcrito de data/theses/META_Tesis_Inversion_Framework_v3.2_Completa_KPI_Semaforo.md (02/10/2026)
+# Cuadro de mando: los 11 KPIs fundamentales del «Dashboard de hipótesis y KPIs — v3.2» (7.2), agrupados por hipótesis,
+# con los umbrales de la propia tesis. Donde la tesis da un rango («>8–10%»), el borde alto es el verde y el bajo el rojo;
+# donde solo da un mínimo («>10%») no hay rojo automático: por debajo queda en vigilancia y se juzga a mano.
+# Regla de la tesis: el semáforo detecta, no decide (mecanismo económico, duración, reversibilidad).
+# El documento completo está en config/theses/meta.md.
+ticker: META
+title: META Platforms · Tesis de inversión
+version: "Framework v3.2"
+reference_date: "2026-10-02"
+reference_price: 725.93
+source_document: "data/theses/META_Tesis_Inversion_Framework_v3.2_Completa_KPI_Semaforo.md"
+document: config/theses/meta.md
+verdict: VIGILANCIA
+summary: >-
+  Plataforma global de distribución, atención y monetización publicitaria: audiencia × engagement × impresiones ×
+  precio por impresión. El core sigue creciendo con fuerza (Q2 2026: ingresos +28%, impresiones +14%, precio/anuncio
+  +12%, DAP +3%) y WhatsApp, Business AI, Meta One/Muse y las gafas son nuevos motores u opcionalidad. La cuestión
+  decisiva es el retorno del CapEx de IA (guía 2026 $130–145B frente a $72,2B en 2025; FCF Q2 de solo $0,8B).
+  Estado: INTACT / WATCH.
+hypothesis: "Meta puede seguir compoundeando durante años porque su red de distribución permite aumentar la monetización por usuario y lanzar nuevas capas de producto a un coste de distribución muy bajo. La IA refuerza publicidad y recomendaciones y puede crear nuevos pools de ingresos. La inversión es atractiva desde el precio actual si el BPA/FCF por acción crece lo suficiente y el CapEx de IA genera retornos altos."
+hypotheses:
+  H1: "El negocio publicitario continúa creciendo estructuralmente"
+  H2: "La monetización por usuario mantiene recorrido con una base de usuarios sana"
+  H3: "El crecimiento se convierte en rentabilidad (WATCH)"
+  H4: "La reinversión en IA genera retornos (WATCH)"
+  H5: "El crecimiento acaba en caja y beneficia al accionista (WATCH)"
+  H6: "WhatsApp y los nuevos formatos son motores materiales"
+rules:
+  - "El semáforo es una herramienta de detección, no una decisión mecánica: un KPI amarillo o rojo se analiza por mecanismo económico, duración, reversibilidad y relación con el resto del negocio."
+  - "La tesis no queda refutada por un trimestre de FCF bajo. La contra-tesis es material si aparecen juntos: crecimiento ↓ + monetización ↓ + CapEx ↑ + margen ↓ + FCF/share ↓."
+  - "La combinación clave es crecimiento de impresiones + crecimiento del precio por anuncio: inventario y valor económico extraído del inventario."
+  - "Leading KPI → mecanismo económico → resultado financiero → FCF/share → valoración. Leading: impresiones, precio/anuncio, ARPP, DAP, WhatsApp, adopción de IA. Lagging: ingresos, margen, BPA, FCF, FCF/share, ROIC."
+  - "El margen operativo se lee junto al ciclo de inversión: señal favorable = crecimiento fuerte + recuperación del margen; adversa = crecimiento decreciente + gasto elevado persistente."
+  - "Los catalizadores (6.5) son rangos de modelización para entender materialidad, no guidance ni ingresos que se puedan sumar."
+  - "Valoración: crecimiento de BPA/FCF por acción, no expansión obligatoria del múltiplo."
+  - "Actualización: resultado → cambio observado → hipótesis afectada → KPI → mecanismo económico → impacto en FCF/share → valoración → estado de la tesis."
+master_questions:
+  - "¿Ha cambiado la trayectoria de revenue y alguno de sus motores?"
+  - "¿Qué ocurrió con impresiones y price/ad?"
+  - "¿Se está recuperando el margen?"
+  - "¿Qué ocurrió con CapEx y FCF/share?"
+  - "¿Hay evidencia nueva sobre WhatsApp/Business AI/Meta One?"
+  - "¿La nueva infraestructura está produciendo más beneficio por dólar invertido?"
+  - "¿Qué evidencia nueva favorece a Bull y qué evidencia favorece a Bear?"
+valuation:
+  target_year: 2036
+  question: "Parte del BPA 2026E ≈ $31,2 (consenso, solo como punto de partida). El retorno depende mucho más del crecimiento sostenible del BPA que del múltiplo. Escenarios ilustrativos, no predicciones."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: eps_cagr, label: BPA CAGR, format: pct}
+    - {key: multiple, label: P/E terminal}
+    - {key: price_5y, label: Precio 5 años, format: usd}
+    - {key: cagr_5y, label: CAGR precio 5a, format: pct}
+    - {key: price, label: Precio 10 años, format: usd}
+    - {key: cagr_doc, label: CAGR precio 10a, format: pct}
+  scenarios:
+    - {name: Bear, eps_cagr: 8, multiple: "18x", price_5y: 825, cagr_5y: 2.6, price: 1212, cagr_doc: 5.3}
+    - {name: Base, eps_cagr: 14, multiple: "22x", price_5y: 1322, cagr_5y: 12.7, price: 2545, cagr_doc: 13.4}
+    - {name: Bull, eps_cagr: 18, multiple: "25x", price_5y: 1784, cagr_5y: 19.7, price: 4082, cagr_doc: 18.9}
+events:
+  - date: "2026-07-29"
+    type: earnings
+    impact: neutral
+    title: "Resultados Q2 2026"
+    body: "Ingresos +28%, impresiones +14%, precio/anuncio +12%, DAP 3,60B (+3%), ARPP $16,86 (+24%). Margen operativo 31%. CFO $31,9B pero FCF solo $0,8B por el CapEx (~51% de los ingresos). Guía CapEx 2026 $130–145B. Sin recompras en H1 2026 y más deuda."
+  - date: "2026-10-02"
+    type: thesis
+    impact: neutral
+    title: "Tesis de inversión (framework v3.2) · estado INTACT / WATCH"
+    body: "INTACT porque el core presenta crecimiento, pricing y monetización fuertes. WATCH porque el salto de CapEx y la caída temporal del FCF hacen que la variable decisiva —retorno incremental de la inversión en IA— todavía no esté demostrada. Precio de referencia $725,93."
+
+pillars:
+  - key: ads_growth
+    name: Crecimiento publicitario
+    description: "H1 — ¿El negocio publicitario sigue creciendo estructuralmente, con más inventario y más valor por impresión? La combinación clave es impresiones + precio/anuncio."
+    kpis:
+      - {key: revenue_growth, name: Ingresos YoY, unit: "%", green_threshold: 10,
+         how_to_measure: "Crecimiento interanual de los ingresos del trimestre (autocompletado); no separa volumen, precio, mix ni divisa",
+         green_text: ">10% (zona compatible con la tesis)", amber_text: "<10%: vigilar si es desaceleración estructural", red_text: "Desaceleración estructural junto a menor monetización (contra-tesis)",
+         frequency: Trimestral, source: Meta, auto_metric: revenue_yoy,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 28, note: "+28% (Q1 +33%)"}]}
+      - {key: impressions_growth, name: Impresiones publicitarias YoY, unit: "%", green_threshold: 10, red_threshold: 8,
+         how_to_measure: "Crecimiento interanual de las impresiones publicitarias; más impresiones no garantizan mayor rentabilidad",
+         green_text: "≥10% (más inventario monetizable)", amber_text: "8–10%", red_text: "<8%",
+         frequency: Trimestral, source: Meta,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 14, note: "+14% (Q1 +19%)"}]}
+      - {key: price_per_ad_growth, name: Precio medio por anuncio YoY, unit: "%", green_threshold: 7, red_threshold: 5,
+         how_to_measure: "Crecimiento interanual del precio medio por anuncio; no demuestra causalidad exclusiva de la IA",
+         green_text: "≥7% (fuerte monetización por impresión)", amber_text: "5–7%", red_text: "<5% (deterioro del pricing si persiste: contra-tesis)",
+         frequency: Trimestral, source: Meta,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 12, note: "+12% (Q1 +12%)"}]}
+
+  - key: monetization
+    name: Usuarios y monetización
+    description: "H2 — ¿Cada usuario genera más? La tesis puede sostenerse con monetización aunque los DAP crezcan despacio."
+    kpis:
+      - {key: arpp_growth, name: ARPP mundial YoY, unit: "%", green_threshold: 10, red_threshold: 8,
+         how_to_measure: "Crecimiento interanual del ingreso medio por persona (ARPP); sensible a geografía y mix",
+         green_text: "≥10% (el ingreso por usuario sube con fuerza)", amber_text: "8–10%", red_text: "<8% (menor monetización por usuario)",
+         baseline: "$16,86 en Q2 2026", frequency: Trimestral, source: Meta,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 24, note: "$16,86; +24%"}]}
+      - {key: dap_growth, name: DAP YoY, unit: "%", green_threshold: 0, red_threshold: 0,
+         how_to_measure: "Crecimiento interanual de las personas activas diarias en la familia de apps; métrica estimada y de metodología revisable",
+         green_text: ">0% y sin deterioro persistente", amber_text: "—", red_text: "Cae (erosión del engagement si persiste)",
+         baseline: "3,60B en Q2 2026 (Q1 3,56B)", frequency: Trimestral, source: Meta,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 3, note: "3,60B; +3%"}]}
+
+  - key: profitability
+    name: Rentabilidad
+    description: "H3 — ¿El crecimiento se convierte en rentabilidad? La caída del margen se lee dentro del ciclo de CapEx: ni deterioro estructural automático ni algo que normalizar sin comprobar."
+    kpis:
+      - {key: operating_margin, name: Margen operativo, unit: "%", green_threshold: 35,
+         how_to_measure: "Beneficio operativo / ingresos del trimestre (autocompletado); 41% en 2025",
+         green_text: ">35% (recupera tras la fase inversora)", amber_text: "<35%: presión transitoria, debe recuperar progresivamente", red_text: "Persistentemente deprimido con crecimiento decreciente (contra-tesis)",
+         frequency: Trimestral, source: Meta, auto_metric: operating_margin,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 31, note: "31% (41% en 2025)"}]}
+
+  - key: ai_capex
+    name: Retorno del CapEx de IA
+    description: "H4 — Hipótesis central aún no demostrada: el capital invertido en IA debe generar suficiente crecimiento, productividad y monetización. Sobreinversión: potencial thesis breaker."
+    kpis:
+      - {key: capex_to_revenue, name: CapEx / ingresos, kind: qualitative, unit: "%",
+         how_to_measure: "CapEx del trimestre / ingresos y guía anual; sin umbral mecánico (un ratio alto puede ser racional durante la expansión)",
+         green_text: "Se normaliza con retorno visible", amber_text: "Muy por encima del histórico, retorno aún por demostrar", red_text: "CapEx creciente sin retorno observable",
+         baseline: "~51% en Q2 2026; guía 2026 $130–145B vs $72,2B en 2025", frequency: Trimestral, source: Meta / guía FY,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 51, status: amber, note: "~51%"}]}
+      - {key: ai_incremental_return, name: ROIC / retorno incremental del CapEx de IA, kind: qualitative,
+         how_to_measure: "Beneficio/FCF incremental atribuible a la capacidad añadida frente al capital invertido; no hay separación contable limpia: debe aparecer en engagement, precio, ARPP, nuevos productos, costes de inferencia, beneficio y FCF",
+         green_text: "Retorno visible en monetización, margen y FCF", amber_text: "Todavía no demostrable", red_text: "CapEx/amortización ↑ sin beneficio proporcional",
+         frequency: Semestral / anual, source: Meta / análisis propio,
+         is_kill_switch: true, kill_rule: "Sobreinversión en IA: CapEx y amortización suben sin beneficio proporcional (potencial thesis breaker)",
+         observations: [{period: Q2 2026, date: "2026-06-30", status: amber, note: "N/D: aún no demostrable"}]}
+
+  - key: shareholder
+    name: Llega al accionista
+    description: "H5 — ¿El crecimiento acaba en caja y en FCF por acción? Lo relevante para el accionista es el FCF/share, no el FCF total."
+    kpis:
+      - {key: fcf, name: FCF, kind: qualitative, unit: "$B",
+         how_to_measure: "CFO − CapEx del trimestre; un trimestre aislado puede distorsionar",
+         green_text: "Recuperación sostenida tras el pico de inversión", amber_text: "Comprimido por el CapEx", red_text: "Sin recuperación con el CapEx normalizado",
+         baseline: "2025 $43,6B; Q1 2026 $12,4B", frequency: Trimestral, source: Meta / SEC,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: 0.8, status: amber, note: "$0,8B (CFO $31,9B)"}]}
+      - {key: fcf_per_share, name: FCF por acción YoY, kind: qualitative, unit: "%",
+         how_to_measure: "Crecimiento del FCF por acción (autocompletado); depende del FCF y de las acciones",
+         green_text: "Vuelve a crecer con fuerza", amber_text: "Deprimido en 2026 por la fase inversora", red_text: "Deterioro persistente",
+         frequency: Trimestral, source: yfinance, auto_metric: fcf_per_share_yoy,
+         is_kill_switch: true, kill_rule: "Contra-tesis: crecimiento ↓ + monetización ↓ + CapEx ↑ + margen ↓ + FCF/share ↓ a la vez",
+         observations: [{period: Q2 2026, date: "2026-06-30", status: amber, note: "Deprimido en 2026"}]}
+      - {key: share_count, name: Acciones en circulación YoY, unit: "%", direction: lower, green_threshold: 0, red_threshold: 0,
+         how_to_measure: "Acciones diluidas YoY (autocompletado); sin recompras en H1 2026",
+         green_text: "Bajan (reducción neta a largo plazo)", amber_text: "—", red_text: "Suben (dilución)",
+         frequency: Trimestral, source: yfinance, auto_metric: diluted_shares_yoy,
+         observations: [{period: Q2 2026, date: "2026-06-30", value: -1.1, note: "~−1,1%"}]}
+
+  - key: new_engines
+    name: Nuevos motores
+    description: "H6 — ¿WhatsApp y los nuevos formatos se convierten en motores materiales? Business AI, Meta One/Muse y gafas son sobre todo opcionalidad."
+    kpis:
+      - {key: whatsapp_business, name: Monetización WhatsApp / Business, kind: qualitative,
+         how_to_measure: "Run-rate de paid messaging, click-to-message y adopción de Business AI; todavía es una parte pequeña",
+         green_text: "Crecimiento sostenido y aceleración", amber_text: "Crece pero se estanca", red_text: "No escala desde el run-rate actual",
+         baseline: ">$2B de run-rate anual en paid messaging (Q4 2025); click-to-message >50% YoY en EE. UU.", frequency: Trimestral / anual, source: Meta,
+         observations: [{period: Q2 2026, date: "2026-06-30", status: green, note: ">$2B run-rate, en expansión"}]}

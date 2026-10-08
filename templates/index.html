@@ -1,6 +1,34 @@
 {% extends "base.html" %}
 {% block title %}Alpha-Flow · Inicio{% endblock %}
 {% block content %}
+{% from "_thesis_macros.html" import thesis_styles %}
+{% from "_notices.html" import notice_styles, notice_scripts %}
+{{ thesis_styles() }}
+{{ notice_styles() }}
+{{ notice_scripts() }}
+<style>
+    .slot-loading { min-height: 120px; }
+    /* Centro de mando: cuatro tarjetas en dos filas que llenan la ventana (no cambian al pasar de 7 a 30 días); lo que
+       no cabe se desplaza dentro de cada tarjeta */
+    /* --centro-top-h / --centro-bottom-h: los calcula sizeCentro() para que las dos filas quepan en la ventana sin desplazar
+       la página; la de arriba (Resumen y Noticias), más alta */
+    #home-centro [id^="slot-"] > .card { height: var(--centro-bottom-h, 380px) !important; display: flex; flex-direction: column; }   /* gana a h-100 */
+    #home-centro :is(#slot-summary, #slot-news) > .card { height: var(--centro-top-h, 380px) !important; }
+    #home-centro .fixed-body, #home-centro .agenda-window { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+    #slot-news .news-sep { font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); padding-top: .25rem; padding-bottom: .25rem; }
+    @media (min-width: 768px) { #slot-agenda .agenda-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 1rem; } }
+    .summary-section + .summary-section { margin-top: .6rem; padding-top: .5rem; border-top: 1px solid var(--bs-border-color); }
+    .summary-section .text-muted.fw-bold.mb-2 { margin-bottom: .3rem !important; }
+    @media (min-width: 768px) { .summary-right { border-left: 1px solid var(--bs-border-color); } }
+    #slot-attention .why-result:not(:empty) { flex: 0 0 auto; max-height: 45%; overflow-y: auto; padding: 0 1rem .5rem; }
+    .home-tabs .nav-link { font-weight: 600; }
+</style>
+<style>
+    #centroPulse .pulse-line { display: block; line-height: 1.35; }
+    .visit-new::after { content: "nuevo"; margin-left: .35rem; padding: 0 .3rem; border-radius: .25rem; font-size: .62rem; font-weight: 600;
+                        vertical-align: .08rem; background: rgba(var(--bs-info-rgb), .18); color: var(--bs-info); }   /* desde la última visita */
+    #centroPulse .pulse-line:hover span { color: var(--bs-body-color) !important; text-decoration: underline; }
+</style>
 
 <style>
     /* Estilizar barra de scroll moderna, sutil y visible */
@@ -135,20 +163,35 @@
 </style>
 
 {% include "_prices_banner.html" %}
+
+<!-- Portada en dos pestañas: Mercado y Centro de mando -->
+<ul class="nav nav-tabs home-tabs mb-3" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#home-mercado" type="button" data-hash="mercado"><i class="bi bi-globe2 me-1"></i>Mercado</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#home-centro" type="button" data-hash="centro"><i class="bi bi-grid-1x2 me-1"></i>Centro de mando
+        <span class="badge text-bg-primary d-none" id="centroTabCount" title="Sin leer de empresas en cartera"></span></button></li>
+</ul>
+<div class="tab-content">
+<div class="tab-pane fade show active" id="home-mercado">
 <!-- 1. Row: Portfolio, Global Indices, and Heatmap -->
-<div class="row mb-4 g-2">
+<div class="row mb-3 g-2">
     <!-- Portfolio Summary KPI -->
     <div class="col-xl-3 col-lg-12">
-        <div class="card border-0 h-100" style="height: 280px; background-color: var(--fin-card-bg);">
+        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
             <div class="card-header border-0 pt-2 pb-0 d-flex align-items-center gap-2" style="background: transparent;">
                 <h6 class="fw-bold mb-0 text-white" style="font-size: 0.82rem;"><i class="bi bi-briefcase-fill text-primary"></i> Mi Cartera</h6>
             </div>
             {% set portfolio_idx = market_indices[0] %}
-            <div class="card-body p-2 px-3 d-flex flex-column justify-content-between h-100">
+            <div class="card-body p-2 px-3 d-flex flex-column gap-1">
                 <!-- Portfolio Summary Widget -->
-                <div class="p-2 mb-1 rounded border d-flex flex-column justify-content-center" style="background: linear-gradient(135deg, #161a24, #1b202e); border-color: rgba(255, 255, 255, 0.05) !important; height: 110px;">
+                <div class="p-2 mb-1 rounded border d-flex flex-column justify-content-center" style="background: linear-gradient(135deg, #161a24, #1b202e); border-color: rgba(255, 255, 255, 0.05) !important;">
                     <div>
-                        <span class="text-muted small d-block fw-semibold uppercase" style="font-size: 0.52rem; letter-spacing: 0.5px;">VALOR TOTAL</span>
+                        {# posiciones y sesión, junto al valor (antes en una fila aparte abajo) #}
+                        <div class="d-flex justify-content-between align-items-baseline flex-wrap gap-1">
+                            <span class="text-muted small fw-semibold uppercase" style="font-size: 0.52rem; letter-spacing: 0.5px;">VALOR TOTAL</span>
+                            <span class="text-muted num-font text-nowrap" style="font-size: 0.6rem;">
+                                <a href="#" class="text-muted text-decoration-none" data-bs-toggle="modal" data-bs-target="#portfolioModal" title="Ver posiciones de mi cartera"><i class="bi bi-tag-fill opacity-50 text-primary"></i> {{ port_all|length }} posiciones</a>
+                                · <span title="Última sesión: {{ latest_market_date }}"><i class="bi bi-clock-history opacity-50"></i> sesión {{ latest_market_date.strftime('%d/%m') if latest_market_date else '–' }}</span></span>
+                        </div>
                         <span class="fw-bold fs-5 num-font text-white d-block" style="line-height: 1.2;">{{ format_euro(portfolio_idx.price, 2) }} €</span>
                     </div>
                     <div class="mt-1 pt-1 border-top" style="border-color: rgba(255,255,255,0.05) !important;">
@@ -161,16 +204,9 @@
                     </div>
                 </div>
                 
-                <!-- Terminal-style Portfolio Stats Grid -->
-                <div class="row g-1 mt-1 pt-1 border-top" style="border-color: var(--fin-border) !important;">
-                    <div class="col-6 border-end portfolio-stat-box p-1" style="border-color: var(--fin-border) !important; cursor: pointer;" data-bs-toggle="modal" data-bs-target="#portfolioModal" title="Ver posiciones de mi cartera">
-                        <span class="text-muted d-block uppercase" style="font-size: 0.52rem; letter-spacing: 0.2px;">POSICIONES <i class="bi bi-box-arrow-up-right ms-0.5 opacity-50" style="font-size: 0.5rem;"></i></span>
-                        <span class="fw-semibold text-white num-font" style="font-size: 0.74rem;"><i class="bi bi-tag-fill me-1 opacity-50 text-primary"></i>{{ port_all|length }}</span>
-                    </div>
-                    <div class="col-6 text-end p-1">
-                        <span class="text-muted d-block uppercase" style="font-size: 0.52rem; letter-spacing: 0.2px;">SESIÓN</span>
-                        <span class="fw-semibold text-white num-font" style="font-size: 0.74rem;"><i class="bi bi-clock-history me-1 opacity-50"></i>{{ latest_market_date }}</span>
-                    </div>
+                <!-- Resumen del Centro de mando (se pide aparte para no frenar la página) -->
+                <div id="centroPulse" class="small d-flex flex-column gap-1 py-1" style="font-size: 0.7rem;">
+                    <a href="#centro" class="pulse-line text-decoration-none text-muted"><i class="bi bi-hourglass-split me-1"></i>Cargando el Centro de mando…</a>
                 </div>
             </div>
         </div>
@@ -178,15 +214,15 @@
 
     <!-- Global Indices Grid -->
     <div class="col-xl-3 col-lg-12">
-        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg); height: 280px;">
+        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
             <div class="card-header border-0 pt-2 pb-0" style="background: transparent;">
                 <h6 class="fw-bold mb-0 text-white" style="font-size: 0.82rem;"><i class="bi bi-globe text-primary"></i> Índices de Mercado</h6>
             </div>
-            <div class="card-body p-2 d-flex flex-column justify-content-between h-100">
+            <div class="card-body p-2">
                 <div class="row g-2">
                     {% for idx in market_indices if not idx.is_portfolio %}
                     <div class="col-6">
-                        <div class="p-1 px-2 d-flex flex-column justify-content-between rounded" style="background: rgba(255,255,255,0.015); height: 64px; border: 1px solid var(--fin-border);">
+                        <div class="p-1 px-2 d-flex flex-column justify-content-between rounded" style="background: rgba(255,255,255,0.015); height: 50px; border: 1px solid var(--fin-border);">
                             <span class="text-muted fw-bold uppercase" style="font-size: 0.58rem; letter-spacing: 0.2px;">{{ idx.name }}</span>
                             <div class="d-flex justify-content-between align-items-baseline">
                                 <span class="fw-bold text-white num-font" style="font-size: 0.74rem;">
@@ -220,8 +256,8 @@
                     </button>
                 </div>
             </div>
-            <div class="card-body p-1" style="background-color: var(--fin-card-bg); border-radius: 8px; height: 245px;">
-                <div id="heatmapTracked" style="height: 235px;"></div>
+            <div class="card-body p-1" style="background-color: var(--fin-card-bg); border-radius: 8px; height: 205px;">
+                <div id="heatmapTracked" style="height: 195px;"></div>
             </div>
         </div>
     </div>
@@ -303,7 +339,7 @@
                 <div id="gainerPagination" class="pagination-small"></div>
             </div>
             <div class="card-body px-0 py-0">
-                <div class="table-responsive" id="gainerScrollWrapper" style="height: 250px; overflow-y: auto;">
+                <div class="table-responsive" id="gainerScrollWrapper" data-fit="150" data-fit-fill style="overflow-y: auto;">
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <tbody id="gainerListMarket">
                             {% for t in top_gainers %}
@@ -344,7 +380,7 @@
                 <div id="loserPagination" class="pagination-small"></div>
             </div>
             <div class="card-body px-0 py-0">
-                <div class="table-responsive" id="loserScrollWrapper" style="height: 250px; overflow-y: auto;">
+                <div class="table-responsive" id="loserScrollWrapper" data-fit="150" data-fit-fill style="overflow-y: auto;">
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <tbody id="loserListMarket">
                             {% for t in top_losers %}
@@ -409,7 +445,7 @@
                 </div>
             </div>
             <div class="card-body px-0 py-0">
-                <div class="table-responsive" id="favScrollWrapper" style="height: 250px; overflow-y: auto;">
+                <div class="table-responsive" id="favScrollWrapper" data-fit="150" data-fit-fill style="overflow-y: auto;">
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <!-- Cuerpo de Favoritos -->
                         <tbody id="list-body-fav" class="dashboard-list-body">
@@ -499,7 +535,7 @@
                 </div>
             </div>
             <div class="card-body px-0 py-0">
-                <div class="table-responsive" id="portScrollWrapper" style="height: 250px; overflow-y: auto;">
+                <div class="table-responsive" id="portScrollWrapper" data-fit="150" data-fit-fill style="overflow-y: auto;">
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <tbody id="portListMarket">
                             {% for t in port_all %}
@@ -537,148 +573,25 @@
         </div>
     </div>
 </div>
-
-<!-- 3. Row: Events and Weekly Calendar -->
-<div class="row mb-4 g-2">
-    <div class="col-12">
-        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
-            <div class="card-header border-0 pt-3 pb-2 d-flex justify-content-between align-items-center" style="background: transparent;">
-                <h6 class="fw-bold mb-0 text-white" style="font-size: 0.85rem;">
-                    <i class="bi bi-calendar-event text-primary me-1"></i> Próximos Eventos y Calendario Semanal
-                </h6>
-                <a href="/calendario" class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:0.7rem;" title="Ver calendario completo">
-                    <i class="bi bi-calendar3 me-1"></i>Calendario Completo
-                </a>
-            </div>
-            <div class="card-body p-0">
-                <div class="row g-0 h-100">
-                    <!-- Resultados -->
-                    <div class="col-xl-4 col-md-4 col-12 border-end" style="border-color: var(--fin-border) !important;">
-                        <div class="px-3 pt-2 pb-1 d-flex justify-content-between align-items-center border-bottom" style="border-color: var(--fin-border) !important;">
-                            <span class="fw-semibold text-white" style="font-size: 0.75rem;"><i class="bi bi-bar-chart-fill text-primary me-1"></i>Resultados</span>
-                            <div class="btn-group btn-group-sm" id="earnFilterGroup" role="group">
-                                <button type="button" class="btn btn-outline-secondary active py-0 px-1" data-filter="all" onclick="setEarnFilter('all')" title="Todos" style="font-size:0.6rem;">Todos</button>
-                                <button type="button" class="btn btn-outline-primary py-0 px-1" data-filter="portfolio" onclick="setEarnFilter('portfolio')" title="Solo cartera"><i class="bi bi-briefcase-fill" style="font-size:0.6rem;"></i></button>
-                                <button type="button" class="btn btn-outline-secondary py-0 px-1" data-filter="no-portfolio" onclick="setEarnFilter('no-portfolio')" title="Sin cartera"><i class="bi bi-briefcase" style="font-size:0.6rem;"></i></button>
-                            </div>
-                        </div>
-                        <ul class="list-group list-group-flush" id="earnList">
-                                {% for ev in upcoming_earnings %}
-                                <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-3 earn-item"
-                                    style="display:none;"
-                                    data-is-portfolio="{{ 'true' if ev.is_portfolio else 'false' }}"
-                                    data-is-favorite="{{ 'true' if ev.is_favorite else 'false' }}">
-                                    <div class="d-flex align-items-center gap-1">
-                                        <span class="fw-bold" style="font-size:0.78rem;">{{ clean_ticker(ev.ticker) }}</span>
-                                        {% if ev.is_portfolio %}<i class="bi bi-briefcase-fill text-primary" style="font-size:0.55rem;" title="En cartera"></i>{% endif %}
-                                        {% if ev.is_favorite %}<i class="bi bi-star-fill text-warning" style="font-size:0.55rem;" title="Favorito"></i>{% endif %}
-                                    </div>
-                                    <div class="d-flex align-items-center gap-1">
-                                        <span class="text-muted" style="font-size:0.6rem;">{{ ev.date }}</span>
-                                        <span class="badge border-0 fw-bold
-                                            {% if ev.days_remaining == 0 %}bg-danger text-white
-                                            {% elif ev.days_remaining <= 7 %}bg-warning text-dark
-                                            {% elif ev.days_remaining <= 30 %}bg-info bg-opacity-75 text-white
-                                            {% else %}bg-light text-muted{% endif %}"
-                                            style="font-size:0.62rem;min-width:44px;text-align:center;">
-                                            {% if ev.days_remaining == 0 %}Hoy
-                                            {% elif ev.days_remaining == 1 %}Mañana
-                                            {% else %}{{ ev.days_remaining }}d{% endif %}
-                                        </span>
-                                    </div>
-                                </li>
-                                {% endfor %}
-                                {% if not upcoming_earnings %}
-                                <li class="list-group-item text-center py-4 text-muted small">Sin resultados próximos</li>
-                                {% endif %}
-                            </ul>
-                        <div class="d-flex justify-content-center py-1" id="earnPagination"></div>
-                    </div>
-                    <!-- Dividendos a Cobrar -->
-                    <div class="col-xl-4 col-md-4 col-12 border-end" style="border-color: var(--fin-border) !important;">
-                        <div class="px-3 pt-2 pb-1 border-bottom" style="border-color: var(--fin-border) !important;">
-                            <span class="fw-semibold small text-white" style="font-size: 0.75rem;"><i class="bi bi-cash-stack text-success me-1"></i>Dividendos a Cobrar</span>
-                        </div>
-                        <ul class="list-group list-group-flush" id="divList">
-                                {% for ev in upcoming_dividends %}
-                                <li class="list-group-item d-flex justify-content-between align-items-center py-1 px-3 div-item" style="display:none;">
-                                    <div class="d-flex flex-column">
-                                        <span class="fw-bold" style="font-size:0.78rem;">{{ clean_ticker(ev.ticker) }}</span>
-                                        {% if ev.amount %}<small class="text-success fw-bold" style="font-size:0.62rem;">+{{ format_euro(ev.amount, 2) }}€</small>{% endif %}
-                                    </div>
-                                    <div class="d-flex flex-column align-items-end gap-1">
-                                        {% if ev.pay_date %}
-                                        <div class="d-flex align-items-center gap-1">
-                                            <span class="text-muted" style="font-size:0.58rem;">Cobro:</span>
-                                            <span class="badge border-0 fw-bold
-                                                {% if ev.pay_days_remaining is not none %}
-                                                    {% if ev.pay_days_remaining == 0 %}bg-danger text-white
-                                                    {% elif ev.pay_days_remaining <= 7 %}bg-warning text-dark
-                                                    {% elif ev.pay_days_remaining <= 30 %}bg-info bg-opacity-75 text-white
-                                                    {% else %}bg-light text-muted{% endif %}
-                                                {% else %}bg-light text-muted{% endif %}"
-                                                style="font-size:0.62rem;min-width:44px;text-align:center;">
-                                                {% if ev.pay_days_remaining is not none %}
-                                                    {% if ev.pay_days_remaining == 0 %}Hoy
-                                                    {% elif ev.pay_days_remaining == 1 %}Mañana
-                                                    {% else %}{{ ev.pay_days_remaining }}d{% endif %}
-                                                {% else %}{{ ev.pay_date }}{% endif %}
-                                            </span>
-                                        </div>
-                                        {% endif %}
-                                        <div class="d-flex align-items-center gap-1">
-                                            <span class="text-muted" style="font-size:0.58rem;">Ex:</span>
-                                            <span class="text-muted" style="font-size:0.62rem;">{{ ev.date }}</span>
-                                        </div>
-                                    </div>
-                                </li>
-                                {% endfor %}
-                                {% if not upcoming_dividends %}
-                                <li class="list-group-item text-center py-4 text-muted small">Sin dividendos próximos</li>
-                                {% endif %}
-                            </ul>
-                        <div class="d-flex justify-content-center py-1" id="divPagination"></div>
-                    </div>
-                    <!-- Calendario Semanal (Lunes a Viernes) con paginación de semanas -->
-                    <div class="col-xl-4 col-md-4 col-12">
-                        <div class="px-3 pt-2 pb-1 border-bottom d-flex justify-content-between align-items-center" style="border-color: var(--fin-border) !important; height: 35px;">
-                            <span class="fw-semibold small text-white" style="font-size: 0.75rem;">
-                                <i class="bi bi-calendar-week text-primary me-1"></i>Calendario Semanal
-                            </span>
-                            <div class="d-flex align-items-center gap-1">
-                                <button class="btn btn-xs btn-outline-secondary py-0 px-1 border-secondary" style="font-size: 0.6rem; color: #dee2e6;" onclick="moveWeek(-1)">&lt;</button>
-                                <span id="weekLabel" class="small text-muted fw-bold" style="font-size: 0.65rem; min-width: 75px; text-align: center;">Esta Semana</span>
-                                <button class="btn btn-xs btn-outline-secondary py-0 px-1 border-secondary" style="font-size: 0.6rem; color: #dee2e6;" onclick="moveWeek(1)">&gt;</button>
-                            </div>
-                        </div>
-                        <ul class="list-group list-group-flush" id="weeklyCalendarList">
-                            <!-- Se renderiza dinámicamente con JavaScript -->
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 
-<!-- Oportunidades y caídas: ahora en la pestaña Watchlist del Centro de mando y en Alertas -->
-<div class="d-flex gap-3 small mb-4">
-    <a href="/centro#watchlist" class="text-decoration-none"><i class="bi bi-eye me-1"></i>Candidatas y precios de compra → Watchlist</a>
-    <a href="/alerts" class="text-decoration-none"><i class="bi bi-bell me-1"></i>Caídas y cambios de zona → Alertas</a>
+<div class="tab-pane fade" id="home-centro">
+<div id="slot-notes"></div>
+<div class="row g-3 mb-3">
+    <div class="col-12 col-xl-6" id="slot-summary"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando el resumen…</div></div></div>
+    <div class="col-12 col-xl-6" id="slot-news"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando noticias…</div></div></div>
 </div>
+<div class="row g-3 mb-3">
+    <div class="col-12 col-xl-6" id="slot-attention"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando lo que requiere tu atención y el monitor…</div></div></div>
+    <div class="col-12 col-xl-6" id="slot-agenda"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la agenda…</div></div></div>
+</div>
+</div>
+</div>
+
 
 
 
 <script>
-    let earnFilter = 'all';
-    function setEarnFilter(filter) {
-        earnFilter = filter;
-        document.querySelectorAll('#earnFilterGroup .btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.filter === filter);
-        });
-        window.paginationStates?.['earnList']?.refresh();
-    }
-
     let activityRegionFilter = 'all';
     let selectedActivityStatuses = ['ACCEPTED', 'STANDBY'];
 
@@ -972,128 +885,21 @@
         setInterval(scrollStep, 35); // Animación ultra suave cada 35ms
     }
 
-    let currentWeekOffset = 0;
-    const upcomingEvents = {{ upcoming_events_json | tojson if upcoming_events_json is defined else '[]' }};
-
     function formatEuro(value, decimals = 2) {
         if (value === null || value === undefined) return '';
-        return parseFloat(value).toLocaleString('es-ES', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+        return parseFloat(value).toLocaleString('de-DE', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     }
 
     function cleanTicker(ticker) {
         return ticker ? ticker.replace('.SW', '').replace('.ST', '').replace('.AS', '').replace('.MC', '').replace('.PA', '').replace('.MI', '').replace('.L', '').replace('.MX', '').replace('.DE', '').replace('.WA', '').replace('.AX', '') : '';
     }
 
-    function renderWeeklyCalendar(offset) {
-        const container = document.getElementById("weeklyCalendarList");
-        if (!container) return;
-
-        const today = new Date();
-        const todayDayOfWeek = today.getDay();
-        const normalizedDay = todayDayOfWeek === 0 ? 7 : todayDayOfWeek;
-        
-        const currentMonday = new Date(today);
-        currentMonday.setDate(today.getDate() - (normalizedDay - 1));
-        currentMonday.setHours(0, 0, 0, 0);
-
-        const targetMonday = new Date(currentMonday);
-        targetMonday.setDate(currentMonday.getDate() + (offset * 7));
-
-        const weekLabel = document.getElementById("weekLabel");
-        if (weekLabel) {
-            if (offset === 0) weekLabel.textContent = "Esta Semana";
-            else if (offset === 1) weekLabel.textContent = "Próx. Semana";
-            else if (offset === -1) weekLabel.textContent = "Semana Ant.";
-            else {
-                const targetFriday = new Date(targetMonday);
-                targetFriday.setDate(targetMonday.getDate() + 4);
-                const formatD = d => String(d.getDate()).padStart(2, '0') + "/" + String(d.getMonth() + 1).padStart(2, '0');
-                weekLabel.textContent = `${formatD(targetMonday)} - ${formatD(targetFriday)}`;
-            }
-        }
-
-        const dayNames = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
-        let html = "";
-
-        for (let i = 0; i < 5; i++) {
-            const currentDay = new Date(targetMonday);
-            currentDay.setDate(targetMonday.getDate() + i);
-
-            const yyyy = currentDay.getFullYear();
-            const mm = String(currentDay.getMonth() + 1).padStart(2, '0');
-            const dd = String(currentDay.getDate()).padStart(2, '0');
-            const dateStr = `${yyyy}-${mm}-${dd}`;
-
-            const isToday = (
-                currentDay.getFullYear() === today.getFullYear() &&
-                currentDay.getMonth() === today.getMonth() &&
-                currentDay.getDate() === today.getDate()
-            );
-
-            const dayEvents = upcomingEvents.filter(e => e.date === dateStr);
-            const activeBg = isToday ? 'background-color: rgba(13, 110, 253, 0.05) !important; border-left: 3px solid var(--bs-primary) !important;' : '';
-            const badgeClass = isToday ? 'bg-primary text-white' : 'bg-secondary bg-opacity-25 text-white';
-
-            html += `
-                <li class="list-group-item d-flex align-items-center py-1.5 px-3 justify-content-between" style="height: 40px; ${activeBg}">
-                    <div class="d-flex align-items-center gap-2" style="min-width: 75px;">
-                        <span class="fw-bold uppercase text-muted" style="font-size: 0.65rem; width: 32px;">${dayNames[i].substring(0, 3)}</span>
-                        <span class="badge ${badgeClass} num-font fw-bold" style="font-size: 0.72rem; width: 24px; height: 24px; line-height: 14px; padding: 4px;">
-                            ${currentDay.getDate()}
-                        </span>
-                    </div>
-                    <div class="flex-grow-1 d-flex flex-wrap justify-content-end gap-1 ps-2">
-            `;
-
-            if (dayEvents.length > 0) {
-                dayEvents.forEach(e => {
-                    const badgeTypeClass = e.type === 'Resultados' ? 'bg-primary bg-opacity-20 text-white border border-primary-subtle' : 'bg-success bg-opacity-20 text-success border border-success-subtle';
-                    const amountText = e.amount ? ` (+${formatEuro(e.amount, 2)}€)` : '';
-                    const titleText = e.type === 'Resultados' ? `Resultados de ${e.ticker}` : `Dividendo${amountText} de ${e.ticker}`;
-                    const icon = e.type === 'Resultados' ? '📊' : '💰';
-
-                    html += `
-                        <span onclick="window.location='/ticker/${e.ticker}'" 
-                              style="cursor: pointer; font-size: 0.64rem; padding: 1px 3px;"
-                              class="badge border ${badgeTypeClass}"
-                              title="${titleText}">
-                            ${cleanTicker(e.ticker)} ${icon}
-                        </span>
-                    `;
-                });
-            } else {
-                html += `<span class="text-muted opacity-25" style="font-size: 0.7rem;">—</span>`;
-            }
-
-            html += `
-                    </div>
-                </li>
-            `;
-        }
-
-        container.innerHTML = html;
-    }
-
-    window.moveWeek = function(dir) {
-        currentWeekOffset += dir;
-        renderWeeklyCalendar(currentWeekOffset);
-    }
-
     document.addEventListener("DOMContentLoaded", () => {
-        // Inicializar Calendario Semanal Dinámico
-        renderWeeklyCalendar(0);
-
-        setupSimplePagination('gainerListMarket', 'gainer-item-market', 'gainerPagination', 10, window.activityFilterFn);
-        setupSimplePagination('loserListMarket', 'loser-item-market', 'loserPagination', 10, window.activityFilterFn);
+        setupSimplePagination('gainerListMarket', 'gainer-item-market', 'gainerPagination', Infinity, window.activityFilterFn);
+        setupSimplePagination('loserListMarket', 'loser-item-market', 'loserPagination', Infinity, window.activityFilterFn);
         setupSimplePagination('portListMarket', 'port-item-market', 'portPagination', Infinity, window.activityFilterFn);
         setupSimplePagination('portAllList', 'port-all-item', 'portAllPagination', Infinity);
         setupSimplePagination('list-body-fav', 'fav-item', 'favPagination', Infinity, window.activityFilterFn);
-        setupSimplePagination('earnList', 'earn-item', 'earnPagination', 7, el => {
-            if (earnFilter === 'portfolio')    return el.dataset.isPortfolio === 'true';
-            if (earnFilter === 'no-portfolio') return el.dataset.isPortfolio !== 'true';
-            return true;
-        });
-        setupSimplePagination('divList', 'div-item', 'divPagination', 7);
         setupSimplePagination('oppList', 'opp-item', 'oppPagination', Infinity);
         setupSimplePagination('dropAlertList', 'drop-alert-item', 'dropAlertPagination', Infinity);
         window.applyAlertSeenState();
@@ -1217,6 +1023,180 @@
         // Sincronizar el estado inicial del filtro de estado de actividad
         toggleActivityStatus();
     });
+
+// Resumen del Centro de mando en la tarjeta «Mi Cartera»
+// (se vuelve a pedir al cambiar leído/no leído: refreshNotificationBadges en base.html)
+window.loadCentroPulse = async function loadCentroPulse() {
+    const box = document.getElementById('centroPulse');
+    if (!box || Date.now() - (loadCentroPulse.at || 0) < 2000) return;   // al cargar la página llegan dos llamadas seguidas
+    loadCentroPulse.at = Date.now();
+    const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const tk = t => t.includes('.') ? t.slice(0, t.lastIndexOf('.')) : t;
+    const dm = d => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+    const signed = (v, d = 2) => `${v > 0 ? '+' : ''}${fmtNum(v, d)}`;
+    const tone = v => v > 0 ? 'text-success' : (v < 0 ? 'text-danger' : 'text-muted');
+    const line = (href, icon, html, title = '') =>
+        `<a href="${href}" class="pulse-line text-decoration-none text-truncate" title="${esc(title)}"><i class="bi ${icon} me-1 text-primary"></i><span class="text-white-50">${html}</span></a>`;
+    try {
+        const r = await fetch('/api/centro/pulso');
+        if (!r.ok) throw new Error(r.status);
+        const p = await r.json();
+        const out = [];
+        if (p.unread) {
+            const n = p.top_notice;
+            out.push(line(n ? n.href : '#centro', 'bi-bell-fill',
+                `<span class="text-warning fw-bold">${p.unread} aviso${p.unread > 1 ? 's' : ''} sin leer</span>${n ? ` · <span class="text-white">${esc(tk(n.ticker || ''))}</span> ${esc(n.kind)}` : ''}`,
+                n ? n.text : ''));
+        } else {
+            out.push(line('#centro', 'bi-bell', 'Sin avisos pendientes'));
+        }
+        if (p.results) {
+            const names = p.results.first_tickers.map(tk);
+            const who = names.length > 2 ? `${names.slice(0, 2).join(', ')} y ${names.length - 2} más` : names.join(' y ');
+            const when = p.results.days === 0 ? 'hoy' : (p.results.days === 1 ? 'mañana' : `en ${p.results.days} d`);
+            out.push(line('#centro', 'bi-clipboard-data',
+                `Resultados: <span class="text-white">${esc(who)}</span> ${when}${p.results.count > names.length ? ` · ${p.results.count} en 30 d` : ''}`));
+        } else {
+            out.push(line('#centro', 'bi-clipboard-data', 'Sin resultados en 30 días'));
+        }
+        if (p.dividend) {
+            const d = p.dividend;
+            out.push(line('/portfolio#dividendos', 'bi-cash-coin',
+                `${d.estimated ? 'Próximo dividendo' : 'Próximo cobro'}: <span class="text-white">${esc(tk(d.ticker))}</span> ${dm(d.date)} · <span class="text-success">≈${fmtNum(d.gross_eur, 0)} €</span>${d.estimated ? ' <span class="opacity-75">(estimado)</span>' : ''}`,
+                d.kind === 'ex' ? 'Fecha ex-dividendo; aún no se sabe el día de cobro' : 'Bruto, al cambio de hoy'));
+        }
+        if (p.period) {
+            out.push(line('#centro', 'bi-graph-up',
+                `30 días: <span class="${tone(p.period.pct)} fw-bold">${signed(p.period.pct)}%</span> <span class="${tone(p.period.abs_eur)}">(${signed(p.period.abs_eur, 0)} €)</span>${p.period.benchmark_pct != null ? ` · ${esc(p.benchmark)} ${signed(p.period.benchmark_pct)}%` : ''}${p.period.incomplete && p.period.incomplete.length ? ' <i class="bi bi-exclamation-triangle text-warning"></i>' : ''}`,
+                'Últimos 30 días naturales; las compras y ventas no cuentan como ganancia'
+                + (p.period.incomplete && p.period.incomplete.length ? `. Sin precio de ${p.period.incomplete.map(tk).join(', ')} hace 30 días: quedan fuera` : '')));
+        }
+        box.innerHTML = out.join('');
+    } catch (e) {
+        box.innerHTML = line('#centro', 'bi-grid-1x2', 'Abrir el Centro de mando');
+    }
+};
+loadCentroPulse();
+// Abrir una noticia desde el Centro de mando la marca como leída (en la tarjeta, en «Avisos» y en la campana)
+function centroNewsRead(id) {
+    window.paintReadOnPage(['news|' + id], true);
+    window.markNotificationsRead({keys: ['news|' + id]}).then(() => window.refreshSidebarNewsBadge && window.refreshSidebarNewsBadge());
+}
+// Última visita al Centro de mando (en este navegador): lo que aparezca después se marca como «nuevo». Recargar o volver
+// al rato no cuenta como otra visita: solo pasa a ser la anterior si llevas más de VISIT_GAP_MIN fuera.
+const VISIT_GAP_MIN = 30;
+function centroVisitSince() {
+    const pad = n => String(n).padStart(2, '0');
+    const local = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    try {
+        const v = JSON.parse(localStorage.getItem('centroVisit') || '{}'), now = new Date();
+        if (!v.at || now - new Date(v.at) > VISIT_GAP_MIN * 60000) v.prev = v.at || null;
+        v.at = local(now);
+        localStorage.setItem('centroVisit', JSON.stringify(v));
+        return v.prev || null;
+    } catch (e) { return null; }
+}
+function markVisitNew() {
+    const line = document.getElementById('visitLine');
+    if (!line) return;
+    const keys = new Set(JSON.parse(line.dataset.keys || '[]')), news = new Set(JSON.parse(line.dataset.news || '[]').map(String));
+    document.querySelectorAll('#slot-attention .inbox-item[data-key]').forEach(el => {
+        if (keys.has(el.dataset.key)) (el.querySelector('.flex-grow-1') || el).classList.add('visit-new');
+    });
+    document.querySelectorAll('#slot-news [data-news]').forEach(el => { if (news.has(el.dataset.news)) el.classList.add('visit-new'); });
+}
+// Pestaña Centro de mando: una sola petición (descarga históricos) y cada parte a su hueco
+(async function loadCentro() {
+    const slots = ['notes', 'summary', 'news', 'agenda', 'attention'];
+    try {
+        const since = centroVisitSince();
+        const r = await fetch('/mercado/centro' + (since ? '?since=' + encodeURIComponent(since) : ''));
+        if (!r.ok) throw new Error(r.statusText);
+        const tpl = document.createElement('template');
+        tpl.innerHTML = await r.text();
+        slots.forEach(k => {
+            const part = tpl.content.querySelector(`[data-slot="${k}"]`), slot = document.getElementById('slot-' + k);
+            if (part && slot) slot.replaceChildren(...part.childNodes);
+        });
+        document.querySelectorAll('#home-centro [data-collapse]').forEach(el => el.dataset.scroll = '');   // todo, con scroll
+        initNoticeLists(document);
+        markVisitNew();
+        initSwitchCard(document.getElementById('agendaCard'));
+        initSwitchCard(document.getElementById('summaryCard'));
+        sizeCentro();
+        const att = document.getElementById('attCount'), tab = document.getElementById('centroTabCount');
+        if (att && tab && +att.textContent) { tab.textContent = att.textContent; tab.classList.remove('d-none'); }
+    } catch (e) {
+        slots.slice(1).forEach(k => {
+            const slot = document.getElementById('slot-' + k);
+            if (slot) slot.innerHTML = `<div class="card h-100"><div class="card-body small text-danger">No se pudo cargar: ${e.message}</div></div>`;
+        });
+    }
+})();
+
+// Agenda (Cartera / Resto y 7 / 30 días) y Resumen (hoy / 7 / 30 días): se recuerda la última elección de cada tarjeta
+function initSwitchCard(card) {
+    if (!card) return;
+    const store = card.dataset.store, hasView = !!card.querySelector('[data-agenda-view-btn]');
+    const windows = [...card.querySelectorAll('[data-agenda]')].map(b => b.dataset.agenda);   // la primera, por defecto
+    const state = {view: 'cartera', window: windows[0]};
+    try { state.view = localStorage.getItem(store + 'View') || state.view; state.window = localStorage.getItem(store + 'Window') || state.window; } catch (e) {}
+    if (!windows.includes(state.window)) state.window = windows[0];
+    const paint = () => {
+        card.querySelectorAll('[data-agenda-view-btn]').forEach(b => b.classList.toggle('active', b.dataset.agendaViewBtn === state.view));
+        card.querySelectorAll('[data-agenda]').forEach(b => b.classList.toggle('active', b.dataset.agenda === state.window));
+        card.querySelectorAll('.agenda-window').forEach(el => el.classList.toggle('d-none',
+            (hasView && el.dataset.agendaView !== state.view) || el.dataset.agendaWindow !== state.window));
+        card.querySelectorAll('.agenda-window').forEach(el => el.scrollTop = 0);
+    };
+    const save = (k, v) => { try { localStorage.setItem(store + k, v); } catch (e) {} };
+    card.querySelectorAll('[data-agenda-view-btn]').forEach(b => b.addEventListener('click', () => { state.view = b.dataset.agendaViewBtn; paint(); save('View', state.view); }));
+    card.querySelectorAll('[data-agenda]').forEach(b => b.addEventListener('click', () => { state.window = b.dataset.agenda; paint(); save('Window', state.window); }));
+    paint();
+}
+// Alto de las tarjetas del Centro de mando: las dos filas llenan la ventana (en pantallas anchas; en estrechas van una
+// debajo de otra con 380 px). La de arriba (Resumen y Noticias) se lleva CENTRO_TOP_SHARE del alto.
+const CENTRO_MIN = 240, CENTRO_TOP_SHARE = 0.6;
+function sizeCentro() {
+    const pane = document.getElementById('home-centro'), first = document.getElementById('slot-summary'),
+          last = document.getElementById('slot-attention');
+    if (!pane || !pane.offsetParent || !first.querySelector('.card')) return;
+    const set = (top, bottom) => { pane.style.setProperty('--centro-top-h', top + 'px'); pane.style.setProperty('--centro-bottom-h', bottom + 'px'); };
+    if (innerWidth < 1200) { ['--centro-top-h', '--centro-bottom-h'].forEach(v => pane.style.removeProperty(v)); return; }
+    const y = el => el.getBoundingClientRect().top + scrollY;
+    const top = y(first), gap = y(last) - top - first.querySelector('.card').offsetHeight;
+    const container = pane.closest('.container-fluid');
+    const below = parseFloat(getComputedStyle(last.parentElement).marginBottom) + parseFloat(getComputedStyle(container).paddingBottom);
+    const split = total => {
+        const t = Math.max(CENTRO_MIN, Math.floor(total * CENTRO_TOP_SHARE));
+        return [t, Math.max(CENTRO_MIN, total - t)];
+    };
+    const total = innerHeight - top - gap - below;
+    set(...split(total));
+    // márgenes que no se ven en el cálculo: si aún sobra página, se quita de las dos filas
+    const extra = document.documentElement.scrollHeight - innerHeight;
+    if (extra > 0 && total > 2 * CENTRO_MIN) set(...split(Math.max(2 * CENTRO_MIN, total - extra)));
+}
+let fitTimer;
+addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(sizeCentro, 150); });
+document.addEventListener('click', e => {   // activos / histórico: cada uno empieza arriba
+    if (e.target.closest('#slot-attention .mon-tabs')) document.querySelector('#slot-attention .fixed-body').scrollTop = 0;
+});
+
+// Pestañas de la portada: #centro abre el Centro de mando (también desde los enlaces del resumen de «Mi Cartera»)
+function showHomeTab(hash) {
+    const btn = document.querySelector(`.home-tabs [data-hash="${hash}"]`);
+    if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
+}
+document.querySelectorAll('.home-tabs [data-hash]').forEach(btn => btn.addEventListener('shown.bs.tab', () => {
+    history.replaceState(null, '', btn.dataset.hash === 'mercado' ? location.pathname : '#' + btn.dataset.hash);
+    if (btn.dataset.hash === 'mercado' && window.Plotly && document.getElementById('heatmapTracked')) Plotly.Plots.resize('heatmapTracked');
+    if (btn.dataset.hash === 'centro') sizeCentro();   // oculta no se puede medir
+}));
+window.addEventListener('hashchange', () => showHomeTab(location.hash.slice(1) || 'mercado'));
+// enlaces antiguos a la pestaña Watchlist del Centro de mando
+if (location.hash === '#watchlist') location.replace('/watchlist');
+else if (location.hash === '#centro') document.addEventListener('DOMContentLoaded', () => showHomeTab('centro'));
 </script>
 
 <!-- Modal de Mi Cartera -->

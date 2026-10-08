@@ -7,8 +7,10 @@ print("Requesting /portfolio...")
 response = client.get("/portfolio")
 print("Status code:", response.status_code)
 assert response.status_code == 200, f"Failed with status {response.status_code}"
-assert "dist-country-chart" in response.text, "Country distribution chart missing from HTML!"
-assert "dist-sector-chart" in response.text, "Sector distribution chart missing from HTML!"
+assert 'id="dist-tab"' in response.text and 'id="dist-pane"' in response.text, "Distribution tab missing from HTML!"
+assert "dist-bar-range" in response.text, "Role bars vs target missing from HTML!"
+for chart in ("distAssets", "dist-currency", "dist-sector", "dist-country"):
+    assert f'id="{chart}"' in response.text, f"Distribution chart {chart} missing from HTML!"
 
 # Test detailed ticker page for EVO.ST
 print("Requesting /portfolio/ticker/EVO.ST...")

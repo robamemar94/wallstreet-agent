@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -97,9 +97,11 @@ def watchlist_rows(repo: SqlAlchemyWatchlistRepository, asset_repo: SqlAlchemyAs
     return sorted(rows, key=lambda r: (r["drop_pct"] is None, r["drop_pct"] if r["drop_pct"] is not None else 0))
 
 
-@router.get("/watchlist")
-def watchlist_page():
-    return RedirectResponse("/centro#watchlist")
+@router.get("/watchlist", response_class=HTMLResponse)
+def watchlist_page(request: Request, db_session: Session = Depends(get_db)):
+    """Página de la Watchlist (la tabla se pide aparte a /watchlist/tabla para no frenar la página)."""
+    return templates.TemplateResponse("watchlist.html", {
+        "request": request, "settings": get_settings_from_db(db_session), "wl_target": bv.TARGET_RETURN_PCT})
 
 
 def _names(rows: List[Dict[str, Any]], limit: int = 8) -> str:
@@ -143,7 +145,7 @@ def watchlist_monitor(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return sorted(signals, key=lambda s: (s.get("date") or "", s["ticker"]), reverse=True)
 
 
-@router.get("/centro/watchlist", response_class=HTMLResponse)
+@router.get("/watchlist/tabla", response_class=HTMLResponse)
 def watchlist_fragment(
     request: Request,
     repo: SqlAlchemyWatchlistRepository = Depends(get_watchlist_repository),
@@ -152,7 +154,7 @@ def watchlist_fragment(
     db_session: Session = Depends(get_db),
     notice_repo: SqlAlchemyNoticeRepository = Depends(get_notice_repository),
 ):
-    """Pestaña Watchlist del Centro de mando (se carga aparte para no frenar la página)."""
+    """Contenido de la página Watchlist: avisos, monitor y tabla (se carga aparte para no frenar la página)."""
     held = {i.ticker for i in portfolio_service.get_active_portfolio() if i.shares > 0}
     benchmark = (get_settings_from_db(db_session).get("performance") or {}).get("benchmark_ticker") or "URTH"
     rows = watchlist_rows(repo, asset_repo, held, benchmark)
@@ -211,8 +213,15 @@ class NoticeSeen(BaseModel):
 
 
 @router.post("/api/notices/seen")
-def mark_notices_seen(payload: NoticeSeen, notice_repo: SqlAlchemyNoticeRepository = Depends(get_notice_repository)):
-    """Marca (o desmarca) avisos como vistos; vuelven a salir como nuevos si desaparecen y reaparecen."""
+def mark_notices_seen(payload: NoticeSeen, notice_repo: SqlAlchemyNoticeRepository = Depends(get_notice_repository),
+                      db: Session = Depends(get_db)):
+    """Marca (o desmarca) avisos como vistos; vuelven a salir como nuevos si desaparecen y reaparecen.
+    Un aviso de noticia leído deja también la noticia como leída (campana, Noticias y Centro de mando)."""
+    from app.application.services.notification_service import news_ids_in_notices
+    from app.infrastructure.repositories.sqlalchemy_thesis_repository import SqlAlchemyThesisRepository
+    news_ids = news_ids_in_notices(payload.keys)
+    if news_ids and payload.seen:
+        SqlAlchemyThesisRepository(db).mark_news_seen(news_ids)
     return {"status": "success", "updated": notice_repo.set_seen(payload.keys, payload.seen)}
 
 

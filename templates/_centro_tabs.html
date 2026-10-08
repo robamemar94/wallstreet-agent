@@ -1,19 +1,12 @@
-{# Pestañas del Centro de mando: Resumen y Watchlist viven en /centro; Tesis y Noticias son sus propias páginas.
-   active: 'resumen' | 'tesis' | 'noticias' | 'watchlist'. En /centro las dos suyas cambian de pestaña sin recargar. #}
-{% macro centro_tabs(active, in_centro=false) %}
+{# Pestañas de «Tesis y noticias»: dos páginas, una sección del menú. active: 'tesis' | 'noticias'. #}
+{% macro centro_tabs(active) %}
 <ul class="nav nav-tabs mb-3" role="tablist">
-    {% for key, label, icon, href in [('resumen', 'Resumen', 'bi-inbox', '/centro'), ('tesis', 'Tesis', 'bi-clipboard2-pulse', '/tesis'),
-                                      ('noticias', 'Noticias', 'bi-broadcast', '/noticias'), ('watchlist', 'Watchlist', 'bi-eye', '/centro#watchlist')] %}
+    {% for key, label, icon, href in [('tesis', 'Tesis', 'bi-clipboard2-pulse', '/tesis'), ('noticias', 'Noticias', 'bi-broadcast', '/noticias')] %}
     <li class="nav-item">
-        {% if in_centro and key in ('resumen', 'watchlist') %}
-        <button class="nav-link {{ 'active' if key == active }}" data-bs-toggle="tab" data-bs-target="#cc-{{ key }}" type="button" data-hash="{{ key }}">
-        {% else %}
         <a class="nav-link {{ 'active' if key == active }}" href="{{ href }}"{% if key == active %} aria-current="page"{% endif %}>
-        {% endif %}
             <i class="bi {{ icon }} me-1"></i>{{ label }}
             {% if key == 'noticias' %} <span class="badge rounded-pill text-bg-danger d-none" id="tabNewsBadge"></span>{% endif %}
-            {% if key == 'watchlist' and in_centro %} <span class="badge text-bg-secondary" id="wlCount">…</span>{% endif %}
-        {{ '</button>'|safe if in_centro and key in ('resumen', 'watchlist') else '</a>'|safe }}
+        </a>
     </li>
     {% endfor %}
 </ul>

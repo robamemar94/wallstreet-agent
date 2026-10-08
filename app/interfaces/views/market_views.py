@@ -12,7 +12,7 @@ from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 from app.infrastructure.db.database import get_db
-from app.infrastructure.db.models import DBAsset, DBTask, DBPortfolioItem, DBTransaction
+from app.infrastructure.db.models import DBAsset, DBTask, DBPortfolioItem, DBTransaction, DBThesis
 from app.domain.models import TransactionType
 from app.infrastructure.dependencies import (
     get_asset_repository,
@@ -30,8 +30,11 @@ from app.application.services.performance_service import PerformanceService
 from app.infrastructure.templates import templates
 
 from utils.parsers import parse_summary
+from app.application.services import rules_synthesis_service, market_cap_service
 from utils.financial_math import calculate_custom_metrics, calculate_cagr_metrics, get_estimated_growth, get_financials_history, get_extended_stats
 from app.application.services.alerts_service import get_alerts_data, scan_in_background
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Market Views"])
 
@@ -128,9 +131,10 @@ def get_region_for_asset(ticker, country):
             
     return "Otros"
 
-def ensure_prices_cached(tickers: list, asset_repo) -> None:
+def ensure_prices_cached(tickers: list, asset_repo, wait: bool = False) -> None:
     """Asegura que los tickers provistos tengan su precio y variación en INDEX_CACHE.
-    Si faltan, se descargan (y se espera); si solo están viejos, se muestran y se actualizan en segundo plano."""
+    Si faltan, se descargan (y se espera); si solo están viejos, se muestran y se actualizan en segundo plano.
+    wait=True (F5): se descargan ya y se espera, para que la página salga con los nuevos sin recargarse después."""
     tickers = list(set([t for t in tickers if t and not t.startswith('^')]))
     if not tickers:
         return
@@ -145,7 +149,7 @@ def ensure_prices_cached(tickers: list, asset_repo) -> None:
     symbols = tickers + [f"{c}EUR=X" for c in currencies if c != "EUR"]
     missing = [t for t in symbols if t not in INDEX_CACHE["data"] and t not in INDEX_CACHE.get("unavailable", ())]
     try:
-        if missing:
+        if missing or wait:
             refresh_index_prices(symbols, [])
         elif time.time() - INDEX_CACHE.get("prices_update", 0) > 300:
             start_price_refresh(symbols, [])
@@ -173,6 +177,9 @@ def refresh_index_prices(symbols: list, alert_tickers: list) -> None:
     closes = data["Close"]
     if isinstance(closes, pd.Series):
         closes = closes.to_frame(symbols[0])
+    # cierre de hoy vacío en Yahoo para bolsas que ya han cotizado hoy (p. ej. Tokio): se completa con el intradía
+    from app.application.services.session_fill import fill_today
+    closes = fill_today(closes)
     fresh = {}
     for t in closes.columns:
         col_close = closes[t].dropna()
@@ -198,6 +205,28 @@ def refresh_index_prices(symbols: list, alert_tickers: list) -> None:
     # alertas con los precios recién descargados (en segundo plano: descarga histórico)
     if alert_tickers:
         scan_in_background({t: INDEX_CACHE["data"][t]["price"] for t in alert_tickers if t in INDEX_CACHE["data"]})
+
+
+MARKET_INDICES = {"^GSPC": "S&P 500", "^IXIC": "NASDAQ", "URTH": "MSCI World", "^IBEX": "IBEX 35", "^STOXX50E": "Eurostoxx 50", "BTC-USD": "Bitcoin"}
+
+
+def price_symbols(asset_repo, portfolio_tickers: list) -> tuple:
+    """Todo lo que la app cotiza (valores conocidos + cartera, índices y FX a EUR) y, aparte, los valores (para alertas)."""
+    involved = list(set(asset_repo.get_all_tickers() + list(portfolio_tickers)))
+    currencies = {asset_repo.get_asset_data(t).get("currency", "USD") for t in involved}
+    return involved + list(MARKET_INDICES) + [f"{c}EUR=X" for c in currencies if c != "EUR"], involved
+
+
+def refresh_prices_locked(symbols: list, alert_tickers: list) -> None:
+    """Descarga ya (bloqueando), salvo que otra descarga esté en curso: para el actualizador programado."""
+    if not _price_refresh_lock.acquire(blocking=False):
+        return
+    INDEX_CACHE["refreshing"] = True
+    try:
+        refresh_index_prices(symbols, alert_tickers)
+    finally:
+        INDEX_CACHE["refreshing"] = False
+        _price_refresh_lock.release()
 
 
 def start_price_refresh(symbols: list, alert_tickers: list) -> None:
@@ -267,6 +296,111 @@ def home():
     return RedirectResponse("/mercado")
 
 
+def refresh_upcoming_events(db_session: Session, active_portfolio) -> None:
+    """Próximos resultados y dividendos de la cartera, las favoritas y las de seguimiento → INDEX_CACHE["upcoming_events"]
+    (lo usan el calendario y Mercado). Lento: refresca cada EVENT_TTL segundos."""
+    now = time.time()
+    if now - INDEX_CACHE["last_update"] <= EVENT_TTL:
+        return
+    try:
+        _asset_meta = {
+            a.ticker: {"is_fav": bool(a.is_favorite), "status": (a.data or {}).get("status")}
+            for a in db_session.query(DBAsset).all()
+        }
+        event_items = []
+        _ev_seen = set()
+        for p in active_portfolio:
+            event_items.append({"ticker": p.ticker, "shares": p.shares, "is_portfolio": True, "is_favorite": _asset_meta.get(p.ticker, {}).get("is_fav", False)})
+            _ev_seen.add(p.ticker)
+        for t, meta in _asset_meta.items():
+            if t in _ev_seen:
+                continue
+            if meta.get("is_fav") or meta.get("status") == "ACCEPTED":
+                event_items.append({"ticker": t, "shares": 0, "is_portfolio": False, "is_favorite": meta.get("is_fav", False)})
+                _ev_seen.add(t)
+
+        # Histórico de transacciones (BUY/SELL/SPLIT) de los tickers en cartera,
+        # para saber cuántas acciones teníamos realmente en la fecha ex-dividendo
+        # (no las que tenemos ahora, que pueden haber cambiado desde entonces).
+        _portfolio_tickers = [p.ticker for p in active_portfolio]
+        _tx_by_ticker = {}
+        if _portfolio_tickers:
+            _tx_rows = (
+                db_session.query(DBTransaction)
+                .filter(DBTransaction.ticker.in_(_portfolio_tickers))
+                .all()
+            )
+            for tx in _tx_rows:
+                try:
+                    tx_date = datetime.datetime.strptime(tx.date[:10], "%Y-%m-%d").date()
+                except Exception:
+                    continue
+                _tx_by_ticker.setdefault(tx.ticker, []).append((tx_date, tx.type, tx.shares))
+            for t in _tx_by_ticker:
+                _tx_by_ticker[t].sort(key=lambda x: x[0])
+
+        def shares_as_of(ticker, as_of_date):
+            total = 0.0
+            for tx_date, tx_type, tx_shares in _tx_by_ticker.get(ticker, []):
+                if tx_date > as_of_date:
+                    break
+                if tx_type == TransactionType.SPLIT:
+                    if tx_shares > 0:
+                        total *= tx_shares
+                elif tx_type == TransactionType.BUY:
+                    total += tx_shares
+                elif tx_type == TransactionType.SELL:
+                    total -= tx_shares
+            return total
+
+        def fetch_event(item):
+            ticker = item["ticker"]
+            evs = []
+            try:
+                raw = event_raw(ticker)
+                today = datetime.date.today()
+                as_date = lambda v: datetime.date.fromisoformat(v) if v else None
+                d = as_date(raw.get("ex_div"))
+                if d:
+                    pay_date_obj = as_date(raw.get("pay_date"))
+                    # "Próximo a cobrar": mientras el pago no se haya realizado, sigue siendo
+                    # relevante aunque la fecha ex-dividendo ya haya pasado (fallback a ex-div
+                    # si no conocemos la fecha de pago).
+                    pending = (pay_date_obj >= today) if pay_date_obj else (d >= today)
+
+                    # Acciones que teníamos en la fecha ex-dividendo (no las actuales):
+                    # si compramos después del ex-div, ese dividendo concreto no nos corresponde.
+                    shares_at_exdiv = shares_as_of(ticker, d) if item["is_portfolio"] else 0
+
+                    if pending and (not item["is_portfolio"] or shares_at_exdiv > 0.0001):
+                        evs.append({"ticker": ticker, "type": "Dividendo", "date": d, "pay_date": pay_date_obj, "amount": (raw.get("div_amount") or 0) * shares_at_exdiv, "is_portfolio": item["is_portfolio"], "is_favorite": item["is_favorite"]})
+
+                ed = as_date(raw.get("earnings"))
+                if ed and ed >= today:
+                    evs.append({"ticker": ticker, "type": "Resultados", "date": ed, "is_portfolio": item["is_portfolio"], "is_favorite": item["is_favorite"]})
+                return evs
+            except Exception:
+                return []
+
+        print(f"[events] fetching for {len(event_items)} items: {[x['ticker'] for x in event_items]}")
+        all_evs = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
+            for res in ex.map(fetch_event, event_items): all_evs.extend(res)
+        print(f"[events] found {len(all_evs)} raw events: {[(e['ticker'], e['type']) for e in all_evs]}")
+
+        unique_evs = []
+        seen = set()
+        for e in all_evs:
+            k = (e['ticker'], e['type'], e['date'])
+            if k not in seen: unique_evs.append(e); seen.add(k)
+        unique_evs.sort(key=lambda x: x["date"])
+        INDEX_CACHE["upcoming_events"] = unique_evs
+        INDEX_CACHE["last_update"] = now
+
+    except Exception as e:
+        print(f"Event fetch error: {e}")
+
+
 @router.get("/mercado", response_class=HTMLResponse)
 def index(
     request: Request,
@@ -278,11 +412,8 @@ def index(
     settings = get_settings_from_db(db_session)
     val_cfg = settings.get("valuation", {"ganga": 0.60, "barata": 0.85, "justo_max": 1.15, "cara_max": 1.40})
 
-    ticker_names = asset_repo.get_all_tickers()
     active_portfolio = portfolio_service.get_active_portfolio()
-    all_involved = list(set(ticker_names + [p.ticker for p in active_portfolio]))
-
-    indices_to_fetch = {"^GSPC": "S&P 500", "^IXIC": "NASDAQ", "URTH": "MSCI World", "^IBEX": "IBEX 35", "^STOXX50E": "Eurostoxx 50", "BTC-USD": "Bitcoin"}
+    indices_to_fetch = MARKET_INDICES
 
     now = time.time()
 
@@ -292,117 +423,18 @@ def index(
         INDEX_CACHE["last_update"] = 0
 
     # ── PRECIOS: se muestra al instante lo último que hay y se actualiza en segundo plano ──
-    currencies = {asset_repo.get_asset_data(t).get("currency", "USD") for t in all_involved}
-    symbols = all_involved + list(indices_to_fetch.keys()) + [f"{c}EUR=X" for c in currencies if c != "EUR"]
+    symbols, all_involved = price_symbols(asset_repo, [p.ticker for p in active_portfolio])
     if not INDEX_CACHE["data"]:
         _load_price_snapshot()
     # los que Yahoo no devolvió en la última descarga no fuerzan otra (si no, se actualizaría en cada visita)
     missing = [t for t in symbols if t not in INDEX_CACHE["data"] and t not in INDEX_CACHE.get("unavailable", ())]
     age = now - INDEX_CACHE.get("prices_update", 0)
-    if not INDEX_CACHE["data"] or len(missing) > len(symbols) / 2:
-        refresh_index_prices(symbols, all_involved)        # primera vez: no hay nada que enseñar, se espera
-    elif age > PRICE_TTL or missing or (is_reload_request(request) and age > 30):
-        start_price_refresh(symbols, all_involved)         # F5 o precios viejos: se actualizan sin esperar
+    if not INDEX_CACHE["data"] or len(missing) > len(symbols) / 2 or (is_reload_request(request) and age > 30):
+        refresh_index_prices(symbols, all_involved)        # primera vez o F5: se espera (~6 s) y sale ya con los nuevos
+    elif age > PRICE_TTL or missing:
+        start_price_refresh(symbols, all_involved)         # precios viejos: se actualizan sin esperar (aviso para recargar)
 
-    # ── EVENTOS: refresco lento cada EVENT_TTL segundos ───────────────────────
-    if now - INDEX_CACHE["last_update"] > EVENT_TTL:
-        try:
-            _asset_meta = {
-                a.ticker: {"is_fav": bool(a.is_favorite), "status": (a.data or {}).get("status")}
-                for a in db_session.query(DBAsset).all()
-            }
-            event_items = []
-            _ev_seen = set()
-            for p in active_portfolio:
-                event_items.append({"ticker": p.ticker, "shares": p.shares, "is_portfolio": True, "is_favorite": _asset_meta.get(p.ticker, {}).get("is_fav", False)})
-                _ev_seen.add(p.ticker)
-            for t, meta in _asset_meta.items():
-                if t in _ev_seen:
-                    continue
-                if meta.get("is_fav") or meta.get("status") == "ACCEPTED":
-                    event_items.append({"ticker": t, "shares": 0, "is_portfolio": False, "is_favorite": meta.get("is_fav", False)})
-                    _ev_seen.add(t)
-
-            # Histórico de transacciones (BUY/SELL/SPLIT) de los tickers en cartera,
-            # para saber cuántas acciones teníamos realmente en la fecha ex-dividendo
-            # (no las que tenemos ahora, que pueden haber cambiado desde entonces).
-            _portfolio_tickers = [p.ticker for p in active_portfolio]
-            _tx_by_ticker = {}
-            if _portfolio_tickers:
-                _tx_rows = (
-                    db_session.query(DBTransaction)
-                    .filter(DBTransaction.ticker.in_(_portfolio_tickers))
-                    .all()
-                )
-                for tx in _tx_rows:
-                    try:
-                        tx_date = datetime.datetime.strptime(tx.date[:10], "%Y-%m-%d").date()
-                    except Exception:
-                        continue
-                    _tx_by_ticker.setdefault(tx.ticker, []).append((tx_date, tx.type, tx.shares))
-                for t in _tx_by_ticker:
-                    _tx_by_ticker[t].sort(key=lambda x: x[0])
-
-            def shares_as_of(ticker, as_of_date):
-                total = 0.0
-                for tx_date, tx_type, tx_shares in _tx_by_ticker.get(ticker, []):
-                    if tx_date > as_of_date:
-                        break
-                    if tx_type == TransactionType.SPLIT:
-                        if tx_shares > 0:
-                            total *= tx_shares
-                    elif tx_type == TransactionType.BUY:
-                        total += tx_shares
-                    elif tx_type == TransactionType.SELL:
-                        total -= tx_shares
-                return total
-
-            def fetch_event(item):
-                ticker = item["ticker"]
-                evs = []
-                try:
-                    raw = event_raw(ticker)
-                    today = datetime.date.today()
-                    as_date = lambda v: datetime.date.fromisoformat(v) if v else None
-                    d = as_date(raw.get("ex_div"))
-                    if d:
-                        pay_date_obj = as_date(raw.get("pay_date"))
-                        # "Próximo a cobrar": mientras el pago no se haya realizado, sigue siendo
-                        # relevante aunque la fecha ex-dividendo ya haya pasado (fallback a ex-div
-                        # si no conocemos la fecha de pago).
-                        pending = (pay_date_obj >= today) if pay_date_obj else (d >= today)
-
-                        # Acciones que teníamos en la fecha ex-dividendo (no las actuales):
-                        # si compramos después del ex-div, ese dividendo concreto no nos corresponde.
-                        shares_at_exdiv = shares_as_of(ticker, d) if item["is_portfolio"] else 0
-
-                        if pending and (not item["is_portfolio"] or shares_at_exdiv > 0.0001):
-                            evs.append({"ticker": ticker, "type": "Dividendo", "date": d, "pay_date": pay_date_obj, "amount": (raw.get("div_amount") or 0) * shares_at_exdiv, "is_portfolio": item["is_portfolio"], "is_favorite": item["is_favorite"]})
-
-                    ed = as_date(raw.get("earnings"))
-                    if ed and ed >= today:
-                        evs.append({"ticker": ticker, "type": "Resultados", "date": ed, "is_portfolio": item["is_portfolio"], "is_favorite": item["is_favorite"]})
-                    return evs
-                except Exception:
-                    return []
-
-            print(f"[events] fetching for {len(event_items)} items: {[x['ticker'] for x in event_items]}")
-            all_evs = []
-            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-                for res in ex.map(fetch_event, event_items): all_evs.extend(res)
-            print(f"[events] found {len(all_evs)} raw events: {[(e['ticker'], e['type']) for e in all_evs]}")
-
-            unique_evs = []
-            seen = set()
-            for e in all_evs:
-                k = (e['ticker'], e['type'], e['date'])
-                if k not in seen: unique_evs.append(e); seen.add(k)
-            unique_evs.sort(key=lambda x: x["date"])
-            INDEX_CACHE["upcoming_events"] = unique_evs
-            INDEX_CACHE["last_update"] = now
-
-        except Exception as e:
-            print(f"Event fetch error: {e}")
+    refresh_upcoming_events(db_session, active_portfolio)
 
     # 3. Portfolio Performance
     today = datetime.date.today()
@@ -410,25 +442,18 @@ def index(
     dates_found = [INDEX_CACHE["data"][idx]["last_date"] for idx in session_indices if idx in INDEX_CACHE["data"]]
     latest_market_date = max(dates_found) if dates_found else today
 
+    # la misma cuenta que Cartera (day_change): en € incluye lo que se ha movido la divisa desde ayer; antes se usaba el
+    # cambio de hoy para los dos precios y la cifra no coincidía con la variación 1D de Cartera
+    from app.interfaces.views.portfolio_views import day_change
     port_now, port_prev = 0, 0
     is_weekday = today.weekday() < 5
     for item in active_portfolio:
         t = item.ticker
         if t in INDEX_CACHE["data"]:
             d = INDEX_CACHE["data"][t]
-            rate = 1.0
-            curr = asset_repo.get_asset_data(t).get("currency", "USD")
-            if curr != "EUR": rate = INDEX_CACHE["data"].get(f"{curr}EUR=X", {"price": 1.0})["price"]
-            
-            p_price = d["price"]
-            p_prev = d["prev"]
-            p_last_date = d.get("last_date")
-            if is_weekday and p_last_date and p_last_date != today:
-                p_prev = p_price
-                
-            v_now = item.shares * p_price * rate
-            v_prev = item.shares * p_prev * rate
-            port_now += v_now; port_prev += v_prev
+            day = day_change(item.shares, d["price"], d["prev"], d.get("last_date"), asset_repo.get_asset_data(t).get("currency", "USD"), today)
+            v_now = item.shares * d["price"] * day["rate"]
+            port_now += v_now; port_prev += v_now - day["eur"]
 
     port_pct = ((port_now / port_prev) - 1) * 100 if port_prev > 0 else 0
     market_indices = [{"name": "MI CARTERA", "price": port_now, "change": port_now - port_prev, "pct": port_pct, "is_portfolio": True}]
@@ -444,7 +469,7 @@ def index(
             pct = (change / p_prev) * 100 if p_prev > 0 else 0
             market_indices.append({"name": name, "price": p_price, "change": change, "pct": pct, "is_portfolio": False})
 
-    # 4. Movers, Heatmap, Opportunities
+    # 4. Movers y mapa de calor
     all_daily_movers, fav_movers, heatmap_data = [], [], []
     port_daily_movers, port_fav_movers = [], []
     portfolio_tickers = {p.ticker for p in active_portfolio}
@@ -520,78 +545,6 @@ def index(
     fav_movers = sorted(fav_movers, key=lambda x: x["pct"])
     port_fav_movers = sorted(port_fav_movers, key=lambda x: x["pct"])
 
-    _today = datetime.date.today()
-    evs = [
-        {
-            **e,
-            "is_portfolio": e.get("is_portfolio", False),
-            "is_favorite": e.get("is_favorite", False),
-            "days_remaining": (e["date"] - _today).days,
-            "pay_days_remaining": (e["pay_date"] - _today).days if e.get("pay_date") else None,
-        }
-        for e in INDEX_CACHE.get("upcoming_events", [])
-    ]
-
-    # Widget de próximos eventos para el dashboard
-    _asset_status_map = {a.ticker: (a.data or {}).get("status") for a in db_session.query(DBAsset).all()}
-    cal_preview = []
-    for e in evs:
-        t = e["ticker"]
-        is_port = e.get("is_portfolio", False)
-        is_fav  = e.get("is_favorite", False)
-        st = _asset_status_map.get(t, "")
-        if e["type"] == "Dividendo":
-            if not is_port: continue
-            cat = "dividend"
-        elif is_port:   cat = "portfolio"
-        elif is_fav:    cat = "favorite"
-        elif st == "ACCEPTED": cat = "seguimiento"
-        else: continue
-        cal_preview.append({**e, "category": cat})
-    cal_preview = sorted(cal_preview, key=lambda x: x["date"])[:8]
-
-    # Generar los 7 días de la semana actual (Lunes a Domingo)
-    start_of_week = _today - datetime.timedelta(days=_today.weekday())
-    week_days = []
-    day_names = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
-    for i in range(7):
-        d = start_of_week + datetime.timedelta(days=i)
-        day_events = []
-        for e in evs:
-            if e["date"] == d:
-                # Solo dividendos de cartera (los que vamos a cobrar)
-                if e["type"] == "Dividendo" and not e.get("is_portfolio", False):
-                    continue
-                day_events.append({
-                    "ticker": e["ticker"],
-                    "type": e["type"], # "Resultados" o "Dividendo"
-                    "is_portfolio": e.get("is_portfolio", False),
-                    "is_favorite": e.get("is_favorite", False),
-                    "amount": e.get("amount") # solo para dividendos
-                })
-        week_days.append({
-            "date": d,
-            "day_name": day_names[i],
-            "day_num": d.day,
-            "is_today": d == _today,
-            "events": day_events
-        })
-
-    # Serializar todos los eventos válidos a formato compatible con JSON en JS (para paginado de semanas)
-    serialized_evs = []
-    for e in evs:
-        # Solo dividendos de cartera (los que vamos a cobrar)
-        if e["type"] == "Dividendo" and not e.get("is_portfolio", False):
-            continue
-        serialized_evs.append({
-            "ticker": e["ticker"],
-            "type": e["type"],
-            "date": e["date"].isoformat(), # string 'YYYY-MM-DD'
-            "is_portfolio": e.get("is_portfolio", False),
-            "is_favorite": e.get("is_favorite", False),
-            "amount": e.get("amount")
-        })
-
     # 5. Listas personalizadas para el Dashboard
     custom_lists_movers = []
     try:
@@ -638,11 +591,8 @@ def index(
         "custom_lists": custom_lists_movers,
         "port_all": sorted_port_movers,
         "market_indices": market_indices,
-        "upcoming_earnings": [e for e in evs if e["type"] == "Resultados"],
-        "upcoming_dividends": [e for e in evs if e["type"] == "Dividendo" and e.get("is_portfolio", False)],
-        "week_days": week_days,
-        "upcoming_events_json": serialized_evs,
         "heatmap_data": heatmap_data,
+        "latest_market_date": latest_market_date,   # «sesión» en la tarjeta Mi Cartera (antes salía vacío)
         "settings": settings,
         **prices_banner_context(),
     })
@@ -666,6 +616,8 @@ async def database_page(
     tickers = []
     assets = db_session.query(DBAsset).all()
     ensure_prices_cached([a.ticker for a in assets], asset_repo)
+    # capitalización: los que aún no tienen acciones en circulación (o son viejas) se descargan en segundo plano
+    market_cap_service.backfill_in_background([a.ticker for a in assets if market_cap_service.needs_refresh(a.data or {})])
     for asset in assets:
         t = asset.ticker
         db_d = asset.data or {}
@@ -689,7 +641,7 @@ async def database_page(
                         pilar_scores.append(float(p_s))
                     except:
                         pass
-            if pilar_scores:
+            if len(pilar_scores) == 5:   # solo con los 5 pilares: una suma parcial no es una nota
                 rules_s = f"{sum(pilar_scores):.1f}"
 
         valid_scores = []
@@ -769,6 +721,8 @@ async def database_page(
             "is_favorite": asset.is_favorite,
             "is_portfolio": t in active_portfolio_tickers,
             "role": db_d.get("portfolio_role"),
+            "mcap": market_cap_service.describe(db_d.get(market_cap_service.SHARES_KEY), m_data["price"] or None,
+                                                db_d.get("currency"), INDEX_CACHE["data"]),
         })
 
     return templates.TemplateResponse("database.html", {
@@ -778,6 +732,7 @@ async def database_page(
         "sectores": sorted(list(set(t["sector"] for t in tickers if t.get("sector") and t["sector"] != "-"))), 
         "subsectores": sorted(list(set(t["subsector"] for t in tickers if t.get("subsector") and t["subsector"] != "-"))),
         "countries": sorted(list(set(t["country"] for t in tickers if t.get("country") and t["country"] != "-"))),
+        "cap_tiers": [{"key": k, "name": n, "range": market_cap_service.TIER_RANGES[k]} for k, n, _ in market_cap_service.TIERS],
         "settings": settings
     })
 
@@ -786,12 +741,48 @@ async def search(ticker: str = Form(...)):
     return RedirectResponse(url=f"/ticker/{ticker.upper()}", status_code=303)
 
 
+def _ticker_market_cap(ticker, info, metrics, asset_repo):
+    """Capitalización en USD y categoría para la ficha (precio de la ficha y tipos de cambio de la caché)."""
+    try:
+        data = asset_repo.get_asset_data(ticker) or {}
+        currency = data.get("currency") or info.get("currency") or "USD"
+        shares = data.get(market_cap_service.SHARES_KEY) or market_cap_service.shares_from_info(info)
+        price = metrics.get("currentPrice") or info.get("currentPrice") or info.get("regularMarketPrice")
+        if currency not in ("USD",) and not market_cap_service.to_usd(1.0, currency, INDEX_CACHE["data"]):
+            ensure_prices_cached([ticker], asset_repo)   # trae el cruce a EUR de su moneda (y el USD)
+        return market_cap_service.describe(shares, price, currency, INDEX_CACHE["data"])
+    except Exception as e:
+        logger.warning("Capitalización de %s: %s", ticker, e)
+        return None
+
+
 def _valuation_staleness(ticker, bval):
     """¿Toca revisar la valoración base? (dos presentaciones de resultados desde la última revisión)"""
     if not bval:
         return None
     from app.application.services.thesis_review_service import fetch_reported_dates
     return base_valuation_service.staleness(bval, fetch_reported_dates(ticker))
+
+
+def thesis_strip(db_session: Session, ticker: str):
+    """Lo esencial de la tesis para la ficha: estado, salud, cobertura, KPIs en rojo (de los pasos que puntúan), kill
+    switches activados y noticias sin leer o de los últimos 30 días (la más relevante primero). None si no tiene tesis."""
+    from app.application.services.thesis_service import evaluate_thesis
+    from app.infrastructure.repositories.sqlalchemy_thesis_repository import SqlAlchemyThesisRepository
+    row = db_session.query(DBThesis.id).filter(DBThesis.ticker == ticker.upper()).first()
+    if not row:
+        return None
+    repo = SqlAlchemyThesisRepository(db_session)
+    thesis = repo.get_thesis(row.id)
+    ev = evaluate_thesis(thesis)
+    reds = [k["name"] for p in ev["pillars"] if p.get("weight", 1.0) != 0 for k in p["kpis"] if k["eval"]["status"] == "red"]
+    since = (datetime.date.today() - datetime.timedelta(days=30)).isoformat()
+    news = [n for n in repo.list_news(row.id, limit=50) if not n["seen"] or (n["date"] or "")[:10] >= since]
+    news.sort(key=lambda n: n["date"] or "", reverse=True)
+    news.sort(key=lambda n: n["materiality"] or 0, reverse=True)   # la más relevante primero; a igualdad, la más reciente
+    return {"id": row.id, "verdict": thesis.get("verdict"), "health": ev["health_score"], "health_status": ev["health_status"],
+            "coverage": ev["coverage"], "reds": reds, "killed": [k["name"] for k in ev["kill_triggered"]],
+            "news": news, "unread": sum(1 for n in news if not n["seen"])}
 
 
 @router.get("/ticker/{ticker}", response_class=HTMLResponse)
@@ -826,6 +817,9 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
     for db_k, i_ks in mapping.items():
         for ik in i_ks:
             if info.get(ik): asset_repo.save_asset_data(ticker, db_k, info.get(ik)); break
+    # acciones en circulación: con el precio y el cambio dan la capitalización en USD (aquí y en la BBDD)
+    if market_cap_service.needs_refresh(db_d):
+        market_cap_service.save_shares(asset_repo.save_asset_data, ticker, market_cap_service.shares_from_info(info))
             
     # Carga resiliente del historial de precios
     dates, op, hi, lo, cl = [], [], [], [], []
@@ -1168,6 +1162,8 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         "currency_symbol": get_currency_symbol(info.get('currency', 'USD'), ticker), 
         "custom_metrics": metrics, 
         "financials_hist": get_financials_history(ticker, stock, db_d), 
+        "rules_syn": rules_synthesis_service.status(db_d),
+        "mcap": _ticker_market_cap(ticker, info, metrics, asset_repo),
         "dates": dates, 
         "open": op, 
         "high": hi, 
@@ -1197,20 +1193,29 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         "bval_target": base_valuation_service.TARGET_RETURN_PCT,
         "bval_years": base_valuation_service.DEFAULT_YEARS,
         "bval_metrics": base_valuation_service.METRICS,
+        # pestaña «Tesis» y franja del Resumen ejecutivo: su tesis de inversión, si la tiene
+        "thesis_link": thesis_strip(db_session, ticker),
         "in_watchlist": watchlist_repo.get_by_ticker(ticker) is not None,   # añadida a mano
         "watch_auto": ["favorita"] if is_fav else [],
     })
 
 
 
-@router.get("/calendario", response_class=HTMLResponse)
-def calendario_page(
-    request: Request,
+@router.get("/calendario")
+def calendario_page():
+    # el calendario es ahora una ventana que se abre desde arriba (junto a la campana) en cualquier página
+    return RedirectResponse("/mercado#calendario")
+
+
+@router.get("/api/calendario")
+def calendario_events(
     portfolio_service: PortfolioService = Depends(get_portfolio_service),
     db_session: Session = Depends(get_db)
 ):
-    settings = get_settings_from_db(db_session)
-    portfolio_tickers = {p.ticker for p in portfolio_service.get_active_portfolio()}
+    """Eventos del calendario mensual: resultados de cartera, favoritas y seguimiento, y dividendos de la cartera."""
+    active = portfolio_service.get_active_portfolio()
+    refresh_upcoming_events(db_session, active)
+    portfolio_tickers = {p.ticker for p in active}
 
     asset_meta = {
         a.ticker: {"is_fav": bool(a.is_favorite), "status": (a.data or {}).get("status")}
@@ -1255,18 +1260,13 @@ def calendario_page(
             "pay_date": e["pay_date"].isoformat() if e.get("pay_date") else None,
         })
 
-    return templates.TemplateResponse("calendario.html", {
-        "request": request,
-        "cal_events_json": cal_events,
-        "today": today.isoformat(),
-        "settings": settings,
-    })
+    return {"events": cal_events, "today": today.isoformat()}
 
 
 @router.get("/oportunidades")
 def oportunidades_page():
-    # Oportunidades se unificó con la watchlist del Centro de mando (valoración base, favoritas y añadidas a mano)
-    return RedirectResponse("/centro#watchlist")
+    # Oportunidades se unificó con la Watchlist (valoración base, favoritas y añadidas a mano)
+    return RedirectResponse("/watchlist")
 
 
 @router.get("/comparar", response_class=HTMLResponse)
@@ -1520,15 +1520,17 @@ def delete_comparison(comp_id: str):
 def get_history(ticker: str, period: str = "10y"):
     """
     Endpoint para obtener datos históricos de precios para el gráfico dinámico.
+    1D y 5D, intradía (cada 5 y 30 minutos); el resto, diario.
     """
     try:
         stock = yf.Ticker(ticker)
-        hist = stock.history(period=period)
+        interval = {"1d": "5m", "5d": "30m"}.get(period, "1d")
+        hist = stock.history(period=period, interval=interval)
         if hist.empty:
             return {"status": "error", "message": "No se encontraron datos para el período."}
 
         # Formatear para el gráfico
-        dates = hist.index.strftime('%Y-%m-%d').tolist()
+        dates = hist.index.strftime('%Y-%m-%d %H:%M' if interval != "1d" else '%Y-%m-%d').tolist()
         closes = hist['Close'].tolist()
 
         return {"status": "success", "dates": dates, "prices": closes}

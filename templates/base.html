@@ -17,8 +17,224 @@
             v = Number(v);
             return (sign && v > 0 ? '+' : '') + v.toLocaleString('de-DE', {minimumFractionDigits: d, maximumFractionDigits: d});
         };
+        // Variación en % como píldora (igual que la macro chg_pill de _ui_macros.html): más intensa cuanto mayor el movimiento
+        window.chgPill = p => {
+            if (p === null || p === undefined || isNaN(p)) return '<span class="text-muted">–</span>';
+            const a = (0.12 + Math.min(Math.abs(p) / 3, 1) * 0.6).toFixed(2), k = p > 0 ? 'chg-up' : (p < 0 ? 'chg-down' : 'chg-flat');
+            return `<span class="chg-pill ${k}${Math.abs(p) >= 2 ? ' chg-strong' : ''}" style="--a: ${a}">${fmtNum(p, 2, true)}%</span>`;
+        };
+        // Alto de un gráfico para que la página quepa en la ventana: se mide lo que queda por debajo con el gráfico muy alto
+        // (así la página siempre es más larga que la ventana) y se le da el resto.
+        window.fitChartHeight = (id, min = 240) => {
+            const el = document.getElementById(id);
+            if (!el || !el.offsetParent) return;
+            el.style.height = (window.innerHeight * 2) + 'px';
+            const below = document.documentElement.scrollHeight - (el.getBoundingClientRect().bottom + window.scrollY);
+            el.style.height = Math.max(min, Math.floor(window.innerHeight - el.getBoundingClientRect().top - below)) + 'px';
+            if (el.data) Plotly.Plots.resize(el);
+        };
+        // Navegador de rango bajo el gráfico (como Fiscal.ai): un mini-gráfico de toda la serie con una ventana que se
+        // arrastra o se estira. Plotly no reajusta el eje Y al mover el X: yRangeFor da el de lo que se ve.
+        window.rangeSliderStyle = () => {
+            const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            return { visible: true, thickness: 0.1, borderwidth: 1, yaxis: { rangemode: 'auto' },   // el mini-gráfico, con toda la serie
+                     bgcolor: dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', bordercolor: dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)' };
+        };
+        // Años bajo el navegador (como Fiscal.ai): Plotly no rotula el mini-gráfico; se superpone una fila de años
+        // alineada con su fondo. Se recoloca en cada repintado (plotly_afterplot) y al cambiar el tamaño.
+        window.rangeSliderYears = el => {
+            if (typeof el === 'string') el = document.getElementById(el);
+            if (!el || el._rsYears) return;
+            el._rsYears = true;
+            const draw = () => {
+                const bg = el.querySelector('.rangeslider-bg'), xs = (el.data || []).flatMap(t => t.x || []);
+                let box = el.querySelector('.rs-years');
+                if (!bg || !xs.length) { if (box) box.innerHTML = ''; return; }
+                if (!box) { box = document.createElement('div'); box.className = 'rs-years'; el.appendChild(box); }
+                if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+                const t = d => new Date(String(d).replace(' ', 'T')).getTime();
+                const ts = xs.map(t).filter(isFinite), t0 = Math.min(...ts), t1 = Math.max(...ts);
+                const r = bg.getBoundingClientRect(), host = el.getBoundingClientRect();
+                box.style.left = (r.left - host.left) + 'px'; box.style.width = r.width + 'px';
+                box.style.top = (r.bottom - host.top + 2) + 'px';
+                const y0 = new Date(t0).getFullYear(), y1 = new Date(t1).getFullYear(), span = y1 - y0 + 1;
+                const step = span > 24 ? 5 : span > 12 ? 2 : 1;
+                const marks = [];
+                for (let y = y0; y <= y1; y++) {
+                    if ((y - y0) % step) continue;
+                    const at = Math.max(t0, new Date(y, 0, 1).getTime());
+                    const pct = (at - t0) / ((t1 - t0) || 1) * 100;
+                    if (pct <= 97) marks.push([pct, y]);   // no pegado al borde derecho
+                }
+                // el primer año empezado a mitad, si queda encima del siguiente, fuera
+                if (marks.length > 1 && marks[1][0] - marks[0][0] < 6) marks.shift();
+                let html = marks.map(([pct, y]) => `<span style="left:${pct}%">${y}</span>`).join('');
+                // menos de un año de datos: los meses
+                if (span <= 1 || (t1 - t0) < 400 * 864e5) {
+                    html = '';
+                    const d = new Date(t0); d.setDate(1);
+                    for (d.setMonth(d.getMonth() + 1); d.getTime() <= t1; d.setMonth(d.getMonth() + 1)) {
+                        const pct = (d.getTime() - t0) / ((t1 - t0) || 1) * 100;
+                        if (pct <= 97) html += `<span style="left:${pct}%">${d.toLocaleDateString('es-ES', {month: 'short'})}${d.getMonth() === 0 ? ' ' + d.getFullYear() : ''}</span>`;
+                    }
+                }
+                box.innerHTML = html;
+            };
+            el.on('plotly_afterplot', draw);
+            window.addEventListener('resize', () => setTimeout(draw, 50));
+            draw();
+        };
+        // Rango del eje X de un evento plotly_relayout: [inicio, fin], 'all' (vuelve a todo) o undefined (no es del eje X)
+        window.relayoutXRange = ev => {
+            if (ev['xaxis.range']) return ev['xaxis.range'];
+            if (ev['xaxis.range[0]'] !== undefined) return [ev['xaxis.range[0]'], ev['xaxis.range[1]']];
+            if (ev['xaxis.autorange']) return 'all';
+            return undefined;
+        };
+        const _t = d => new Date(String(d).replace(' ', 'T')).getTime();
+        // Primer y último índice de dates dentro de [a, b]
+        window.rangeIndices = (dates, a, b) => {
+            const ta = _t(a), tb = _t(b);
+            let i = dates.findIndex(d => _t(d) >= ta), j = -1;
+            for (let k = dates.length - 1; k >= 0; k--) if (_t(dates[k]) <= tb) { j = k; break; }
+            if (i < 0) i = 0;
+            if (j < i) j = Math.min(dates.length - 1, i + 1);
+            return [i, j];
+        };
+        window.yRangeFor = (arrays, i, j, pad = 0.06) => {
+            let lo = Infinity, hi = -Infinity;
+            arrays.forEach(a => { for (let k = i; k <= j; k++) { const v = a[k]; if (v != null && isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } } });
+            if (!isFinite(lo)) return null;
+            const span = (hi - lo) || Math.abs(hi) * 0.02 || 1;
+            return [lo - span * pad, hi + span * pad];
+        };
+        // Tabla con scroll propio: se le da el alto que queda en la ventana (mismo método que fitChartHeight) y su
+        // cabecera queda fija (.fit-scroll). Si cabe entera, no aparece scroll.
+        window.fitScroll = (el, min = 200, trim = true) => {
+            if (typeof el === 'string') el = document.getElementById(el) || document.querySelector(el);
+            if (!el || !el.offsetParent) return;
+            el.classList.add('fit-scroll');
+            const keep = el.scrollTop;   // al medir se pierde la posición: se conserva (p. ej. al abrir «Ver pasos»)
+            el.style.maxHeight = 'none'; el.style.height = (window.innerHeight * 2) + 'px';
+            const below = document.documentElement.scrollHeight - (el.getBoundingClientRect().bottom + window.scrollY);
+            el.style.height = '';
+            let max = Math.max(min, Math.floor(window.innerHeight - el.getBoundingClientRect().top - below));
+            // data-fit-snap="selector": que lo visible al abrir acabe en el borde de un elemento completo (p. ej. una fila
+            // de tarjetas) y no corte ninguno por la mitad; al desplazarse, ya sí
+            if (el.dataset.fitSnap && el.scrollHeight > max) {
+                const top = el.getBoundingClientRect().top - el.scrollTop;
+                const ends = [...el.querySelectorAll(el.dataset.fitSnap)].filter(x => x.offsetParent)
+                    .map(x => Math.ceil(x.getBoundingClientRect().bottom - top)).filter(b => b <= max);
+                if (ends.length) max = Math.max(...ends) + 2;
+            }
+            el.style.maxHeight = max + 'px';
+            // comprobación final (solo cuando ya están ajustados todos los bloques, si no culparía a este del desborde
+            // de otro aún sin ajustar): si la página aún se sale, se recorta eso
+            if (trim) {
+                const extra = document.documentElement.scrollHeight - window.innerHeight;
+                if (extra > 0 && el.scrollHeight > el.clientHeight - 1) max = Math.max(min, max - extra);
+                el.style.maxHeight = max + 'px';
+            }
+            // data-fit-fill: además ocupa todo ese alto (p. ej. una columna de tarjetas junto a una tabla)
+            if ('fitFill' in el.dataset) el.style.height = el.style.maxHeight;
+            el.scrollTop = keep;
+            if (el.dataset.fitSnap) fitMoreHint(el);
+        };
+        // Tablas con paginación: sin scroll; cuántas filas caben para que la página entre en la ventana. Se mide con la
+        // tabla muy alta lo que queda debajo (paginador, márgenes) y se usa la fila visible más alta como medida.
+        window.rowsPerPage = (table, fallback = 10, minRows = 4) => {
+            if (typeof table === 'string') table = document.getElementById(table) || document.querySelector(table);
+            if (!table || !table.offsetParent) return fallback;
+            const body = table.tBodies[0] || table;
+            const rows = [...body.rows].filter(r => r.offsetParent && r.offsetHeight);
+            if (!rows.length) return fallback;
+            const rowH = Math.max(...rows.map(r => r.offsetHeight));
+            const keep = table.style.height;
+            table.style.height = (window.innerHeight * 2) + 'px';
+            const below = document.documentElement.scrollHeight - (table.getBoundingClientRect().bottom + window.scrollY);
+            table.style.height = keep;
+            const top = (body.getBoundingClientRect ? body : table).getBoundingClientRect().top;
+            return Math.max(minRows, Math.floor((window.innerHeight - top - below) / rowH));
+        };
+        // Tras paginar: cuántas filas sobran si la página aún se sale (el paginador puede crecer después de medir)
+        window.pageOverflowRows = (table) => {
+            if (typeof table === 'string') table = document.getElementById(table);
+            const extra = document.documentElement.scrollHeight - window.innerHeight;
+            const rows = table ? [...(table.tBodies[0] || table).rows].filter(r => r.offsetParent && r.offsetHeight) : [];
+            if (extra <= 0 || !rows.length) return 0;
+            return Math.ceil(extra / Math.min(...rows.map(r => r.offsetHeight)));
+        };
+        // Bajo un bloque que acaba en un elemento completo, «↓ N más» mientras quede algo por ver al desplazarse
+        window.fitMoreHint = el => {
+            let hint = el.nextElementSibling && el.nextElementSibling.classList.contains('fit-more-hint') ? el.nextElementSibling : null;
+            if (!hint) {
+                hint = document.createElement('div');
+                hint.className = 'fit-more-hint';
+                hint.onclick = () => el.scrollBy({top: el.clientHeight * 0.8, behavior: 'smooth'});
+                el.after(hint);
+                el.addEventListener('scroll', () => fitMoreHint(el), {passive: true});
+            }
+            const items = [...el.querySelectorAll(el.dataset.fitSnap)].filter(x => x.offsetParent);
+            const box = el.getBoundingClientRect();
+            const below = items.filter(x => x.getBoundingClientRect().bottom > box.bottom + 2).length;
+            hint.textContent = below ? `↓ ${below} más` : '';
+            hint.style.display = below ? '' : 'none';
+        };
+        // Todo en una pantalla: los bloques con data-fit (tablas, listas, rejillas de tarjetas) hacen scroll por
+        // dentro en vez de alargar la página. data-fit="140" fija el alto mínimo. Se reajustan al cargar, al cambiar
+        // el tamaño de la ventana, al cambiar de pestaña y al abrir o cerrar un desplegable (<details>).
+        window.fitAll = () => {
+            const els = [...document.querySelectorAll('[data-fit]')];
+            els.forEach(el => fitScroll(el, +el.dataset.fit || 200, false));   // primero, todos
+            els.forEach(el => fitScroll(el, +el.dataset.fit || 200, true));    // luego, con la comprobación final
+            // el aviso «↓ N más» va fuera de su bloque: si el bloque está oculto (otra pestaña), también el aviso
+            document.querySelectorAll('.fit-more-hint').forEach(h => { if (!h.previousElementSibling || !h.previousElementSibling.offsetParent) h.style.display = 'none'; });
+        };
+        window.addEventListener('load', () => {
+            fitAll();
+            if (window.ResizeObserver) {
+                let pending = null;
+                new ResizeObserver(() => { clearTimeout(pending); pending = setTimeout(fitAll, 120); }).observe(document.body);
+            }
+        });
+        window.addEventListener('resize', fitAll);
+        document.addEventListener('shown.bs.tab', () => fitAll());
+        document.addEventListener('toggle', () => fitAll(), true);
     </script>
     <script>const __appSettings = {% if settings %}{{ settings | tojson | safe }}{% else %}{"ui":{"dark_mode":false,"items_per_page":10}}{% endif %};</script>
+    <style>
+        /* bloques con scroll propio (fitScroll / data-fit): la cabecera de las tablas queda fija */
+        .fit-scroll { overflow-y: auto; overflow-x: hidden; }
+        .fit-scroll.table-responsive { overflow-x: auto; }
+        .fit-scroll thead th { position: sticky; top: 0; z-index: 2; }
+        /* años bajo el navegador de rango de los gráficos */
+        .rs-years { position: absolute; height: 14px; pointer-events: none; }
+        .rs-years span { position: absolute; transform: translateX(-50%); font-size: .66rem; color: var(--bs-secondary-color);
+                         font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .rs-years span::before { content: ''; position: absolute; left: 50%; top: -5px; height: 4px; border-left: 1px solid var(--bs-border-color); }
+        .fit-more-hint { text-align: center; font-size: .72rem; color: var(--bs-secondary-color); padding-top: .35rem; cursor: pointer; }
+        .fit-more-hint:hover { color: var(--bs-body-color); }
+        .tab-pane:not(.active) + .fit-more-hint { display: none !important; }
+    /* categoría de capitalización: de más a menos, de oscuro a claro */
+        .cap-badge { display: inline-block; min-width: 2.9rem; text-align: center; font-size: .62rem; font-weight: 700; letter-spacing: .2px;
+                     padding: .05rem .3rem; border-radius: 4px; margin-left: .25rem; border: 1px solid transparent; }
+        .cap-mega  { background: rgba(111, 66, 193, .18); color: #a98eda; border-color: rgba(111, 66, 193, .35); }
+        .cap-large { background: rgba(13, 110, 253, .15); color: #6ea8fe; border-color: rgba(13, 110, 253, .3); }
+        .cap-mid   { background: rgba(32, 201, 151, .13); color: #3dd5a8; border-color: rgba(32, 201, 151, .3); }
+        .cap-small { background: rgba(255, 193, 7, .13); color: #e0b33a; border-color: rgba(255, 193, 7, .3); }
+        .cap-micro { background: rgba(253, 126, 20, .13); color: #f39a4f; border-color: rgba(253, 126, 20, .3); }
+        .cap-nano  { background: rgba(220, 53, 69, .12); color: #ea868f; border-color: rgba(220, 53, 69, .3); }
+        [data-bs-theme="light"] .cap-mega { color: #59359a; } [data-bs-theme="light"] .cap-large { color: #0a58ca; }
+        [data-bs-theme="light"] .cap-mid { color: #146c43; } [data-bs-theme="light"] .cap-small { color: #997404; }
+        [data-bs-theme="light"] .cap-micro { color: #b35c0b; } [data-bs-theme="light"] .cap-nano { color: #b02a37; }
+        /* Var. %: la cifra que manda en la fila */
+        .chg-pill { display: inline-block; min-width: 4.6rem; padding: .18rem .45rem; border-radius: 6px; text-align: right;
+                    font-weight: 700; font-variant-numeric: tabular-nums; font-size: .82rem; }
+        .chg-up { color: var(--fin-green); background: color-mix(in srgb, var(--fin-green) calc(var(--a) * 100%), transparent); }
+        .chg-down { color: var(--fin-red); background: color-mix(in srgb, var(--fin-red) calc(var(--a) * 100%), transparent); }
+        .chg-flat { color: var(--bs-secondary-color); background: var(--bs-secondary-bg); }
+        .chg-up.chg-strong, .chg-down.chg-strong { color: #fff; }
+    </style>
     <style>
         :root {
             --fin-bg: #090a0f;           /* Fondo ultra oscuro institucional */
@@ -358,7 +574,12 @@
         .sidebar-brand {
             color: var(--bs-body-color);
             text-decoration: none;
+            width: 44px; height: 44px; margin-left: auto; margin-right: auto;
+            border-radius: 10px; font-size: 1.35rem;
+            transition: background-color .15s;
         }
+        .sidebar-brand:hover { background-color: rgba(13, 110, 253, .1); }
+        .sidebar-brand.active { background-color: rgba(13, 110, 253, .18); box-shadow: inset 0 0 0 1px rgba(13, 110, 253, .45); }
         
         .sidebar .nav-link {
             width: 100%;
@@ -583,7 +804,7 @@
     <!-- Mobile Topbar -->
     <div class="mobile-topbar">
         <a class="text-decoration-none text-body fw-bold fs-5" href="/">📈</a>
-        <div class="ms-auto me-2"><button type="button" class="btn btn-link text-body position-relative p-1 notif-bell" data-bs-toggle="offcanvas" data-bs-target="#notifPanel" aria-controls="notifPanel" title="Notificaciones" aria-label="Notificaciones">
+        <div class="ms-auto me-2 d-flex gap-1"><button type="button" class="btn btn-link text-body p-1 cal-btn" data-bs-toggle="modal" data-bs-target="#calModal" title="Calendario de resultados y dividendos" aria-label="Calendario"><i class="bi bi-calendar3 fs-5"></i></button><button type="button" class="btn btn-link text-body position-relative p-1 notif-bell" data-bs-toggle="offcanvas" data-bs-target="#notifPanel" aria-controls="notifPanel" title="Notificaciones" aria-label="Notificaciones">
                         <i class="bi bi-bell fs-5"></i><span class="notif-bell-badge d-none">0</span></button></div>
         <button class="btn btn-outline-secondary border-0" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
             <i class="bi bi-list fs-4"></i>
@@ -592,7 +813,8 @@
 
     <!-- Sidebar -->
     <nav id="sidebarMenu" class="sidebar collapse d-lg-flex">
-        <a class="sidebar-brand d-flex align-items-center justify-content-center w-100 mb-3 mt-2" href="/" title="Alpha-Flow">📈</a>
+        {# el logo lleva a la portada (pestañas Mercado y Centro de mando); se resalta cuando estás en ella #}
+        <a class="sidebar-brand d-flex align-items-center justify-content-center mb-3 mt-2{{ ' active' if request.url.path.startswith('/mercado') }}" href="/" title="Inicio: Mercado y Centro de mando" aria-label="Inicio">📈</a>
         
         <div class="w-100 d-flex flex-column align-items-center">
             {% set _path = request.url.path %}
@@ -600,20 +822,20 @@
             <ul class="nav flex-column w-100 mb-2">
                 <li class="nav-group-title" aria-hidden="true">Seguimiento</li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/mercado') or _path.startswith('/calendario') %} active{% endif %}" href="/mercado" title="Mercado y calendario">
-                        <i class="bi bi-globe2"></i>
-                        <span>Mercado</span>
+                    <a class="nav-link {% if _path.startswith('/tesis') or _path.startswith('/noticias') %} active{% endif %}" href="/tesis" title="Tesis y noticias">
+                        <span class="nav-icon-wrap position-relative d-inline-block">
+                            <i class="bi bi-clipboard2-pulse"></i>
+                            <span id="sidebarThesisBadge" class="sidebar-notif-badge d-none">0</span>
+                        </span>
+                        <span>Tesis</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/centro') or _path.startswith('/tesis') or _path.startswith('/noticias') %} active{% endif %}" href="/centro" title="Centro de mando: resumen, watchlist, tesis y noticias">
-                        <span class="nav-icon-wrap position-relative d-inline-block">
-                            <i class="bi bi-grid-1x2"></i>
-                            <span id="sidebarThesisBadge" class="sidebar-notif-badge d-none">0</span>
-                        </span>
-                        <span>Centro</span>
+                    <a class="nav-link {% if _path.startswith('/watchlist') %} active{% endif %}" href="/watchlist" title="Watchlist: candidatas y precios de compra">
+                        <i class="bi bi-eye"></i>
+                        <span>Watchlist</span>
                     </a>
-                </li>
+</li>
                 <li class="nav-item">
                     <a class="nav-link {% if _path.startswith('/alerts') %} active{% endif %}" href="/alerts" title="Alertas: cambios de zona y caídas">
                         <span class="nav-icon-wrap position-relative d-inline-block">
@@ -655,7 +877,10 @@
                 <button onclick="toggleDarkMode()" class="btn btn-link p-0 text-muted border-0" title="Modo Oscuro/Claro">
                     <i class="bi {% if settings and settings.ui.dark_mode %}bi-sun-fill{% else %}bi-moon-stars-fill{% endif %}" style="font-size:1.3rem;"></i>
                 </button>
-                <a href="/settings" class="btn btn-link p-0 text-muted border-0" title="Configuración">
+                <a href="/ia" class="btn btn-link p-0 border-0 {{ 'text-primary' if _path.startswith('/ia') else 'text-muted' }}" title="Uso de IA: costes y presupuesto">
+                    <i class="bi bi-cpu" style="font-size:1.3rem;"></i>
+                </a>
+                <a href="/settings" class="btn btn-link p-0 border-0 {{ 'text-primary' if _path.startswith('/settings') else 'text-muted' }}" title="Configuración">
                     <i class="bi bi-gear-fill" style="font-size:1.3rem;"></i>
                 </a>
             </div>
@@ -681,7 +906,8 @@
                         </form>
                         <div id="nav-search-suggestions" class="search-suggestions w-100 mt-1 shadow border rounded-3 bg-body"></div>
                     </div>
-                    <div class="position-absolute" style="right: -52px; top: 2px;">
+                    <div class="position-absolute d-flex gap-1" style="right: -92px; top: 2px;">
+                        <button type="button" class="btn btn-link text-body p-1 cal-btn" data-bs-toggle="modal" data-bs-target="#calModal" title="Calendario de resultados y dividendos" aria-label="Calendario"><i class="bi bi-calendar3 fs-5"></i></button>
                         <button type="button" class="btn btn-link text-body position-relative p-1 notif-bell" data-bs-toggle="offcanvas" data-bs-target="#notifPanel" aria-controls="notifPanel" title="Notificaciones" aria-label="Notificaciones">
                         <i class="bi bi-bell fs-5"></i><span class="notif-bell-badge d-none">0</span></button>
                     </div>
@@ -823,6 +1049,7 @@
                 window.renderThesisBadge();
             }
             document.querySelectorAll('[data-notif-count]').forEach(b => b.textContent = c[b.dataset.notifCount] || '');
+            window.loadCentroPulse && window.loadCentroPulse();   // la línea de avisos de la tarjeta «Mi Cartera» (portada)
         }).catch(() => {});
         window.refreshSidebarAlertBadge = () => window.refreshNotificationBadges();
 
@@ -860,13 +1087,30 @@
         async function notifLoad() {
             try { const d = await (await fetch('/api/notifications')).json(); notifItems = d.items || []; notifRender(); } catch (e) {}
         }
+        // Noticia leída: fuera la marca de nueva en las tarjetas de noticias (Centro de mando, /noticias)
+        window.paintNewsRead = (id) => document.querySelectorAll(`[data-news="${CSS.escape(String(id))}"]`).forEach(el => {
+            el.classList.remove('unread');
+            el.querySelectorAll('.badge-new, .btn-read').forEach(b => b.remove());
+        });
+        // Lo leído en el panel, también en la página abierta: alertas, avisos y monitor (y el aviso de cada noticia)
+        window.paintReadOnPage = (keys, read) => {
+            keys.forEach(key => {
+                if (key.startsWith('alert|')) document.querySelectorAll(`[data-alert-key="${CSS.escape(key.slice(6))}"]`).forEach(r => { r.dataset.read = read ? '1' : ''; });
+                const newsId = key.startsWith('news|') ? key.slice(5) : null;
+                if (newsId && read) window.paintNewsRead(newsId);
+                if (!window.paintSeen) return;
+                document.querySelectorAll('.inbox-item').forEach(el => {
+                    const own = (el.dataset.keys || el.dataset.key || '').split(',');
+                    if (own.includes(key) || (newsId && own.some(k => k.includes('|att|news|') && k.endsWith('|' + newsId)))) window.paintSeen(el, read);
+                });
+            });
+            if (window.applyAlertSeenState) window.applyAlertSeenState();
+        };
         window.notifRead = (key, read, rerender) => {
             const it = notifItems.find(i => i.key === key);
             if (it) it.read = read;
             if (rerender) notifRender();
-            // también en la página abierta (tabla de alertas)
-            if (key.startsWith('alert|')) document.querySelectorAll(`[data-alert-key="${CSS.escape(key.slice(6))}"]`).forEach(r => { r.dataset.read = read ? '1' : ''; });
-            if (window.applyAlertSeenState) window.applyAlertSeenState();
+            window.paintReadOnPage([key], read);
             return window.markNotificationsRead({keys: [key], read});
         };
         window.notifDismiss = async (key) => {
@@ -875,7 +1119,7 @@
             notifItems = notifItems.filter(i => i.key !== key);
             notifRender();
             window.refreshNotificationBadges && window.refreshNotificationBadges();
-            // también en la página abierta (Centro de mando)
+            // también en la página abierta (Mercado, Watchlist)
             if (window.dismissedNoticeKeys) window.dismissedNoticeKeys.add(key);
             document.querySelectorAll('.inbox-item').forEach(el => {
                 if ((el.dataset.keys || el.dataset.key || '').split(',').includes(key)) {
@@ -889,6 +1133,7 @@
             if (!keys.length) return;
             keys.forEach(k => { const it = notifItems.find(i => i.key === k); if (it) it.read = true; });
             notifRender();
+            window.paintReadOnPage(keys, true);
             window.markNotificationsRead({keys});
         };
         document.addEventListener('DOMContentLoaded', () => {
@@ -1118,7 +1363,9 @@
             `;
             container.insertAdjacentHTML('beforeend', toastHTML);
             const toastEl = document.getElementById(toastId);
-            const toast = new bootstrap.Toast(toastEl, { delay: 6000 });
+            // duración según importancia: lo informativo se va pronto, un error da tiempo a leerlo
+            const delay = type === 'error' ? 7000 : (type === 'success' ? 3500 : 2500);
+            const toast = new bootstrap.Toast(toastEl, { delay });
             toast.show();
             toastEl.addEventListener('hidden.bs.toast', () => { toastEl.remove(); });
         }
@@ -1128,7 +1375,7 @@
         // o en el campo "usage" de /api/generate_status (agentes en background).
         function showUsageToast(u) {
             if (!u || !u.calls) return;
-            const fmt = n => Number(n || 0).toLocaleString('es-ES');
+            const fmt = n => Number(n || 0).toLocaleString('de-DE');
             const cost = Number(u.cost_usd || 0);
             const costStr = cost < 0.01 ? fmtNum(cost, 4) : fmtNum(cost, 2);
             const models = (u.models || []).join(', ');
@@ -1154,7 +1401,7 @@
                   </div>
                 </div>`);
             const toastEl = document.getElementById(toastId);
-            new bootstrap.Toast(toastEl, { delay: 15000 }).show();
+            new bootstrap.Toast(toastEl, { delay: 8000 }).show();
             toastEl.addEventListener('hidden.bs.toast', () => { toastEl.remove(); });
             console.info('[Consumo IA]', u);
         }
@@ -1205,6 +1452,147 @@
                 }
             });
         });
+    </script>
+
+    <!-- Calendario de resultados y dividendos (se abre desde el icono junto a la campana; los eventos se piden al abrirlo) -->
+    <div class="modal fade" id="calModal" tabindex="-1" aria-labelledby="calModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header py-2 flex-wrap gap-2">
+                    <h6 class="modal-title fw-bold mb-0" id="calModalLabel"><i class="bi bi-calendar3 text-primary me-1"></i>Calendario</h6>
+                    <div class="d-flex gap-2 flex-wrap cal-legend">
+                        <span class="badge chip-portfolio"><i class="bi bi-briefcase-fill"></i> Cartera</span>
+                        <span class="badge chip-favorite"><i class="bi bi-star-fill"></i> Favorito</span>
+                        <span class="badge chip-seguimiento"><i class="bi bi-eye-fill"></i> Seguimiento</span>
+                        <span class="badge chip-dividend"><i class="bi bi-cash-stack"></i> Dividendo</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 ms-auto">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="calMove(-1)" aria-label="Mes anterior"><i class="bi bi-chevron-left"></i></button>
+                        <span id="calMonthLabel" class="fw-bold text-center" style="min-width:140px;"></span>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="calMove(1)" aria-label="Mes siguiente"><i class="bi bi-chevron-right"></i></button>
+                        <button class="btn btn-outline-primary btn-sm" onclick="calMove(0)">Hoy</button>
+                        <button type="button" class="btn-close ms-1" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                </div>
+                <div class="modal-body p-2">
+                    <div class="cal-grid mb-1">{% for d in ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'] %}<div class="text-center text-muted fw-bold py-1" style="font-size:0.72rem;">{{ d }}</div>{% endfor %}</div>
+                    <div class="cal-grid" id="calGrid"><div class="text-muted small p-3" style="grid-column: 1 / -1;"><span class="spinner-border spinner-border-sm me-1"></span>Cargando eventos…</div></div>
+                    <div id="calDay" class="mt-2 d-none border rounded p-2">
+                        <div class="fw-bold small mb-1" id="calDayTitle"></div>
+                        <div id="calDayBody"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <style>
+        .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+        .cal-cell { min-height: 84px; border: 1px solid var(--bs-border-color); border-radius: 6px; padding: 4px 5px; background: var(--bs-body-bg); }
+        .cal-cell.other-month { opacity: 0.35; }
+        .cal-cell.today { border-color: #0d6efd; border-width: 2px; background: rgba(13,110,253,0.04); }
+        .cal-cell.has-events { cursor: pointer; }
+        .cal-cell.has-events:hover, .cal-cell.selected { background: rgba(13,110,253,0.08); }
+        .cal-day-num { font-size: 0.78rem; font-weight: 600; line-height: 1; margin-bottom: 4px; }
+        .cal-cell.today .cal-day-num { background: #0d6efd; color: #fff; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; }
+        .cal-chips { display: flex; flex-direction: column; gap: 2px; }
+        .cal-chip { display: flex; align-items: center; gap: 3px; border-radius: 4px; padding: 1px 4px; font-size: 0.65rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; line-height: 1.4; }
+        .chip-portfolio  { background:#0d6efd22; color:#0d6efd; border:1px solid #0d6efd44; }
+        .chip-favorite   { background:#ffc10733; color:#b8860b; border:1px solid #ffc10766; }
+        .chip-seguimiento{ background:#19875422; color:#198754; border:1px solid #19875455; }
+        .chip-dividend   { background:#6f42c122; color:#6f42c1; border:1px solid #6f42c155; }
+        .chip-more       { background:var(--bs-secondary-bg); color:var(--bs-secondary-color); border:1px solid var(--bs-border-color); font-style:italic; }
+        .cal-legend .badge { font-size: 0.68rem; font-weight: 600; }
+        .cal-ev-row { display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom:1px solid var(--bs-border-color); }
+        .cal-ev-row:last-child { border-bottom:none; }
+        [data-bs-theme="dark"] .cal-cell { background:#1e2328; border-color:#373d44; }
+        [data-bs-theme="dark"] .cal-cell.today { background:rgba(13,110,253,0.1); }
+        @media (max-width: 576px) { .cal-cell { min-height: 56px; padding: 2px; } .cal-chip span { display: none; } }
+    </style>
+    <script>
+    (function () {
+        const MONTH_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        const CAT = {
+            portfolio:   {cls: 'chip-portfolio',   dot: '#0d6efd', icon: 'bi-briefcase-fill', label: 'Cartera'},
+            favorite:    {cls: 'chip-favorite',    dot: '#ffc107', icon: 'bi-star-fill',      label: 'Favorito'},
+            seguimiento: {cls: 'chip-seguimiento', dot: '#198754', icon: 'bi-eye-fill',       label: 'Seguimiento'},
+            dividend:    {cls: 'chip-dividend',    dot: '#6f42c1', icon: 'bi-cash-stack',     label: 'Dividendo'},
+        };
+        let events = null, today = null, cur = null;
+        const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+        function render() {
+            const year = cur.getFullYear(), month = cur.getMonth();
+            document.getElementById('calMonthLabel').textContent = `${MONTH_ES[month]} ${year}`;
+            const grid = document.getElementById('calGrid');
+            grid.innerHTML = '';
+            document.getElementById('calDay').classList.add('d-none');
+            const startDow = (new Date(year, month, 1).getDay() + 6) % 7;   // lunes = 0
+            const days = new Date(year, month + 1, 0).getDate();
+            const total = Math.ceil((startDow + days) / 7) * 7;
+            for (let i = 0; i < total; i++) {
+                const d = new Date(year, month, i - startDow + 1), ds = iso(d);
+                const evs = events.filter(e => e.date === ds);
+                const cell = document.createElement('div');
+                cell.className = 'cal-cell' + (d.getMonth() !== month ? ' other-month' : '') + (ds === today ? ' today' : '') + (evs.length ? ' has-events' : '');
+                cell.innerHTML = `<div class="cal-day-num">${d.getDate()}</div>`;
+                if (evs.length) {
+                    const chips = document.createElement('div');
+                    chips.className = 'cal-chips';
+                    evs.slice(0, 3).forEach(ev => {
+                        const m = CAT[ev.category];
+                        chips.insertAdjacentHTML('beforeend', `<div class="cal-chip ${m.cls}" title="${ev.ticker} · ${ev.type}"><i class="bi ${m.icon}" style="font-size:0.6rem;"></i><span>${ev.ticker}</span></div>`);
+                    });
+                    if (evs.length > 3) chips.insertAdjacentHTML('beforeend', `<div class="cal-chip chip-more">+${evs.length - 3} más</div>`);
+                    cell.appendChild(chips);
+                    cell.addEventListener('click', () => showDay(ds, evs, cell));
+                }
+                grid.appendChild(cell);
+            }
+        }
+        function showDay(ds, evs, cell) {
+            document.querySelectorAll('#calGrid .cal-cell.selected').forEach(c => c.classList.remove('selected'));
+            cell.classList.add('selected');
+            const [y, m, d] = ds.split('-').map(Number);
+            document.getElementById('calDayTitle').textContent = `${d} de ${MONTH_ES[m - 1]} de ${y}`;
+            document.getElementById('calDayBody').innerHTML = evs.map(ev => {
+                const c = CAT[ev.category];
+                let detail = '<small class="text-muted">Resultados</small>';
+                if (ev.type === 'Dividendo') {
+                    detail = ev.amount > 0 ? `<small class="text-success fw-bold">+${fmtNum(ev.amount, 2)}€</small>` : '';
+                    if (ev.pay_date) detail += `<small class="text-muted ms-2">Cobro: ${ev.pay_date.split('-').reverse().join('/')}</small>`;
+                }
+                return `<div class="cal-ev-row"><span style="width:10px;height:10px;border-radius:3px;background:${c.dot};flex-shrink:0;"></span>
+                    <div class="flex-grow-1"><a href="/ticker/${encodeURIComponent(ev.ticker)}" class="fw-bold text-decoration-none small">${ev.ticker}</a>
+                    <span class="badge ms-1" style="font-size:0.6rem;background:${c.dot}22;color:${c.dot};border:1px solid ${c.dot}44;"><i class="bi ${c.icon}"></i> ${c.label}</span></div>
+                    <div class="text-end">${detail}</div></div>`;
+            }).join('');
+            document.getElementById('calDay').classList.remove('d-none');
+        }
+        window.calMove = dir => {
+            if (!events) return;
+            if (dir === 0) { cur = new Date(today + 'T00:00:00'); cur.setDate(1); } else cur.setMonth(cur.getMonth() + dir);
+            render();
+        };
+        const modal = document.getElementById('calModal');
+        modal.addEventListener('show.bs.modal', async () => {
+            if (events) return;
+            try {
+                const r = await fetch('/api/calendario');
+                if (!r.ok) throw new Error(r.statusText);
+                const d = await r.json();
+                events = d.events; today = d.today;
+                cur = new Date(today + 'T00:00:00'); cur.setDate(1);
+                render();
+            } catch (e) {
+                document.getElementById('calGrid').innerHTML = `<div class="text-danger small p-3" style="grid-column: 1 / -1;">No se pudo cargar el calendario: ${e.message}</div>`;
+            }
+        });
+        // enlaces antiguos a /calendario llegan como /mercado#calendario
+        if (location.hash === '#calendario') {
+            history.replaceState(null, '', location.pathname + location.search);
+            document.addEventListener('DOMContentLoaded', () => bootstrap.Modal.getOrCreateInstance(modal).show());
+        }
+    })();
     </script>
 </body>
 </html>

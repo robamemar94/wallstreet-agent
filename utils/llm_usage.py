@@ -67,12 +67,14 @@ class UsageTracker:
         self.output_tokens = 0     # respuesta visible
         self.thinking_tokens = 0   # "thinking" (se factura como salida)
         self.search_queries = 0
+        self.free_calls = 0        # con la clave gratuita (GEMINI_FREE_API_KEY): no se facturan
+        self.free_search_queries = 0
         self.token_cost = 0.0
         self.models = set()
         self.unpriced_models = set()
         self._lock = threading.Lock()
 
-    def record(self, model: str, response) -> None:
+    def record(self, model: str, response, free: bool = False) -> None:
         usage = getattr(response, "usage_metadata", None)
         if usage is None:
             return
@@ -95,7 +97,7 @@ class UsageTracker:
 
         price = get_price(model_name)
         cost = 0.0
-        if price:
+        if price and not free:
             cost = (inp * price["input"] + cached * price["cached"] + (output + thinking) * price["output"]) / 1_000_000
 
         with self._lock:
@@ -105,15 +107,18 @@ class UsageTracker:
             self.output_tokens += output
             self.thinking_tokens += thinking
             self.search_queries += queries
+            self.free_calls += free
+            self.free_search_queries += queries if free else 0
             self.token_cost += cost
             self.models.add(model_name.split("/")[-1])
             if not price:
                 self.unpriced_models.add(model_name.split("/")[-1])
 
     def summary(self, previous_month_queries: int = 0) -> dict:
-        # Solo se cobran las consultas de búsqueda que superan las gratuitas del mes
+        # Solo se cobran las consultas de búsqueda de la clave de pago que superan las gratuitas del mes
+        paid_queries = self.search_queries - self.free_search_queries
         billable_before = max(previous_month_queries - SEARCH_FREE_PER_MONTH, 0)
-        billable_after = max(previous_month_queries + self.search_queries - SEARCH_FREE_PER_MONTH, 0)
+        billable_after = max(previous_month_queries + paid_queries - SEARCH_FREE_PER_MONTH, 0)
         search_cost = (billable_after - billable_before) * SEARCH_PRICE_PER_QUERY
         return {
             "label": self.label,
@@ -125,7 +130,9 @@ class UsageTracker:
             "thinking_tokens": self.thinking_tokens,
             "total_tokens": self.input_tokens + self.cached_tokens + self.output_tokens + self.thinking_tokens,
             "search_queries": self.search_queries,
-            "search_queries_month": previous_month_queries + self.search_queries,
+            "search_queries_month": previous_month_queries + paid_queries,
+            "free_calls": self.free_calls,
+            "free_search_queries": self.free_search_queries,
             "token_cost_usd": round(self.token_cost, 6),
             "search_cost_usd": round(search_cost, 6),
             "cost_usd": round(self.token_cost + search_cost, 6),
@@ -144,7 +151,7 @@ def month_search_queries() -> int:
                 except ValueError:
                     continue
                 if str(row.get("date", "")).startswith(month):
-                    total += row.get("search_queries", 0)
+                    total += row.get("search_queries", 0) - row.get("free_search_queries", 0)
     except FileNotFoundError:
         pass
     return total
@@ -159,7 +166,13 @@ def _append_log(summary: dict) -> None:
         logger.warning(f"No se pudo escribir el log de uso de LLM: {e}")
 
 
-def _record(model: str, response) -> None:
+def _is_free(models_obj) -> bool:
+    """¿La llamada va con la clave gratuita? (el cliente de google.genai guarda su clave en _api_client)"""
+    free_key = os.getenv("GEMINI_FREE_API_KEY")
+    return bool(free_key) and getattr(getattr(models_obj, "_api_client", None), "api_key", None) == free_key
+
+
+def _record(model: str, response, free: bool = False) -> None:
     tracker = _current.get()
     if tracker is None:
         with _lock:
@@ -169,7 +182,7 @@ def _record(model: str, response) -> None:
         logger.info(f"Llamada a Gemini ({model}) fuera de cualquier consulta rastreada.")
         return
     try:
-        tracker.record(model, response)
+        tracker.record(model, response, free)
     except Exception as e:
         logger.warning(f"No se pudo contabilizar el uso de tokens: {e}")
 
@@ -219,7 +232,7 @@ def install() -> None:
 
     def generate_content(self, *args, **kwargs):
         response = orig_gc(self, *args, **kwargs)
-        _record(kwargs.get("model", ""), response)
+        _record(kwargs.get("model", ""), response, _is_free(self))
         return response
 
     def generate_content_stream(self, *args, **kwargs):
@@ -229,11 +242,11 @@ def install() -> None:
                 last = chunk  # el uso en streaming es acumulado: nos quedamos con el último
             yield chunk
         if last is not None:
-            _record(kwargs.get("model", ""), last)
+            _record(kwargs.get("model", ""), last, _is_free(self))
 
     async def a_generate_content(self, *args, **kwargs):
         response = await orig_agc(self, *args, **kwargs)
-        _record(kwargs.get("model", ""), response)
+        _record(kwargs.get("model", ""), response, _is_free(self))
         return response
 
     async def a_generate_content_stream(self, *args, **kwargs):
@@ -246,7 +259,7 @@ def install() -> None:
                     last = chunk
                 yield chunk
             if last is not None:
-                _record(kwargs.get("model", ""), last)
+                _record(kwargs.get("model", ""), last, _is_free(self))
         return wrapped()
 
     Models.generate_content = generate_content

@@ -1,0 +1,187 @@
+# Transcrito de data/theses/Microsoft_Tesis_Maestra_Definitiva_v1.0.md (02/10/2026)
+# El documento venía de pandoc: config/theses/msft.md es la misma tesis con las tablas pasadas a Markdown normal,
+# sin los escapes (\$, \~) y con los estados «# 🟢 INTACT» como texto en negrita (no son apartados).
+# Cuadro de mando: las 8 hipótesis del «Dashboard fundamental» (7.1) con sus umbrales; los 7 «Thesis breakers» (12)
+# van como kill switches de su KPI. Los indicadores auxiliares de capital allocation (11) van en un paso que no puntúa.
+# Regla de la tesis: no hacer una media de verdes y amarillos; H5 (ROIC incremental del capex de IA) pesa más.
+# Las preguntas maestras salen de 10.2–10.3 (qué llevaría a Strengthening / Watch) y de la regla de actualización (15).
+ticker: MSFT
+title: Microsoft · Tesis Maestra
+version: "Framework v2.6 · Tesis v1.0"
+reference_date: "2026-10-01"
+reference_price: 512.80
+source_document: "data/theses/Microsoft_Tesis_Maestra_Definitiva_v1.0.md"
+document: config/theses/msft.md
+verdict: INTACTA
+summary: >-
+  Ecosistema tecnológico empresarial integrado (productividad → identidad → seguridad → datos → aplicaciones →
+  desarrollo → cloud → IA) con el que Microsoft puede convertirse en una de las principales plataformas de
+  monetización de la IA empresarial. FY2026: Azure >$100B (+41%; +43% Q4), Microsoft Cloud $214,4B (+27%), RPO
+  comercial ~$678B, 30M+ asientos de pago de Copilot, ~100k clientes de Foundry. La demanda ya no es la incógnita: la
+  pregunta es el retorno del enorme capex de IA (capex → capacidad → revenue → margen → FCF → ROIC). Estado: INTACT.
+hypothesis: "Microsoft puede convertirse en una de las principales plataformas de monetización de la IA empresarial porque ya controla distribución, workflows, identidad, seguridad, datos, cloud y ecosistema de desarrolladores: base instalada → Copilot/Agents → más uso de IA → más consumo de Azure/Foundry → más datos, identidad, seguridad y governance → mayores switching costs → mayor gasto por cliente → más ingresos y beneficio → mayor FCF/share. No depende de que OpenAI gane la IA."
+hypotheses:
+  H1: "Azure mantiene crecimiento estructural"
+  H2: "La IA se monetiza (adopción verde; economics amarillos)"
+  H3: "Microsoft aumenta el gasto por cliente"
+  H4: "Ecosistema y switching costs se fortalecen"
+  H5: "El capex de IA genera un ROIC adecuado (WATCH, hipótesis crítica)"
+  H6: "Los economics del cloud siguen siendo atractivos (WATCH)"
+  H7: "El FCF/share termina capturando el crecimiento (WATCH)"
+  H8: "El ecosistema tecnológico mantiene relevancia"
+rules:
+  - "No hacer una media de verdes y amarillos: las hipótesis tienen distinta importancia económica. H5 (ROIC incremental del capex de IA) pesa más en la valoración que varias métricas secundarias."
+  - "Nunca convertir falta de evidencia en evidencia positiva, ni un KPI rojo en thesis broken automáticamente: Broken exige una contradicción estructural de una condición necesaria (Azure bajo + IA sin monetizar + cloud deteriorado + ROIC incremental bajo + erosión del ecosistema)."
+  - "Nunca confundir crecimiento del negocio con retorno de la acción, ni calidad del negocio con valoración atractiva."
+  - "Los umbrales son de seguimiento económico, no leyes universales: recalibrarlos si cambia el negocio. Un trimestre no rompe un umbral «durante varios trimestres»."
+  - "No usar solo el FCF de un año de máxima inversión: la valoración incorpora crecimiento, márgenes, capex, amortización, FCF, acciones y múltiplo terminal."
+  - "Actualización: evento → qué ha cambiado → hipótesis afectada → KPI → mecanismo económico → impacto en valoración → estado de la tesis → qué observar a continuación."
+master_questions:
+  - "¿Mantiene Azure un crecimiento superior al 20%?"
+  - "¿Copilot y los agentes generan revenue incremental observable, no solo adopción?"
+  - "¿Acelera el consumo de Foundry?"
+  - "¿Se estabiliza el margen bruto de Microsoft Cloud?"
+  - "¿Empieza a bajar el capex/revenue y acelera el FCF/share?"
+  - "¿Hay evidencia nueva del ROIC incremental de la inversión en IA?"
+  - "¿Qué evidencia nueva favorece el Bull case?"
+  - "¿Qué evidencia nueva favorece el Bear case?"
+  - "¿Qué todavía no sabemos?"
+valuation:
+  target_year: 2036
+  question: "Precio $512,80; BPA GAAP FY2026 $17,95 → ~28,6x. ¿Puede Microsoft generar ~12% de crecimiento del BPA durante una década sin destruir retornos con el capex de IA? Escenarios ilustrativos, no predicciones."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: eps_cagr, label: BPA CAGR, format: pct}
+    - {key: multiple, label: P/E terminal}
+    - {key: price_5y, label: Valor 2031, format: usd}
+    - {key: cagr_5y, label: CAGR precio 5a, format: pct}
+    - {key: price, label: Valor 2036, format: usd}
+    - {key: cagr_doc, label: CAGR precio 10a, format: pct}
+  scenarios:
+    - {name: Bear, eps_cagr: 9, multiple: "20x", price_5y: 552, cagr_5y: 1.5, price: 850, cagr_doc: 5.2}
+    - {name: Base, eps_cagr: 12, multiple: "25x", price_5y: 791, cagr_5y: 9.1, price: 1394, cagr_doc: 10.5}
+    - {name: Bull, eps_cagr: 15, multiple: "28x", price_5y: 1011, cagr_5y: 14.5, price: 2033, cagr_doc: 14.8}
+events:
+  - date: "2026-06-30"
+    type: earnings
+    impact: neutral
+    title: "Resultados FY2026 (Q4 cerrado el 30/06/2026)"
+    body: "Revenue ~$331,8B (+18%). Azure >$100B (+41% FY; +43% Q4). Microsoft Cloud $214,4B (+27%); margen bruto ~66% FY y ~65% Q4 (69% en FY2025). RPO comercial ~$678B. 30M+ asientos de pago de Copilot, ~100k clientes de Foundry. M365 Commercial +17% con asientos +6%."
+  - date: "2026-10-02"
+    type: thesis
+    impact: positive
+    title: "Tesis Maestra v1.0 (framework v2.6) · estado INTACT"
+    body: "Negocio, moat, crecimiento, runway, management y balance excepcionales; adopción de IA demostrada. No es Strengthening porque los economics de la IA y el ROIC incremental todavía están en fase de demostración. Valoración exigente (~28,6x). Precio de referencia $512,80."
+
+pillars:
+  - key: azure
+    name: Azure
+    description: "H1 — ¿Puede Azure seguir creciendo lo bastante rápido pese a su escala?"
+    kpis:
+      - {key: azure_growth, name: Azure revenue growth YoY, unit: "%", green_threshold: 20, red_threshold: 15,
+         how_to_measure: "Crecimiento interanual de los ingresos de Azure y otros servicios cloud (trimestral)",
+         green_text: ">20% (compatible con un compounder fuerte)", amber_text: "15–20% (normalización: ¿cíclica o estructural?)", red_text: "<15% durante varios trimestres (posible deterioro estructural)",
+         frequency: Trimestral, source: Microsoft,
+         is_kill_switch: true, kill_rule: "Breaker 1: Azure <15% estructural durante varios trimestres, no por un único trimestre",
+         observations: [{period: Q4 FY2026, date: "2026-06-30", value: 43, note: "+43% Q4; +41% FY2026"}]}
+
+  - key: ai_monetization
+    name: Monetización de la IA
+    description: "H2 — ¿La adopción de IA se convierte en revenue y después en FCF? Adopción verde; economics amarillos."
+    kpis:
+      - {key: copilot_adoption, name: Adopción Copilot / Foundry, kind: qualitative,
+         how_to_measure: "Asientos de pago de M365 Copilot, altas de asientos, clientes de Foundry e intensidad de uso",
+         green_text: "Adopción y consumo aumentan", amber_text: "Adopción se frena", red_text: "Adopción estancada",
+         baseline: "30M+ asientos de pago de Copilot; ~100k clientes de Foundry (FY2026)", frequency: Trimestral, source: Microsoft,
+         observations: [{period: Q4 FY2026, date: "2026-06-30", status: green, note: "30M+ / ~100k"}]}
+      - {key: ai_economics, name: Economics de la IA (revenue incremental), kind: qualitative,
+         how_to_measure: "Revenue de IA, ARPU de Copilot y consumo de Foundry: que la adopción se convierta en ingresos y FCF",
+         green_text: "Adopción + monetización + consumo aumentan", amber_text: "Adopción fuerte pero economics poco transparentes", red_text: "Adopción fuerte pero monetización insuficiente durante un periodo prolongado",
+         frequency: Trimestral, source: Microsoft,
+         is_kill_switch: true, kill_rule: "Breaker 2: Copilot/Agents muestran adopción pero no consiguen monetización suficiente para justificar la inversión",
+         observations: [{period: Q4 FY2026, date: "2026-06-30", status: amber, note: "Economics todavía poco transparentes"}]}
+
+  - key: spend_per_customer
+    name: Gasto por cliente
+    description: "H3 — ¿El revenue crece más rápido que los usuarios? Diferencial entre ingresos de M365 Commercial y asientos."
+    kpis:
+      - {key: m365_spread, name: M365 Commercial revenue − seat growth, unit: "pp", green_threshold: 5, red_threshold: 2,
+         how_to_measure: "Crecimiento de ingresos de M365 Commercial menos crecimiento de asientos (puntos porcentuales)",
+         green_text: ">5 pp (sube el gasto por usuario)", amber_text: "2–5 pp", red_text: "<2 pp o negativo durante varios periodos",
+         frequency: Trimestral, source: Microsoft,
+         observations: [{period: FY2026, date: "2026-06-30", value: 11, note: "17% − 6% ≈ +11 pp"}]}
+
+  - key: ecosystem
+    name: Ecosistema y switching costs
+    description: "H4 — Más penetración de varios productos por cliente (Security, Entra, Foundry, Fabric, GitHub, M365, cross-sell)."
+    kpis:
+      - {key: cross_sell, name: Cross-sell / profundidad de producto, kind: qualitative,
+         how_to_measure: "Clientes de Security, identidades de Entra, clientes de Foundry y Fabric, usuarios de GitHub, asientos de M365",
+         green_text: "Más productos por cliente (↑)", amber_text: "Estable (→)", red_text: "Desacoplamiento o pérdida estructural de clientes (↓)",
+         frequency: Trimestral / anual, source: Microsoft,
+         is_kill_switch: true, kill_rule: "Breaker 6: los clientes empiezan a desacoplar estructuralmente identity + data + cloud + applications",
+         observations: [{period: FY2026, date: "2026-06-30", status: green, note: "Fuerte ↑"}]}
+
+  - key: ai_capex
+    name: ROIC del capex de IA
+    description: "H5 — Hipótesis crítica todavía no demostrada: ¿el enorme capital invertido en IA produce retornos suficientemente altos? Es la que más pesa en la valoración."
+    weight: 2
+    kpis:
+      - {key: incremental_roic, name: ROIC incremental, kind: qualitative,
+         how_to_measure: "Beneficio/FCF incremental frente al capital invertido; aún no observable de forma segmentada (auxiliares: depreciation/revenue, margen FCF, FCF/share)",
+         green_text: "Revenue y FCF incremental mantienen retornos elevados", amber_text: "Capex muy alto, revenue/uso sigue acelerando y la economía madura", red_text: "Capex alto + desaceleración + deterioro de FCF/ROIC",
+         frequency: Anual, source: Microsoft / cálculo propio,
+         is_kill_switch: true, kill_rule: "Breaker 5: el ROIC incremental cae materialmente durante varios años",
+         observations: [{period: FY2026, date: "2026-06-30", status: amber, note: "N/D: no demostrado"}]}
+      - {key: capex_to_revenue, name: Capex / revenue, kind: qualitative, unit: "%",
+         how_to_measure: "Capex (incluido leasing financiero) / ingresos; debe acabar reduciéndose cuando la capacidad produzca ingresos",
+         green_text: "Empieza a bajar con el crecimiento sostenido", amber_text: "Elevado mientras el revenue acelera", red_text: "Extraordinariamente alto con Azure desacelerando y FCF sin recuperar",
+         frequency: Trimestral, source: Microsoft,
+         is_kill_switch: true, kill_rule: "Breaker 4: capex extraordinariamente alto mientras Azure desacelera, el revenue normaliza y el FCF no recupera",
+         observations: [{period: FY2026, date: "2026-06-30", status: amber, note: "Ciclo extraordinario de inversión"}]}
+
+  - key: cloud_economics
+    name: Economics del cloud
+    description: "H6 — El nivel absoluto sigue siendo excelente; la señal amarilla procede de la dirección (69% FY2025 → ~66% FY2026 → ~65% Q4)."
+    kpis:
+      - {key: cloud_gross_margin, name: Microsoft Cloud gross margin, unit: "%", green_threshold: 67, red_threshold: 64,
+         how_to_measure: "Margen bruto de Microsoft Cloud del trimestre (y tendencia)",
+         green_text: ">67% y estable o recuperando", amber_text: "64–67%", red_text: "<64% persistentemente sin compensación por crecimiento",
+         frequency: Trimestral, source: Microsoft,
+         is_kill_switch: true, kill_rule: "Breaker 3: el margen sigue deteriorándose estructuralmente sin compensación suficiente por crecimiento",
+         observations: [{period: Q4 FY2026, date: "2026-06-30", value: 65, note: "~65% Q4 (~66% FY2026; ~69% FY2025)"}]}
+
+  - key: fcf_share
+    name: FCF por acción
+    description: "H7 — ¿El FCF/share termina capturando el crecimiento? FCF temporalmente deprimido por el capex de IA."
+    kpis:
+      - {key: fcf_per_share, name: FCF por acción YoY, kind: qualitative, unit: "%",
+         how_to_measure: "Crecimiento del FCF por acción (autocompletado); junto a FCF, margen FCF y BPA",
+         green_text: "Vuelve a crecer consistentemente a doble dígito (>10%)", amber_text: "En transición: deprimido por el capex mientras el negocio crece", red_text: "Se estanca o cae estructuralmente",
+         frequency: Trimestral, source: yfinance, auto_metric: fcf_per_share_yoy,
+         observations: [{period: FY2026, date: "2026-06-30", status: amber, note: "Transición"}]}
+
+  - key: relevance
+    name: Relevancia del ecosistema
+    description: "H8 — Azure, GitHub, Foundry, M365, Security y Fabric mantienen relevancia entre empresas y desarrolladores."
+    kpis:
+      - {key: developer_relevance, name: Relevancia entre desarrolladores, kind: qualitative,
+         how_to_measure: "Uso de GitHub, Azure y Foundry por desarrolladores y empresas; cuota de plataforma de IA empresarial",
+         green_text: "Fuerte (↑)", amber_text: "Estable (→)", red_text: "Pierde relevancia (↓)",
+         frequency: Anual, source: Microsoft / sector,
+         is_kill_switch: true, kill_rule: "Breaker 7: GitHub/Azure pierden relevancia estructural entre developers y empresas",
+         observations: [{period: FY2026, date: "2026-06-30", status: green, note: "Evidencia fuerte"}]}
+
+  - key: capital_allocation
+    name: Capital allocation
+    weight: 0
+    description: "Indicadores auxiliares (11): no forman parte del dashboard principal."
+    kpis:
+      - {key: share_count, name: Acciones en circulación YoY, unit: "%", direction: lower, green_threshold: 0, red_threshold: 0,
+         how_to_measure: "Acciones diluidas YoY (autocompletado)",
+         green_text: "Bajan", amber_text: "—", red_text: "Suben (dilución)",
+         frequency: Trimestral, source: yfinance, auto_metric: diluted_shares_yoy}
+      - {key: sbc_revenue, name: SBC / revenue, kind: qualitative, unit: "%",
+         how_to_measure: "Compensación en acciones / ingresos",
+         green_text: "Estable o bajando", amber_text: "Sube", red_text: "Sube con fuerza y diluye",
+         frequency: Anual, source: Microsoft}

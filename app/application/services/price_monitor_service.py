@@ -1,5 +1,5 @@
 """
-Centro de mando: evolución de la cartera y monitor de precios.
+Mercado y Cartera: evolución de la cartera y monitor de precios.
 
 Solo MONITORIZA: calcula variaciones, contribuciones y señales de precio para mostrarlas; no genera alertas ni lanza
 la IA. Si una señal interesa, el usuario pide él mismo «¿Por qué se mueve?» (radar de noticias de esa tesis).
@@ -15,7 +15,7 @@ import math
 import os
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -23,9 +23,9 @@ from utils.number_format import es
 
 logger = logging.getLogger(__name__)
 
-# Periodos que se MUESTRAN (de calendario, como pide el inversor): día, semana desde el lunes, mes desde el día 1, año.
+# Periodos que se MUESTRAN: 1 día, 1 semana, 1 mes y 1 año corridos, y lo que va de año (YTD).
 # Para detectar movimientos anormales se usa aparte una ventana fija de 5 sesiones.
-DISPLAY_PERIODS = ("1d", "wtd", "mtd", "ytd")
+DISPLAY_PERIODS = ("1d", "1w", "1m", "ytd", "1y")
 ABNORMAL_DAY_SIGMA = 2.5
 ABNORMAL_WEEK_SIGMA = 2.0
 IDIOSYNCRATIC_SIGMA = 2.0
@@ -56,10 +56,19 @@ def _load_backup() -> Dict[str, pd.Series]:
 def _save_backup(good: Dict[str, pd.Series]) -> None:
     with _backup_lock:
         data = _load_backup()
-        data.update(good)
+        for sym, series in good.items():   # se suma a lo guardado: un histórico cortado no borra el bueno
+            data[sym] = series.combine_first(data[sym]) if sym in data else series
         os.makedirs(os.path.dirname(BACKUP_FILE), exist_ok=True)
         pd.to_pickle(data, BACKUP_FILE + ".tmp")
         os.replace(BACKUP_FILE + ".tmp", BACKUP_FILE)
+
+
+TRUNCATED_DAYS = 45   # un valor que empieza tanto después que el resto viene cortado (o salió a bolsa hace poco)
+
+
+def _truncated(col: pd.Series, index: pd.DatetimeIndex) -> bool:
+    first = col.first_valid_index()
+    return first is not None and len(index) > 0 and (first - index[0]).days > TRUNCATED_DAYS
 
 
 def _single_history(sym: str) -> Optional[pd.Series]:
@@ -94,13 +103,26 @@ def download_history(symbols: List[str], fill: bool = True) -> pd.DataFrame:
             logger.warning("Descarga en bloque fallida (%s): se reintenta valor a valor", e)
             df = pd.DataFrame()
         df = df.sort_index()
-        bad = [s for s in syms if s not in df.columns or df[s].dropna().empty]
+        # vacíos, o cortados: Yahoo a veces devuelve solo los últimos días de un valor en la descarga en bloque, y ese
+        # hueco se tomaría como 0 € al inicio de la semana o del año (ganancias falsas de cientos de %)
+        bad = [s for s in syms if s not in df.columns or df[s].dropna().empty or _truncated(df[s], df.index)]
         if bad:
             from concurrent.futures import ThreadPoolExecutor
             with ThreadPoolExecutor(max_workers=6) as pool:
                 retried = dict(zip(bad, pool.map(_single_history, bad)))
             backup = _load_backup()
             for sym, series in retried.items():
+                current = df[sym].dropna() if sym in df.columns else None
+                if current is not None and current.empty:
+                    current = None
+                if current is not None:
+                    # cortado: se completa con el reintento o, si no, con el histórico guardado; si tampoco hay más
+                    # (salida a bolsa reciente), se deja como está
+                    longer = series if series is not None and series.index[0] < current.index[0] else backup.get(sym)
+                    if longer is None or longer.index[0] >= current.index[0]:
+                        continue
+                    logger.warning("Histórico de %s cortado en la descarga en bloque (desde %s): se completa", sym, current.index[0].date())
+                    series = current.combine_first(longer)
                 if series is None and sym in backup:
                     series = backup[sym]
                     logger.warning("Sin precio de %s en Yahoo: se usa su último histórico guardado (hasta %s)", sym, series.index[-1].date())
@@ -109,6 +131,9 @@ def download_history(symbols: List[str], fill: bool = True) -> pd.DataFrame:
                     df = df.drop(columns=[sym], errors="ignore")
                     df = df.join(series.rename(sym), how="outer") if not df.empty else series.to_frame(sym)
             df = df.sort_index()
+        # Yahoo a veces deja vacío el cierre de hoy de bolsas que ya han cotizado hoy (p. ej. Tokio): se completa
+        from app.application.services.session_fill import fill_today
+        df = fill_today(df)
         good = {s: df[s].dropna() for s in syms if s in df.columns and not df[s].dropna().empty}
         try:
             _save_backup(good)
@@ -133,15 +158,14 @@ def stale_symbols(df: pd.DataFrame, symbols: List[str], days: int = 4) -> Dict[s
 
 
 def period_starts(index: pd.DatetimeIndex) -> Dict[str, pd.Timestamp]:
-    """Cierre de referencia de cada periodo: la sesión anterior (día), el último cierre antes del lunes de esta semana
-    (semana), antes del día 1 de este mes (mes) y antes del 1 de enero (año)."""
+    """Cierre de referencia de cada periodo: la sesión anterior (1D), el último cierre de hace 7 días (1S), de hace un
+    mes (1M) y de hace un año (1A), corridos, y el último cierre antes del 1 de enero (YTD)."""
     now = index[-1]
-    monday = (now - pd.Timedelta(days=now.weekday())).normalize()
-    first_month = pd.Timestamp(year=now.year, month=now.month, day=1)
-    first_year = pd.Timestamp(year=now.year, month=1, day=1)
     starts = {"1d": index[-2] if len(index) > 1 else index[-1]}
-    for key, boundary in (("wtd", monday), ("mtd", first_month), ("ytd", first_year)):
-        before = index[index < boundary]
+    for key, boundary in (("1w", now - pd.Timedelta(days=7)), ("1m", now - pd.DateOffset(months=1)),
+                          ("ytd", pd.Timestamp(year=now.year, month=1, day=1) - pd.Timedelta(days=1)),
+                          ("1y", now - pd.DateOffset(years=1))):
+        before = index[index <= boundary]
         starts[key] = before[-1] if len(before) else index[0]
     return starts
 
@@ -163,16 +187,20 @@ def adjusted_shares(tx: Dict[str, Any], splits: List[tuple]) -> float:
 
 
 def portfolio_changes(df: pd.DataFrame, transactions: List[Dict[str, Any]], splits: Dict[str, List[tuple]],
-                      benchmark: Optional[str] = None) -> Dict[str, Any]:
-    """Rentabilidad de la cartera en día / semana desde el lunes / mes desde el día 1 / año, RESPETANDO LAS FECHAS DE
+                      benchmark: Optional[str] = None, rolling_days: Iterable[int] = ()) -> Dict[str, Any]:
+    """Rentabilidad de la cartera en los periodos de period_starts (1D, 1S, 1M, YTD, 1A), RESPETANDO LAS FECHAS DE
     COMPRA Y VENTA: las acciones al inicio del periodo se reconstruyen con las operaciones y las compras/ventas dentro del
     periodo son aportaciones/retiradas (Modified Dietz), así una compra no cuenta como ganancia.
-    transactions: [{ticker, date, type BUY|SELL, shares, price, currency, fx}] (fx = EUR por unidad, opcional)."""
+    transactions: [{ticker, date, type BUY|SELL, shares, price, currency, fx}] (fx = EUR por unidad, opcional).
+    rolling_days: además, periodos corridos («7d», «30d»…): desde el último cierre de hace N días naturales."""
     tickers = sorted({t["ticker"] for t in transactions if t["ticker"] in df.columns})
     if not tickers:
         return {"total_eur": 0.0, "periods": {}, "positions": {}}
     index = df[tickers].dropna(how="all").index
     now, starts = index[-1], period_starts(index)
+    for n in rolling_days:
+        before = index[index <= now - pd.Timedelta(days=n)]
+        starts[f"{n}d"] = before[-1] if len(before) else index[0]
     by_ticker = {t: [x for x in transactions if x["ticker"] == t] for t in tickers}
 
     def price_eur(t: str, when) -> Optional[float]:
@@ -221,10 +249,15 @@ def portfolio_changes(df: pd.DataFrame, transactions: List[Dict[str, Any]], spli
     for key, start in starts.items():
         start_s, span = start.date().isoformat(), max((now - start).days, 1)
         v0_total, pnl_total, weighted_flows = 0.0, 0.0, 0.0
-        pnl = {}
+        pnl, incomplete = {}, []
         for t in tickers:
             sh0 = shares_at(t, start_s)
-            v0 = sh0 * (price_eur(t, start) or 0)
+            p0 = price_eur(t, start)
+            if sh0 > 0 and p0 is None:
+                # sin precio al inicio del periodo: contarlo a 0 € haría de toda la posición una ganancia
+                incomplete.append(t)
+                continue
+            v0 = sh0 * (p0 or 0)
             v1 = values_now.get(t, 0.0)
             flows = [(x, flow_eur(x)) for x in by_ticker[t] if start_s < x["date"][:10] <= now_s]
             net = sum(f for _, f in flows if f is not None)
@@ -235,6 +268,8 @@ def portfolio_changes(df: pd.DataFrame, transactions: List[Dict[str, Any]], spli
         pnl_total = sum(pnl.values())
         denom = v0_total + weighted_flows
         periods[key] = {"pct": 100 * pnl_total / denom if denom > 0 else None, "abs_eur": pnl_total}
+        if incomplete:
+            periods[key]["incomplete"] = incomplete   # quedan fuera del cálculo de este periodo
         for t in tickers:
             contrib[t][key] = 100 * pnl[t] / denom if t in pnl and denom > 0 else None
             pnl_eur[t][key] = pnl.get(t)   # ganancia o pérdida en euros del periodo (sin contar compras ni ventas)

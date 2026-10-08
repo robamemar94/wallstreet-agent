@@ -1,82 +1,62 @@
-# Alpha-Flow — Investment Analysis Platform
+# Alpha-Flow — plataforma personal de inversión
 
-## What it does
-FastAPI web app that combines portfolio tracking with AI-driven investment analysis (CrewAI + Gemini). Tracks buy/sell/dividend transactions, calculates P&L, and runs 5 specialized agents to produce financial, moat, capital allocation, and valuation analyses.
+FastAPI + Jinja2. Cartera (compras, ventas, dividendos, P&L multidivisa), watchlist con zonas de valoración,
+tesis de inversión con radar semanal de noticias, Centro de mando (avisos, agenda, resumen) y agentes de IA (CrewAI + Gemini).
 
-## How to run
+## Reglas de trabajo
+- **Responder en español.** Toda la interfaz está en español.
+- **Números en formato español** (1.234,56): `num()` en plantillas, `fmtNum()` en JS (definido en `base.html`),
+  `utils/number_format.es()` en Python. Los `value=`, `data-*` y los scripts siguen usando punto decimal.
+- **Nada de llamadas automáticas a la IA (Gemini):** solo cuando el usuario pulsa un botón. Nada que gaste tokens por sí solo.
+- **Git:** dejar en stage (`git add`) lo que se crea o se cambia. **No hacer commit** salvo que se pida.
+- Cambios pequeños: hacerlos sin pedir confirmación y avisar. Preguntar solo las decisiones importantes.
+- **Mantener este archivo al día:** al terminar algo importante (pantalla o pestaña nueva, servicio nuevo, archivos que se
+  mueven o se parten, una regla o convención nueva, un cambio en cómo se prueba o se arranca), actualizar el mapa
+  o la sección que toque, dejarlo en stage y decirlo en el resumen final. No hace falta por arreglos pequeños.
+
+## Arrancar y probar
 ```bash
-python main.py          # starts at http://127.0.0.1:8000
-alembic upgrade head    # apply DB migrations (SQLite)
+uv run uvicorn main:app --reload        # http://127.0.0.1:8000 (normalmente ya está arrancada)
+alembic upgrade head                    # migraciones (SQLite)
+PYTHONPATH=. uv run --with pytest python -m pytest -q tests/test_notices.py   # pytest NO está en el venv
 ```
+- La suite completa tarda unos 5 min: mejor pasar solo los tests del área que se ha tocado.
+- Para ver una página sin navegador: `curl -s http://127.0.0.1:8000/mercado/centro | grep ...`
 
-## Tech stack
-- **Backend**: FastAPI + Jinja2 templates, Uvicorn
-- **AI**: CrewAI v0.100+, Google Gemini 2.5 Pro
-- **DB**: SQLite via SQLAlchemy 2.0 + Alembic migrations
-- **Data**: yfinance, DuckDuckGo search
-- **Package manager**: `uv` (lockfile: `uv.lock`)
-- **Python**: 3.11+
+## Mapa: pantalla → archivos
+| Pantalla | Ruta | Vista | Plantillas | Servicios |
+|---|---|---|---|---|
+| Mercado (portada) | `/mercado` | `market_views.py` | `index.html` | `market_cache`, `price_monitor_service` |
+| Centro de mando (pestaña de Mercado; se carga aparte) | `/mercado/centro`, `/centro` | `thesis_views.py` (`mercado_centro_fragment`) | `_mercado_centro.html`, `_agenda.html` (Agenda + Resumen), `_notices.html` (avisos, monitor, leído/no leído), `_centro_tabs.html` | `agenda_service`, `notice_service`, `notification_service` |
+| Cartera | `/portfolio`, `/portfolio/seguimiento` | `portfolio_views.py`, `thesis_views.py` | `portfolio.html`, `_positions_tracking.html` | `portfolio_service`, `performance_service`, `distribution_service`, `dividend_forecast` |
+| Ficha de una posición | `/portfolio/ticker/{t}` | `portfolio_views.py` | `portfolio_ticker.html` | |
+| Ficha de una empresa | `/ticker/{t}` | `market_views.py` | `ticker.html` | `base_valuation_service`, `market_cap_service` |
+| Watchlist | `/watchlist` | `watchlist_views.py` | `watchlist.html`, `_watchlist.html`, `_watchlist_table.html` | `alerts_service` (zonas) |
+| Tesis | `/tesis`, `/tesis/{id}` | `thesis_views.py` | `theses.html`, `thesis_detail.html`, `_thesis_macros.html`, `_thesis_review.html` | `thesis_service`, `thesis_review_service`, `thesis_ai_service` |
+| Noticias (radar) | `/noticias` | `thesis_views.py` | `news.html` | `thesis_news_runner`, `news_summary_service` |
+| Calendario, Oportunidades, Comparar | `/calendario`, `/oportunidades`, `/comparar` | `market_views.py` | `comparar.html`… | `results_calendar` |
+| Base de datos de empresas | `/database` | `market_views.py` | `database.html` | |
+| Listas | `/lists` | `lists_views.py` | `lists.html` | |
+| Ajustes / uso de IA | `/settings`, `/settings/ia`, `/ia` | `settings_views.py` | `settings.html`, `settings_ai.html` | `ai_usage_service` |
 
-## Architecture (Clean Architecture)
-```
-app/
-  application/services/   # business logic (portfolio, performance, alerts)
-  domain/                 # Pydantic models + repository interfaces
-  infrastructure/         # SQLAlchemy DB, repository implementations, config
-  interfaces/
-    api/                  # REST endpoints
-    views/                # HTML template routes
-agents/                   # 5 CrewAI agents
-tools/                    # data-fetching tools (yfinance, Gemini, DDG)
-config/                   # YAML: agents.yaml, tasks.yaml, prompts.yaml, settings.json
-templates/                # Jinja2 HTML
-data/                     # SQLite DB (alpha_flow.db) + JSON files
-migrations/               # Alembic versions
-```
+- Las vistas HTML están en `app/interfaces/views/`; la API JSON en `app/interfaces/api/` (prefijo `/api`).
+- Los servicios están en `app/application/services/`.
+- `base.html` lleva el menú, la campana de notificaciones, los globos de no leídos y los helpers JS comunes (`fmtNum`…).
+- Tareas en segundo plano: `cache_warmer` (precarga cada 6 h) y `price_scheduler`.
 
-## Key files
-| File | Purpose |
-|---|---|
-| `main.py` | FastAPI app init + route registration |
-| `app/interfaces/views/market_views.py` | Main dashboard route (582 lines) |
-| `app/application/services/portfolio_service.py` | Portfolio calculations (313 lines) |
-| `app/application/services/performance_service.py` | Performance metrics (261 lines) |
-| `app/application/services/alerts_service.py` | Alert generation (133 lines) |
-| `agents/utils.py` | Agent orchestration |
-| `tools/search_tool.py` | Data fetching tools |
-| `config/agents.yaml` | Agent roles, goals, methodology |
-| `config/tasks.yaml` | Task definitions + expected outputs |
-| `storage.py` | JSON file I/O |
-| `utils/financial_math.py` | CAGR, FCF Yield |
+## Conceptos que se repiten
+- **Avisos y señales:** `notice_service.track()` les da una clave estable y guarda leído/descartado en BBDD
+  (`/api/notices/seen`, `/api/notices/dismiss`). El recuento de no leídos **solo cuenta la cartera** (`data-held`).
+  Ese recuento aparece en varios sitios (lista, pestaña del Centro, Resumen, globo del menú, `/api/centro/pulso`):
+  si se cambia uno, hay que revisar los demás.
+- **Tesis:** `config/theses/<ticker>.yaml` (datos y reglas) + `.md` (texto). Los documentos fuente están en `data/theses/`.
+- **Valoración:** un único caso base con selector BPA o FCF. Zonas en `config/settings.json` → `valuation`.
+- **Multidivisa:** cambio de divisa automático con yfinance. Los importes de la cartera se muestran en €.
 
-## Environment variables (`.env`)
-```
-GOOGLE_API_KEY / GEMINI_API_KEY   # Gemini API
-SERPER_API_KEY                     # web search
-CREWAI_TELEMETRY_OPT_OUT=true
-PYTHONPATH=.
-```
+## Stack
+FastAPI, Jinja2, SQLAlchemy 2 + Alembic (SQLite en `data/alpha_flow.db`), yfinance, CrewAI + Gemini 2.5 Pro, `uv`, Python 3.13.
+Agentes en `agents/` (prompts en `config/agents.yaml`, `tasks.yaml`, `prompts.yaml`).
+Variables en `.env`: `GOOGLE_API_KEY`/`GEMINI_API_KEY`, `SERPER_API_KEY`, `CREWAI_TELEMETRY_OPT_OUT=true`.
 
-## Database
-- **Location**: `./data/alpha_flow.db` (SQLite)
-- **Key tables**: `assets`, `transactions`, `ledger_entries`, `portfolio_items`, `settings`, `alerts`, `analysis_tasks`
-- Legacy JSON files in `data/*.json` (migrated via `scripts/migrate_json_to_sqlite.py`)
-
-## The 5 AI agents
-1. **Financial Analyst** — cash flow, earnings quality, balance sheet audit
-2. **Capital Allocation Specialist** — buybacks, dividends, M&A, SBC evaluation
-3. **Moat Analyst** — competitive advantage and durability assessment
-4. **Investment Director** — synthesizes all analyses into buy/hold/sell decision
-5. **Valuation Agent** — IRR scenarios, target entry price for 20% return
-
-## Settings (`config/settings.json`)
-```json
-{
-  "ui": { "items_per_page": 10, "dark_mode": true },
-  "valuation": { "ganga": 0.7, "barata": 0.85, "justo_max": 1.15, "cara_max": 1.3 },
-  "performance": { "benchmark_ticker": "URTH", "cache_duration_min": 60 }
-}
-```
-
-## Multi-currency
-Supports EUR, GBP, JPY, etc. with automatic FX conversion via yfinance.
+## No leer (ruido)
+`scripts/legacy/` (scripts sueltos antiguos), `data/*.json` (cachés), `logos_cache/`, `migrations/versions/` (salvo que se toquen migraciones).

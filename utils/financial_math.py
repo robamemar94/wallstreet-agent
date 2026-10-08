@@ -264,32 +264,34 @@ def get_financials_history(ticker, stock, db):
         if "chart_metrics" in data:
             for k, v in data["chart_metrics"].items():
                 if k not in data: data[k] = v
+        data["source"] = "audit"
         return data
 
     financials_manual = db.get("financials_hist_manual")
     if financials_manual and "years" in financials_manual and len(financials_manual["years"]) > 0:
-        return financials_manual
+        return {**financials_manual, "source": "manual"}
 
     # 2. Preferencia 15y (Generados por IA previa)
     financials_hist_15y = db.get("financials_hist_15y")
     if financials_hist_15y and "years" in financials_hist_15y:
-        return financials_hist_15y
+        return {**financials_hist_15y, "source": "ia"}
         
     financials_hist_10y = db.get("financials_hist_10y")
     if financials_hist_10y and "years" in financials_hist_10y:
-        return financials_hist_10y
+        return {**financials_hist_10y, "source": "ia"}
         
     # 2. Fallback a AlphaVantage
     try:
         av = AlphaVantageFetcher()
         financials_hist = av.get_financials(ticker)
         if financials_hist and financials_hist.get('years'):
-            return financials_hist
+            return {**financials_hist, "source": "alphavantage"}
     except Exception as e:
         logger.error(f"Fallo en AlphaVantage fetch: {e}")
 
     # 3. Último recurso: yfinance directo (solo 4 años aprox)
-    financials_hist = {'years': [], 'revenue': [], 'net_income': [], 'eps': [], 'fcf': []}
+    # source: de dónde sale el histórico (la ficha avisa cuando no hay datos cargados por el usuario)
+    financials_hist = {'years': [], 'revenue': [], 'net_income': [], 'eps': [], 'fcf': [], 'source': 'yahoo'}
     try:
         fin = stock.financials
         cf = stock.cashflow

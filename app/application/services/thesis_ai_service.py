@@ -1,6 +1,7 @@
 """
 Utilidades de IA para las tesis (llamadas a Gemini con Google Search y control de si buscó de verdad) y el
 radar semanal de noticias: búsqueda + clasificación por materialidad (solo ≥4/5), cubriendo desde el último radar.
+Todas las tesis van alineadas: una vez por semana, a partir del lunes a las RADAR_START_HOUR.
 La revisión de resultados está en thesis_review_service.
 """
 import json
@@ -17,6 +18,7 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 NEWS_INTERVAL_DAYS = 7
 NEWS_MAX_WINDOW_DAYS = 31  # si hace mucho del último radar, no buscar más atrás de esto
 NEWS_MIN_MATERIALITY = 4   # solo noticias muy relevantes para la tesis
+RADAR_START_HOUR = 7       # el radar semanal empieza el lunes a esta hora
 STATUS_VALUES = ("green", "amber", "red")
 IMPACT_VALUES = ("positive", "negative", "neutral")
 
@@ -209,12 +211,25 @@ def parse_news(data: Dict[str, Any], n_steps: int) -> Dict[str, Any]:
     return {"items": items, "summary": (data.get("summary") or "").strip()}
 
 
+def radar_week_start(now: Optional[datetime] = None) -> datetime:
+    """Inicio de la semana del radar: el lunes a las RADAR_START_HOUR (antes de esa hora, aún cuenta la anterior)."""
+    now = now or datetime.now()
+    start = (now - timedelta(days=now.weekday())).replace(hour=RADAR_START_HOUR, minute=0, second=0, microsecond=0)
+    return start if now >= start else start - timedelta(days=7)
+
+
 def news_due(last_digest: Optional[Dict[str, Any]], now: Optional[datetime] = None) -> bool:
-    """El radar solo se vuelve a consultar si el último tiene NEWS_INTERVAL_DAYS o más."""
+    """Toca radar si el último es anterior al lunes de esta semana: así todas las tesis van juntas los lunes."""
     if not last_digest or not last_digest.get("created_at"):
         return True
-    now = now or datetime.now()
-    return now - datetime.fromisoformat(last_digest["created_at"]) >= timedelta(days=NEWS_INTERVAL_DAYS)
+    return datetime.fromisoformat(last_digest["created_at"]) < radar_week_start(now)
+
+
+def next_radar(last_digest: Optional[Dict[str, Any]]) -> Optional[datetime]:
+    """Lunes en que vuelve a tocar radar (None si no hay ninguno)."""
+    if not last_digest or not last_digest.get("created_at"):
+        return None
+    return radar_week_start(datetime.fromisoformat(last_digest["created_at"])) + timedelta(days=7)
 
 
 def _run_news(client, model: str, thesis: Dict[str, Any], ev: Dict[str, Any], days: int) -> Dict[str, Any]:

@@ -1,5 +1,7 @@
 # ROLLINS (ROL)
-*Investment Research — Master Thesis v2.7*
+*Investment Research — Master Thesis v2.8*
+
+> **Actualización:** 7 de octubre de 2026. Q3 2026 aún no incorporado al momento de esta versión; el próximo resultado es el principal evento de verificación.
 
 > **Arquitectura:** 0–9, exactamente alineada con la plantilla conceptual del Investment Research Framework.
 
@@ -7,14 +9,19 @@
 
 ### 0.2 Estado actual de la tesis
 
-#### Estado actual: WATCH
+#### Estado actual: WATCH 🟡
 
 La tesis estructural de Rollins sigue siendo atractiva desde el punto de
-vista económico, pero en septiembre de 2026 existe una cuestión material
+vista económico, pero a 7 de octubre de 2026 existe una cuestión material
 que impide clasificarla simplemente como `Intact`:
 
 > **¿El cambio en búsqueda/digital está alterando de forma estructural
 > la economía de captación de nuevos clientes residenciales?**
+
+**Regla de lectura:** un trimestre débil no rompe por sí solo el moat. La
+tesis empeora de verdad si la debilidad de adquisición termina traduciendo
+en **menor crecimiento orgánico + peor retención/CAC + menor margen
+incremental + menor FCF por acción** de forma persistente.
 
 La empresa mantiene varias defensas:
 
@@ -1680,27 +1687,65 @@ pricing, retención y margen.
 
 ### 7.2 KPI Dashboard maestro
 
-| KPI | Actual | Objetivo/alerta | Tipo | Frecuencia |
-|---|---|---|---|---|
-| Revenue growth | +7,9% Q2 |  | Lagging | trimestral |
-| Organic growth | +5,7% Q2 | >~7% deseable | Lagging | trimestral |
-| Organic H1 | +6,1% |  | Lagging | trimestral |
-| Residential organic | +3,6% Q2 | recuperación | Lagging | trimestral |
-| Commercial organic | +7,2% Q2 |  | Lagging | trimestral |
-| Termite/ancillary organic | +8,9% Q2 |  | Lagging | trimestral |
-| Incremental EBITDA margin | ~6,5% | >=10% 2026 | Lagging | trimestral |
-| EBITDA margin | ~21,9% |  | Lagging | trimestral |
-| Operating margin | ~18,7% |  | Lagging | trimestral |
-| FCF | ~$277M H1 |  | Lagging | trimestral |
-| Leads | deterioro en ciertos canales | estabilización | Leading | trimestral |
-| CAC | N/D | estabilidad | Leading | trimestral |
-| Clientes nuevos | N/D | crecimiento | Leading | trimestral |
-| Retención | N/D | estabilidad | Leading | trimestral |
-| M&A growth | +2,8% H1 | ~2–3% | Intermedio | trimestral |
-| Múltiplo M&A | N/D |  | Leading | adquisición |
-| ROIC M&A | N/D | > WACC | Lagging | anual |
-| Share count | monitorizar | ↓ neto | Lagging | trimestral |
-| FCF/share | monitorizar | crecimiento | Lagging | trimestral |
+**Principio:** solo entran KPIs que puedan cambiar nuestra lectura del negocio.
+No añadimos métricas por completitud. Los indicadores operativos como CAC,
+leads, clientes nuevos, vehículos/millas o productividad se investigan cuando
+una hipótesis los activa; no todos deben vivir en el dashboard principal.
+
+#### Dashboard principal
+
+| KPI | Actual | 🟢 | 🟡 | 🟠 | 🔴 | Estado |
+|---|---:|---:|---:|---:|---:|:---:|
+| **Organic growth** | **5,7% Q2 / 6,1% H1** | ≥7% | 5–7% | 4–5% | <4% persistente | 🟡 |
+| **Residential organic** | **3,6% Q2 / 3,9% H1** | ≥6% | 4–6% | 2–4% | <2% + deterioro adquisición | 🟠 |
+| **Commercial organic** | **7,2% Q2 / 7,4% H1** | ≥7% | 5–7% | 3–5% | <3% persistente | 🟢 |
+| **Termite/ancillary organic** | **8,9% Q2 / 9,3% H1** | ≥8% | 6–8% | 4–6% | <4% | 🟢 |
+| **Incremental EBITDA margin** | **~6,5% Q2** | ≥15–20% | 10–15% | 5–10% | <5% persistente | 🟠 |
+| **Adjusted EBITDA margin** | **~21,9% Q2** | ≥22,5% | 21–22,5% | 19–21% | <19% persistente | 🟡 |
+| **FCF margin** | **~17,3% FY25** | ≥16% | 14–16% | 12–14% | <12% | 🟢 |
+| **FCF/share growth** | **N/D normalizado** | ≥8% | 5–8% | 2–5% | <2% | 🟡 |
+| **Recurring revenue** | **~75%** | ≥75% | 70–75% | 65–70% | <65% | 🟢 |
+| **M&A contribution** | **~2,8% H1** | 2–3% + buen ROIC | 1–2% | >3% por necesidad | crecimiento sin retorno | 🟢/🟡 |
+| **M&A ROIC** | **N/D** | >WACC con margen | >WACC | ≈WACC | <WACC persistente | 🟡 |
+| **Net share count** | **N/D actualizado** | ↓ | estable | ↑ leve | ↑ persistente | 🟡 |
+
+#### Por qué estos 12 y no 25
+
+Son los KPIs que cubren directamente las piezas de la tesis:
+
+- **Growth:** organic + segmentos.
+- **Moat/customer economics:** recurring revenue y, cuando se divulguen,
+  retención/CAC.
+- **Operating leverage:** incremental EBITDA + margen.
+- **Cash compounding:** FCF y FCF/share.
+- **Capital allocation:** M&A + ROIC + share count.
+
+Los indicadores como leads, CAC, clientes nuevos, clientes/técnico, millas,
+servicios/técnico o precio de adquisición **son KPIs de investigación
+secundarios**: se activan cuando una hipótesis concreta lo necesita.
+
+#### Semáforo
+
+- 🟢 = evidencia que confirma el mecanismo.
+- 🟡 = funciona, pero falta evidencia para elevar convicción.
+- 🟠 = señal de debilidad que requiere explicación.
+- 🔴 = combinación de señales que amenaza una hipótesis central.
+
+Los umbrales son **reglas internas de investigación**, no guidance de Rollins.
+Si no existe disclosure fiable, usamos `N/D`.
+
+#### Indicadores secundarios por hipótesis
+
+**AI/search:** leads → CAC → conversión → clientes nuevos → residential organic.
+
+**Densidad:** clientes/técnico → servicios/técnico → millas/vehículo →
+coste/servicio → margen.
+
+**M&A:** precio → revenue adquirido → EBITDA → crecimiento post-deal →
+margen → FCF → ROIC.
+
+**Capital allocation:** precio de recompras → SBC → share count → FCF/share →
+deuda neta.
 
 ------------------------------------------------------------------------
 
@@ -1851,93 +1896,93 @@ Primero:
 
 ### 8.4 Base normalizada
 
-Referencia aproximada:
+Referencia de trabajo:
 
--   FCF normalizado: ~$600–625M;
--   shares: ~481M;
--   FCF/share: ~$1,25–1,30.
+- precio de referencia: **~$30,35** (6-oct-2026);
+- shares: **~481M**;
+- FCF normalizado: **~$620M**;
+- FCF/share normalizado: **~$1,29**;
+- FCF yield: **~4,25%**;
+- P/FCF normalizado: **~23,5x**.
 
-------------------------------------------------------------------------
+El objetivo es valorar el **FCF por acción**, no simplemente el FCF total.
 
-### 8.5 EV / EBITA
+### 8.5 Valoración por FCF
 
-EBITA normalizado 2026:
+| Escenario | CAGR FCF/share | Descuento | Terminal P/FCF | Valor aprox. | CAGR precio 5y | CAGR precio 10y |
+|---|---:|---:|---:|---:|---:|---:|
+| Bear | 6% | 9% | 23x | **~$34** | ~5,5% | ~5,7% |
+| Base | 7,5% | 8,5% | 28x | **~$45** | ~11,3% | ~9,4% |
+| Bull | 10% | 8% | 32x | **~$64** | ~16,9% | ~13,4% |
 
-**~$780–790M.**
+**Lectura:** el caso base no exige 10–12% de crecimiento de FCF durante una
+década. Exige aproximadamente high-single-digit en FCF/share y que Rollins
+conserve una prima de calidad razonable.
 
-| EV/EBITA | Valor aproximado |
-|---|---|
-| 18x | ~$28–29 |
-| 20x | ~$31–32 |
-| 22x | ~$34–35 |
-| 24x | ~$37–38 |
-| 26x | ~$40–42 |
+#### Zona de valor razonable
 
-La zona central de valoración actual se sitúa aproximadamente en:
+- **<$25:** muy atractiva si la tesis no se deteriora.
+- **$25–30:** atractiva.
+- **$30–35:** interesante.
+- **$35–40:** razonable.
+- **$40–50:** aproximadamente valor razonable/base.
+- **>$50:** exige más crecimiento, más margen o un múltiplo terminal alto.
 
-**$34–36.**
+### 8.6 EBITA como comprobación secundaria
 
-------------------------------------------------------------------------
+EBITA es útil como cross-check porque las adquisiciones generan amortización de
+customer contracts y otros intangibles.
 
-### 8.6 FCF multiple
+No debe sustituir al FCF.
 
-Con FCF/share de ~$1,25–1,30:
+Con un EBITA normalizado aproximado de **$780–790M**, una valoración razonable
+de calidad podría situarse en una zona de **~20–24x EV/EBITA**, pero el resultado
+depende de deuda, amortización, crecimiento y normalización.
 
-| P/FCF | Valor aproximado |
-|---|---|
-| 22x | ~$27–29 |
-| 24x | ~$30–31 |
-| 26x | ~$33–34 |
-| 28x | ~$35–36 |
-| 30x | ~$38–39 |
+**Conclusión:** FCF/share es el método principal; EBITA es una comprobación de
+coherencia.
 
-La convergencia entre FCF y EBITA refuerza la zona central, aunque ambos
-métodos dependen de normalización.
+### 8.7 Qué tendría que ocurrir para justificar cada escenario
 
-------------------------------------------------------------------------
+#### Bear
 
-### 8.7 Bear / Base / Bull
+- organic estructuralmente 4–6%;
+- FCF/share ~6%;
+- residential sigue débil;
+- incremental margin <10%;
+- M&A aporta crecimiento pero con ROIC mediocre;
+- terminal multiple se comprime hacia low-20s.
 
-> Escenarios de sensibilidad. No son previsiones.
+#### Base
 
-| Variable | Bear | Base | Bull |
-|---|---|---|---|
-| Crecimiento total | ~5% | ~7% | ~9% |
-| EBITA margin | ~19% | ~21% | ~22,5% |
-| Terminal EV/EBITA | 18x | 21x | 24x |
-| Valor 2031 | ~$36 | ~$52 | ~$70 |
-| CAGR precio 5 años | ~3–4% | ~11–12% | ~18–19% |
+- organic vuelve hacia 6–8%;
+- M&A aporta ~2–3%;
+- commercial y ancillary siguen compensando parte de residential;
+- incremental margins se normalizan;
+- FCF/share ~7–8%;
+- M&A crea valor por encima del coste de capital.
 
-------------------------------------------------------------------------
+#### Bull
+
+- residential recupera;
+- AI/search resulta principalmente una transición de canal;
+- densidad y cross-selling producen operating leverage;
+- FCF/share ~10%;
+- M&A mantiene retornos altos;
+- Rollins conserva una prima de compounder.
 
 ### 8.8 Sensibilidades realmente importantes
 
-El valor de Rollins depende especialmente de:
+El valor depende especialmente de:
 
-##### Crecimiento orgánico
+1. **organic growth**, especialmente residential;
+2. **incremental margin**;
+3. **M&A ROIC**;
+4. **FCF/share**, incluyendo share count;
+5. **terminal multiple**.
 
-Una diferencia de 2 puntos durante 10 años tiene un efecto enorme sobre
-FCF.
-
-##### Margen
-
-Si el operating leverage desaparece, el valor cae incluso con buen
-revenue growth.
-
-##### M&A ROIC
-
-Determina cuánto crecimiento puede comprar Rollins sin destruir valor.
-
-##### Terminal multiple
-
-Una empresa que crece 7–9% con alta recurrencia puede justificar un
-múltiplo elevado, pero no indefinidamente.
-
-##### Share count
-
-El crecimiento debe medirse por acción.
-
-------------------------------------------------------------------------
+El error más peligroso sería asumir simultáneamente crecimiento alto, expansión
+de margen y múltiplo terminal alto. Debemos exigir evidencia para cada uno.
 
 ### 8.9 ¿Qué estamos comprando a ~$30?
 
@@ -2119,7 +2164,46 @@ Responder:
 
 ------------------------------------------------------------------------
 
-### 9.6 Investigación pendiente
+### 9.6 Lo que sabemos, lo que inferimos y lo que NO sabemos
+
+#### Hechos suficientemente soportados
+
+- &gt;75% del negocio es recurrente.
+- El mercado está fragmentado y Rollins lleva años consolidándolo.
+- BOSS y la red de rutas están diseñados para mejorar eficiencia operativa.
+- Commercial y termite/ancillary están creciendo mejor que residential en
+  2026.
+- El margen incremental de Q2 fue débil frente al nivel que necesitaríamos
+  para validar plenamente el operating leverage.
+
+#### Inferencias razonables, todavía no demostradas por completo
+
+- La densidad debería producir mejor utilización del técnico y menor coste
+  unitario.
+- La escala debería mejorar la capacidad de captación, tecnología y M&A.
+- La combinación de recurrencia + densidad + M&A puede generar un flywheel.
+- La diversificación de canales puede hacer que AI/search sea una disrupción
+  de adquisición y no del modelo completo.
+
+#### N/D: preguntas que debemos resolver
+
+1. CAC por canal y su evolución.
+2. LTV/CAC por canal.
+3. Serie completa y homogénea de churn/retención residencial.
+4. Número de clientes nuevos netos y su contribución al crecimiento.
+5. Relación cuantitativa entre densidad, productividad y margen.
+6. ROIC real de las adquisiciones después de 2–4 años.
+7. Cuánto del crecimiento de ancillary es cross-selling.
+8. Cuánto del deterioro residencial de 2026 procede de AI/search frente a
+   demanda, clima, mix y estacionalidad.
+
+**Estas incógnitas no deben rellenarse con estimaciones de precisión falsa.**
+Son precisamente las preguntas que determinan si la tesis pasa de `WATCH` a
+`INTACT`.
+
+------------------------------------------------------------------------
+
+### 9.7 Investigación pendiente
 
 #### Prioridad A — M&A ROIC
 
@@ -2178,11 +2262,12 @@ Completar DCF con:
 
 ------------------------------------------------------------------------
 
-### 9.7 Fuentes principales
+### 9.8 Fuentes principales
 
 #### Fuentes primarias
 
 -   Rollins 2025 Form 10-K / Annual Report.
+    https://www.sec.gov/Archives/edgar/data/84839/000008483926000008/rol-20251231.htm
 -   Rollins Q1/Q2 2026 filings and earnings materials.
 -   Rollins acquisition disclosures.
 -   Rollins investor presentations / earnings calls.
@@ -2204,7 +2289,7 @@ directamente.
 
 ------------------------------------------------------------------------
 
-### 9.8 Conclusión de la tesis
+### 9.9 Conclusión de la tesis
 
 Rollins presenta una combinación poco habitual:
 
@@ -2272,7 +2357,7 @@ Todavía no tenemos evidencia suficiente para concluir que sí.
 
 Por eso:
 
-### 9.9 Regla de oro de seguimiento
+### 9.10 Regla de oro de seguimiento
 
 > **No actualizar la tesis por titulares. Actualizarla por mecanismos.**
 
@@ -2304,3 +2389,22 @@ Ese es el sistema que debemos monitorizar durante los próximos años.
 - No inventar KPIs, umbrales ni precisión que la evidencia no permita.
 - Podar cualquier análisis que no cambie comprensión, hipótesis, valoración o seguimiento.
 
+------------------------------------------------------------------------
+
+### ANEXO — REGLA DE ACTUALIZACIÓN DEL DASHBOARD
+
+**No actualizar un semáforo por un titular aislado.** Para cambiarlo debemos
+identificar:
+
+1. el dato nuevo;
+2. qué hipótesis afecta;
+3. si cambia el mecanismo económico;
+4. si es temporal o persistente;
+5. qué otros KPIs lo confirman o contradicen.
+
+**Prioridad de evidencia:** filings y resultados de Rollins → llamadas/presentaciones
+de la compañía → competidores y fuentes sectoriales → fuentes secundarias.
+
+**Estado actual (7-oct-2026): WATCH 🟡.** La tesis sigue siendo atractiva, pero
+residential acquisition economics, operating leverage y M&A ROIC todavía no
+están suficientemente demostrados para subir a `INTACT`.

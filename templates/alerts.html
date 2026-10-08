@@ -96,19 +96,19 @@
                 <td>{% if closed %}<span class="al-type al-type-rec">Recuperada</span>{% else %}<span class="al-type al-type-drop">Caída</span>{% endif %}</td>
                 <td class="font-monospace-data">
                     {% if alert.episode %}
-                        {% if closed %}<span class="text-success fw-bold">máx. −{{ alert.max_drop }}%</span>
-                        {% else %}<span class="badge badge-drop-{{ alert.escalon }} me-1">−{{ alert.escalon }}%</span><span class="fw-bold text-danger">−{{ alert.drop_pct }}%</span>{% endif %}
-                    {% else %}<span class="badge badge-drop-{{ alert.escalon }} me-1">−{{ alert.escalon }}%</span><span class="fw-bold text-danger">−{{ alert.drop_pct }}%</span>{% endif %}
+                        {% if closed %}<span class="text-success fw-bold">máx. −{{ num(alert.max_drop, 1) }}%</span>
+                        {% else %}<span class="badge badge-drop-{{ alert.escalon }} me-1">−{{ alert.escalon }}%</span><span class="fw-bold text-danger">−{{ num(alert.drop_pct, 1) }}%</span>{% endif %}
+                    {% else %}<span class="badge badge-drop-{{ alert.escalon }} me-1">−{{ alert.escalon }}%</span><span class="fw-bold text-danger">−{{ num(alert.drop_pct, 1) }}%</span>{% endif %}
                 </td>
                 <td class="al-detail">
                     {% if alert.episode %}
-                        {% if closed %}Duró {{ alert.days }} días desde el máximo ({{ alert.high }})
-                        {% else %}Máx. 52s {{ alert.high }} → {{ alert.current_price }} · {{ alert.days }} d
-                            {%- if alert.max_drop > alert.drop_pct + 0.5 %} · peor −{{ alert.max_drop }}%{% endif %}
+                        {% if closed %}Duró {{ alert.days }} días desde el máximo ({{ num(alert.high, 2) }})
+                        {% else %}Máx. 52s {{ num(alert.high, 2) }} → {{ num(alert.current_price, 2) }} · {{ alert.days }} d
+                            {%- if alert.max_drop > alert.drop_pct + 0.5 %} · peor −{{ num(alert.max_drop, 1) }}%{% endif %}
                             {%- if alert.bench_pct is not none %} · mercado {{ num(alert.bench_pct, 1, sign=True) }}%{% endif %}
-                            {%- if alert.buy_gap is not none %} · <span class="{{ 'text-success fw-bold' if alert.buy_gap <= 0 else '' }}">{{ 'bajo precio de compra' if alert.buy_gap <= 0 else 'a ' ~ alert.buy_gap ~ '% de compra' }}</span>{% endif %}
+                            {%- if alert.buy_gap is not none %} · <span class="{{ 'text-success fw-bold' if alert.buy_gap <= 0 else '' }}">{{ 'bajo precio de compra' if alert.buy_gap <= 0 else 'a ' ~ num(alert.buy_gap, 1) ~ '% de compra' }}</span>{% endif %}
                         {% endif %}
-                    {% else %}Máx. histórico {{ alert.ath }} → {{ alert.current_price }}{% endif %}
+                    {% else %}Máx. histórico {{ num(alert.ath, 2) }} → {{ num(alert.current_price, 2) }}{% endif %}
                 </td>
                 {% else %}
                 <td><span class="al-type al-type-val">Valoración</span></td>
@@ -141,10 +141,13 @@
 </div>
 
 <script>
-    const ALERTS_PER_PAGE = {{ ((settings.get('ui') or {}).get('items_per_page') or 15)|int }};
+    let ALERTS_PER_PAGE = {{ ((settings.get('ui') or {}).get('items_per_page') or 15)|int }};   // se ajusta a lo que cabe en la ventana
     let currentTypeFilter = 'ALL', currentDirectionFilter = 'ALL', currentDropFilter = 'ALL', alertPage = 0;
 
-    function applyAlertFilters() {
+    window.addEventListener('resize', () => { clearTimeout(window.__alResize); window.__alResize = setTimeout(applyAlertFilters, 150); });
+    window.addEventListener('load', () => applyAlertFilters());
+    if (document.fonts) document.fonts.ready.then(() => applyAlertFilters());
+    function applyAlertFilters(trim = false) {
         const unreadOnly = document.getElementById('alertUnreadOnly')?.checked;
         const q = (document.getElementById('alertSearch')?.value || '').trim().toLowerCase();
         const rows = [...document.querySelectorAll('#alertsTable tbody tr[data-type]')];
@@ -155,12 +158,19 @@
             (currentDropFilter === 'ALL' || row.dataset.type !== 'CAÍDA' || (row.dataset.drop || 'abierta') === currentDropFilter) &&
             (!unreadOnly || row.classList.contains('alert-new')) &&
             (!q || row.dataset.search.includes(q)));
+        if (!trim) {
+            rows.forEach(r => r.style.display = '');
+            ALERTS_PER_PAGE = rowsPerPage('alertsTable', ALERTS_PER_PAGE);   // sin scroll: las filas que caben
+        }
         const pages = Math.max(1, Math.ceil(match.length / ALERTS_PER_PAGE));
         alertPage = Math.min(alertPage, pages - 1);
         rows.forEach(r => r.style.display = 'none');
         match.slice(alertPage * ALERTS_PER_PAGE, (alertPage + 1) * ALERTS_PER_PAGE).forEach(r => r.style.display = '');
         document.getElementById('alertsNoMatchRow')?.classList.toggle('d-none', match.length > 0);
         renderAlertPager(match.length, pages);
+        // si con el paginador ya pintado aún se sale la página, una pasada más con las filas que sobran de menos
+        const over = trim ? 0 : pageOverflowRows('alertsTable');
+        if (over && ALERTS_PER_PAGE - over >= 4) { ALERTS_PER_PAGE -= over; applyAlertFilters(true); }
     }
 
     function renderAlertPager(total, pages) {

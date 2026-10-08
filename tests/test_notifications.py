@@ -49,3 +49,22 @@ def test_panel_collects_alerts_news_and_notices_and_marks_them_read():
     alert_key = next(i["key"] for i in items if i["group"] == "alertas")
     notification_service.mark_read(db, theses, notices, [alert_key], read=False)
     assert notification_service.unread_counts(notification_service.collect(db, theses, notices))["alertas_all"] == 1
+
+
+def test_valuation_changes_light_badges_only_when_moving_into_buy_zone():
+    db, theses, notices = _setup()
+    zone = lambda t, old, new: {"type": "VALORACIÓN", "ticker": t, "old_status": old, "new_status": new, "date": "2026-09-28 10:00:00"}
+    alerts_service.save_alerts_data(db, {"history": [
+        zone("A1", "PRECIO JUSTO", "BARATA"), zone("A2", "BARATA", "GANGA"),      # cuentan
+        zone("A3", "BARATA", "PRECIO JUSTO"), zone("A4", "PRECIO JUSTO", "CARA"),  # se encarecen: no cuentan
+        zone("A5", "CARA", "PRECIO JUSTO")]})                                     # se abarata pero no es zona de compra
+    items = [i for i in notification_service.collect(db, theses, notices) if i["group"] == "alertas"]
+    assert {i["ticker"] for i in items} == {"A1", "A2", "A3", "A4", "A5"}       # todas siguen en la lista
+    assert {i["ticker"] for i in items if i["counts"]} == {"A1", "A2"}
+    assert notification_service.unread_counts(items)["alertas_all"] == 2
+
+
+def test_reading_a_news_notice_reads_the_news():
+    from app.application.services.notification_service import news_ids_in_notices
+    keys = ["resumen|att|news|EVO.ST|12", "resumen|att|results|EVO.ST|", "resumen|sig|NVDA|anormal|down|1d", "news|7"]
+    assert news_ids_in_notices(keys) == [12]

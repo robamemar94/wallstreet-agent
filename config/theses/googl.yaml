@@ -1,0 +1,190 @@
+# Transcrito de data/theses/Alphabet_Tesis_Investment_Research_v3_3_Profunda_2026.md (02/10/2026)
+# config/theses/googl.md es el mismo documento con los subapartados escritos como apartado («# 1.2 …», «# H2 …») bajados
+# de nivel para que el índice muestre solo 0., 1., 2…; el subtítulo y «# ESTADO = INTACT / WATCH» van como texto en negrita.
+# Cuadro de mando: las 5 hipótesis críticas (7) con los semáforos de la propia tesis y los KPIs del «Dashboard maestro»
+# (14) con su último dato. Donde la tesis da un rango («🟢 ≥12% · 🔴 <5%»), son los umbrales; donde solo da un mínimo
+# (Services margin >40%) no hay rojo automático: por debajo queda en vigilancia y se juzga a mano.
+# Kill switches: la regla BROKEN (15) y el riesgo «thesis breaker potencial» (8.1), repartidos en su KPI (Search, IA frente
+# a Search y retorno del capex). H3 (retorno del capex de IA) pesa doble: es «la hipótesis nueva más importante».
+# Financiación y compromisos (3.9, 4.5) van en un paso que no puntúa.
+# Valoración: la tesis no fija precios por escenario a 2031/2036, solo rangos de supuestos y de valor razonable hoy (9.5–9.14);
+# se transcriben como rangos y sin fcf_ps_cagr numérico a propósito, para que no se calcule la «valoración viva» con el
+# FCF/acción TTM: la tesis insiste en que el FCF de 2026 (año de inversión) no es una base normalizada (9.3).
+ticker: GOOGL
+title: Alphabet · Tesis de inversión
+version: "Framework v3.2 · versión profunda (v3.3)"
+reference_date: "2026-10-02"
+reference_price: 343
+source_document: "data/theses/Alphabet_Tesis_Investment_Research_v3_3_Profunda_2026.md"
+document: config/theses/googl.md
+verdict: VIGILANCIA
+summary: >-
+  Uno de los negocios con mayor combinación de moat, escala, rentabilidad y capacidad de reinversión del mercado
+  (Moat Durability Score 90/100): usuarios → intención → Search/YouTube/Android/Chrome → anunciantes → caja →
+  infraestructura/modelos. La cuestión ya no es si el negocio es excelente, sino si el enorme ciclo de capex de IA
+  (H1 2026: $80,6B, +103%; FCF ~$4,3B) se convierte en crecimiento sostenible del FCF por acción sin deteriorar la
+  economía de Search. Search +17% (Q2 2026), Services ~43,5% de margen, Cloud +73% con 34,4% de margen y backlog
+  de $513,9B. Estado: INTACT / WATCH (no Weakening: los rojos están en la fase de inversión).
+hypothesis: "Si Search mantiene la relación económica con el usuario y el anunciante, mientras Cloud captura una parte significativa del gasto empresarial en IA y Alphabet consigue que el enorme ciclo de capex genere retornos superiores a su coste de capital, entonces el FCF/share puede volver a crecer a doble dígito después de la fase de inversión. Se rompe si la IA sustituye estructuralmente la función económica de Search + el capex sigue creciendo + Cloud no genera retornos suficientes + la dilución/financiación impide que el crecimiento llegue al accionista."
+hypotheses:
+  H1: "Search conserva su economía"
+  H2: "Cloud se convierte en segunda gran máquina económica"
+  H3: "El capex de IA genera retorno adecuado (WATCH, la hipótesis nueva más importante)"
+  H4: "La IA refuerza Search en vez de destruir su relación económica (WATCH)"
+  H5: "El crecimiento llega al accionista: FCF/share (WATCH)"
+rules:
+  - "No valorar Alphabet extrapolando el crecimiento de ingresos o BPA: la variable que llega al accionista es el FCF/share normalizado (2023–2025: ingresos +14,5% CAGR, beneficio operativo +23,7%, FCF +2,7%)."
+  - "El FCF de 2026 no es una base normalizada de valoración: es un año de inversión. No confundir capex productivo con capex rentable."
+  - "No pagar por Other Bets para justificar la acción: su valor es opcionalidad. El caso Base debe funcionar sin Waymo dominante, Gemini dominante, agentes enormes, Cloud al 70% ni Search al 15% eterno."
+  - "Un solo año rojo de FCF/share durante una fase explícita de inversión no rompe la tesis; dos o más años de deterioro sin evidencia de retorno sobre el capex sí serían preocupantes."
+  - "La tesis no se rompe porque ChatGPT/Gemini tengan más usuarios, sino si eso se convierte en menos intención monetizable en Google. Hoy estamos en las fases 1–2 (adopción, sustitución) de la cadena de disrupción, sin evidencia financiera de las fases 4–7."
+  - "Los umbrales son internos, no guidance de Alphabet. Un TAM enorme no implica automáticamente un retorno sobre capital alto."
+  - "La tesis no se actualiza porque cambie el precio de la acción, sino porque cambie la economía del negocio. Actualización: resultado → cambio → hipótesis → KPI → mecanismo económico → valoración → estado → siguiente punto a vigilar."
+master_questions:
+  - "¿Search sigue defendiendo su economía?"
+  - "¿Cloud sigue convirtiendo crecimiento en beneficio?"
+  - "¿El capex empieza a generar retorno?"
+  - "¿La IA refuerza o sustituye Search?"
+  - "¿El crecimiento llega finalmente al FCF/share?"
+valuation:
+  question: "Precio ~$343; ~12,23B acciones (~$4,2T). El FCF de 2026 no sirve de base (H1: OCF $84,9B − capex $80,6B ≈ $4,3B): se valora sobre FCF/share normalizado (~$7,5 de partida en la sensibilidad). Base 2031: $350–480; zona central hoy ~$330–360. 10% CAGR exige ~$552 en 2031 o ~$891–900 en 2036; 15% CAGR, ~$690 en 2031 o ~$1.380–1.400 en 2036. Margen de seguridad: ~$275–300 empieza a ser interesante; ~$225–250 mucho mayor; <$225 atractivo incluso en escenarios conservadores."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: fcf_ps_range, label: FCF/share CAGR, format: pct}
+    - {key: multiple, label: Múltiplo terminal (FCF)}
+    - {key: fcf_margin, label: Margen FCF normalizado, format: pct}
+    - {key: fair_value, label: Valor razonable hoy}
+  scenarios:
+    - {name: Bear, fcf_ps_range: "5–8", multiple: "20–22x", fcf_margin: "17–19", fair_value: "$220–280",
+       metrics: "Search 4–6% CAGR, Cloud desacelera con margen 25–28%, capex/revenue elevado y D&A al alza"}
+    - {name: Base, fcf_ps_range: "10–13", multiple: "24–27x", fcf_margin: "22–24", fair_value: "$300–380",
+       metrics: "Ingresos 11–13% CAGR (Search 8–11%, YouTube/Subs 10–15%, Cloud 20–25%), margen operativo 32–35%, capex/revenue baja hacia 25–30%"}
+    - {name: Bull, fcf_ps_range: ">15", multiple: "28–30x", fcf_margin: null, fair_value: "$430–550+",
+       metrics: "Search a doble dígito varios años, Cloud >25% con margen >30%, ROIC alto del capex, vuelven las recompras y bajan las acciones"}
+events:
+  - date: "2026-03-31"
+    type: earnings
+    impact: positive
+    title: "Resultados Q1 2026"
+    body: "Search & Other +19%."
+  - date: "2026-06-30"
+    type: earnings
+    impact: neutral
+    title: "Resultados Q2 2026 (H1 2026)"
+    body: "H1: ingresos $229,7B (+23%), OCF $84,9B, capex $80,6B (+103%) → FCF ~$4,3B. Search +17% en Q2. Services margen ~43,5% (41,1% en H1 2025). Cloud $44,8B (+73%), beneficio operativo $15,4B (34,4%). Backlog $519,5B ($513,9B Cloud). Recompras $0; emisión de $30,5B en acciones y $19,1B en preferentes convertibles; $56,2B netos de deuda. $85,2B de leases de data centers aún no iniciados."
+  - date: "2026-10-02"
+    type: thesis
+    impact: neutral
+    title: "Tesis de inversión (framework v3.2, versión profunda) · estado INTACT / WATCH"
+    body: "INTACT porque Search sigue creciendo, Services mantiene una economía extraordinaria y Cloud demuestra operating leverage real. WATCH porque el capex crece mucho más que el FCF, la D&A aún no refleja la inversión y la financiación con acciones y deuda obliga a vigilar la economía por acción. Zona central ~$330–360. Precio de referencia ~$343."
+
+pillars:
+  - key: search
+    name: Search
+    description: "H1 — La IA mejora el producto sin destruir estructuralmente demanda, intención, monetización ni la relación con los anunciantes."
+    kpis:
+      - {key: search_growth, name: Search & Other revenue YoY, unit: "%", green_threshold: 12, red_threshold: 5,
+         how_to_measure: "Crecimiento interanual de los ingresos de Google Search & other (trimestral)",
+         green_text: "≥12% y economía estable", amber_text: "5–12% o evidencia ambigua", red_text: "<5% durante varios trimestres + deterioro económico",
+         frequency: Trimestral, source: Alphabet,
+         is_kill_switch: true, kill_rule: "WEAKENING/BROKEN: Search <5% durante varios trimestres con deterioro económico (riesgo 8.1, thesis breaker potencial)",
+         observations: [{period: Q1 2026, date: "2026-03-31", value: 19, note: "+19%"},
+                        {period: Q2 2026, date: "2026-06-30", value: 17, note: "+17%"}]}
+      - {key: services_margin, name: Margen operativo de Google Services, unit: "%", green_threshold: 40,
+         how_to_measure: "Beneficio operativo / ingresos del segmento Google Services",
+         green_text: ">40% y estable o subiendo", amber_text: "Por debajo de 40%: juzgar si es estructural", red_text: "Cae de forma estructural",
+         frequency: Trimestral, source: Alphabet,
+         observations: [{period: H1 2026, date: "2026-06-30", value: 43.5, note: "~43,5% (41,1% en H1 2025; 40,7% en 2025)"}]}
+
+  - key: cloud
+    name: Google Cloud
+    description: "H2 — Cloud se convierte en la segunda gran máquina económica: crecimiento + margen operativo, con el backlog como indicador adelantado."
+    kpis:
+      - {key: cloud_growth, name: Cloud revenue YoY, unit: "%", green_threshold: 25, red_threshold: 15,
+         how_to_measure: "Crecimiento interanual de los ingresos de Google Cloud",
+         green_text: ">25%", amber_text: "15–25%", red_text: "<15% con deterioro de margen",
+         frequency: Trimestral, source: Alphabet,
+         observations: [{period: H1 2026, date: "2026-06-30", value: 73, note: "+73% ($44,8B)"}]}
+      - {key: cloud_margin, name: Margen operativo de Cloud, unit: "%", green_threshold: 30, red_threshold: 20,
+         how_to_measure: "Beneficio operativo / ingresos de Google Cloud",
+         green_text: "≥30%", amber_text: "20–30%", red_text: "<20% o compresión con el crecimiento",
+         frequency: Trimestral, source: Alphabet,
+         observations: [{period: H1 2026, date: "2026-06-30", value: 34.4, note: "34,4% ($15,4B; 23,7% en 2025)"}]}
+      - {key: cloud_backlog, name: Backlog de Cloud, kind: qualitative,
+         how_to_measure: "Backlog (revenue contratado pendiente) de Cloud y su crecimiento; algo más del 50% se reconoce en 24 meses. Backlog ≠ FCF",
+         green_text: "Crece", amber_text: "Se estanca", red_text: "Cae",
+         baseline: "$513,9B de $519,5B totales (30/06/2026)", frequency: Trimestral, source: Alphabet,
+         observations: [{period: H1 2026, date: "2026-06-30", status: green, note: "$513,9B"}]}
+
+  - key: ai_capex
+    name: Retorno del capex de IA
+    description: "H3 — La hipótesis nueva más importante: capex alto durante la construcción, pero después revenue ↑ → beneficio operativo ↑ → OCF ↑ → FCF ↑. Peligro: capex ↑ → D&A ↑ → FCF/share no mejora."
+    weight: 2
+    kpis:
+      - {key: capex_return, name: Retorno incremental del capex, kind: qualitative,
+         how_to_measure: "ROIC incremental cuando sea calculable; margen operativo incremental, capacidad utilizada y conversión del capex en beneficio y FCF",
+         green_text: "Revenue y beneficio crecen con el capex y el FCF se recupera", amber_text: "Fase de construcción: retorno aún no demostrado", red_text: "Capex ↑ + D&A ↑ y el FCF/share no mejora durante varios años",
+         frequency: Anual, source: Alphabet / cálculo propio,
+         is_kill_switch: true, kill_rule: "BROKEN: Cloud/IA no genera retornos suficientes para compensar una pérdida estructural de la economía de Search",
+         observations: [{period: H1 2026, date: "2026-06-30", status: amber, note: "No demostrado"}]}
+      - {key: capex_to_revenue, name: Capex / revenue, kind: qualitative, unit: "%",
+         how_to_measure: "Capex / ingresos (2023 ~10,5% · 2024 ~15% · 2025 ~22,7% · H1 2026 ~35,1%); el Base supone que baja gradualmente hacia ~25–30%",
+         green_text: "Alcanza un pico y baja", amber_text: "Elevado mientras los ingresos aceleran", red_text: "Sigue subiendo",
+         frequency: Trimestral, source: Alphabet,
+         observations: [{period: H1 2026, date: "2026-06-30", value: 35.1, status: amber, note: "~35,1% ($80,6B, +103%); en el cuadro 🔴/🟡"}]}
+      - {key: fcf, name: FCF (OCF − capex), kind: qualitative,
+         how_to_measure: "Flujo de caja operativo menos compras de inmovilizado",
+         green_text: "Vuelve a crecer con el OCF", amber_text: "Deprimido por la inversión", red_text: "Muy bajo frente al OCF",
+         frequency: Trimestral, source: Alphabet,
+         observations: [{period: H1 2026, date: "2026-06-30", status: red, note: "~$4,3B (OCF $84,9B)"}]}
+      - {key: depreciation, name: D&A, kind: qualitative,
+         how_to_measure: "Amortización y depreciación (2023 ~$11,9B · 2024 ~$15,3B · 2025 ~$21,1B); indicador adelantado del coste económico del capex, aún no refleja los activos sin entrar en servicio",
+         green_text: "Crece con ingresos y beneficio", amber_text: "Crece más que el beneficio operativo", red_text: "Consume una parte importante del beneficio operativo",
+         frequency: Trimestral, source: Alphabet,
+         observations: [{period: H1 2026, date: "2026-06-30", status: amber, note: "$13,6B"}]}
+
+  - key: ai_vs_search
+    name: IA frente a Search
+    description: "H4 — Bull: la IA es un nuevo producto de Search que amplía su superficie económica. Bear: los agentes controlan la respuesta y la transacción y Google pierde la intención comercial."
+    kpis:
+      - {key: monetizable_intent, name: Intención monetizable en Google, kind: qualitative,
+         how_to_measure: "Search growth, Services margin, comportamiento de las consultas, monetización y evidencia de sustitución por agentes",
+         green_text: "La IA aumenta consultas, engagement y monetización", amber_text: "Evidencia ambigua", red_text: "Menos intención monetizable en Google",
+         frequency: Trimestral, source: Alphabet / sector,
+         is_kill_switch: true, kill_rule: "BROKEN: la IA provoca una pérdida estructural de la relación económica de Search",
+         observations: [{period: H1 2026, date: "2026-06-30", status: amber, note: "Fases 1–2 de la cadena de disrupción; sin evidencia financiera de 4–7"}]}
+
+  - key: per_share
+    name: Economía por acción
+    description: "H5 — El crecimiento llega al accionista: FCF/share, acciones diluidas y SBC (recompras $0 y emisión de capital en H1 2026)."
+    kpis:
+      - {key: fcf_per_share, name: FCF por acción YoY, unit: "%", green_threshold: 10, red_threshold: 0,
+         how_to_measure: "Crecimiento del FCF por acción (autocompletado)",
+         green_text: "≥10% YoY", amber_text: "0–10%", red_text: "<0% (un año rojo en plena inversión no rompe la tesis)",
+         frequency: Anual, source: yfinance, auto_metric: fcf_per_share_yoy,
+         observations: [{period: "2025", date: "2025-12-31", status: amber, note: "~estancado 2023–2025 (~$5,4 → ~$5,8 → ~$6,0)"}]}
+      - {key: share_count, name: Acciones diluidas YoY, unit: "%", direction: lower, green_threshold: 0,
+         how_to_measure: "Acciones diluidas YoY (autocompletado)",
+         green_text: "Estables o bajando", amber_text: "Dejan de reducirse", red_text: "Suben materialmente",
+         frequency: Trimestral, source: yfinance, auto_metric: diluted_shares_yoy,
+         observations: [{period: H1 2026, date: "2026-06-30", status: amber, note: "~12,23B (15/07/2026) tras emitir $30,5B en acciones"}]}
+      - {key: sbc, name: SBC, kind: qualitative,
+         how_to_measure: "Compensación en acciones y su efecto neto: SBC → emisiones → recompras → acciones diluidas",
+         green_text: "Las acciones bajan después de la SBC", amber_text: "Material sin reducción de acciones", red_text: "Diluye",
+         frequency: Trimestral, source: Alphabet,
+         observations: [{period: H1 2026, date: "2026-06-30", status: amber, note: "$14,7B (2025 ~$25,0B)"}]}
+
+  - key: financing
+    name: Financiación y compromisos
+    weight: 0
+    description: "Diagnósticos de 3.9 y 4.4–4.5: no forman parte del dashboard principal."
+    kpis:
+      - {key: buybacks_vs_issuance, name: Recompras frente a emisión de capital, kind: qualitative,
+         how_to_measure: "Recompras, emisión de acciones y de preferentes convertibles ($62,2B de recompras en 2024 y $45,4B en 2025)",
+         green_text: "Vuelven las recompras al normalizarse el capex", amber_text: "Sin recompras; emisión justificada por el retorno de la inversión", red_text: "Emisión sin retorno que la justifique",
+         frequency: Trimestral, source: Alphabet}
+      - {key: commitments, name: Deuda, leases y compromisos de infraestructura, kind: qualitative,
+         how_to_measure: "Deuda nueva, leases aún no iniciados (data centers) y compromisos de compra de infraestructura de IA",
+         green_text: "Estables frente a la caja", amber_text: "Crecen con el ciclo de inversión", red_text: "Crecen sin retorno visible",
+         baseline: "Caja + valores negociables ~$242,5B; deuda LP ~$98,2B; $85,2B de leases no iniciados (30/06/2026)",
+         frequency: Trimestral, source: Alphabet}

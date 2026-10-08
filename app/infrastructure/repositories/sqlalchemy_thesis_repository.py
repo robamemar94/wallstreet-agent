@@ -229,14 +229,30 @@ class SqlAlchemyThesisRepository(ThesisRepositoryInterface):
         self.db.commit()
         return added
 
-    def list_news(self, thesis_id: Optional[int] = None, unread_only: bool = False, limit: int = 200) -> List[Dict[str, Any]]:
+    def _news_query(self, thesis_id: Optional[int] = None, unread_only: bool = False,
+                    since: Optional[str] = None, before: Optional[str] = None):
+        """since/before: fecha ISO en que el radar encontró la noticia (found_at), desde (incluida) / hasta (excluida)."""
         q = self.db.query(DBThesisNews)
         if thesis_id:
             q = q.filter(DBThesisNews.thesis_id == thesis_id)
         if unread_only:
             q = q.filter(DBThesisNews.seen.is_(False))
+        if since:
+            q = q.filter(DBThesisNews.found_at >= since)
+        if before:
+            q = q.filter(DBThesisNews.found_at < before)
+        return q
+
+    def list_news(self, thesis_id: Optional[int] = None, unread_only: bool = False, limit: Optional[int] = 200,
+                  since: Optional[str] = None, before: Optional[str] = None) -> List[Dict[str, Any]]:
+        q = self._news_query(thesis_id, unread_only, since, before)
         rows = q.order_by(DBThesisNews.found_at.desc(), DBThesisNews.materiality.desc(), DBThesisNews.date.desc()).limit(limit)
         return [_news_dict(n) for n in rows]
+
+    def count_news(self, thesis_id: Optional[int] = None, before: Optional[str] = None) -> Dict[str, int]:
+        """Cuántas noticias (y cuántas sin leer) hay antes de una fecha: lo que queda por cargar en /noticias."""
+        q = self._news_query(thesis_id, before=before)
+        return {"total": q.count(), "unread": q.filter(DBThesisNews.seen.is_(False)).count()}
 
     def unread_news_count(self) -> Dict[str, Any]:
         rows = self.db.query(DBThesisNews).filter(DBThesisNews.seen.is_(False)).all()

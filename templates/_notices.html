@@ -1,5 +1,5 @@
-{# Listas de avisos comunes al Resumen del Centro de mando y a la pestaña Watchlist.
-   El JavaScript (markSeen, collapseList, refreshNoticeList, showMonTab) está en command_center.html. #}
+{# Listas de avisos comunes a la portada («Avisos») y a la Watchlist (atención y monitor por separado).
+   Su JavaScript (markSeen, collapseList, refreshNoticeList, showMonTab…) va en notice_scripts(). #}
 
 {% macro notice_styles() %}
 <style>
@@ -10,33 +10,25 @@
     .inbox-item.att-seen { opacity: .55; font-weight: 400; }
     .unread-dot { display: none; width: 7px; height: 7px; border-radius: 50%; background: #58a6ff; margin-right: 4px; vertical-align: middle; }
     .mon-tabs .btn { font-size: .72rem; padding: .05rem .5rem; }
+    .sig-down { color: var(--fin-red); } .sig-up { color: var(--fin-green); } .sig-neutral { color: var(--st-amber); }
+    .att-item { border-left: 3px solid var(--bs-border-color); padding-left: .6rem; margin-bottom: .55rem; }
+    .att-item.p0 { border-color: var(--fin-red); } .att-item.p1 { border-color: var(--st-amber); } .att-item.p2 { border-color: #58a6ff; }
+    .cagr-green { color: var(--fin-green) !important; } .cagr-amber { color: #e3b341 !important; } .cagr-orange { color: #f0883e !important; } .cagr-red { color: var(--fin-red) !important; }
 </style>
 {% endmacro %}
 
-{# held: empresas en cartera. Todos los avisos se pueden marcar como leídos; solo los de cartera cuentan
-   en el contador (data-held). #}
-{% macro attention_list(items, list_id, empty_text, collapse=6, held=[]) %}
-<div class="card-body small notice-list" id="{{ list_id }}" data-collapse="{{ collapse }}">
-    {% for a in items %}
+{# Un aviso de «Requiere tu atención» (barra de color por prioridad) #}
+{% macro attention_item(a, held=[]) %}
         <div class="att-item inbox-item p{{ [a.prio, 3]|min }} {{ 'att-seen' if a.seen }}" data-key="{{ a.key }}"{{ ' data-held=1' if a.ticker in held }}>
         <div class="d-flex gap-2 align-items-start">
             <div class="flex-grow-1"><span class="unread-dot"></span>{% if a.href %}<a href="{{ a.href }}" class="text-decoration-none"><strong>{{ a.label or a.ticker }}</strong></a>{% else %}<strong>{{ a.label or a.ticker }}</strong>{% endif %} · {{ a.text }}</div>
             <button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="{{ 'Marcar como no leído' if a.seen else 'Marcar como leído' }}" aria-label="{{ 'Marcar como no leído' if a.seen else 'Marcar como leído' }}" onclick="markSeen(this)"><i class="bi {{ 'bi-eye-slash' if a.seen else 'bi-eye' }}"></i></button><button type="button" class="btn btn-link btn-sm p-0 text-muted att-dismiss" title="Descartar: no volverá a salir mientras siga dándose" aria-label="Descartar" onclick="dismissNotice(this)"><i class="bi bi-x-lg"></i></button>
         </div>
     </div>
-    {% endfor %}
-    <div class="text-muted att-empty {{ 'd-none' if items }}"><i class="bi bi-check2-circle st-green me-1"></i>{{ empty_text }}</div>
-</div>
 {% endmacro %}
 
-{% macro monitor_card_body(signals, history, list_id, scope, theses_ids={}, held=[]) %}
-<div class="px-3 pt-2 mon-tabs d-flex gap-1" data-mon="{{ list_id }}">
-    {% set held_unread = signals|selectattr('ticker', 'in', held)|rejectattr('seen')|list|length %}
-    <button type="button" class="btn btn-outline-secondary active" onclick="showMonTab(this, 'active')">Activas {{ signals|length }}{% if held %} <span class="badge text-bg-primary mon-unread" title="Sin leer de empresas en cartera">{{ held_unread }}</span>{% endif %}</button>
-    <button type="button" class="btn btn-outline-secondary" onclick="showMonTab(this, 'history')" title="Señales que ya no están activas: no se borran">Histórico <span class="badge text-bg-secondary">{{ history|length }}</span></button>
-</div>
-<div class="card-body small notice-list" id="{{ list_id }}" data-collapse="8">
-    {% for s in signals %}
+{# Una señal del monitor de precios (flecha de subida o bajada, fecha y tipo) #}
+{% macro signal_item(s, theses_ids={}, held=[]) %}
         <div class="d-flex gap-2 mb-1 align-items-start sig-item inbox-item {{ 'att-seen' if s.seen }}" data-key="{{ s.key }}"{{ ' data-held=1' if s.ticker in held }}>
         <i class="bi {{ 'bi-arrow-down-right' if s.tone == 'down' else ('bi-arrow-up-right' if s.tone == 'up' else 'bi-dot') }} sig-{{ s.tone }}"></i>
         <span class="text-muted font-monospace-data text-nowrap" style="min-width: 5.2rem;" title="{{ 'Del ' ~ s.since ~ ' al ' ~ s.date if s.since else s.date }}">{% if s.since %}{{ s.since[8:10] }}/{{ s.since[5:7] }}–{% endif %}{{ (s.date or '')[8:10] }}/{{ (s.date or '')[5:7] }}</span>
@@ -44,8 +36,10 @@
         {% if theses_ids.get(s.ticker) %}<button class="btn btn-link btn-sm p-0 text-info" title="¿Por qué se mueve? Busca noticias de {{ s.ticker }} (radar de la tesis)" aria-label="¿Por qué se mueve {{ s.ticker }}?" onclick="whyMoves({{ theses_ids[s.ticker] }}, '{{ s.ticker }}', this)"><i class="bi bi-search"></i></button>{% endif %}
         <button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="{{ 'Marcar como no leída' if s.seen else 'Marcar como leída' }}" aria-label="{{ 'Marcar como no leída' if s.seen else 'Marcar como leída' }}" onclick="markSeen(this)"><i class="bi {{ 'bi-eye-slash' if s.seen else 'bi-eye' }}"></i></button><button type="button" class="btn btn-link btn-sm p-0 text-muted att-dismiss" title="Descartar: no volverá a salir mientras siga dándose" aria-label="Descartar" onclick="dismissNotice(this)"><i class="bi bi-x-lg"></i></button>
     </div>
-    {% else %}<div class="text-muted att-empty">Sin movimientos fuera de lo normal ni niveles relevantes.</div>{% endfor %}
-</div>
+{% endmacro %}
+
+{# Señales que dejaron de estar activas (se ven con el botón «Histórico») #}
+{% macro signal_history(history, list_id, scope) %}
 <div class="card-body small d-none" id="{{ list_id }}History" data-collapse="10" data-scope="{{ scope }}">
     {% if history %}<div class="d-flex justify-content-between align-items-center mb-2 text-muted">
         <span>Se borran solas a los 6 meses de su última aparición.</span>
@@ -61,4 +55,205 @@
     </div>
     {% else %}<div class="text-muted">Aún no hay señales pasadas: aquí quedan las que dejan de estar activas.</div>{% endfor %}
 </div>
+{% endmacro %}
+
+{# held: empresas en cartera. Todos los avisos se pueden marcar como leídos; solo los de cartera cuentan
+   en el contador (data-held). #}
+{% macro attention_list(items, list_id, empty_text, collapse=6, held=[]) %}
+<div class="card-body small notice-list" id="{{ list_id }}" data-collapse="{{ collapse }}">
+    {% for a in items %}
+        {{ attention_item(a, held) }}
+    {% endfor %}
+    <div class="text-muted att-empty {{ 'd-none' if items }}"><i class="bi bi-check2-circle st-green me-1"></i>{{ empty_text }}</div>
+</div>
+{% endmacro %}
+
+{% macro monitor_card_body(signals, history, list_id, scope, theses_ids={}, held=[]) %}
+<div class="px-3 pt-2 mon-tabs d-flex gap-1" data-mon="{{ list_id }}">
+    {% set held_unread = signals|selectattr('ticker', 'in', held)|rejectattr('seen')|list|length %}
+    <button type="button" class="btn btn-outline-secondary active" onclick="showMonTab(this, 'active')">Activas {{ signals|length }}{% if held %} <span class="badge text-bg-primary mon-unread" title="Sin leer de empresas en cartera">{{ held_unread }}</span>{% endif %}</button>
+    <button type="button" class="btn btn-outline-secondary" onclick="showMonTab(this, 'history')" title="Señales que ya no están activas: no se borran">Histórico <span class="badge text-bg-secondary">{{ history|length }}</span></button>
+</div>
+<div class="card-body small notice-list" id="{{ list_id }}" data-collapse="8">
+    {% for s in signals %}
+        {{ signal_item(s, theses_ids, held) }}
+    {% else %}<div class="text-muted att-empty">Sin movimientos fuera de lo normal ni niveles relevantes.</div>{% endfor %}
+</div>
+{{ signal_history(history, list_id, scope) }}
+{% endmacro %}
+
+
+{# Leído / descartado, listas plegables, histórico del monitor y «¿Por qué se mueve?». Una vez por página. #}
+{% macro notice_scripts() %}
+<script>
+// Listas largas (avisos, monitor): se ven los N primeros por prioridad y el resto tras «Ver N más».
+// Los avisos vistos no cuentan (se ocultan salvo con «Mostrar vistos»).
+// Con data-scroll (pestaña Centro de mando, tarjetas de alto fijo) se ven todos y la tarjeta se desplaza.
+function collapseList(el) {
+    const n = parseInt(el.dataset.collapse);
+    const items = [...el.children].filter(c => c.matches('.att-item, .sig-item'));
+    el.querySelectorAll(':scope > .collapse-toggle').forEach(b => b.remove());
+    if ('scroll' in el.dataset) return items.forEach(it => it.classList.remove('d-none'));
+    items.forEach((it, i) => it.classList.toggle('d-none', i >= n));
+    if (items.length <= n) return;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'btn btn-link btn-sm p-0 collapse-toggle me-3';
+    const label = open => btn.textContent = open ? 'Ver menos' : `Ver ${items.length - n} más`;
+    label(false);
+    btn.addEventListener('click', () => {
+        const open = btn.textContent !== 'Ver menos';
+        items.forEach((it, i) => it.classList.toggle('d-none', !open && i >= n));
+        label(open);
+    });
+    el.appendChild(btn);
+}
+// Recuento de no leídos y texto de lista vacía (lo leído se queda en la lista, atenuado, como en el correo)
+function refreshNoticeList(el) {
+    if (!el) return;
+    const all = [...el.children].filter(c => c.matches('.att-item, .sig-item'));
+    const unread = all.filter(a => a.dataset.held && !a.classList.contains('att-seen')).length;   // solo cartera
+    const empty = el.querySelector(':scope > .att-empty'); if (empty) empty.classList.toggle('d-none', all.length > 0);
+    const badge = el.id === 'attList' ? document.getElementById('attCount')
+        : (el.classList.contains('card-body') && el.previousElementSibling?.classList.contains('mon-tabs') ? el.previousElementSibling.querySelector('.mon-unread')
+        : el.closest('.card')?.querySelector('.att-count'));
+    if (badge) badge.textContent = unread;
+    if (el.id === 'attList') {   // la pestaña «Centro de mando» de la portada lleva el mismo número
+        const tab = document.getElementById('centroTabCount');
+        if (tab) { tab.textContent = unread; tab.classList.toggle('d-none', !unread); }
+    }
+    collapseList(el);
+    refreshSummaryUnread();
+}
+// La línea «N avisos sin leer de tu cartera» del Resumen: misma cuenta que la del servidor (avisos + monitor de la cartera)
+function refreshSummaryUnread() {
+    const link = document.getElementById('summaryUnread');
+    const items = document.querySelectorAll('#slot-attention .notice-list .inbox-item[data-held]');
+    if (!link || !items.length) return;   // las listas aún no han cargado: se queda lo que pintó el servidor
+    const n = new Set([...items].filter(a => !a.classList.contains('att-seen')).map(a => a.dataset.keys || a.dataset.key)).size;
+    link.className = 'text-decoration-none ' + (n ? 'text-warning fw-bold' : 'text-muted');
+    link.innerHTML = '<i class="bi bi-inbox me-1"></i>' + (n ? `${n} aviso${n !== 1 ? 's' : ''} sin leer de tu cartera` : 'Ningún aviso sin leer de tu cartera');
+}
+// Leído / no leído, como en el correo: pulsar el aviso lo marca como leído; el ojo lo alterna (y lo deja otra vez sin leer)
+function paintSeen(item, seen) {
+    item.classList.toggle('att-seen', seen);
+    const btn = item.querySelector('[onclick^="markSeen"]');
+    if (btn) {
+        btn.querySelector('i').className = 'bi ' + (seen ? 'bi-eye-slash' : 'bi-eye');
+        btn.title = btn.ariaLabel = seen ? 'Marcar como no leído' : 'Marcar como leído';
+    }
+    refreshNoticeList(item.closest('.notice-list'));
+}
+async function setItemSeen(item, seen) {
+    const keys = (item.dataset.keys || item.dataset.key).split(',');
+    // el mismo aviso puede estar en el Resumen y en la watchlist
+    const same = [...document.querySelectorAll('.inbox-item')].filter(other =>
+        keys.some(k => (other.dataset.keys || other.dataset.key || '').split(',').includes(k)));
+    same.forEach(el => paintSeen(el, seen));   // al momento: si el clic abre un enlace, la petición sigue (keepalive)
+    // leer el aviso de una noticia es leer la noticia: se quita su «NUEVA» de la tarjeta de noticias
+    if (seen && window.paintNewsRead) keys.filter(k => k.includes('|att|news|')).forEach(k => window.paintNewsRead(k.split('|').pop()));
+    try {
+        const r = await fetch('/api/notices/seen', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                     body: JSON.stringify({keys, seen}), keepalive: true});
+        if (!r.ok) throw new Error(r.statusText);
+        window.refreshNotificationBadges && window.refreshNotificationBadges();
+    } catch (e) { same.forEach(el => paintSeen(el, !seen)); alert('No se pudo guardar: ' + e.message); }
+}
+function markSeen(btn) {
+    setItemSeen(btn.closest('.inbox-item'), !btn.closest('.inbox-item').classList.contains('att-seen'));
+}
+document.addEventListener('click', e => {
+    const item = e.target.closest('.inbox-item:not(.att-seen)');
+    if (item && !e.target.closest('button')) setItemSeen(item, true);
+});
+// Descartar (borrado lógico): desaparece de todas las listas y no vuelve a salir mientras siga dándose
+window.dismissedNoticeKeys = new Set();
+async function dismissNotice(btn) {
+    const item = btn.closest('.inbox-item');
+    const keys = (item.dataset.keys || item.dataset.key).split(',');
+    btn.disabled = true;
+    try {
+        const r = await fetch('/api/notices/dismiss', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({keys, seen: true})});
+        if (!r.ok) throw new Error(r.statusText);
+        keys.forEach(k => window.dismissedNoticeKeys.add(k));
+        document.querySelectorAll('.inbox-item').forEach(el => {
+            if (keys.some(k => (el.dataset.keys || el.dataset.key || '').split(',').includes(k))) {
+                const list = el.closest('.notice-list'); el.remove(); refreshNoticeList(list);
+            }
+        });
+        window.refreshNotificationBadges && window.refreshNotificationBadges();
+    } catch (e) { alert('No se pudo descartar: ' + e.message); btn.disabled = false; }
+}
+async function deleteSignal(btn) {
+    const item = btn.closest('.sig-item'), list = item.parentNode;
+    try {
+        const r = await fetch(`/api/notices/${item.dataset.id}`, {method: 'DELETE'});
+        if (!r.ok) throw new Error(r.statusText);
+        item.remove(); monHistoryChanged(list);
+    } catch (e) { alert('No se pudo borrar: ' + e.message); }
+}
+async function clearSignalHistory(btn) {
+    if (!confirm('¿Vaciar el histórico de señales? No se puede deshacer.')) return;
+    const list = btn.closest('[data-scope]');
+    try {
+        const r = await fetch('/api/notices/clear', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({scope: list.dataset.scope})});
+        if (!r.ok) throw new Error(r.statusText);
+        list.querySelectorAll('.sig-item').forEach(el => el.remove()); monHistoryChanged(list);
+    } catch (e) { alert('No se pudo vaciar: ' + e.message); }
+}
+function monHistoryChanged(list) {
+    const n = list.querySelectorAll('.sig-item').length;
+    const badge = document.querySelector(`[data-mon="${list.id.replace(/History$/, '')}"] .btn:last-child .badge`);
+    if (badge) badge.textContent = n;
+    if (!n) list.innerHTML = '<div class="text-muted">Histórico vacío: aquí quedan las señales que dejan de estar activas.</div>';
+    else collapseList(list);
+}
+function showMonTab(btn, which) {
+    const id = btn.parentNode.dataset.mon;
+    btn.parentNode.querySelectorAll('.btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.getElementById(id).classList.toggle('d-none', which !== 'active');
+    document.getElementById(id + 'History').classList.toggle('d-none', which !== 'history');
+}
+// «¿Por qué se mueve?»: lo lanza el usuario; consulta el radar de noticias de esa tesis (forzado)
+async function whyMoves(thesisId, ticker, btn) {
+    const box = document.getElementById('whyResult');
+    btn.disabled = true;
+    box.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>Buscando noticias de ${ticker}…`;
+    try {
+        const r = await fetch(`/api/theses/${thesisId}/news?force=true`, {method: 'POST'});
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || r.statusText);
+        const g = d.digest, items = g.items || [];
+        box.innerHTML = `<div class="border rounded p-2"><strong>${ticker}</strong>: ${g.summary || ''}` +
+            (items.length ? '<ul class="mb-0 mt-1">' + items.map(i => `<li>${i.materiality}/5 · <a href="${i.url || '#'}" target="_blank" rel="noopener">${i.title}</a></li>`).join('') + '</ul>'
+                          : '<div class="text-muted">Sin noticias muy relevantes: puede ser un movimiento de mercado o de flujos.</div>') +
+            `<div class="text-muted mt-1">Guardado en <a href="/noticias?ticker=${encodeURIComponent(ticker)}">Noticias</a>.</div></div>`;
+        window.refreshSidebarNewsBadge && window.refreshSidebarNewsBadge();
+    } catch (e) { box.textContent = 'Error: ' + e.message; }
+    btn.disabled = false;
+}
+// Recuentos de no leídos y listas plegadas de lo que se acaba de pintar (al cargar la página o un fragmento)
+function initNoticeLists(root) {
+    root.querySelectorAll('.notice-list').forEach(refreshNoticeList);
+    root.querySelectorAll('[data-collapse]:not(.notice-list)').forEach(collapseList);   // histórico
+}
+</script>
+{% endmacro %}
+
+
+{# «Avisos» de la portada: lo que requiere tu atención y las señales del monitor en una sola lista (primero lo que
+   pide acción, por prioridad; después las señales), cada uno con su estilo. Activos / Histórico: inbox_tabs (va en la cabecera). #}
+{% macro inbox_tabs(attention, signals, history, list_id) %}
+<div class="mon-tabs d-flex gap-1" data-mon="{{ list_id }}">
+    <button type="button" class="btn btn-outline-secondary active" onclick="showMonTab(this, 'active')">Activos {{ attention|length + signals|length }}</button>
+    <button type="button" class="btn btn-outline-secondary" onclick="showMonTab(this, 'history')" title="Señales del monitor que ya no están activas: no se borran">Histórico <span class="badge text-bg-secondary">{{ history|length }}</span></button>
+</div>
+{% endmacro %}
+
+{% macro inbox_body(attention, signals, history, list_id, scope, theses_ids={}, held=[]) %}
+<div class="card-body small notice-list" id="{{ list_id }}" data-collapse="8">
+    {% for a in attention %}{{ attention_item(a, held) }}{% endfor %}
+    {% for s in signals %}{{ signal_item(s, theses_ids, held) }}{% endfor %}
+    <div class="text-muted att-empty {{ 'd-none' if attention or signals }}"><i class="bi bi-check2-circle st-green me-1"></i>Nada pendiente ni movimientos de precio fuera de lo normal.</div>
+</div>
+{{ signal_history(history, list_id, scope) }}
 {% endmacro %}

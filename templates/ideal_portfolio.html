@@ -16,6 +16,7 @@
 </span>
 {% endmacro %}
 
+{% from "_ui_macros.html" import chg_pill %}
 {% macro origin(c) %}
 {%- if c.favorite %}<span class="ip-fav ms-1" title="Favorita">★</span>{% endif -%}
 {% endmacro %}
@@ -30,163 +31,143 @@
 {% else %}<a class="small text-muted" href="/ticker/{{ c.ticker }}#valoracion">sin valoración</a>{% endif %}
 {% endmacro %}
 
+{% macro cagr(c) %}{% set v = c.val %}
+{%- if v and v.cagr is not none %}{% set b = zone_band.get(v.zone) %}<span class="num-font fw-bold {{ 'cagr-' ~ b if b }}" title="Rentabilidad anual estimada comprando hoy (valoración base){{ ' · zona ' ~ v.zone if v.zone }}{{ ' · valoración antigua sin revisar' if v.inputs.legacy }}">{{ pct(v.cagr) }}</span>
+{%- else %}<a class="small text-muted" href="/ticker/{{ c.ticker }}#valoracion" title="Poner la valoración">–</a>{% endif -%}
+{% endmacro %}
+{% macro to_buy(c) %}{% set v = c.val %}
+{%- if v and v.cagr is not none %}<span class="small num-font {{ 'text-success fw-bold' if c.drop_pct <= 0 else 'text-muted' }}" title="Precio de compra al {{ num(target, 0) }}%: {{ num(v.buy_price, 2) }}">{{ 'en zona' if c.drop_pct <= 0 else '−' ~ format_euro(c.drop_pct, 1) ~ '%' }}</span>{% endif -%}
+{% endmacro %}
+{% macro row(c, show_weight=false) %}
+<tr>
+    <td><a href="/ticker/{{ c.ticker }}" class="fw-bold text-decoration-none" title="{{ c.name }}">{{ c.ticker }}</a>{{ origin(c) }}</td>
+    {% if show_weight %}<td class="text-end num-font fw-semibold" title="{{ eur(c.value_eur) }}">{{ pct(c.weight) }}</td>{% endif %}
+    <td class="text-end">{{ chg_pill(c.day_pct) }}</td>
+    <td class="text-end">{{ cagr(c) }}</td>
+    {% if not show_weight %}<td class="text-end">{{ to_buy(c) }}</td>{% endif %}
+</tr>
+{% endmacro %}
 {% block content %}
-{% set shown_candidates = 5 %}
 <style>
-    .ip-tag { font-size: .65rem; border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: 0 .4rem; margin-left: .25rem; color: var(--bs-secondary-color); }
-    .ip-fav { color: #e3b341; font-size: .75rem; }
-    /* en cartera: fondo tintado y barra del color del rol; candidatas: atenuadas */
-    .role-card tr.ip-held > td { background: color-mix(in srgb, var(--role-color) 12%, transparent); }
-    .role-card tr.ip-held > td:first-child { box-shadow: inset 3px 0 0 var(--role-color); }
-    .role-card tr.ip-cand a.fw-bold { color: var(--bs-secondary-color); font-weight: 600 !important; }
-    .role-card tr.ip-cand:hover a.fw-bold { color: var(--bs-link-color); }
-    .ip-held-icon { color: var(--role-color, var(--fin-green)); font-size: .75rem; }
-    .ip-cand-icon { color: var(--bs-secondary-color); font-size: .75rem; opacity: .6; }
-    .ip-weight { font-weight: 700; }
-    .ip-chip.ip-chip-held { border-color: var(--fin-green); background: color-mix(in srgb, var(--fin-green) 8%, transparent); }
+    .ip-fav { color: #e3b341; font-size: .75rem; margin-left: .2rem; }
     .cagr-green { color: var(--fin-green) !important; } .cagr-amber { color: #e3b341 !important; } .cagr-orange { color: #f0883e !important; } .cagr-red { color: var(--fin-red) !important; }
-    .role-card { border-top: 3px solid var(--role-color) !important; }
-    .role-card .card-header { background: transparent; }
-    .role-card table td { font-size: .8rem; vertical-align: middle; }
-    .role-card table td { padding-top: .2rem; padding-bottom: .2rem; white-space: nowrap; }
-    .role-card .ip-sub td { font-size: .68rem; }
+    .ip-band-bajo { color: #f0883e; } .ip-band-alto { color: var(--fin-red); } .ip-band-en_rango { color: var(--fin-green); }
     .ip-role { font-size: .65rem; white-space: nowrap; border: 1px solid var(--role-color, var(--bs-border-color)); color: var(--role-color, var(--bs-secondary-color));
                background: transparent; border-radius: 1rem; padding: 0 .45rem; line-height: 1.5; }
     .ip-role-empty { border-style: dashed; }
-    .ip-more-btn { font-size: .72rem; }
-    /* barra de reparto: tramo sombreado = rango objetivo, relleno = peso real */
-    .ip-track { position: relative; height: 10px; background: var(--bs-tertiary-bg); border-radius: 5px; overflow: hidden; }
-    .ip-range { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--role-color) 25%, transparent); }
-    .ip-fill { position: absolute; top: 3px; bottom: 3px; left: 0; background: var(--role-color); border-radius: 3px; }
-    .ip-scale { width: 100%; max-width: 100%; }
-    .ip-band-bajo { color: #f0883e; } .ip-band-alto { color: var(--fin-red); } .ip-band-en_rango { color: var(--fin-green); }
-    .ip-chip { display: inline-flex; align-items: center; gap: .3rem; border: 1px solid var(--bs-border-color); border-radius: .4rem; padding: .1rem .35rem; margin: .12rem; font-size: .76rem; }
-    .ip-section > summary { cursor: pointer; list-style: none; }
-    .ip-section > summary::before { content: "\25B8"; display: inline-block; width: 1em; transition: transform .15s; }
-    .ip-section[open] > summary::before { transform: rotate(90deg); }
-    .ip-ai { font-size: .75rem; }
+    /* tablero: una columna por rol, todas del alto de la ventana y con scroll propio */
+    .ip-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+    @media (max-width: 1199.98px) { .ip-board { grid-template-columns: repeat(2, minmax(0, 1fr)); height: auto !important; max-height: none !important; overflow: visible; } }
+    @media (max-width: 767.98px) { .ip-board { grid-template-columns: 1fr; } }
+    .ip-board.fit-scroll { overflow: hidden; }
+    .role-col { border-top: 3px solid var(--role-color) !important; display: flex; flex-direction: column; min-height: 0; }
+    .role-col .card-header { background: transparent; padding: .5rem .75rem; }
+    .role-col .ip-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+    .role-col table td { font-size: .8rem; padding: .22rem .5rem; white-space: nowrap; vertical-align: middle; }
+    .role-col .ip-sub { font-size: .66rem; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); padding: .45rem .75rem .15rem; }
+    .role-col .ip-colhead th { white-space: nowrap; font-size: .62rem; font-weight: 600; color: var(--bs-secondary-color); text-transform: uppercase; padding: .1rem .5rem; border-bottom-width: 1px; }
+    .ip-weight-big { font-size: 1.15rem; font-weight: 700; line-height: 1; }
+    #ipAssign td { font-size: .8rem; vertical-align: middle; padding-top: .3rem; padding-bottom: .3rem; }
 </style>
 
 <div class="container-fluid py-2">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-        <div>
-            <h4 class="fw-bold mb-1"><i class="bi bi-award me-2 text-primary"></i>Portfolio ideal</h4>
-            <div class="small text-muted">Cada grupo se llena con las empresas a las que das ese rol (en la ficha, en la BBDD o aquí abajo).
-                Solo pueden tener rol las que están en seguimiento, favoritas o en cartera.</div>
-        </div>
-        <div class="small text-end">
-            <div>Cartera: <strong>{{ eur(ideal.total_value) }}</strong></div>
-            <div class="text-muted">Clasificado: {{ pct(ideal.assigned_weight) }} · objetivo {{ ideal.target_min }}–{{ ideal.target_max }}%</div>
-        </div>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <h4 class="fw-bold mb-0"><i class="bi bi-award me-2 text-primary"></i>Portfolio ideal
+            <i class="bi bi-info-circle text-muted fs-6 fw-normal" title="Cada rol se llena con las empresas a las que das ese rol (en su ficha, en la BBDD o en «Asignar roles»). Solo pueden tener rol las que están en seguimiento, favoritas o en cartera."></i></h4>
+        <div class="small text-end">Cartera <strong>{{ eur(ideal.total_value) }}</strong>
+            <span class="text-muted">· clasificado {{ pct(ideal.assigned_weight) }} · objetivo {{ ideal.target_min }}–{{ ideal.target_max }}%</span></div>
     </div>
 
-    {# Reparto: peso real frente al rango objetivo de cada rol #}
-    <div class="card mb-3"><div class="card-body py-2">
-        {% for g in ideal.groups %}
-        <div class="row align-items-center g-2 py-1" style="--role-color: {{ g.color }};">
-            <div class="col-12 col-md-3 small fw-bold">{{ g.emoji }} {{ g.name }}</div>
-            <div class="col-12 col-md-5">
-                <div class="ip-track" title="Rango objetivo {{ g.min }}–{{ g.max }}% · real {{ pct(g.weight) }}">
-                    <div class="ip-range" style="left: {{ g.min }}%; width: {{ g.max - g.min }}%;"></div>
-                    <div class="ip-fill" style="width: {{ [g.weight, 100]|min }}%;"></div>
-                </div>
-            </div>
-            <div class="col-12 col-md-4 small">
-                <span class="font-monospace-data fw-bold">{{ pct(g.weight) }}</span> <span class="text-muted">/ {{ g.min }}–{{ g.max }}%</span>
-                <span class="ip-band-{{ g.band }} ms-1">
-                {% if g.band == 'bajo' %}· faltan {{ pct(g.gap_pct) }} (~{{ eur(g.gap_eur) }})
-                {% elif g.band == 'alto' %}· sobran {{ pct(-g.gap_pct) }} (~{{ eur(-g.gap_eur) }})
-                {% else %}· en rango{% endif %}</span>
-            </div>
-        </div>
-        {% endfor %}
-        {% if ideal.unassigned_held %}{% set w = ideal.unassigned_held|sum(attribute='weight') %}
-        <div class="small text-warning mt-1"><i class="bi bi-exclamation-triangle me-1"></i>{{ pct(w) }} de la cartera está en posiciones sin rol ({{ ideal.unassigned_held|map(attribute='ticker')|join(', ') }}): clasifícalas abajo.</div>
-        {% endif %}
-    </div></div>
+    {% set pending = ideal.unassigned_held|length + ideal.unassigned_watch|length %}
+    <ul class="nav nav-pills sub-nav small mb-2" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ipBoardPane" type="button"><i class="bi bi-columns-gap me-1"></i>Por rol</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ipAssignPane" type="button" id="ipAssignTab"><i class="bi bi-tags me-1"></i>Asignar roles
+            {% if pending %}<span class="badge {{ 'text-bg-warning' if ideal.unassigned_held else 'text-bg-secondary' }} ms-1">{{ pending }} sin rol</span>{% endif %}</button></li>
+    </ul>
+    {% if ideal.unassigned_held %}{% set w = ideal.unassigned_held|sum(attribute='weight') %}
+    <div class="small text-warning mb-2"><i class="bi bi-exclamation-triangle me-1"></i>{{ pct(w) }} de la cartera está en posiciones sin rol ({{ ideal.unassigned_held|map(attribute='ticker')|join(', ') }}): clasifícalas en «Asignar roles».</div>
+    {% endif %}
 
-    <div class="row g-3">
+    <div class="tab-content">
+    <!-- POR ROL: una columna por rol; primero las candidatas, «En cartera» plegado abajo -->
+    <div class="tab-pane fade show active" id="ipBoardPane">
+    {# las cuatro columnas a la vez: candidatas o lo que ya tienes #}
+    <div class="btn-group btn-group-sm mb-2" role="group" aria-label="Qué ver en cada rol">
+        <button type="button" class="btn btn-outline-secondary active" data-ip-view="cand"><i class="bi bi-eye me-1"></i>Candidatas ({{ ideal.groups|sum(attribute='candidates', start=[])|length }})</button>
+        <button type="button" class="btn btn-outline-secondary" data-ip-view="held"><i class="bi bi-briefcase-fill me-1"></i>En cartera ({{ ideal.groups|sum(attribute='held', start=[])|length }})</button>
+    </div>
+    <div class="ip-board" data-fit="420" data-fit-fill>
     {% for g in ideal.groups %}
-    <div class="col-12 col-xxl-6">
-    <div class="card role-card h-100" style="--role-color: {{ g.color }};">
+    <div class="card role-col" style="--role-color: {{ g.color }};">
         <div class="card-header">
             <div class="d-flex justify-content-between align-items-start gap-2">
-                <div>
-                    <div class="fw-bold">{{ g.emoji }} {{ g.name }}
-                        <span class="badge text-bg-secondary fw-normal ms-1">{{ g.held|length }} en cartera · {{ g.candidates|length }} candidatas</span></div>
-                    <div class="small text-muted fst-italic">«{{ g.question }}»</div>
+                <div class="fw-bold text-truncate">{{ g.emoji }} {{ g.name }}
+                    <span class="dropdown"><button type="button" class="btn btn-link btn-sm p-0 text-muted" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Qué buscamos en {{ g.name }}"><i class="bi bi-info-circle"></i></button>
+                    <div class="dropdown-menu p-3 small text-wrap fw-normal" style="max-width: 24rem; min-width: 18rem;">
+                        <div class="fst-italic text-muted mb-1">«{{ g.question }}»</div>
+                        <div class="mb-1">{{ g.objective }}</div>
+                        <ul class="mb-0 ps-3">{% for t in g.traits %}<li>{{ t }}</li>{% endfor %}</ul></div></span>
                 </div>
-                <div class="text-end small text-nowrap">
-                    <div class="font-monospace-data fw-bold ip-band-{{ g.band }}">{{ pct(g.weight) }}</div>
-                    <div class="text-muted">objetivo {{ g.min }}–{{ g.max }}%</div>
-                </div>
+                <div class="ip-weight-big num-font ip-band-{{ g.band }} text-nowrap">{{ pct(g.weight) }}
+                    <i class="bi {{ 'bi-check-circle-fill' if g.band == 'en_rango' else ('bi-arrow-up-circle-fill' if g.band == 'alto' else 'bi-arrow-down-circle-fill') }}" style="font-size: .8rem;"></i></div>
             </div>
-            <details class="small mt-1">
-                <summary class="text-muted">Qué buscamos</summary>
-                <div class="mt-1">{{ g.objective }}</div>
-                <ul class="mb-1 ps-3">{% for t in g.traits %}<li>{{ t }}</li>{% endfor %}</ul>
-            </details>
+            <div class="small text-muted">{{ g.min }}–{{ g.max }}%
+                <span class="ip-band-{{ g.band }}">{% if g.band == 'bajo' %}· faltan {{ pct(g.gap_pct) }} (~{{ eur(g.gap_eur) }}){% elif g.band == 'alto' %}· sobran {{ pct(-g.gap_pct) }} (~{{ eur(-g.gap_eur) }}){% else %}· en rango{% endif %}</span></div>
         </div>
-        <div class="card-body p-0">
+        <div class="ip-list ip-view-cand">
+            <div class="ip-sub" title="Primero las más cerca de su precio de compra">Candidatas · {{ g.candidates|length }}</div>
+            {% if g.candidates %}
             <table class="table table-sm table-hover mb-0">
-                <tbody>
-                {% if not g.held %}<tr class="ip-sub"><td colspan="4" class="pt-2 ip-band-bajo"><i class="bi bi-briefcase me-1"></i>Nada en cartera con este rol</td></tr>{% endif %}
-                {% if g.held %}<tr class="ip-sub"><td colspan="4" class="text-uppercase fw-bold pt-2"><i class="bi bi-briefcase-fill ip-held-icon me-1"></i>En cartera · {{ g.held|length }} · {{ pct(g.weight) }}</td></tr>{% endif %}
-                {% for c in g.held %}
-                <tr class="ip-held">
-                    <td>{{ held_icon(c) }}<a href="/ticker/{{ c.ticker }}" class="fw-bold text-decoration-none" title="{{ c.name }}">{{ c.ticker }}</a>{{ origin(c) }}</td>
-                    <td class="text-end font-monospace-data ip-weight" title="{{ eur(c.value_eur) }} · peso en la cartera">{{ pct(c.weight) }}</td>
-                    <td>{{ valuation(c) }}</td>
-                    <td class="text-end">{{ role_select(c) }}</td>
-                </tr>
-                {% endfor %}
-                <tr class="ip-sub"><td colspan="4" class="text-muted text-uppercase fw-bold pt-2"><i class="bi bi-eye ip-cand-icon me-1"></i>Candidatas · {{ g.candidates|length }} <span class="fw-normal text-lowercase">(primero las más cerca de su precio de compra)</span></td></tr>
-                {% for c in g.candidates %}
-                <tr class="ip-cand {{ 'ip-more d-none' if loop.index > shown_candidates }}" data-group="{{ g.key }}">
-                    <td>{{ held_icon(c) }}<a href="/ticker/{{ c.ticker }}" class="fw-bold text-decoration-none" title="{{ c.name }}">{{ c.ticker }}</a>{{ origin(c) }}</td>
-                    <td></td>
-                    <td>{{ valuation(c) }}</td>
-                    <td class="text-end">{{ role_select(c) }}</td>
-                </tr>
-                {% else %}
-                <tr><td colspan="4" class="small text-muted">Ninguna candidata con este rol todavía.</td></tr>
-                {% endfor %}
-                {% if g.candidates|length > shown_candidates %}
-                <tr><td colspan="4" class="text-center"><button type="button" class="btn btn-link btn-sm ip-more-btn p-0" data-more="{{ g.key }}"
-                    data-label="Ver {{ g.candidates|length - shown_candidates }} más">Ver {{ g.candidates|length - shown_candidates }} más</button></td></tr>
-                {% endif %}
-                </tbody>
-            </table>
+            <thead><tr class="ip-colhead"><th></th><th class="text-end">Var. día</th><th class="text-end" title="Rentabilidad anual estimada comprando hoy">CAGR</th><th class="text-end" title="Lo que tendría que caer para llegar al precio de compra">Falta</th></tr></thead>
+            <tbody>
+            {% for c in g.candidates %}{{ row(c) }}{% endfor %}
+            </tbody></table>
+            {% else %}<div class="small text-muted px-3 py-1">Ninguna candidata con este rol todavía.</div>{% endif %}
         </div>
-    </div>
+        <div class="ip-list ip-view-held d-none">
+            <div class="ip-sub">En cartera · {{ g.held|length }} · {{ pct(g.weight) }}</div>
+            {% if g.held %}<table class="table table-sm table-hover mb-0"><thead><tr class="ip-colhead"><th></th><th class="text-end">Peso</th><th class="text-end">Var. día</th><th class="text-end">CAGR</th></tr></thead><tbody>{% for c in g.held %}{{ row(c, true) }}{% endfor %}</tbody></table>
+                {% else %}<div class="small px-3 pb-2 ip-band-bajo">Nada en cartera con este rol.</div>{% endif %}
+        </div>
     </div>
     {% endfor %}
     </div>
+    </div>
 
-    {# Sin rol: lo que queda por clasificar #}
-    <div class="card mt-3">
-        <div class="card-header bg-transparent fw-bold"><i class="bi bi-question-circle me-1"></i>Sin rol
-            <span class="small text-muted fw-normal">· dales rol para que entren en su grupo; <i class="bi bi-robot"></i> pide una propuesta a la IA</span></div>
-        <div class="card-body">
-            {% for title, items, open in [('En cartera', ideal.unassigned_held, true), ('Favoritas y en seguimiento', ideal.unassigned_watch, true)] %}
-            <details class="ip-section {{ 'mt-2' if not loop.first }}" {{ 'open' if open and items }}>
-                <summary class="small text-muted text-uppercase fw-bold">{{ title }} ({{ items|length }})
-                    {% if loop.first and items %}<span class="text-warning text-lowercase fw-normal">· descuadran el reparto</span>{% endif %}</summary>
-                {% if items|length > 12 %}<input type="search" class="form-control form-control-sm my-2 ip-filter" style="max-width: 16rem;" placeholder="Filtrar por ticker…" aria-label="Filtrar {{ title }}">{% endif %}
-                <div class="mt-1">
-                {% for c in items %}
-                <span class="ip-chip {{ 'ip-chip-held' if c.held }}" data-ticker="{{ c.ticker }}" title="{{ c.name }}">
-                    {{ held_icon(c) }}<a href="/ticker/{{ c.ticker }}" class="fw-bold text-decoration-none">{{ c.ticker }}</a>{{ origin(c) }}
-                    {% if c.held %}<span class="text-muted font-monospace-data">{{ pct(c.weight) }}</span>{% endif %}
-                    {{ role_select(c) }}
-                    <button class="btn btn-link btn-sm p-0" title="Proponer rol con IA" aria-label="Proponer rol para {{ c.ticker }}" onclick="suggestRole('{{ c.ticker }}', this)"><i class="bi bi-robot"></i></button>
-                </span>
-                {% else %}<div class="small text-muted">Nada pendiente.</div>{% endfor %}
-                </div>
-            </details>
-            {% endfor %}
-            <div id="aiResult" class="ip-ai mt-2"></div>
+    <!-- ASIGNAR ROLES: todas las que pueden tenerlo, con su selector; «Sin rol» primero -->
+    <div class="tab-pane fade" id="ipAssignPane">
+        {% set all_rows = [] %}
+        {% for c in ideal.unassigned_held + ideal.unassigned_watch %}{% set _ = all_rows.append(c) %}{% endfor %}
+        {% for g in ideal.groups %}{% for c in g.held + g.candidates %}{% set _ = all_rows.append(c) %}{% endfor %}{% endfor %}
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Filtrar por rol">
+                <button type="button" class="btn btn-outline-secondary {{ '' if pending else 'active' }}" data-ip-filter="">Todas ({{ all_rows|length }})</button>
+                <button type="button" class="btn btn-outline-secondary {{ 'active' if pending }}" data-ip-filter="none">Sin rol ({{ pending }})</button>
+                {% for g in ideal.groups %}<button type="button" class="btn btn-outline-secondary" data-ip-filter="{{ g.key }}">{{ g.emoji }} {{ g.key|capitalize }} ({{ g.held|length + g.candidates|length }})</button>{% endfor %}
+            </div>
+            <input type="search" class="form-control form-control-sm" style="max-width: 14rem;" placeholder="Buscar ticker o empresa…" id="ipSearch">
+            <span class="small text-muted ms-auto"><i class="bi bi-robot"></i> propone un rol con IA (solo al pulsar)</span>
         </div>
+        <div id="aiResult" class="ip-ai mb-2 small"></div>
+        <div class="card"><div class="table-responsive" data-fit="200">
+            <table class="table table-sm table-hover mb-0" id="ipAssign">
+                <thead><tr><th>Empresa</th><th class="text-end">En cartera</th><th class="text-end">Var. día</th><th class="text-end">CAGR est.</th><th class="text-end">Rol</th><th></th></tr></thead>
+                <tbody>
+                {% for c in all_rows %}
+                <tr data-role="{{ c.role or 'none' }}" data-search="{{ (c.ticker ~ ' ' ~ c.name)|lower }}">
+                    <td><a href="/ticker/{{ c.ticker }}" class="fw-bold text-decoration-none">{{ c.ticker }}</a>{{ origin(c) }} <span class="text-muted small">{{ c.name }}</span></td>
+                    <td class="text-end num-font">{{ pct(c.weight) if c.held else '–' }}</td>
+                    <td class="text-end">{{ chg_pill(c.day_pct) }}</td>
+                    <td class="text-end">{{ cagr(c) }}</td>
+                    <td class="text-end">{{ role_select(c) }}</td>
+                    <td class="text-end"><button class="btn btn-link btn-sm p-0" title="Proponer rol con IA" aria-label="Proponer rol para {{ c.ticker }}" onclick="suggestRole('{{ c.ticker }}', this)"><i class="bi bi-robot"></i></button></td>
+                </tr>
+                {% endfor %}
+                <tr class="ip-empty d-none"><td colspan="6" class="small text-muted">Ninguna empresa con este filtro.</td></tr>
+                </tbody>
+            </table>
+        </div></div>
+    </div>
     </div>
 </div>
 
@@ -205,19 +186,38 @@ async function setRole(ticker, role) {
 document.addEventListener('click', e => {
     const item = e.target.closest('[data-set-role]');
     if (item) { e.preventDefault(); setRole(item.dataset.ticker, item.dataset.setRole); }
-    const more = e.target.closest('[data-more]');
-    if (more) {
-        const rows = document.querySelectorAll(`tr.ip-more[data-group="${more.dataset.more}"]`);
-        const open = more.dataset.open !== '1';
-        rows.forEach(tr => tr.classList.toggle('d-none', !open));
-        more.dataset.open = open ? '1' : '';
-        more.textContent = open ? 'Ver menos' : more.dataset.label;
-    }
 });
-document.querySelectorAll('.ip-filter').forEach(input => input.addEventListener('input', () => {
-    const q = input.value.trim().toUpperCase();
-    input.closest('details').querySelectorAll('.ip-chip').forEach(ch => ch.classList.toggle('d-none', !!q && !ch.dataset.ticker.includes(q)));
+// Por rol: candidatas o en cartera, en las cuatro columnas a la vez (se recuerda al recargar)
+function ipView(v) {
+    document.querySelectorAll('[data-ip-view]').forEach(b => b.classList.toggle('active', b.dataset.ipView === v));
+    document.querySelectorAll('.ip-view-cand').forEach(el => el.classList.toggle('d-none', v !== 'cand'));
+    document.querySelectorAll('.ip-view-held').forEach(el => el.classList.toggle('d-none', v !== 'held'));
+    try { sessionStorage.setItem('ipView', v); } catch (e) {}
+}
+document.querySelectorAll('[data-ip-view]').forEach(b => b.addEventListener('click', () => ipView(b.dataset.ipView)));
+try { if (sessionStorage.getItem('ipView') === 'held') ipView('held'); } catch (e) {}
+// Asignar roles: filtro por rol y búsqueda
+let ipFilter = document.querySelector('[data-ip-filter].active')?.dataset.ipFilter || '';
+function ipApply() {
+    const q = (document.getElementById('ipSearch')?.value || '').trim().toLowerCase();
+    let n = 0;
+    document.querySelectorAll('#ipAssign tbody tr[data-role]').forEach(tr => {
+        const show = (!ipFilter || tr.dataset.role === ipFilter) && (!q || tr.dataset.search.includes(q));
+        tr.classList.toggle('d-none', !show); n += show;
+    });
+    document.querySelector('#ipAssign .ip-empty')?.classList.toggle('d-none', n > 0);
+}
+document.querySelectorAll('[data-ip-filter]').forEach(b => b.addEventListener('click', () => {
+    ipFilter = b.dataset.ipFilter;
+    document.querySelectorAll('[data-ip-filter]').forEach(x => x.classList.toggle('active', x === b));
+    ipApply();
 }));
+document.getElementById('ipSearch')?.addEventListener('input', ipApply);
+ipApply();
+// tras asignar un rol la página se recarga: volver a la pestaña en la que estabas
+document.getElementById('ipAssignTab')?.addEventListener('shown.bs.tab', () => history.replaceState(null, '', '#asignar'));
+document.querySelector('[data-bs-target="#ipBoardPane"]')?.addEventListener('shown.bs.tab', () => history.replaceState(null, '', location.pathname));
+document.addEventListener('DOMContentLoaded', () => { if (location.hash === '#asignar') bootstrap.Tab.getOrCreateInstance(document.getElementById('ipAssignTab')).show(); });
 
 async function suggestRole(ticker, btn) {
     const out = document.getElementById('aiResult');

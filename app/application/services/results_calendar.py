@@ -2,8 +2,9 @@
 Próxima publicación de resultados de cada empresa.
 
 1) yfinance (gratis). 2) Si no da fecha o la que da está muy lejos (>100 días: p.ej. Hermès solo publica las anuales en
-yfinance, no la cifra de ventas trimestral), se busca con Gemini + Google Search en segundo plano y se guarda 7 días
-en data/next_results_cache.json. Mientras tanto se muestra lo que haya.
+yfinance, no la cifra de ventas trimestral), se busca con Gemini + Google Search en segundo plano y se guarda en
+data/next_results_cache.json. Una fecha encontrada vale hasta que pasa (no se vuelve a buscar); si no se encontró,
+se reintenta cada CACHE_DAYS días. Mientras tanto se muestra lo que haya.
 """
 import json
 import logging
@@ -15,7 +16,7 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 CACHE_FILE = os.path.join("data", "next_results_cache.json")
-CACHE_DAYS = 7
+CACHE_DAYS = 15   # reintento cuando la búsqueda no encontró fecha
 FAR_DAYS = 100
 _lock = threading.Lock()
 _pending: set = set()
@@ -84,14 +85,23 @@ def _fetch_async(ticker: str, company: str) -> None:
     threading.Thread(target=work, name=f"next-results-{ticker}", daemon=True).start()
 
 
+def is_fresh(cached: Optional[Dict[str, Any]], now: Optional[datetime] = None) -> bool:
+    """¿Sirve lo guardado? Una fecha encontrada, hasta que pase; sin fecha, CACHE_DAYS días desde la búsqueda."""
+    if not cached:
+        return False
+    now = now or datetime.now()
+    if cached.get("date"):
+        return cached["date"] >= now.date().isoformat()
+    return now - datetime.fromisoformat(cached["fetched_at"]) < timedelta(days=CACHE_DAYS)
+
+
 def next_results(ticker: str, company: str, yf_next: Optional[str]) -> Optional[Dict[str, Any]]:
     """{date, event, source} de la próxima publicación. No bloquea: si hace falta buscar, lo lanza en segundo plano."""
     yf_item = {"date": yf_next, "event": "", "source": "yfinance"} if yf_next else None
     if not needs_fallback(yf_next):
         return yf_item
     cached = _load().get(ticker)
-    fresh = cached and datetime.now() - datetime.fromisoformat(cached["fetched_at"]) < timedelta(days=CACHE_DAYS)
-    if not fresh:
+    if not is_fresh(cached):
         _fetch_async(ticker, company)
     if cached and cached.get("date") and cached["date"] >= date.today().isoformat() and (not yf_next or cached["date"] < yf_next):
         return {"date": cached["date"], "event": cached.get("event") or "", "source": "búsqueda", "source_url": cached.get("source_url")}

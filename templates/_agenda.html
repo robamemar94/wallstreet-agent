@@ -1,0 +1,251 @@
+{# Agenda (lo que viene) y Resumen (lo que ha pasado) del Centro de mando, a 7 y 30 días; el Resumen, además, «Hoy».
+   Agenda: «Cartera» (resultados y dividendos anunciados) y «Resto» (resultados de las que sigues sin tenerlas).
+   Resumen: solo la cartera: variación, lo que más la ha movido, dividendos, operaciones y resultados publicados.
+   «Hoy» es otra cosa: el parte del día (cartera hoy, lo que toca hoy y mañana, lo que ha pasado desde ayer, avisos y
+   lo nuevo desde tu última visita, y la watchlist del día).
+   Cambiar de vista o de periodo lo hace el JavaScript de la portada; lo que no cabe se desplaza dentro de la tarjeta. #}
+
+{% macro when(i) %}<span class="font-monospace-data text-nowrap" style="min-width:4.6rem;">{{ i.date.strftime('%d/%m') }}
+    <span class="{{ 'text-warning fw-bold' if i.days <= 2 else 'text-muted' }}">{{ 'hoy' if i.days == 0 else ('mañana' if i.days == 1 else i.days ~ ' d') }}</span></span>{% endmacro %}
+
+{% macro heading(text, extra='') %}<div class="text-muted fw-bold mb-2" style="font-size:.72rem;letter-spacing:.05em;">{{ text }}{% if extra %} <span class="fw-normal">{{ extra }}</span>{% endif %}</div>{% endmacro %}
+
+{% macro thesis_link(t, tid) %}{% if tid %}<a href="/tesis/{{ tid }}" class="text-decoration-none fw-bold">{{ t }}</a>{% else %}<strong>{{ t }}</strong>{% endif %}{% endmacro %}
+
+{% macro zone_badge(z) %}
+{% if z.group == 'zona' %}<span class="badge bg-success bg-opacity-25 text-success fw-normal" title="Cotiza por debajo de su precio de compra (Watchlist)">en zona de compra</span>
+{% elif z.group == 'cerca' %}<span class="badge bg-warning bg-opacity-25 text-warning fw-normal" title="Lo que tendría que caer para llegar a su precio de compra (Watchlist)">a {{ num(z.drop, 1) }}% de compra</span>
+{% else %}<span class="badge bg-secondary bg-opacity-25 text-secondary fw-normal" title="Lo que tendría que caer para llegar a su precio de compra (Watchlist)">a {{ num(z.drop, 0) }}% de compra</span>{% endif %}
+{% endmacro %}
+
+{% macro company(t, tid, m) %}
+{% if tid %}<a href="/tesis/{{ tid }}" class="text-decoration-none fw-bold" title="Ver la tesis">{{ t }}</a>{% else %}<a href="/ticker/{{ t }}" class="text-decoration-none fw-bold text-body">{{ t }}</a>{% endif %}
+{% if m.fav %}<i class="bi bi-star-fill text-warning" style="font-size:.65rem;" title="Favorita"></i>{% endif %}
+{% if m.watch %}<i class="bi bi-eye text-info" style="font-size:.65rem;" title="En la Watchlist"></i>{% elif m.following %}<i class="bi bi-eye-fill text-success" style="font-size:.65rem;" title="En seguimiento"></i>{% endif %}
+{% endmacro %}
+
+{# --- Agenda --- #}
+
+{# «en los próximos 7 días» / «hoy y mañana» #}
+{% macro span(w) %}en los próximos {{ w.days }} días{% endmacro %}
+
+{% macro agenda_window(key, w, theses_ids) %}
+<div class="card-body small agenda-window d-none" data-agenda-view="cartera" data-agenda-window="{{ key }}">
+<div class="row g-3">
+<div class="col-12 col-md-6">
+    {{ heading('RESULTADOS ' ~ span(w)|upper) }}
+    <ul class="list-unstyled mb-0">
+    {% for i in w.upcoming %}<li class="d-flex gap-2 mb-2">{{ when(i) }}
+        <span><i class="bi bi-clipboard-data text-primary me-1"></i>{{ thesis_link(i.ticker, theses_ids.get(i.ticker)) }} presenta resultados</span>
+    </li>{% else %}<li class="text-muted">Sin resultados {{ span(w) }}.</li>{% endfor %}
+    </ul>
+</div>
+<div class="col-12 col-md-6">
+    {{ heading('DIVIDENDOS A COBRAR', '(anunciados)') }}
+    <ul class="list-unstyled mb-0">
+    {% for i in w.dividends %}<li class="d-flex gap-2 mb-2">{{ when(i) }}
+        <span>{% if i.kind == 'ex' %}<i class="bi bi-calendar-x text-success me-1"></i>{% else %}<i class="bi bi-cash-coin text-success me-1"></i>{% endif %}{{ thesis_link(i.ticker, theses_ids.get(i.ticker)) }}
+        {% if i.kind == 'ex' %}fecha ex-dividendo · {{ num(i.amount, 4) }} {{ i.currency }}/acc. <span class="text-muted">(≈{{ num(i.gross_eur, 2) }} € brutos)</span>
+        {% else %}cobro de dividendo · <span class="text-success fw-bold">+{{ num(i.gross_eur, 2) }} €</span> <span class="text-muted">brutos (≈{{ num(i.net_eur, 2) }} € netos)</span>{% endif %}</span>
+    </li>{% else %}<li class="text-muted">Ningún dividendo anunciado {{ span(w) }}.</li>{% endfor %}
+    </ul>
+</div>
+</div>
+</div>
+{% endmacro %}
+
+{% macro other_window(key, w, meta) %}
+<div class="card-body small agenda-window d-none" data-agenda-view="resto" data-agenda-window="{{ key }}">
+    {{ heading('PRESENTAN ' ~ span(w)|upper) }}
+    <ul class="list-unstyled mb-0 agenda-grid">
+    {% for i in w.upcoming %}{% set m = meta.get(i.ticker, {}) %}<li class="d-flex gap-2 mb-2">{{ when(i) }}
+        <span><i class="bi bi-clipboard-data text-primary me-1"></i>{{ company(i.ticker, i.thesis_id, m) }}{% if m.zone %} {{ zone_badge(m.zone) }}{% endif %}</span>
+    </li>{% else %}<li class="text-muted">Ninguna de las que sigues presenta resultados {{ span(w) }}.</li>{% endfor %}
+    </ul>
+</div>
+{% endmacro %}
+
+{% macro period_buttons(hoy_title='') %}
+<div class="btn-group btn-group-sm" role="group" aria-label="Periodo">
+    {% if hoy_title %}<button type="button" class="btn btn-outline-secondary" data-agenda="hoy" title="{{ hoy_title }}">Hoy</button>{% endif %}
+    <button type="button" class="btn btn-outline-secondary" data-agenda="semana">7 días</button>
+    <button type="button" class="btn btn-outline-secondary" data-agenda="mes">30 días</button>
+</div>
+{% endmacro %}
+
+{% macro agenda_card(agenda, other, theses_ids) %}
+<div class="card h-100" id="agendaCard" data-store="agenda">
+    <div class="card-header bg-transparent fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-calendar-week me-1"></i>Agenda</span>
+        <div class="d-flex gap-2 flex-wrap">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Empresas">
+                <button type="button" class="btn btn-outline-secondary active" data-agenda-view-btn="cartera"><i class="bi bi-briefcase me-1"></i>Cartera</button>
+                <button type="button" class="btn btn-outline-secondary" data-agenda-view-btn="resto" title="Favoritas, en seguimiento, en la Watchlist o con tesis, sin tenerlas en cartera"><i class="bi bi-binoculars me-1"></i>Resto</button>
+            </div>
+            {{ period_buttons() }}
+        </div>
+    </div>
+    {% for key in ('semana', 'mes') %}{{ agenda_window(key, agenda[key], theses_ids) }}{{ other_window(key, other[key], other.meta) }}{% endfor %}
+</div>
+{% endmacro %}
+
+{# --- Resumen: lo que ha pasado --- #}
+
+{# Watchlist del día (en el Resumen «Hoy»): en zona de compra, a punto de entrar y movimientos fuertes #}
+{% macro watch_chip(i, text, cls) %}<a href="{{ '/tesis/' ~ i.thesis_id if i.thesis_id else '/ticker/' ~ i.ticker }}" class="badge {{ cls }} fw-normal me-1 mb-1 text-decoration-none">{% if i.held %}<i class="bi bi-briefcase me-1" title="En cartera"></i>{% endif %}{{ clean_ticker(i.ticker) }} {{ text }}</a>{% endmacro %}
+{% macro watch_today(wd) %}
+<div class="summary-section">
+    {{ heading('WATCHLIST HOY') }}
+    {% if wd.zone or wd.near or wd.movers %}
+    {% if wd.zone %}<div class="mb-1"><span class="text-muted me-1">En zona de compra:</span>{% for i in wd.zone %}{{ watch_chip(i, num(-i.drop, 1) ~ '% por debajo', 'bg-success bg-opacity-25 text-success') }}{% endfor %}</div>{% endif %}
+    {% if wd.near %}<div class="mb-1"><span class="text-muted me-1" title="Le falta caer como mucho un 5% para llegar a su precio de compra">A punto:</span>{% for i in wd.near %}{{ watch_chip(i, 'a ' ~ num(i.drop, 1) ~ '%', 'bg-warning bg-opacity-25 text-warning') }}{% endfor %}</div>{% endif %}
+    {% if wd.movers %}<div><span class="text-muted me-1" title="Se mueven un 3% o más hoy">Se mueven:</span>{% for i in wd.movers %}{{ watch_chip(i, num(i.day_pct, 1, sign=True) ~ '%', 'bg-success bg-opacity-10 text-success' if i.day_pct > 0 else 'bg-danger bg-opacity-10 text-danger') }}{% endfor %}</div>{% endif %}
+    {% else %}<span class="text-muted">Nada que mirar: ninguna en zona de compra, a punto de entrar ni con movimientos fuertes.</span>{% endif %}
+    <div class="mt-1"><a href="/watchlist" class="small text-decoration-none">ver la watchlist →</a></div>
+</div>
+{% endmacro %}
+
+{# --- Resumen «Hoy»: el parte del día --- #}
+{# El tiempo que hace en la cartera hoy: sol (≥ +1 %), sol y nubes, nubes (±0,25 %), lluvia y tormenta (≤ −1 %) #}
+{% macro weather(pct) %}
+{% if pct is none %}{% set w = ('bi-cloud', 'text-secondary', 'Sin datos de precios') %}
+{% elif pct >= 1 %}{% set w = ('bi-sun-fill', 'text-warning', 'Día de sol: +1 % o más') %}
+{% elif pct > 0.25 %}{% set w = ('bi-cloud-sun-fill', 'text-warning', 'Sol y nubes: sube algo') %}
+{% elif pct >= -0.25 %}{% set w = ('bi-cloud-fill', 'text-secondary', 'Nublado: casi plana (±0,25 %)') %}
+{% elif pct > -1 %}{% set w = ('bi-cloud-drizzle-fill', 'text-info', 'Llovizna: baja algo') %}
+{% else %}{% set w = ('bi-cloud-lightning-rain-fill', 'text-danger', 'Tormenta: −1 % o más') %}{% endif %}
+<i class="bi {{ w[0] }} {{ w[1] }} me-1" style="font-size:.95rem;" title="{{ w[2] }}"></i>
+{% endmacro %}
+
+{% macro summary_today(w, benchmark, t) %}
+{% set p = w.past %}
+<div class="card-body small agenda-window d-none" data-agenda-window="hoy">
+<div class="row g-4">
+<div class="col-12 col-md-6">
+    <div class="summary-section">
+        <div class="text-muted fw-bold mb-2 d-flex align-items-center" style="font-size:.72rem;letter-spacing:.05em;">{{ weather(p.pct) }}CARTERA HOY</div>
+        {% if p.pct is not none %}
+        <div class="d-flex align-items-baseline gap-2 flex-wrap">
+            <span class="fs-5 fw-bold num-font {{ 'text-success' if p.pct > 0 else ('text-danger' if p.pct < 0 else '') }}">{{ num(p.pct, 2, sign=True) }}%</span>
+            <span class="fw-semibold {{ 'text-success' if p.abs_eur > 0 else ('text-danger' if p.abs_eur < 0 else 'text-muted') }}">{{ num(p.abs_eur, 0, sign=True) }} €</span>
+            <span class="text-muted">{% if p.benchmark_pct is not none %}· {{ benchmark }} {{ num(p.benchmark_pct, 2, sign=True) }}%{% elif p.benchmark_closed %}· {{ benchmark }} sin abrir{% endif %}
+                {% if p.closed %}· <span title="Su mercado aún no ha abierto (sin variación del precio; en euros solo cuenta la divisa): {% for x in p.closed %}{{ clean_ticker(x) }}{{ ', ' if not loop.last }}{% endfor %}"><i class="bi bi-moon"></i> {{ p.closed|length }} sin abrir</span>{% endif %}
+                <i class="bi bi-info-circle ms-1" title="Con los precios en directo, como la Cartera: en euros incluye la divisa. Las compras y ventas no cuentan como ganancia."></i></span>
+        </div>
+        {% if p.gainers or p.losers %}<div class="mt-1">
+            {% for m in p.gainers %}<span class="badge bg-success bg-opacity-10 text-success fw-normal me-1 mb-1">{{ clean_ticker(m.ticker) }} {{ num(m.pnl_eur, 0, sign=True) }} €</span>{% endfor %}
+            {% for m in p.losers %}<span class="badge bg-danger bg-opacity-10 text-danger fw-normal me-1 mb-1">{{ clean_ticker(m.ticker) }} {{ num(m.pnl_eur, 0, sign=True) }} €</span>{% endfor %}
+        </div>{% endif %}
+        {% else %}<span class="text-muted">Sin datos de precios.</span>{% endif %}
+    </div>
+    <div class="summary-section">
+        {{ heading('HOY Y MAÑANA') }}
+        <ul class="list-unstyled mb-0">
+        {% for i in w.upcoming %}<li class="mb-1"><span class="text-warning fw-bold">{{ 'hoy' if i.days == 0 else 'mañana' }}</span>
+            <i class="bi bi-clipboard-data text-primary mx-1"></i>{{ thesis_link(clean_ticker(i.ticker), i.thesis_id) }} presenta resultados</li>{% endfor %}
+        {% for i in w.dividends %}<li class="mb-1"><span class="text-warning fw-bold">{{ 'hoy' if i.days == 0 else 'mañana' }}</span>
+            <i class="bi {{ 'bi-calendar-x' if i.kind == 'ex' else 'bi-cash-coin' }} text-success mx-1"></i><strong>{{ clean_ticker(i.ticker) }}</strong>
+            {% if i.kind == 'ex' %}fecha ex-dividendo <span class="text-muted">(≈{{ num(i.gross_eur, 2) }} € brutos)</span>{% else %}cobro <span class="text-success fw-bold">+{{ num(i.gross_eur, 2) }} €</span> <span class="text-muted">brutos</span>{% endif %}</li>{% endfor %}
+        {% if not w.upcoming and not w.dividends %}<li class="text-muted">Nada de tu cartera hoy ni mañana.</li>{% endif %}
+        {% if t.soon_other %}<li class="text-muted" title="{% for i in t.soon_other %}{{ clean_ticker(i.ticker) }} {{ 'hoy' if i.days == 0 else 'mañana' }}{{ ', ' if not loop.last }}{% endfor %}"><i class="bi bi-binoculars me-1"></i>De las que sigues presentan: {% for i in t.soon_other %}{{ clean_ticker(i.ticker) }}{{ ', ' if not loop.last }}{% endfor %}</li>{% endif %}
+        </ul>
+    </div>
+    <div class="summary-section">
+        {{ heading('DESDE AYER') }}
+        <ul class="list-unstyled mb-0">
+        {% for x in p.transactions %}<li class="mb-1"><i class="bi {{ 'bi-plus-circle text-success' if x.type == 'BUY' else 'bi-dash-circle text-danger' }} me-1"></i>{{ 'Compra' if x.type == 'BUY' else 'Venta' }} {{ num(x.shares, 0 if x.shares == x.shares|round else 2) }} <strong>{{ clean_ticker(x.ticker) }}</strong>{% if x.avg_price %} a {{ num(x.avg_price, 2) }} {{ x.cur }}{% endif %}</li>{% endfor %}
+        {% if p.dividends %}<li class="mb-1"><i class="bi bi-cash-coin text-success me-1"></i>Dividendos <span class="fw-bold text-success">+{{ num(p.dividends_eur, 2) }} €</span> <span class="text-muted">brutos ({{ p.dividends|map(attribute='ticker')|unique|join(', ') }})</span></li>{% endif %}
+        {% for r in p.reported %}<li class="mb-1"><i class="bi bi-clipboard-data text-primary me-1"></i>{{ thesis_link(clean_ticker(r.ticker), r.thesis_id) }} ha publicado resultados
+            {% if r.surprise_pct is not none %} · BPA <span class="{{ 'text-success' if r.surprise_pct >= 0 else 'text-danger' }}">{{ num(r.surprise_pct, 1, sign=True) }}%</span> vs consenso{% endif %}</li>{% endfor %}
+        {% if not p.transactions and not p.dividends and not p.reported %}<li class="text-muted">Sin operaciones, cobros ni resultados.</li>{% endif %}
+        </ul>
+    </div>
+</div>
+<div class="col-12 col-md-6 summary-right">
+    <div class="summary-section">
+        {{ heading('AVISOS') }}
+        <a href="#slot-attention" id="summaryUnread" class="text-decoration-none {{ 'text-warning fw-bold' if t.unread else 'text-muted' }}"><i class="bi bi-inbox me-1"></i>{% if t.unread %}{{ t.unread }} aviso{{ 's' if t.unread != 1 }} sin leer de tu cartera{% else %}Ningún aviso sin leer de tu cartera{% endif %}</a>
+        {% set v = t.visit %}
+        <div class="text-muted mt-1" id="visitLine" data-keys="{{ (v.notices if v else [])|tojson|forceescape }}" data-news="{{ (v.news if v else [])|tojson|forceescape }}">
+            <i class="bi bi-clock-history me-1"></i>{% if not v %}A partir de ahora se marcará lo nuevo desde tu última visita.
+            {% else %}Desde tu última visita ({{ v.since[8:10] }}/{{ v.since[5:7] }} {{ v.since[11:16] }}):
+                {% if v.notices or v.news or v.reported %}
+                {% if v.notices %}<span class="text-body fw-semibold">{{ v.notices|length }} aviso{{ 's' if v.notices|length != 1 }} nuevo{{ 's' if v.notices|length != 1 }}</span>{% endif %}
+                {% if v.news %}{{ '· ' if v.notices }}<span class="text-body fw-semibold">{{ v.news|length }} noticia{{ 's' if v.news|length != 1 }}</span>{% endif %}
+                {% if v.reported %}{{ '· ' if v.notices or v.news }}han publicado <span class="text-body fw-semibold">{% for x in v.reported %}{{ clean_ticker(x) }}{{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}
+                {% else %}nada nuevo.{% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {{ watch_today(t.watch) }}
+</div>
+</div>
+</div>
+{% endmacro %}
+
+{# --- Resumen 7 / 30 días --- #}
+{% macro summary_window(key, w, benchmark) %}
+{% set p = w.past %}
+<div class="card-body small agenda-window d-none" data-agenda-window="{{ key }}">
+<div class="row g-4">
+<div class="col-12 col-md-6">
+    <div class="summary-section">
+        {{ heading('CARTERA', '(desde el ' ~ p.start.strftime('%d/%m') ~ ')') }}
+        {% if p.pct is not none %}
+        <div class="d-flex align-items-baseline gap-2 flex-wrap">
+            <span class="fs-5 fw-bold num-font {{ 'text-success' if p.pct > 0 else ('text-danger' if p.pct < 0 else '') }}">{{ num(p.pct, 2, sign=True) }}%</span>
+            <span class="fw-semibold {{ 'text-success' if p.abs_eur > 0 else ('text-danger' if p.abs_eur < 0 else 'text-muted') }}">{{ num(p.abs_eur, 0, sign=True) }} €</span>
+        </div>
+        <div class="text-muted">{% if p.benchmark_pct is not none %}{{ benchmark }} {{ num(p.benchmark_pct, 2, sign=True) }}% en el mismo periodo{% endif %}
+            <i class="bi bi-info-circle ms-1" title="Días corridos, como la agenda y la banda de variación de Cartera (1S son 7 días; 1M, un mes natural). Las compras y ventas no cuentan como ganancia."></i>
+            {% if p.incomplete %}<span class="text-warning" title="Yahoo no ha dado su precio de esa fecha: quedan fuera del cálculo"><i class="bi bi-exclamation-triangle"></i> sin {{ p.incomplete|join(', ') }}</span>{% endif %}</div>
+        {% else %}<span class="text-muted">Sin datos de precios.</span>{% endif %}
+    </div>
+    <div class="summary-section">
+        {{ heading('LO QUE MÁS LA HA MOVIDO') }}
+        {% if p.gainers or p.losers %}<div>
+            {% for m in p.gainers %}<span class="badge bg-success bg-opacity-10 text-success fw-normal me-1 mb-1">{{ m.ticker }} {{ num(m.pnl_eur, 0, sign=True) }} €</span>{% endfor %}
+            {% for m in p.losers %}<span class="badge bg-danger bg-opacity-10 text-danger fw-normal me-1 mb-1">{{ m.ticker }} {{ num(m.pnl_eur, 0, sign=True) }} €</span>{% endfor %}
+        </div>{% else %}<span class="text-muted">Sin movimientos.</span>{% endif %}
+    </div>
+    <div class="summary-section">
+        {{ heading('DIVIDENDOS DEVENGADOS') }}
+        {% if p.dividends %}<i class="bi bi-cash-coin text-success me-1"></i><span class="fw-bold text-success">+{{ num(p.dividends_eur, 2) }} €</span> <span class="text-muted">brutos ({{ p.dividends|map(attribute='ticker')|unique|join(', ') }})</span>
+        {% else %}<span class="text-muted">Ninguno.</span>{% endif %}
+    </div>
+</div>
+<div class="col-12 col-md-6 summary-right">
+    <div class="summary-section">
+        {{ heading('OPERACIONES') }}
+        {% if p.transactions %}<ul class="list-unstyled mb-0">{% for t in p.transactions %}<li class="mb-1"><i class="bi {{ 'bi-plus-circle text-success' if t.type == 'BUY' else 'bi-dash-circle text-danger' }} me-1"></i>{{ 'Compra' if t.type == 'BUY' else 'Venta' }} {{ num(t.shares, 0 if t.shares == t.shares|round else 2) }} <strong>{{ clean_ticker(t.ticker) }}</strong>
+            {% if t.avg_price %}a {{ num(t.avg_price, 2) }} {{ t.cur }}{% if t.count > 1 %} de media{% endif %}{% endif %}
+            <span class="text-muted">· {% if t.count > 1 %}{{ t.count }} veces, {{ t.first[8:10] }}/{{ t.first[5:7] }}–{{ t.last[8:10] }}/{{ t.last[5:7] }}{% else %}{{ t.last[8:10] }}/{{ t.last[5:7] }}{% endif %}</span></li>{% endfor %}</ul>
+        {% else %}<span class="text-muted">Ninguna.</span>{% endif %}
+    </div>
+    <div class="summary-section">
+        {{ heading('RESULTADOS PUBLICADOS') }}
+        <ul class="list-unstyled mb-0">
+        {% for r in p.reported %}<li class="d-flex gap-2 mb-1">
+            <span class="font-monospace-data text-nowrap text-muted" style="min-width:3rem;">{{ r.date[8:10] }}/{{ r.date[5:7] }}</span>
+            <span><i class="bi bi-clipboard-data text-primary me-1"></i>{{ thesis_link(r.ticker, r.thesis_id) }}
+                {% if r.surprise_pct is not none %} · BPA <span class="{{ 'text-success' if r.surprise_pct >= 0 else 'text-danger' }}">{{ num(r.surprise_pct, 1, sign=True) }}%</span> vs consenso{% endif %}</span>
+        </li>{% endfor %}
+        {% if not p.reported %}<li class="text-muted">Ninguna ha publicado resultados.</li>{% endif %}
+        </ul>
+    </div>
+</div>
+</div>
+</div>
+{% endmacro %}
+
+{# today: {watch, visit, unread, soon_other}, para el parte «Hoy» #}
+{% macro summary_card(agenda, benchmark, today) %}
+<div class="card h-100" id="summaryCard" data-store="centroSummary">
+    <div class="card-header bg-transparent fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-clock-history me-1"></i>Resumen</span>
+        {{ period_buttons('El parte del día: tu cartera hoy, lo que toca hoy y mañana, lo que ha pasado desde ayer, avisos y watchlist') }}
+    </div>
+    {{ summary_today(agenda.hoy, benchmark, today) }}
+    {% for key in ('semana', 'mes') %}{{ summary_window(key, agenda[key], benchmark) }}{% endfor %}
+</div>
+{% endmacro %}

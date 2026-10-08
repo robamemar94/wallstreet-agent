@@ -1,25 +1,32 @@
 {% extends "base.html" %}
 
 {% block content %}
+<style>
+    /* filas más bajas para ver más empresas a la vez (el estilo común de las tablas pone 10 px arriba y abajo) */
+    #customListsContent .table-modern tbody td { padding-top: .35rem; padding-bottom: .35rem; }
+    #customListsContent .table-modern thead th { padding-top: .45rem; padding-bottom: .45rem; }
+</style>
+{% from "_ui_macros.html" import chg_pill %}
 <div class="container-fluid py-4">
     <!-- CABECERA -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-            <h4 class="fw-bold text-white mb-1">
+            <h4 class="fw-bold text-white mb-0">
                 <i class="bi bi-list-stars text-warning me-2"></i> Mis Listas Personalizadas
+                <i class="bi bi-info-circle text-muted fs-6 fw-normal" title="Organiza tus empresas bajo seguimiento en grupos, temas o tesis de inversión."></i>
             </h4>
-            <p class="text-muted small mb-0">Organiza tus empresas bajo seguimiento en grupos, temas o tesis de inversión.</p>
         </div>
-        <button class="btn btn-warning fw-bold d-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#createListModal">
-            <i class="bi bi-folder-plus fs-5"></i> Nueva Lista
+        <button class="btn btn-warning btn-sm fw-bold d-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#createListModal">
+            <i class="bi bi-folder-plus"></i> Nueva Lista
         </button>
     </div>
 
     <!-- PESTAÑAS DE LISTAS (ESTILO BBDD) -->
     {% if lists %}
-    <div class="card border-0 mb-4 shadow" style="background-color: var(--fin-card-bg); border-radius: 12px; border: 1px solid var(--fin-border) !important;">
+    <div class="card border-0 mb-0 shadow" style="background-color: var(--fin-card-bg); border-radius: 12px; border: 1px solid var(--fin-border) !important;">
         <div class="card-header border-bottom pt-3 pb-0 px-3" style="background: transparent; border-color: rgba(255,255,255,0.08) !important;">
-            <ul class="nav nav-tabs border-bottom-0" id="customListsTabs" role="tablist">
+            <div class="d-flex align-items-end gap-2">
+            <ul class="nav nav-tabs border-bottom-0 flex-grow-1" id="customListsTabs" role="tablist">
                 {% for list in lists %}
                 <li class="nav-item" role="presentation">
                     <button class="nav-link {% if loop.first %}active{% endif %} fw-bold px-3 py-2.5" 
@@ -30,6 +37,7 @@
                             role="tab" 
                             aria-controls="pane-list-{{ list.id }}" 
                             aria-selected="{% if loop.first %}true{% else %}false{% endif %}"
+                            title="{{ list.description or '' }}"
                             style="border-top-left-radius: 8px; border-top-right-radius: 8px; font-size: 0.85rem; color: rgba(255,255,255,0.6); transition: all 0.2s;">
                         <i class="bi bi-folder2-open me-2 {% if loop.first %}text-warning{% endif %}" id="tab-icon-{{ list.id }}"></i>{{ list.name }}
                         <span class="badge bg-secondary bg-opacity-25 text-white opacity-75 small ms-1.5" style="font-size: 0.68rem; vertical-align: middle;">{{ list.assets|length }}</span>
@@ -37,8 +45,37 @@
                 </li>
                 {% endfor %}
             </ul>
+            {# añadir ticker y editar: los de la lista abierta, en la misma línea que las pestañas #}
+            <div class="pb-2">
+            {% for list in lists %}
+             <div class="list-actions d-flex align-items-center gap-2 {% if not loop.first %}d-none{% endif %}" data-list="{{ list.id }}">
+                 <!-- Buscador Inline con Autocompletado -->
+                 <div class="position-relative" style="width: 200px;">
+                     <form onsubmit="addTickerToList(event, {{ list.id }})" class="input-group input-group-sm">
+                         <input type="text" class="form-control bg-dark border-secondary text-white fw-bold px-3 py-1.5" placeholder="Añadir ticker..." id="ticker-input-{{ list.id }}" required style="text-transform: uppercase; font-size: 0.76rem; border-radius: 4px 0 0 4px;" autocomplete="off">
+                         <button class="btn btn-warning fw-bold px-2.5 py-1.5" type="submit" style="border-radius: 0 4px 4px 0; font-size: 0.74rem;">
+                             <i class="bi bi-plus-lg"></i>
+                         </button>
+                     </form>
+                     <!-- Caja flotante de sugerencias -->
+                     <div id="suggestions-{{ list.id }}" class="search-suggestions position-absolute w-100 mt-1 shadow border rounded bg-body" style="display: none; z-index: 1050; max-height: 200px; overflow-y: auto; font-size: 0.74rem;"></div>
+                 </div>
+
+                 <!-- Botón de Editar Lista -->
+                 <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 py-1.5 px-2.5" 
+                         id="btn-edit-list-{{ list.id }}"
+                         data-id="{{ list.id }}"
+                         data-name="{{ list.name }}"
+                         data-description="{{ list.description or '' }}"
+                         onclick="openEditListModal({{ list.id }})" 
+                         style="font-size: 0.76rem; border-radius: 4px; min-height: 31px;">
+                     <i class="bi bi-pencil-square text-warning me-1"></i>Editar
+                 </button>
+             </div>
+            {% endfor %}
+            </div>
+            </div>
         </div>
-        
         <div class="card-body p-3">
             <div class="tab-content" id="customListsContent">
                 {% for list in lists %}
@@ -47,44 +84,8 @@
                      role="tabpanel" 
                      aria-labelledby="tab-btn-{{ list.id }}">
                      
-                     <!-- FILA DE ACCIONES UNIFICADA (Descripción, Añadir Ticker y Editar Lista) -->
-                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3.5 pb-3 border-bottom" style="border-color: rgba(255,255,255,0.08) !important;">
-                         <!-- Izquierda: Descripción de la Lista -->
-                         <div class="flex-grow-1 text-start" style="min-width: 200px; max-width: 55%;">
-                             {% if list.description %}
-                             <p class="text-muted small mb-0 fs-6" style="line-height: 1.35;">{{ list.description }}</p>
-                             {% endif %}
-                         </div>
-                         
-                         <!-- Derecha: Buscador Inline de Adición Rápida y Editar Lista colocados lado a lado -->
-                         <div class="d-flex align-items-center flex-wrap gap-2.5 ms-auto">
-                             <!-- Buscador Inline con Autocompletado -->
-                             <div class="position-relative" style="width: 250px;">
-                                 <form onsubmit="addTickerToList(event, {{ list.id }})" class="input-group input-group-sm">
-                                     <input type="text" class="form-control bg-dark border-secondary text-white fw-bold px-3 py-1.5" placeholder="Añadir ticker..." id="ticker-input-{{ list.id }}" required style="text-transform: uppercase; font-size: 0.76rem; border-radius: 4px 0 0 4px;" autocomplete="off">
-                                     <button class="btn btn-warning fw-bold px-2.5 py-1.5" type="submit" style="border-radius: 0 4px 4px 0; font-size: 0.74rem;">
-                                         <i class="bi bi-plus-lg"></i>
-                                     </button>
-                                 </form>
-                                 <!-- Caja flotante de sugerencias -->
-                                 <div id="suggestions-{{ list.id }}" class="search-suggestions position-absolute w-100 mt-1 shadow border rounded bg-body" style="display: none; z-index: 1050; max-height: 200px; overflow-y: auto; font-size: 0.74rem;"></div>
-                             </div>
-
-                             <!-- Botón de Editar Lista -->
-                             <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1 py-1.5 px-2.5" 
-                                     id="btn-edit-list-{{ list.id }}"
-                                     data-id="{{ list.id }}"
-                                     data-name="{{ list.name }}"
-                                     data-description="{{ list.description or '' }}"
-                                     onclick="openEditListModal({{ list.id }})" 
-                                     style="font-size: 0.76rem; border-radius: 4px; min-height: 31px;">
-                                 <i class="bi bi-pencil-square text-warning me-1"></i>Editar
-                             </button>
-                         </div>
-                     </div>
-
                      <!-- TABLA DE LA LISTA -->
-                     <div class="table-responsive" style="border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.06);">
+                     <div class="table-responsive" data-fit="200" style="border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
                          <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.8rem;">
                              <thead>
                                  <tr class="text-muted" style="background-color: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.08);">
@@ -100,8 +101,11 @@
                                      <th class="text-end py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'price')" title="Ordenar por Precio" style="cursor: pointer;">
                                          Precio <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-price" style="font-size: 0.68rem;"></i>
                                      </th>
-                                     <th class="text-end py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'pct')" title="Ordenar por Cambio Diario" style="cursor: pointer;">
-                                         Cambio Diario <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-pct" style="font-size: 0.68rem;"></i>
+                                     <th class="text-end py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'chg')" title="Cuánto se ha movido hoy el precio, en su moneda" style="cursor: pointer;">
+                                         Var. día <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-chg" style="font-size: 0.68rem;"></i>
+                                     </th>
+                                     <th class="text-end py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'pct')" title="Variación de hoy en %" style="cursor: pointer;">
+                                         Var. día % <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-pct" style="font-size: 0.68rem;"></i>
                                      </th>
                                      <th class="text-center py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'media')" title="Ordenar por Nota Media (Normas + Veredicto)" style="cursor: pointer;">
                                          Media <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-media" style="font-size: 0.68rem;"></i>
@@ -118,52 +122,51 @@
                                      data-region="{{ asset.region|lower }}"
                                      data-price="{{ asset.price }}"
                                      data-pct="{{ asset.pct }}"
+                                     data-chg="{{ asset.change_abs }}"
                                      data-media="{{ asset.media if asset.media is not none else -1 }}">
                                      <!-- Ticker -->
-                                     <td class="ps-3 py-2.5" onclick="window.location='/ticker/{{ asset.ticker }}'" style="cursor: pointer;">
-                                         <span class="fw-bold text-white fs-6">{{ asset.ticker }}</span>
+                                     <td class="ps-3 py-1" onclick="window.location='/ticker/{{ asset.ticker }}'" style="cursor: pointer;">
+                                         <span class="fw-bold text-white" style="font-size: .85rem;">{{ asset.ticker }}</span>
                                          {% if asset.is_favorite %}
                                          <i class="bi bi-star-fill text-warning ms-1" style="font-size: 0.65rem;" title="Favorito"></i>
                                          {% endif %}
                                      </td>
                                      <!-- Empresa -->
-                                     <td class="py-2.5" onclick="window.location='/ticker/{{ asset.ticker }}'" style="cursor: pointer;">
+                                     <td class="py-1" onclick="window.location='/ticker/{{ asset.ticker }}'" style="cursor: pointer;">
                                          <span class="company-name text-white opacity-85">{{ asset.company_name }}</span>
                                      </td>
                                      <!-- Región -->
-                                     <td class="py-2.5 text-muted text-uppercase" style="font-size: 0.72rem;">
+                                     <td class="py-1 text-muted text-uppercase" style="font-size: 0.72rem;">
                                          {{ asset.region }}
                                      </td>
                                      <!-- Precio -->
-                                     <td class="text-end py-2.5 align-middle num-font font-monospace fw-bold text-white">
+                                     <td class="text-end py-1 align-middle num-font font-monospace fw-bold text-white">
                                          {{ num(asset.price, 2) }}{{ asset.symbol }}
                                      </td>
-                                     <!-- % Cambio -->
-                                     <td class="text-end py-2.5 align-middle num-font">
-                                         <span class="fw-bold {% if asset.pct > 0 %}text-success{% elif asset.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.8rem; white-space: nowrap;">
-                                             {% if asset.change_abs > 0 %}+{% endif %}{{ num(asset.change_abs, 2) }}{{ asset.symbol }}
-                                             <span class="opacity-85 small ms-1">({% if asset.pct > 0 %}+{% endif %}{{ num(asset.pct, 2) }}%)</span>
-                                         </span>
+                                     <!-- Var. día (en su moneda) y Var. día % (píldora, como en Cartera) -->
+                                     <td class="text-end py-1 align-middle num-font small text-nowrap {% if asset.change_abs > 0 %}text-success{% elif asset.change_abs < 0 %}text-danger{% else %}text-muted{% endif %}">
+                                         {% if asset.change_abs > 0 %}+{% endif %}{{ num(asset.change_abs, 2) }}{{ asset.symbol }}
                                      </td>
+                                     <td class="text-end py-1 align-middle">{{ chg_pill(asset.pct) }}</td>
                                      <!-- Nota Media -->
                                      {% if asset.media is not none %}
-                                     <td class="text-center py-2.5 align-middle fw-bold num-font {% if asset.media >= 8.0 %}text-success{% elif asset.media <= 5.0 %}text-danger{% else %}text-warning{% endif %}">
+                                     <td class="text-center py-1 align-middle fw-bold num-font {% if asset.media >= 8.0 %}text-success{% elif asset.media <= 5.0 %}text-danger{% else %}text-warning{% endif %}">
                                          {{ num(asset.media, 2) }}
                                      </td>
                                      {% else %}
-                                     <td class="text-center py-2.5 align-middle fw-bold text-muted num-font">-</td>
+                                     <td class="text-center py-1 align-middle fw-bold text-muted num-font">-</td>
                                      {% endif %}
                                      <!-- Acciones de Quitar de la Lista -->
-                                     <td class="text-center py-2.5">
-                                         <button class="btn btn-xs btn-outline-danger border-0 p-1.5 opacity-60 hover-opacity-100" onclick="removeTickerFromList({{ list.id }}, '{{ asset.ticker }}')" title="Quitar de esta lista">
-                                             <i class="bi bi-trash-fill fs-6"></i>
+                                     <td class="text-center py-1">
+                                         <button class="btn btn-sm btn-outline-danger border-0 py-0 px-1 lh-1 opacity-60 hover-opacity-100" onclick="removeTickerFromList({{ list.id }}, '{{ asset.ticker }}')" title="Quitar de esta lista">
+                                             <i class="bi bi-trash-fill" style="font-size: .85rem;"></i>
                                          </button>
                                      </td>
                                  </tr>
                                  {% endfor %}
                                  {% if not list.assets %}
                                  <tr>
-                                     <td colspan="7" class="text-center py-5 text-muted">
+                                     <td colspan="8" class="text-center py-5 text-muted">
                                          <i class="bi bi-folder-symlink fs-3 d-block mb-2 text-secondary"></i>
                                          Esta lista está vacía. Añade tickers usando el buscador de arriba.
                                      </td>
@@ -575,7 +578,7 @@
                 valA = (a.getAttribute(`data-${criteria}`) || "").toLowerCase();
                 valB = (b.getAttribute(`data-${criteria}`) || "").toLowerCase();
                 return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
-            } else { // 'price', 'pct' o 'media'
+            } else { // 'price', 'chg', 'pct' o 'media'
                 valA = parseFloat(a.getAttribute(`data-${criteria}`)) || 0;
                 valB = parseFloat(b.getAttribute(`data-${criteria}`)) || 0;
                 return isAscending ? valA - valB : valB - valA;
@@ -659,5 +662,12 @@
             alert('Error al comunicarse con el servidor');
         }
     }
+</script>
+<script>
+// añadir ticker / editar: se muestran los de la lista abierta
+document.querySelectorAll('#customListsTabs [data-bs-toggle="tab"]').forEach(btn => btn.addEventListener('shown.bs.tab', () => {
+    const id = btn.id.replace('tab-btn-', '');
+    document.querySelectorAll('.list-actions').forEach(a => a.classList.toggle('d-none', a.dataset.list !== id));
+}));
 </script>
 {% endblock %}

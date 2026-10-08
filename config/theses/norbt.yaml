@@ -1,0 +1,181 @@
+# Transcrito de «data/theses/NORBIT ASA — Tesis de inversión definitiva.md» (octubre 2026).
+# config/theses/norbt.md es el mismo documento con los apartados ordenados: los «# 1.2.» y «# H4 —» pasan a
+# subapartados de su apartado y los «# **8,3/10**» a texto en negrita (no son apartados).
+# Empresa EN SEGUIMIENTO (no está en cartera): sin radar automático de noticias ni análisis automáticos.
+# Cuadro de mando: los KPIs CUANTIFICABLES del «18. Dashboard» con sus umbrales. M&A ROIC, cross-selling y la
+# concentración de PIR no tienen cifra publicada fiable: se revisan con las preguntas maestras y los thesis breakers.
+# Kill switches: los «20. Thesis breakers» que tienen KPI (ROCE, Oceans, FCF/share, working capital, deuda).
+# La tesis no trae un apartado de preguntas maestras: salen de su pregunta central (0), la evidencia discriminante (16),
+# la anti-tesis (25) y la próxima información que más valor aporta (32).
+# Reimportar tras editar:  python scripts/import_theses.py config/theses/norbt.yaml
+ticker: NORBT.OL
+title: NORBIT ASA · Tesis de inversión
+version: "definitiva · octubre 2026"
+reference_date: "2026-10-06"
+reference_price: 158.60
+source_document: "data/theses/NORBIT ASA — Tesis de inversión definitiva.md"
+document: config/theses/norbt.md
+verdict: VIGILANCIA
+summary: >-
+  Tecnología industrial noruega (Oslo, ~64M acciones, ~10,2B NOK) en tres áreas: Oceans (sonar multibeam WINGHEAD/WBMS,
+  sub-bottom Innomar, Ping DSP, posicionamiento y DVL de Water Linked; el núcleo y el moat potencial), Connectivity
+  (GNSS/satellite tolling, tacógrafos; concentración top 5 ~60%) y PIR (ingeniería y fabricación; top 5 ~80%).
+  Crecimiento histórico excepcional (ventas 2020–24 ~30% CAGR, EBIT ~67%; 2025 ventas +43%, EBIT +63%) y ROCE ~34–36%,
+  pero Oceans débil en H1 2026. Emerging Compounder: calidad ~8,3/10, convicción ~7,8/10, moat actual ~7,5 y potencial
+  ~9. Estado: INTACT — WATCH. A ~158 NOK cotiza a ~22x FCF (≈7,2 NOK/acción).
+hypothesis: "NORBIT está evolucionando desde una colección de productos tecnológicos especializados hacia una plataforma de tecnología industrial, submarina y de conectividad. Su ventaja no es una tecnología imposible de replicar sino la acumulación de ingeniería, integración hardware-software, conocimiento de aplicaciones, fabricación, distribución y relaciones. Es un compounder solo si esa combinación se vuelve más difícil de sustituir (más productos por cliente, cross-selling, switching costs, innovación recurrente y M&A que sube el ROIC) y se traduce en crecimiento orgánico de doble dígito, ROCE >30% y FCF/share >10–12%."
+hypotheses:
+  H1: "Puede crecer orgánicamente >10%"
+  H2: "Oceans seguirá siendo el principal creador de valor (>12% crecimiento)"
+  H3: "Seguirá ganando cuota (crece por encima del mercado, ~5–7% en multibeam)"
+  H4: "Oceans se convertirá en plataforma (la más importante: clientes multi-producto, cross-selling)"
+  H5: "Tiene una máquina de innovación repetible (FCF incremental por cada NOK de I+D)"
+  H6: "El M&A crea valor (ROIC a 3 años de cada adquisición)"
+  H7: "Water Linked será acelerador (>20% crecimiento, >25% margen)"
+  H8: "Connectivity puede crecer manteniendo retornos"
+  H9: "PIR seguirá siendo un buen negocio aunque su moat sea inferior"
+  H10: "El ROCE permanecerá >30% (crítica: si cae estructuralmente, baja la valoración)"
+  H11: "El working capital no destruirá el crecimiento (NWC <20% de ventas)"
+  H12: "Podrá escalar sin perder su ventaja (más grande ≠ peor)"
+rules:
+  - "La evidencia debe demostrar creación de valor POR ACCIÓN. No basta con crecer por adquisiciones, tener buenos márgenes unos años, lanzar productos interesantes, batir expectativas, tener una dirección alineada u operar en mercados atractivos."
+  - "Anti-tesis: NORBIT podría ser una empresa excelente sin un moat lo bastante fuerte para mantener retornos extraordinarios con 5–10B NOK de ventas (Oceans 7%, ROCE 20%, cross-selling limitado, Water Linked como un producto más). Seguiría siendo buena, pero no un compounder excepcional."
+  - "No usar el objetivo 2030 de la dirección (6B NOK de ventas, EBIT 20–25%, ROCE >30%, ~19% CAGR orgánico) como supuesto base sin evidencia adicional: el mercado de multibeam crece ~5–7%."
+  - "La I+D se capitaliza en parte: EBITDA y EBIT no se interpretan sin mirar el FCF (CFO − capex − desarrollo capitalizado). Distinguir el ROCE de la empresa del ROIC incremental de cada nueva unidad de crecimiento."
+  - "M&A: precio → ventas → EBITDA → EBIT → FCF → crecimiento orgánico posterior → sinergias → ROIC incremental → valor por acción. «Adquisición estratégica» no es explicación suficiente."
+  - "Oceans no es lineal (proyectos, clientes de alquiler, presupuesto público, offshore, estacionalidad): un trimestre débil no rompe la tesis; los breakers hablan de «varios años» o «estructuralmente»."
+  - "Thesis breakers sin KPI (se juzgan en cada revisión): pérdida consistente de cuota frente a Kongsberg/Teledyne; M&A como la mayoría del crecimiento; Water Linked con ROIC pobre; Innomar sin recuperar crecimiento/rentabilidad; cross-selling irrelevante tras varios años; pérdida de capacidad de innovación."
+  - "Zonas de precio (NOK): >180 muy exigente · 160–180 poco margen de seguridad · 140–160 interesante · 120–140 buena oportunidad · 100–120 muy atractiva · <100 excepcional si la tesis sigue intacta. No son precios mágicos."
+  - "Tamaño de posición en una cartera de 15: inicial 3–5%; 5–7% si se confirman ROCE >30%, FCF/share >12%, Oceans >10%, cross-selling, M&A accretivo y Water Linked; 6–8% solo si el moat se demuestra más fuerte."
+master_questions:
+  - "¿Oceans vuelve a crecer orgánicamente >10–12% y con margen EBIT >28%, o el crecimiento viene sobre todo del M&A?"
+  - "¿Crece NORBIT por encima de su mercado (ganancia de cuota frente a Kongsberg, Teledyne, Exail, R2Sonic)?"
+  - "¿Hay evidencia cuantificable de plataforma: clientes multi-producto, cross-selling, valor por cliente, software?"
+  - "¿Se mantiene el ROCE >30% y crece el FCF/share ≥10–12%, en línea con el EBIT/share (sin que lo coman la I+D capitalizada, el inventario o la dilución)?"
+  - "¿Las adquisiciones (Water Linked, Innomar) crecen, mejoran margen y apuntan a un ROIC incremental >20%?"
+  - "¿Connectivity crece con margen >24% y baja la concentración de clientes de PIR y Connectivity?"
+  - "¿Working capital ≤20% de ventas y deuda <2,5x EBITDA mientras crece?"
+  - "¿Qué evidencia nueva favorece al Bull case y cuál al Bear case (la anti-tesis)?"
+valuation:
+  target_year: 2036
+  question: "Precio ~158 NOK; FCF LTM estimado ~460M NOK → FCF/share ≈ 7,2 NOK → P/FCF ≈ 22x (estimación de análisis: CFO − capex − desarrollo capitalizado). Rentabilidad = crecimiento del FCF/share + múltiplo de salida + dividendos (no FCF CAGR = CAGR de la acción). Probabilidades subjetivas: Bear 25% · Base 55% · Bull 20%. Sin dividendos."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: fcf_ps_cagr, label: FCF/share CAGR, format: pct}
+    - {key: multiple, label: P/FCF terminal}
+    - {key: price_5y, label: Valor 2031, format: usd}
+    - {key: cagr_5y, label: CAGR precio 5a, format: pct}
+    - {key: price, label: Valor 2036, format: usd}
+    - {key: cagr_doc, label: CAGR precio 10a, format: pct}
+  scenarios:
+    - {name: Bear, fcf_ps_cagr: 8, multiple: "17x", price_5y: 179, cagr_5y: 2.6, price: 264, cagr_doc: 5.3}
+    - {name: Base, fcf_ps_cagr: 12, multiple: "22x", price_5y: 278, cagr_5y: 12, price: 491, cagr_doc: 12}
+    - {name: Bull, fcf_ps_cagr: 16, multiple: "25x", price_5y: 377, cagr_5y: 19, price: 792, cagr_doc: 17.5}
+events:
+  - date: "2024-12-31"
+    type: news
+    impact: neutral
+    title: "Adquisición de Innomar (sub-bottom profiling)"
+    body: "Estratégica para Oceans; pendiente de demostrar recuperación de crecimiento y ROIC (H6)."
+  - date: "2025-12-31"
+    type: earnings
+    impact: positive
+    title: "Resultados 2025"
+    body: "Ventas 2.503M NOK (+43%), EBIT 555M NOK (+63%, margen ~22%). Oceans +18% en el año, pero Q4 Oceans −21% con margen EBIT 26% (37% un año antes). Top 5 de Oceans ~12% de las ventas; PIR muy concentrada (top 5 ~80%)."
+  - date: "2026-06-30"
+    type: earnings
+    impact: neutral
+    title: "H1 2026"
+    body: "Oceans ~−7% reportado (~plano a moneda constante). ROCE ~36%. CFO ~488M NOK, capex ~42M, desarrollo capitalizado ~71M → FCF ~375M (LTM ~460M, ~7,2 NOK/acción). Inventario ~717M NOK. Caja ~140M, deuda ~480M, leases ~215M; NIBD/EBITDA ~1,1x tras Water Linked."
+  - date: "2026-06-30"
+    type: news
+    impact: neutral
+    title: "Adquisición de Water Linked"
+    body: "DVL, posicionamiento submarino, módems y sonares de imagen. Debe demostrar >20% de crecimiento, >25% de margen y cross-selling (H7); riesgo: ROIC pobre (breaker 6)."
+  - date: "2026-10-06"
+    type: thesis
+    impact: neutral
+    title: "Tesis definitiva · INTACT — WATCH (en seguimiento, sin posición)"
+    body: "Emerging Compounder: calidad ~8,3/10, convicción ~7,8/10. Precio de referencia ~158 NOK (~22x FCF). En vigilancia: Oceans débil en H1 2026, Innomar sin demostrar, Water Linked recién comprada, cross-selling sin cuantificar, concentración de PIR y Connectivity, I+D capitalizada y valoración exigente. Próximo resultado: Q3 2026, 12/11/2026."
+
+pillars:
+  - key: growth
+    name: Crecimiento
+    description: "H1 — ¿Crece de doble dígito, y cuánto es orgánico? (no extrapolar el ~30% histórico)"
+    kpis:
+      - {key: revenue_growth, name: Revenue growth, unit: "%", green_threshold: 12, red_threshold: 8,
+         how_to_measure: "Crecimiento de las ventas YoY (autocompletado)", green_text: ">12%", amber_text: "8–12%", red_text: "<8%",
+         auto_metric: revenue_yoy,
+         observations: [{period: FY2025, date: "2025-12-31", value: 43, note: "Ventas 2.503M NOK (incluye adquisiciones)"}]}
+      - {key: organic_growth, name: Organic growth, unit: "%", green_threshold: 10, red_threshold: 6,
+         how_to_measure: "Crecimiento sin adquisiciones (y a moneda constante si la compañía lo da)",
+         green_text: ">10%", amber_text: "6–10%", red_text: "<6%", frequency: Trimestral, source: NORBIT}
+
+  - key: oceans
+    name: Oceans
+    description: "H2, H3 y H4 — El núcleo de la tesis: ¿vuelve a crecer >12% sin depender del M&A y con margen >28%?"
+    kpis:
+      - {key: oceans_growth, name: Oceans growth, unit: "%", green_threshold: 12, red_threshold: 8,
+         how_to_measure: "Crecimiento de las ventas de Oceans YoY (segmento)", green_text: ">12%", amber_text: "8–12%", red_text: "<8% varios años",
+         frequency: Trimestral, source: NORBIT,
+         is_kill_switch: true, kill_rule: "Breaker 2: Oceans <8% de crecimiento durante varios años",
+         observations: [{period: FY2025, date: "2025-12-31", value: 18},
+                        {period: H1 2026, date: "2026-06-30", value: -7, note: "~plano a moneda constante"}]}
+      - {key: oceans_ebit_margin, name: Oceans EBIT margin, unit: "%", green_threshold: 28, red_threshold: 25,
+         how_to_measure: "Margen EBIT del segmento Oceans", green_text: ">28%", amber_text: "25–28%", red_text: "<25% estructural",
+         frequency: Trimestral, source: NORBIT,
+         is_kill_switch: true, kill_rule: "Breaker 3: margen EBIT de Oceans <25% estructuralmente",
+         observations: [{period: Q4 2025, date: "2025-12-31", value: 26, note: "37% un año antes"}]}
+
+  - key: margins
+    name: Márgenes
+    description: "H8 y H12 — Margen EBIT del grupo (objetivo 20–25%) y de Connectivity; escalar sin empeorar."
+    kpis:
+      - {key: ebit_margin, name: EBIT margin, unit: "%", green_threshold: 22, red_threshold: 18,
+         how_to_measure: "Margen EBIT del grupo (autocompletado: margen operativo). Ojo: parte de la I+D se capitaliza",
+         green_text: ">22%", amber_text: "18–22%", red_text: "<18%", auto_metric: operating_margin,
+         observations: [{period: FY2025, date: "2025-12-31", value: 22.2, note: "EBIT 555M / ventas 2.503M NOK"}]}
+      - {key: connectivity_margin, name: Connectivity margin, unit: "%", green_threshold: 24, red_threshold: 20,
+         how_to_measure: "Margen EBIT del segmento Connectivity", green_text: ">24%", amber_text: "20–24%", red_text: "<20%",
+         frequency: Trimestral, source: NORBIT}
+
+  - key: roce
+    name: ROCE
+    description: "H10 — Hipótesis crítica: ROCE >30%. Si cae estructuralmente, la valoración debe bajar."
+    kpis:
+      - {key: roce, name: ROCE, unit: "%", green_threshold: 30, red_threshold: 20,
+         how_to_measure: "ROCE que publica la compañía (LTM)", green_text: ">30%", amber_text: "20–30%", red_text: "<20% varios años",
+         frequency: Trimestral, source: NORBIT,
+         is_kill_switch: true, kill_rule: "Breaker 1: ROCE <20% durante varios años",
+         observations: [{period: FY2024, date: "2024-12-31", value: 27},
+                        {period: H1 2026, date: "2026-06-30", value: 36, note: "2025 / LTM ~34–36%"}]}
+
+  - key: fcf_share
+    name: FCF/share
+    description: "La métrica principal junto con el ROCE: FCF/share creciendo ≥10–12% durante muchos años (y en línea con el EBIT/share)."
+    kpis:
+      - {key: fcf_per_share_growth, name: FCF/share growth, unit: "%", green_threshold: 12, red_threshold: 7,
+         how_to_measure: "CAGR del FCF por acción a 3 años con datos anuales (autocompletado). La tesis lo estima como CFO − capex − desarrollo capitalizado",
+         green_text: ">12%", amber_text: "7–12%", red_text: "<7% / mucho menos que el EBIT/share",
+         is_kill_switch: true, kill_rule: "Breaker 9: el FCF/share crece mucho menos que el EBIT/share",
+         auto_metric: fcf_per_share_cagr_3y}
+
+  - key: working_capital
+    name: Working capital
+    description: "H11 — El crecimiento no puede quedarse en inventario (objetivo de la dirección ≤20% de ventas)."
+    kpis:
+      - {key: nwc_sales, name: NWC / ventas, unit: "%", direction: lower, green_threshold: 20, red_threshold: 25,
+         how_to_measure: "Capital circulante neto / ventas anualizadas", green_text: "<20%", amber_text: "20–25%", red_text: ">25% estructural",
+         frequency: Semestral, source: NORBIT,
+         is_kill_switch: true, kill_rule: "Breaker 10: working capital >25% de las ventas estructuralmente",
+         observations: [{period: FY2024, date: "2024-12-31", value: 23, note: "~32% en 2020; inventario/ventas ~23% en H1 2026"}]}
+
+  - key: balance
+    name: Balance
+    description: "Deuda dentro del objetivo de la dirección (1–2,5x NIBD/EBITDA); sin deuda agresiva para sostener crecimiento."
+    kpis:
+      - {key: net_debt_ebitda, name: Net debt / EBITDA, unit: "x", direction: lower, green_threshold: 1.5, red_threshold: 2.5,
+         how_to_measure: "NIBD / EBITDA LTM", green_text: "<1,5x", amber_text: "1,5–2,5x", red_text: ">2,5x sin justificación temporal",
+         frequency: Semestral, source: NORBIT,
+         is_kill_switch: true, kill_rule: "Breaker 11: deuda >2,5x EBITDA sin justificación temporal",
+         observations: [{period: H1 2026, date: "2026-06-30", value: 1.1, note: "Tras Water Linked"}]}

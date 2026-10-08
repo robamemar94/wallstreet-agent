@@ -1,4 +1,4 @@
-"""Descarga en paralelo los datos lentos (FCF/BPA TTM, dividendo, fechas de resultados, estimaciones de analistas,
+"""Descarga en paralelo los datos lentos (FCF/BPA TTM, dividendo y próximo dividendo anunciado, fechas de resultados, estimaciones de analistas,
 máximo histórico) para dejarlos en la caché en disco. Al arrancar y luego cada REWARM_HOURS, para que no caduquen."""
 import logging
 import threading
@@ -31,17 +31,23 @@ def warm_up_in_background() -> None:
     """Al arrancar y cada REWARM_HOURS: cartera, tesis y watchlist, para que ninguna visita espere a yfinance."""
     def run():
         from app.infrastructure.db.database import SessionLocal
-        from app.infrastructure.db.models import DBPortfolioItem, DBThesis, DBWatchlistItem
+        from app.infrastructure.db.models import DBAsset, DBPortfolioItem, DBThesis, DBWatchlistItem
         from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
         db = SessionLocal()
         try:
             held = [p.ticker for p in db.query(DBPortfolioItem).all() if (p.shares or 0) > 0]
             theses = [t.ticker for t in db.query(DBThesis).all()]
             watch = [w.ticker for w in db.query(DBWatchlistItem).all()] + list(SqlAlchemyAssetRepository(db).get_watch_candidates())
+            # en seguimiento: sus resultados salen en la vista «Resto» de la agenda de Mercado
+            following = [a.ticker for a in db.query(DBAsset).all() if (a.data or {}).get("status") == "ACCEPTED"]
         finally:
             db.close()
-        prefetch(earnings=held + theses + watch, fcf=held + theses + watch, valuation=held + watch, splits=held + theses + watch,
+        prefetch(earnings=held + theses + watch + following, fcf=held + theses + watch, valuation=held + watch, splits=held + theses + watch,
                  estimates=held + watch, ath=held)
+        # próximo dividendo anunciado de la cartera (previsión de dividendos y agenda de Mercado)
+        from app.interfaces.views.portfolio_views import portfolio_raw
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
+            list(pool.map(portfolio_raw, set(held)))
         logger.info("Caché de datos de mercado calentada (%d valores)", len(set(held + theses + watch)))
 
     def loop():

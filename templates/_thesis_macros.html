@@ -63,10 +63,26 @@
     .timeline-item::before { content: ''; position: absolute; left: -6px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--bs-secondary-color); }
     .timeline-item.imp-positive::before { background: var(--fin-green); }
     .timeline-item.imp-negative::before { background: var(--fin-red); }
+    .radar-item { display: flex; gap: .5rem; align-items: flex-start; padding: .3rem 0 .3rem .75rem; border-left: 3px solid var(--bs-border-color); margin-bottom: .25rem; }
+    .radar-item.imp-positive { border-left-color: var(--fin-green); }
+    .radar-item.imp-negative { border-left-color: var(--fin-red); }
+    .radar-item summary { cursor: pointer; }
+    .sub-nav .nav-link { padding: .3rem .85rem; color: var(--bs-secondary-color); }
+    .sub-nav .nav-link.active { color: #fff; }
+    .thesis-summary > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: .5rem; }
+    .thesis-summary > summary::-webkit-details-marker { display: none; }
+    .thesis-summary > summary::after { content: 'más ▾'; font-size: .8rem; color: var(--bs-primary); white-space: nowrap; }
+    .thesis-summary[open] > summary::after { content: 'menos ▴'; }
+    .thesis-summary:not([open]) .summary-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .thesis-summary[open] > summary { margin-bottom: .5rem; }
     .doc-toc { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
     .doc-toc .nav-link { color: var(--bs-secondary-color); border-radius: 4px; }
     .doc-toc .nav-link:hover { color: var(--bs-body-color); background: var(--bs-secondary-bg); }
-    .thesis-doc h2 { scroll-margin-top: 1rem; }
+    .thesis-doc h1, .thesis-doc h2, .thesis-doc h3 { scroll-margin-top: 1rem; }
+    .doc-toc .toc-sec.active > .d-flex > .nav-link { color: var(--bs-body-color); background: var(--bs-secondary-bg); }
+    .doc-toc .toc-sub { padding: .15rem .5rem .15rem 1.4rem; font-size: .78rem; border-left: 2px solid transparent; margin-left: .5rem; }
+    .doc-toc .toc-sub.active { color: var(--bs-body-color); border-left-color: #58a6ff; }
+    .doc-toc .toc-toggle { line-height: 1; }
     .timeline-body summary { cursor: pointer; list-style: none; }
     .timeline-body summary::-webkit-details-marker { display: none; }
     .timeline-body[open] summary { display: none; }

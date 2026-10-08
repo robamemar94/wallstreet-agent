@@ -1,7 +1,7 @@
 {# Vista «Seguimiento» de las posiciones de la Cartera (la pide portfolio.html a /portfolio/seguimiento).
    Mismo formato que la tabla Contable. Variación y contribución se rellenan en el navegador según el periodo elegido (#ptData). #}
 {% set sort_icon = '<i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i>' %}
-{% macro th(label, end=true, text=false, title='', period=false) %}<th class="sortable{{ ' text-end' if end }}"{% if text %} data-type="text"{% endif %}{% if title %} title="{{ title }}"{% endif %}>{{ label }}{% if period %} <span class="pt-period-label">día</span>{% endif %} {{ sort_icon|safe }}</th>{% endmacro %}
+{% macro th(label, end=true, text=false, title='', period=false) %}<th class="sortable{{ ' text-end' if end }}"{% if text %} data-type="text"{% endif %}{% if title %} title="{{ title }}"{% endif %}>{{ label }}{% if period %} <span class="pt-period-label">1D</span>{% endif %} {{ sort_icon|safe }}</th>{% endmacro %}
 {% if error %}<div class="alert alert-warning small m-2"><i class="bi bi-exclamation-triangle me-1"></i>Precios incompletos: {{ error }}</div>{% endif %}
 {% if stale_note %}<div class="small text-muted px-3 pt-2">{{ stale_note }}</div>{% endif %}
 <div class="table-responsive">
@@ -9,10 +9,9 @@
     <thead><tr style="cursor: pointer; user-select: none;">
         <th class="ps-4 sortable" data-type="text">Activo {{ sort_icon|safe }}</th>
         {{ th('Empresa', end=false, text=true) }}
-        {{ th('Último') }}
-        <th class="sortable text-end" title="Cuánto se ha movido el precio en el periodo, en su moneda">Var. <span class="pt-period-label">día</span> {{ sort_icon|safe }}</th>
-        <th class="sortable text-end">Var. <span class="pt-period-label">día</span> % {{ sort_icon|safe }}</th>
-        <th class="sortable text-end" title="Lo que has ganado o perdido en euros con esta posición en el periodo, con el cambio de la divisa (las compras y ventas del periodo no cuentan como ganancia)">Var. <span class="pt-period-label">día</span> € {{ sort_icon|safe }}</th>
+        {{ th('Último', title='Precio y, debajo, cuánto se ha movido en el periodo, en su moneda') }}
+        <th class="sortable text-end">Var. <span class="pt-period-label">1D</span> % {{ sort_icon|safe }}</th>
+        <th class="sortable text-end" title="Lo que has ganado o perdido en euros con esta posición en el periodo, con el cambio de la divisa (las compras y ventas del periodo no cuentan como ganancia)">Var. <span class="pt-period-label">1D</span> € {{ sort_icon|safe }}</th>
         {{ th('Contrib.', title='Contribución: aportación a la variación de la cartera en el periodo, en puntos de % (respeta fechas de compra)') }}
         {{ th('Máx. 52s', title='Caída desde el máximo de 52 semanas') }}
         {{ th('Máx. hist.', title='Caída desde el máximo histórico (cierre ajustado por splits y dividendos)') }}
@@ -26,8 +25,9 @@
         <td class="ps-4 align-middle" data-sort="{{ r.ticker }}">
             <a href="/portfolio/ticker/{{ r.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(r.ticker) }}</a></td>
         <td class="text-muted align-middle text-truncate" style="max-width: 150px;" data-sort="{{ r.name }}" title="{{ r.name }}">{{ r.name }}</td>
-        <td class="text-end fw-bold num-font align-middle cell-price" data-sort="{{ st.get('price') or '' }}">{{ num(st.get('price'), 2) ~ ' ' ~ r.cur if st.get('price') else '–' }}</td>
-        <td class="text-end num-font align-middle cell-move">–</td>
+        <td class="text-end num-font align-middle cell-price" data-sort="{{ st.get('price') or '' }}">
+            <div class="price-main">{{ num(st.get('price'), 2) ~ ' ' ~ r.cur if st.get('price') else '–' }}</div>
+            <div class="price-move cell-move">–</div></td>
         <td class="text-end num-font align-middle cell-change">–</td>
         <td class="text-end num-font align-middle cell-eur">–</td>
         <td class="text-end num-font align-middle cell-contrib">–</td>
@@ -47,8 +47,4 @@
     </tbody>
 </table>
 </div>
-<div class="small text-muted px-3 py-2" style="font-size: .72rem;">CAGR estimado: valoración base de la ficha al precio de hoy (pulsa para ver los supuestos) ·
-    <span class="cagr-green">ganga ≥{{ num(ZONE.ganga, 0) }}%</span> · <span class="cagr-amber">barata {{ num(ZONE.barata, 0) }}–{{ num(ZONE.ganga, 0) }}%</span> · <span class="cagr-orange">justo {{ num(ZONE.justo, 0) }}–{{ num(ZONE.barata, 0) }}%</span> · <span class="cagr-red">cara &lt;{{ num(ZONE.justo, 0) }}%</span> ·
-    <i class="bi bi-exclamation-triangle text-warning"></i> valoración antigua · <i class="bi bi-clock-history text-danger"></i> anticuada · <i class="bi bi-pencil-fill text-primary"></i> año corregido a mano.
-    La contribución respeta las fechas de compra y venta.</div>
 <script type="application/json" id="ptData">{{ {'periods': periods, 'chart': chart, 'benchmark': benchmark}|tojson }}</script>

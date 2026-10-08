@@ -14,17 +14,12 @@ def test_portfolio_fundamental_metrics():
     assert "Desglose de Fundamentales por Compañía" in response.text, "Individual companies comparative table missing!"
     
     # Verify key individual metric column headers
-    assert "ROIC" in response.text, "ROIC column missing!"
-    assert "Crecimiento" in response.text, "Expected growth column missing!"
-    assert "M. Bruto" in response.text, "Gross margin column missing!"
-    assert "M. Oper." in response.text, "Operating margin column missing!"
-    assert "PER Trail." in response.text, "Trailing P/E column missing!"
-    assert "PER Fwd." in response.text, "Forward P/E column missing!"
-    assert "PEG" in response.text, "PEG Ratio column missing!"
-    assert "Yield FCF" in response.text, "FCF Yield column missing!"
-    assert "Deuda/EBITDA" in response.text, "Net Debt/EBITDA column missing!"
-    assert "Liquidez" in response.text, "Liquidity (Current Ratio) column missing!"
-    assert "Yield Div." in response.text, "Dividend yield column missing!"
+    # desglose agrupado por secciones (PER trailing y liquidez corriente se quitaron del desglose a propósito)
+    table = response.text.split('id="fundamentalsTable"')[1].split("</thead>")[0]
+    for section in ("Calidad", "Crecimiento", "Valoración", "Balance", "Accionista", "Riesgo"):
+        assert section in table, f"Section {section} missing!"
+    for col in ("ROIC", "M. bruto", "M. oper.", "Crec. NTM", "PER fwd", "PEG", "Yield FCF", "Deuda/EBITDA", "Yield div.", "Beta"):
+        assert col in table, f"Column {col} missing!"
     
     print("Portfolio institutional fundamental & risk metrics verification successfully passed!")
 

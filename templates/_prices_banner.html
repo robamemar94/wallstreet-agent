@@ -1,8 +1,9 @@
-{# Aviso de precios que se están actualizando en segundo plano; al llegar los nuevos, recarga la página una vez.
+{# Aviso de precios que se están actualizando en segundo plano; al llegar los nuevos, ofrece recargar (no recarga sola:
+   con F5 la página ya espera a los precios nuevos).
    Contexto: prices_updated, prices_refreshing, prices_time, now_ts #}
 {% if prices_refreshing or (prices_updated and (now_ts - prices_updated) > 900) %}
 <div class="small text-muted mb-2" id="pricesBanner" data-updated="{{ prices_updated }}" data-refreshing="{{ 'true' if prices_refreshing else 'false' }}">
-    <i class="bi bi-clock-history me-1"></i>Precios de las {{ prices_time }}{% if prices_refreshing %} · <span class="spinner-border spinner-border-sm" style="width: .7rem; height: .7rem;"></span> actualizando, la página se recargará sola{% endif %}
+    <i class="bi bi-clock-history me-1"></i>Precios de las {{ prices_time }}{% if prices_refreshing %} · <span class="spinner-border spinner-border-sm" style="width: .7rem; height: .7rem;"></span> actualizando…{% endif %}
 </div>
 <script>
 (function () {
@@ -12,7 +13,11 @@
     const poll = setInterval(async () => {
         try {
             const st = await (await fetch('/api/mercado/prices-status')).json();
-            if (!st.refreshing) { clearInterval(poll); if (st.updated > since) location.reload(); }
+            if (!st.refreshing) {
+                clearInterval(poll);
+                if (st.updated > since) b.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Hay precios nuevos · <a href="#" onclick="location.reload(); return false;">actualizar</a>';
+                else b.remove();
+            }
         } catch (e) { clearInterval(poll); }
     }, 3000);
 })();

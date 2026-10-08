@@ -159,6 +159,8 @@
                 <tr class="align-middle" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#txDetails-{{ loop.index }}" aria-expanded="false">
                     <td class="ps-4 num-font">
                         <i class="bi bi-chevron-right text-muted me-2 small" id="chevron-{{ loop.index }}"></i>{{ tx.date }}
+                        {% set note = (tx_notes or {}).get(tx.date[:10] ~ '|' ~ tx.type ~ '|' ~ ('%g'|format(tx.shares)) ~ '|' ~ ('%g'|format(tx.price))) %}
+                        {% if note %}<div class="small text-muted text-truncate" style="max-width: 360px; font-family: inherit;" title="{{ note }}"><i class="bi bi-chat-left-text me-1"></i>{{ note }}</div>{% endif %}
                     </td>
                     <td class="text-center">
                         {% if tx.type == 'BUY' %}

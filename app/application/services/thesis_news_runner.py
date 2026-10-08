@@ -1,12 +1,14 @@
 """
 Lanzamiento automático del radar semanal de noticias.
 
-Se dispara al arrancar la app y al entrar en /tesis: las tesis cuyo último radar tiene 7 días o más se consultan
-en un hilo en segundo plano (nunca dos a la vez). Desactivable con THESIS_NEWS_AUTO=false.
+Todas las tesis van juntas: una vez por semana, a partir del lunes a las 7:00. Se comprueba al arrancar la app,
+cada hora mientras está encendida y al entrar en /tesis; las pendientes se consultan en un hilo en segundo plano
+(nunca dos a la vez). Desactivable con THESIS_NEWS_AUTO=false.
 """
 import logging
 import os
 import threading
+import time
 
 from app.application.services import thesis_ai_service
 from app.application.services.thesis_service import evaluate_thesis
@@ -15,8 +17,11 @@ from app.infrastructure.repositories.sqlalchemy_thesis_repository import SqlAlch
 
 logger = logging.getLogger(__name__)
 
+CHECK_EVERY_S = 3600
+
 _lock = threading.Lock()
 _running = False
+_scheduler_started = False
 
 
 def auto_enabled() -> bool:
@@ -25,6 +30,11 @@ def auto_enabled() -> bool:
 
 def is_running() -> bool:
     return _running
+
+
+def held_tickers(db) -> set:
+    from app.application.services.thesis_review_service import held_tickers as held
+    return held(db)
 
 
 def run_news_for_thesis(repo: SqlAlchemyThesisRepository, thesis: dict) -> dict:
@@ -41,9 +51,10 @@ def _run_due() -> None:
     db = SessionLocal()
     try:
         repo = SqlAlchemyThesisRepository(db)
-        ran = 0
+        held = held_tickers(db)
+        ran, failed = 0, set()
         for thesis in repo.list_theses():
-            if not radar_due(thesis):
+            if not radar_due(thesis, held):
                 continue
             try:
                 digest = run_news_for_thesis(repo, thesis)
@@ -51,8 +62,11 @@ def _run_due() -> None:
                 logger.info("Radar automático %s: %d noticias nuevas", thesis["ticker"], digest["new_items"])
             except Exception:
                 db.rollback()
+                failed.add(thesis["ticker"])
                 logger.exception("Radar automático falló para %s", thesis["ticker"])
-        if ran:   # pasada del radar terminada: resumen semanal conjunto, si el último tiene ya una semana
+        # resumen semanal conjunto cuando ya no queda ninguna tesis pendiente (otra pasada en curso, p. ej. tras un
+        # reinicio, lo lanzará al acabar; las que han fallado no lo bloquean) y si el último es de una semana anterior
+        if ran and not any(radar_due(t, held) for t in repo.list_theses() if t["ticker"] not in failed):
             from app.application.services import news_summary_service
             if news_summary_service.due_after_radar(news_summary_service.load(db)):
                 news_summary_service.generate_in_background()
@@ -62,9 +76,14 @@ def _run_due() -> None:
             _running = False
 
 
-def radar_due(thesis: dict) -> bool:
-    """Toca radar si han pasado 7 días y no es la semana de resultados (entonces lo cubre la revisión de resultados)."""
+def radar_due(thesis: dict, held: set) -> bool:
+    """Toca radar si no se ha hecho desde el lunes y no es la semana de resultados (entonces lo cubre la revisión de resultados).
+    Solo las tesis de cartera (held: empresas con acciones): las de seguimiento y las cerradas no tienen radar
+    automático (se puede pedir a mano desde la tesis)."""
     from app.application.services.thesis_review_service import in_results_week
+    from app.application.services.thesis_service import AUTO_RADAR_STATUSES
+    if thesis["ticker"] not in held or (thesis.get("status") or "ACTIVA") not in AUTO_RADAR_STATUSES:
+        return False
     if not thesis_ai_service.news_due(thesis["extra"].get("news_digest")):
         return False
     if in_results_week(thesis["ticker"]):
@@ -77,7 +96,8 @@ def any_due() -> bool:
     """¿Hay alguna tesis a la que le toque radar? (base de datos + calendario cacheado; sin llamar a la IA)"""
     db = SessionLocal()
     try:
-        return any(radar_due(t) for t in SqlAlchemyThesisRepository(db).list_theses())
+        held = held_tickers(db)
+        return any(radar_due(t, held) for t in SqlAlchemyThesisRepository(db).list_theses())
     finally:
         db.close()
 
@@ -96,3 +116,20 @@ def trigger_due_news() -> bool:
         _running = True
     threading.Thread(target=_run_due, name="thesis-news-radar", daemon=True).start()
     return True
+
+
+def start_scheduler() -> None:
+    """Comprueba ahora y cada hora si hay radar pendiente (lunes desde las 7:00 aunque no se abra /tesis)."""
+    global _scheduler_started
+    if _scheduler_started:
+        return
+    _scheduler_started = True
+
+    def loop():
+        while True:
+            try:
+                trigger_due_news()
+            except Exception:
+                logger.exception("Fallo al comprobar el radar semanal")
+            time.sleep(CHECK_EVERY_S)
+    threading.Thread(target=loop, daemon=True, name="thesis-news-scheduler").start()

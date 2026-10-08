@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "_thesis_macros.html" import thesis_styles %}
+{% from "_watchlist.html" import watchlist_panel %}
+{% from "_notices.html" import notice_styles, notice_scripts %}
+{% block title %}Watchlist · Alpha-Flow{% endblock %}
+{% block content %}
+{{ thesis_styles() }}
+{{ notice_styles() }}
+{{ notice_scripts() }}
+<div class="container-fluid py-4">
+    {# sin paginación: la tabla hace scroll por dentro y la página cabe en la pantalla #}
+    {{ watchlist_panel(wl_target, 100000) }}
+</div>
+{% endblock %}

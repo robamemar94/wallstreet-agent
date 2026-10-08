@@ -150,10 +150,23 @@ def test_thesis_document_renders_sections():
     from app.application.services.thesis_service import render_document
     spec = load_thesis_yaml("config/theses/dsgx.yaml")
     doc = render_document(spec["document_md"])
-    assert len(doc["sections"]) == 21
-    assert doc["sections"][15]["name"] == "16. Los cuatro kill switches"
+    assert len(doc["sections"]) == 17
+    assert doc["sections"][8]["name"] == "8. Preguntas maestras de revisión"
     assert '<table>' in doc["html"]
     assert render_document(None) == {"html": None, "sections": []}
+
+
+def test_thesis_document_sections_keep_their_subsections():
+    from app.application.services.thesis_service import render_document
+    # «#» para los apartados: el título y su subtítulo no cuentan; los «##» son subapartados
+    md = "# META — Tesis\n## Framework v3.2\n# 0. Resumen\ntexto\n# 1. Negocio\n## 1.1 La empresa\n## 1.2 Economía\n# Anexo\n"
+    doc = render_document(md)
+    assert [s["name"] for s in doc["sections"]] == ["0. Resumen", "1. Negocio", "Anexo"]
+    assert [s["name"] for s in doc["sections"][1]["subs"]] == ["1.1 La empresa", "1.2 Economía"]
+    assert doc["sections"][1]["subs"][0]["id"] == "11-la-empresa"
+    # un solo «#» (el título): los «##» son los apartados y los «###» sus subapartados
+    doc = render_document("# Tesis\n## 1. Negocio\n### Ingresos\n### Costes\n## 2. Moat\n")
+    assert [(s["name"], [c["name"] for c in s["subs"]]) for s in doc["sections"]] == [("1. Negocio", ["Ingresos", "Costes"]), ("2. Moat", [])]
 
 
 # --- IA: parseo de respuestas y radar semanal ---
@@ -235,11 +248,17 @@ def test_parse_news_keeps_only_very_relevant_and_orders():
     assert out["items"][0]["step"] is None and out["items"][0]["impact"] == "neutral"
 
 
-def test_news_due_once_a_week():
-    now = datetime.datetime(2026, 9, 28, 9, 0)
-    assert ai.news_due(None, now)
-    assert not ai.news_due({"created_at": "2026-09-25T09:00:00"}, now)
-    assert ai.news_due({"created_at": "2026-09-21T09:00:00"}, now)
+def test_news_due_every_monday_for_all_theses():
+    monday = datetime.datetime(2026, 10, 5, 9, 0)
+    assert ai.news_due(None, monday)
+    assert ai.news_due({"created_at": "2026-10-03T11:00:00"}, monday)            # sábado pasado: también toca el lunes
+    assert not ai.news_due({"created_at": "2026-10-05T07:30:00"}, monday)        # ya hecho este lunes
+    early = datetime.datetime(2026, 10, 5, 6, 0)                                 # antes de las 7:00 aún no toca
+    assert not ai.news_due({"created_at": "2026-09-28T08:00:00"}, early)
+    friday = datetime.datetime(2026, 10, 9, 18, 0)                               # aplazado por resultados, hecho el jueves:
+    assert not ai.news_due({"created_at": "2026-10-08T10:00:00"}, friday)        # no se repite hasta el lunes
+    assert ai.next_radar({"created_at": "2026-10-08T10:00:00"}) == datetime.datetime(2026, 10, 12, 7, 0)
+    assert ai.next_radar({"created_at": "2026-10-05T06:00:00"}) == datetime.datetime(2026, 10, 5, 7, 0)
 
 
 def test_reimport_keeps_ai_data(repo):
@@ -487,7 +506,9 @@ def test_master_questions_add_and_remove_in_yaml(tmp_path):
     removed = remove_master_question_from_yaml(added, qs[0])
     assert yaml.safe_load(removed)["master_questions"] == qs[1:]
     # una tesis sin preguntas: se crea el bloque y el YAML sigue siendo válido
-    dsgx = open("config/theses/dsgx.yaml", encoding="utf-8").read()
+    import re
+    dsgx = re.sub(r"^master_questions:\n(?:  - .*\n)+", "", open("config/theses/dsgx.yaml", encoding="utf-8").read(), flags=re.M)
+    assert "master_questions" not in yaml.safe_load(dsgx)
     new = add_master_question_to_yaml(dsgx, "¿Crece la GLN en conexiones?")
     spec = yaml.safe_load(new)
     assert spec["master_questions"] == ["¿Crece la GLN en conexiones?"] and len(spec["pillars"]) == 7
@@ -518,16 +539,17 @@ def test_radar_skips_results_week(monkeypatch):
 
 # --- Centro de mando y monitor de precios ---
 
-def test_calendar_periods_week_from_monday_month_from_day_one():
+def test_rolling_periods_and_ytd():
     from app.application.services.price_monitor_service import period_starts
-    idx = pd.bdate_range("2025-12-15", "2026-09-30")          # miércoles 30/09/2026
+    idx = pd.bdate_range("2025-09-01", "2026-09-30")          # miércoles 30/09/2026
     st = period_starts(idx)
     assert st["1d"].date().isoformat() == "2026-09-29"
-    assert st["wtd"].date().isoformat() == "2026-09-25"        # viernes anterior al lunes 28/09
-    assert st["mtd"].date().isoformat() == "2026-08-31"
+    assert st["1w"].date().isoformat() == "2026-09-23"        # miércoles de hace 7 días
+    assert st["1m"].date().isoformat() == "2026-08-28"        # 30/08 cae en domingo: el viernes anterior
     assert st["ytd"].date().isoformat() == "2025-12-31"
+    assert st["1y"].date().isoformat() == "2025-09-30"
     monday = period_starts(pd.bdate_range("2026-08-01", "2026-09-28"))
-    assert monday["wtd"] == monday["1d"]                        # el lunes la semana acaba de reiniciarse
+    assert monday["1w"].date().isoformat() == "2026-09-21"     # el lunes la semana es la semana entera, no el día
 
 
 def test_portfolio_changes_respect_purchase_dates_and_splits():
@@ -539,12 +561,12 @@ def test_portfolio_changes_respect_purchase_dates_and_splits():
            {"ticker": "BBB", "date": "2026-09-29", "type": "BUY", "shares": 20, "price": 50, "currency": "EUR"}]  # compra esta semana
     splits = {"AAA": [("2026-04-02", 10.0)]}                                # 1 acción → 10 tras el split
     out = portfolio_changes(df, txs, splits)
-    w = out["periods"]["wtd"]
+    w = out["periods"]["1w"]
     assert w["abs_eur"] == pytest.approx(10 * 10 * 0.9)                    # solo la subida de AAA; comprar BBB no es ganancia
-    assert out["positions"]["BBB"]["contribution"]["wtd"] == pytest.approx(0.0)
+    assert out["positions"]["BBB"]["contribution"]["1w"] == pytest.approx(0.0)
     # en euros por posición: AAA gana lo mismo que la cartera; BBB, comprada en el periodo, 0 €
-    assert out["positions"]["AAA"]["pnl_eur"]["wtd"] == pytest.approx(90.0)
-    assert out["positions"]["BBB"]["pnl_eur"]["wtd"] == pytest.approx(0.0)
+    assert out["positions"]["AAA"]["pnl_eur"]["1w"] == pytest.approx(90.0)
+    assert out["positions"]["BBB"]["pnl_eur"]["1w"] == pytest.approx(0.0)
     y = out["periods"]["ytd"]                                              # en el año: igual, BBB se compró en septiembre
     assert y["abs_eur"] == pytest.approx(90.0)
     assert sum(p["weight"] for p in out["positions"].values()) == pytest.approx(100)
@@ -636,3 +658,33 @@ def test_spanish_number_format():
     from utils.number_format import es
     assert es(1234.5) == "1.234,50" and es(1234.5, 0) == "1.234" and es(-7.42, 1) == "-7,4"
     assert es(0.5, 1, sign=True) == "+0,5" and es(0, 1, sign=True) == "0,0" and es(None) == "–"
+
+
+def test_news_by_radar_week_range_and_centro(repo, monkeypatch):
+    from app.infrastructure.db.models import DBThesisNews
+    from app.interfaces.views import thesis_views as tv
+    thesis = repo.import_spec(load_thesis_yaml("config/theses/dsgx.yaml"))
+    for i, (found, seen) in enumerate([("2026-10-05T10:00:00", False), ("2026-09-28T10:00:00", True),
+                                       ("2026-09-21T10:00:00", True), ("2026-08-03T10:00:00", False)]):
+        repo.db.add(DBThesisNews(thesis_id=thesis["id"], found_at=found, date=found[:10], title=f"n{i}", materiality=4, seen=seen))
+    repo.db.commit()
+    assert [n["title"] for n in repo.list_news(since="2026-09-28T07:00:00", limit=None)] == ["n0", "n1"]
+    assert repo.count_news(before="2026-09-28T07:00:00") == {"total": 2, "unread": 1}
+    # Centro de mando: esta semana y la anterior, separadas; de antes, solo las no leídas
+    monkeypatch.setattr(tv, "radar_week_start", lambda now=None: datetime.datetime(2026, 10, 5, 7, 0) if now is None
+                        else ai.radar_week_start(now))
+    monkeypatch.setattr(tv.news_summary_service, "load", lambda db: {"week": "2026-10-05", "headline": "Titular"})
+    out = tv.centro_news(repo, None)
+    assert [(w["current"], [n["title"] for n in w["news"]]) for w in out["news_weeks"]] == [(True, ["n0"]), (False, ["n1"])]
+    assert [n["title"] for n in out["news_old_unread"]] == ["n3"] and out["news_headline"] == "Titular"
+
+
+def test_tracked_and_closed_theses_have_no_automatic_news_radar(monkeypatch):
+    """Solo las tesis de cartera (con acciones) tienen radar semanal; las de seguimiento y las cerradas, no."""
+    from app.application.services import thesis_news_runner as runner, thesis_ai_service, thesis_review_service
+    monkeypatch.setattr(thesis_ai_service, "news_due", lambda digest: True)
+    monkeypatch.setattr(thesis_review_service, "in_results_week", lambda ticker: False)
+    held = {"MSFT"}
+    assert runner.radar_due({"ticker": "MSFT", "status": "ACTIVA", "extra": {}}, held)
+    assert not runner.radar_due({"ticker": "NORBT.OL", "status": "ACTIVA", "extra": {}}, held)   # sin acciones
+    assert not runner.radar_due({"ticker": "MSFT", "status": "CERRADA", "extra": {}}, held)

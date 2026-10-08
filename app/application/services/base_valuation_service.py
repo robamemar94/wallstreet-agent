@@ -29,7 +29,7 @@ ASSET_KEY = "base_valuation"
 METRICS = {"eps": {"label": "BPA", "multiple": "PER"}, "fcf": {"label": "FCF/acción", "multiple": "P/FCF"}}
 TARGET_RETURN_PCT = 18.0   # precio de compra = el que da esta rentabilidad = corte de «ganga»
 DEFAULT_YEARS = 5
-# Zonas por rentabilidad estimada (mismos cortes que el color del CAGR en el Centro de mando y la Watchlist)
+# Zonas por rentabilidad estimada (mismos cortes que el color del CAGR en Cartera › Seguimiento y la Watchlist)
 BARATA_PCT, JUSTO_PCT = 13.0, 8.0
 ZONES = ((TARGET_RETURN_PCT, "ganga"), (BARATA_PCT, "barata"), (JUSTO_PCT, "justo"))
 # Anticuada: dos presentaciones de resultados desde la última revisión; sin calendario de resultados, 7 meses

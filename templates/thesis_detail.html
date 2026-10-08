@@ -14,6 +14,7 @@
             <div class="d-flex align-items-center gap-2 mt-1">
                 <h4 class="fw-bold mb-0">{{ thesis.ticker }}</h4>
                 {{ verdict_badge(thesis.verdict) }}
+                {% if tracking %}<span class="badge text-bg-info" title="No la tienes en cartera: sin radar automático de noticias ni análisis automáticos. Los resultados se analizan cuando lo pidas. Pasa a «de cartera» sola cuando compras."><i class="bi bi-binoculars me-1"></i>EN SEGUIMIENTO</span>{% endif %}
                 {% if thesis.status != 'ACTIVA' %}<span class="badge text-bg-warning">{{ thesis.status|replace('_', ' ') }}</span>{% endif %}
             </div>
             <div class="text-muted small">{{ thesis.title }}{% if thesis.version %} · {{ thesis.version }}{% endif %}{% if thesis.reference_date %} · {{ thesis.reference_date }}{% endif %}
@@ -23,6 +24,10 @@
             <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#obsModal"><i class="bi bi-clipboard-data me-1"></i>Registrar resultados</button>
             <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#verdictModal"><i class="bi bi-flag me-1"></i>Veredicto</button>
             <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#eventModal"><i class="bi bi-plus-lg me-1"></i>Evento</button>
+            {% set reviews_due = decisions|selectattr('outcome.review_due')|list|length %}
+            <button class="btn btn-sm {{ 'btn-outline-warning' if reviews_due else 'btn-outline-secondary' }}" data-bs-toggle="offcanvas" data-bs-target="#diaryPanel"
+                    title="{{ 'Hay ' ~ reviews_due ~ ' decisión(es) pendiente(s) de revisar' if reviews_due else 'Tus decisiones de compra/venta y su resultado' }}">
+                <i class="bi bi-journal-text me-1"></i>Diario{% if decisions %} <span class="{{ 'badge text-bg-warning' if reviews_due else 'text-muted' }}">{{ reviews_due or decisions|length }}</span>{% endif %}</button>
         </div>
     </div>
 
@@ -42,33 +47,31 @@
     </div>
     {% endif %}
 
-    <!-- CIFRAS CLAVE -->
+    <!-- CIFRAS CLAVE + RADAR -->
+    {% set unread_news = news_items|rejectattr('seen')|map(attribute='id')|list %}
     <div class="row g-3 mb-3">
-        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body">
-            <div class="kpi-label">Health score</div>
-            <div class="health-num {{ 'st-' ~ ev.health_status if ev.health_status else 'st-none' }}">{{ ev.health_score if ev.health_score is not none else '–' }}<span class="fs-6 text-muted">/100</span></div>
-            <div class="small text-muted mt-1">Media ponderada por pilar · verde 100, amarillo 50, rojo 0</div>
+        <div class="col-12 col-xl-7"><div class="row g-3 h-100">
+        <div class="col-12 col-sm-4"><div class="card h-100"><div class="card-body">
+            <div class="kpi-label">Estado</div>
+            <div class="health-num {{ 'st-' ~ ev.health_status if ev.health_status else 'st-none' }}" title="Health score: media ponderada por pilar · verde 100, amarillo 50, rojo 0">{{ ev.health_score if ev.health_score is not none else '–' }}<span class="fs-6 text-muted">/100</span></div>
+            <div class="small text-muted">Cobertura {{ ev.coverage }}%</div>
+            <div class="small text-muted mt-1 font-monospace-data text-nowrap">
+                {{ status_icon('green') }} {{ ev.counts.green }} {{ status_icon('amber') }} {{ ev.counts.amber }}
+                {{ status_icon('red') }} {{ ev.counts.red }} {{ status_icon(None) }} {{ ev.counts.none }}</div>
         </div></div></div>
-        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body">
-            <div class="kpi-label">Cobertura</div>
-            <div class="health-num">{{ ev.coverage }}<span class="fs-6 text-muted">%</span></div>
-            <div class="small text-muted mt-1 font-monospace-data">
-                {{ status_icon('green') }} {{ ev.counts.green }} · {{ status_icon('amber') }} {{ ev.counts.amber }} ·
-                {{ status_icon('red') }} {{ ev.counts.red }} · {{ status_icon(None) }} {{ ev.counts.none }} sin dato</div>
-        </div></div></div>
-        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body">
+        <div class="col-12 col-sm-4"><div class="card h-100"><div class="card-body">
             <div class="kpi-label">Kill switches</div>
             {% for k in ev.kill_switches %}
             <div class="small d-flex gap-1 align-items-center" title="{{ k.rule }}">
-                {% if k.state == 'triggered' %}<i class="bi bi-shield-fill-x st-red"></i>
-                {% elif k.state == 'watch' %}<i class="bi bi-shield-fill-exclamation st-amber"></i>
-                {% elif k.status %}<i class="bi bi-shield-fill-check st-green"></i>
-                {% else %}<i class="bi bi-shield st-none"></i>{% endif %}
-                <span class="text-truncate">{{ k.name }}</span>
+            {% if k.state == 'triggered' %}<i class="bi bi-shield-fill-x st-red"></i>
+            {% elif k.state == 'watch' %}<i class="bi bi-shield-fill-exclamation st-amber"></i>
+            {% elif k.status %}<i class="bi bi-shield-fill-check st-green"></i>
+            {% else %}<i class="bi bi-shield st-none"></i>{% endif %}
+            <span class="text-truncate">{{ k.name }}</span>
             </div>
             {% endfor %}
         </div></div></div>
-        <div class="col-6 col-lg-3"><div class="card h-100"><div class="card-body">
+        <div class="col-12 col-sm-4"><div class="card h-100"><div class="card-body">
             <div class="kpi-label">Precio</div>
             {% if price %}
             <div class="health-num font-monospace-data" style="font-size: 1.8rem;">{{ money(price.price, cur) }}</div>
@@ -84,27 +87,75 @@
             <div class="small text-muted mt-1"><i class="bi bi-calendar-event me-1"></i>
                 {% if next_earnings %}Resultados {{ next_earnings.strftime('%d/%m/%Y') }} ({{ days_to_earnings }} d){% else %}Sin fecha de resultados{% endif %}</div>
         </div></div></div>
+        </div></div>
+        <div class="col-12 col-xl-5">
+            <!-- RADAR: siempre a la vista (son pocas noticias, materialidad ≥4/5) -->
+            <div class="card h-100" id="radarCard"><div class="card-body py-2">
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    <span class="kpi-label mb-0">{{ 'Radar (a mano)' if tracking else 'Radar semanal' }}</span>
+                    {% if unread_news %}<span class="badge text-bg-primary" id="radarUnread">{{ unread_news|length }} nueva{{ 's' if unread_news|length > 1 }}</span>{% endif %}
+                    <span class="small text-muted ms-auto text-end">
+                    {% if radar_running %}<span class="spinner-border spinner-border-sm"></span> en curso · {% endif %}
+                    {% if news.digest %}{{ news.digest.created_at[:10] }}{% if news.digest.window_days %} · últimos {{ news.digest.window_days }} días{% endif %}{% if news.digest.free_tier %} · gratis{% elif news.digest.usage %} · ${{ num(news.digest.usage.cost_usd, 3) }}{% endif %}{% else %}sin consultar{% endif %}
+                    </span>
+                    <button class="btn btn-sm {{ 'btn-outline-primary' if news.due else 'btn-outline-secondary' }} py-0" id="btnNews" data-force="{{ 'false' if news.due else 'true' }}"
+                    title="{{ 'Consultar noticias de los últimos 7 días' if news.due else 'Ya se consultó esta semana (próxima: lunes ' ~ news.next_run.strftime('%d/%m') ~ '). Pulsa para forzar.' }}">
+                    <i class="bi bi-arrow-repeat"></i>{% if not news.due %} forzar{% endif %}
+                    </button>
+                </div>
+                {% if news.digest %}
+                {% if news.digest.grounded == false %}<div class="small st-red mb-2"><i class="bi bi-exclamation-octagon me-1"></i>Gemini no llegó a buscar en internet: este radar no es fiable. Fuérzalo de nuevo.</div>{% endif %}
+                {% if news.digest.summary %}<p class="small mb-2">{{ news.digest.summary }}</p>{% endif %}
+                {% endif %}
+                {% for n in news_items %}
+                <div class="radar-item imp-{{ n.impact }}{% if loop.index > 3 %} more-item d-none{% endif %}" data-news="{{ n.id }}">
+                <details class="flex-grow-1">
+                <summary class="small">
+                <span class="text-muted text-nowrap">{{ n.date }} · {{ n.materiality }}/5</span>
+                {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" class="fw-semibold" onclick="markNewsRead([{{ n.id }}])">{{ n.title }}</a>{% else %}<span class="fw-semibold">{{ n.title }}</span>{% endif %}
+                {% if not n.seen %}<span class="badge text-bg-primary badge-new" role="button" title="Marcar como leída" onclick="event.preventDefault(); markNewsRead([{{ n.id }}])">NUEVA ✓</span>{% endif %}
+                </summary>
+                <div class="small text-muted mt-1">{% if n.step_name %}Paso {{ n.step }}: {{ n.step_name }} · {% endif %}{{ n.summary }}</div>
+                </details>
+                {% if not n.in_timeline %}<button class="btn btn-link btn-sm p-0 text-muted text-nowrap" title="Añadir al timeline"
+                onclick="newsToTimeline({{ n.id }})"><i class="bi bi-plus-circle"></i></button>{% endif %}
+                </div>
+                {% else %}{% if news.digest %}<div class="small text-muted">Ninguna noticia muy relevante (materialidad ≥4/5) por ahora.</div>{% endif %}{% endfor %}
+                {% if news_items %}<div class="d-flex gap-3 small mt-1">
+                {% if news_items|length > 3 %}<a href="#" onclick="showMore(this); return false;">Ver las {{ news_items|length }} últimas</a>{% endif %}
+                <a href="/noticias?ticker={{ thesis.ticker }}">Todas en Noticias →</a>
+                {% if unread_news %}<a href="#" id="lnkNewsRead" class="ms-auto" onclick='markNewsRead({{ unread_news|tojson }}); return false;'><i class="bi bi-check2-all"></i> marcar leídas</a>{% endif %}
+                </div>{% endif %}
+                {% if not news.digest %}
+                <div class="small text-muted">{% if tracking %}En seguimiento (no la tienes en cartera): sin radar automático. Pulsa <i class="bi bi-arrow-repeat"></i> si quieres consultarlo: solo noticias muy relevantes (materialidad ≥4/5) de los últimos 7 días.
+                {% else %}Automático, una vez por semana: solo noticias muy relevantes (materialidad ≥4/5) desde el último radar (la primera vez, los últimos 7 días).{% endif %}</div>
+                {% endif %}
+                <div id="newsInfo" class="small text-muted"></div>
+            </div></div>
+        </div>
     </div>
 
-    <!-- TESIS -->
-    <div class="card mb-3"><div class="card-body">
-        <p class="mb-2">{{ thesis.summary }}</p>
-        {% if thesis.extra.hypothesis %}<p class="small mb-2"><strong>Hipótesis financiera:</strong> {{ thesis.extra.hypothesis }}</p>{% endif %}
-        {% if thesis.extra.ratings %}
-        <div class="d-flex flex-wrap gap-2 mb-2">
+    <!-- RESUMEN: una línea; al desplegar, hipótesis y reglas -->
+    <div class="card mb-3"><div class="card-body py-2">
+        <details class="thesis-summary">
+            <summary><span class="summary-line">{{ thesis.summary }}</span></summary>
+            {% if thesis.extra.hypothesis %}<p class="small mb-2"><strong>Hipótesis financiera:</strong> {{ thesis.extra.hypothesis }}</p>{% endif %}
+            {% if thesis.extra.ratings %}
+            <div class="d-flex flex-wrap gap-2 mb-2">
             {% for k, v in thesis.extra.ratings.items() %}<span class="badge bg-light text-dark border">{{ k }}: <strong>{{ v }}</strong></span>{% endfor %}
-        </div>
-        {% endif %}
-        {% if thesis.extra.hypotheses %}
-        <details class="small mb-1"><summary class="text-muted">Hipótesis críticas ({{ thesis.extra.hypotheses|length }})</summary>
+            </div>
+            {% endif %}
+            {% if thesis.extra.hypotheses %}
+            <details class="small mb-1"><summary class="text-muted">Hipótesis críticas ({{ thesis.extra.hypotheses|length }})</summary>
             <ul class="mb-0 mt-2 list-unstyled">{% for h, text in thesis.extra.hypotheses.items() %}<li><strong>{{ h }}</strong> — {{ text }}</li>{% endfor %}</ul>
-        </details>
-        {% endif %}
-        {% if thesis.extra.rules %}
-        <details class="small"><summary class="text-muted">Reglas de interpretación ({{ thesis.extra.rules|length }})</summary>
+            </details>
+            {% endif %}
+            {% if thesis.extra.rules %}
+            <details class="small"><summary class="text-muted">Reglas de interpretación ({{ thesis.extra.rules|length }})</summary>
             <ul class="mb-0 mt-2">{% for r in thesis.extra.rules %}<li>{{ r }}</li>{% endfor %}</ul>
+            </details>
+            {% endif %}
         </details>
-        {% endif %}
     </div></div>
 
     <ul class="nav nav-tabs mb-3" role="tablist">
@@ -126,226 +177,170 @@
 
     <div class="tab-content">
     <div class="tab-pane fade show active" id="tab-dashboard">
-    <div class="row g-3">
-    <div class="col-12 col-xxl-8">
-        <!-- CUADRO DE MANDO (checklist trimestral de la tesis) -->
-        <div class="card mb-3">
-            <div class="card-header d-flex align-items-center gap-2 bg-transparent">
-                <span class="fw-bold"><i class="bi bi-list-check me-1"></i>Checklist trimestral</span>
-                <span class="text-muted small">{{ ev.pillars|length }} pasos · {{ ev.counts.values()|sum }} KPIs · pulsa un KPI para ver su historial</span>
-            </div>
-            <div class="table-responsive">
-            <table class="table table-sm mb-0 tbl-kpi">
-                <thead><tr>
-                    <th style="min-width: 220px;">Paso</th><th>KPI</th><th style="width: 90px;">Estado</th><th class="text-end">Último</th><th></th>
-                    <th class="zone"><i class="bi bi-check-circle-fill st-green"></i> Verde</th>
-                    <th class="zone"><i class="bi bi-exclamation-triangle-fill st-amber"></i> Amarillo</th>
-                    <th class="zone"><i class="bi bi-x-octagon-fill st-red"></i> Rojo</th>
-                </tr></thead>
-                {% for p in ev.pillars %}
-                {% set step_no = loop.index %}
-                <tbody class="border-top">
-                {% for k in p.kpis %}
-                <tr>
-                    {% if loop.first %}
-                    <td rowspan="{{ p.kpis|length }}" class="align-top pt-2">
-                        <div class="d-flex gap-2">
-                            <span class="text-muted font-monospace-data">{{ step_no }}</span>
-                            <div>
-                                <div class="fw-bold">{{ status_icon(p.status) }} {{ p.name }}
-                                    {% if p.weight == 0 %}<span class="text-muted small fw-normal">(no puntúa)</span>{% endif %}</div>
-                                {% if p.description %}<div class="small text-muted">{{ p.description }}</div>{% endif %}
-                            </div>
-                        </div>
-                    </td>
-                    {% endif %}
-                    <td role="button" onclick="openKpi({{ k.id }})">
-                        {% if k.name != p.name %}<span class="fw-semibold">{{ k.name }}</span>{% endif %}
-                        {% if k.is_kill_switch %}<i class="bi bi-shield-exclamation text-muted ms-1" title="Kill switch: {{ k.kill_rule }}"></i>{% endif %}
-                        {% if k.auto_metric %}<i class="bi bi-lightning-charge text-muted ms-1" title="Autocompletable desde yfinance"></i>{% endif %}
-                        {% if k.kind == 'qualitative' %}<span class="badge bg-light text-dark border ms-1" style="font-size: .6rem;">cualitativo</span>{% endif %}
-                        {% if k.how_to_measure %}<div class="small text-muted">{{ k.how_to_measure }}</div>{% endif %}
-                        {% if k.baseline %}<div class="small text-muted">Baseline: {{ k.baseline }}</div>{% endif %}
-                    </td>
-                    <td>{{ status_icon(k.eval.status, true) }}</td>
-                    <td class="text-end font-monospace-data text-nowrap">
-                        {% if k.eval.last %}{{ fmt_value(k.eval.last.value, k.unit) if k.eval.last.value is not none else '' }}
-                            <div class="small text-muted">{{ k.eval.last.period }}</div>
-                        {% else %}<span class="text-muted">–</span>{% endif %}
-                    </td>
-                    <td>{{ trend_icon(k.eval.trend) }}</td>
-                    <td class="zone">{{ k.green_text or '' }}</td>
-                    <td class="zone">{{ k.amber_text or '' }}</td>
-                    <td class="zone">{{ k.red_text or '' }}</td>
-                </tr>
+    <ul class="nav nav-pills sub-nav small mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#sub-checklist" type="button"><i class="bi bi-list-check me-1"></i>Checklist trimestral</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sub-follow" type="button"><i class="bi bi-binoculars me-1"></i>Seguimiento</button></li>
+    </ul>
+    <div class="tab-content">
+    <!-- CHECKLIST TRIMESTRAL (con su evolución por periodo, plegada) -->
+    <div class="tab-pane fade show active" id="sub-checklist">
+    <div class="card mb-3">
+        <div class="card-header bg-transparent d-flex align-items-center gap-2 flex-wrap">
+            <span class="fw-bold"><i class="bi bi-list-check me-1"></i>Checklist trimestral</span>
+            <span class="text-muted small">{{ ev.pillars|length }} pasos · {{ ev.counts.values()|sum }} KPIs · pulsa un KPI para ver su historial</span>
+            <button class="btn btn-outline-secondary btn-sm py-0 ms-auto" data-bs-toggle="collapse" data-bs-target="#kpiGrid" aria-expanded="false">
+                <i class="bi bi-grid-3x3 me-1"></i>Evolución por periodo <i class="bi bi-chevron-down"></i></button>
+        </div>
+        <div class="collapse border-bottom" id="kpiGrid">
+            <div class="card-body">
+        {% if grid.rows %}
+        <div class="table-responsive">
+        <table class="table table-sm table-borderless mb-0 tbl-kpi w-auto">
+            <thead><tr><th>KPI</th>{% for per in grid.periods %}<th class="text-center small text-nowrap">{{ per }}</th>{% endfor %}</tr></thead>
+            <tbody>
+            {% for row in grid.rows %}
+            <tr>
+                <td class="text-nowrap">{{ row.kpi.name }} <span class="text-muted small">· {{ row.pillar }}</span></td>
+                {% for cell in row.cells %}
+                <td class="text-center">
+                    {% if cell %}<div class="grid-cell bg-st-{{ cell.status }} mx-auto" title="{{ row.kpi.name }} · {{ cell.period }}{% if cell.value is not none %}: {{ cell.value }}{{ row.kpi.unit or '' }}{% endif %}{% if cell.note %} — {{ cell.note }}{% endif %}">{{ status_icon(cell.status) }}</div>
+                    {% else %}<span class="text-muted">·</span>{% endif %}
+                </td>
                 {% endfor %}
-                </tbody>
-                {% endfor %}
-                {% if thesis.extra.final_question %}
-                <tbody class="border-top"><tr>
-                    <td class="fw-bold pt-2">{{ thesis.extra.final_question }}</td>
-                    <td colspan="7" class="pt-2">Veredicto actual: {{ verdict_badge(thesis.verdict) }}
-                        <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#verdictModal">cambiar</button></td>
-                </tr></tbody>
-                {% endif %}
-            </table>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}<div class="text-muted small">Aún no hay observaciones.</div>{% endif %}
             </div>
         </div>
-
-        <!-- EVOLUCIÓN -->
-        <div class="card mb-3">
-            <div class="card-header bg-transparent fw-bold"><i class="bi bi-grid-3x3 me-1"></i>Evolución del semáforo por periodo</div>
-            <div class="card-body">
-            {% if grid.rows %}
-            <div class="table-responsive">
-            <table class="table table-sm table-borderless mb-0 tbl-kpi">
-                <thead><tr><th>KPI</th>{% for per in grid.periods %}<th class="text-center small text-nowrap">{{ per }}</th>{% endfor %}</tr></thead>
-                <tbody>
-                {% for row in grid.rows %}
-                <tr>
-                    <td class="text-nowrap">{{ row.kpi.name }} <span class="text-muted small">· {{ row.pillar }}</span></td>
-                    {% for cell in row.cells %}
-                    <td class="text-center">
-                        {% if cell %}<div class="grid-cell bg-st-{{ cell.status }} mx-auto" title="{{ row.kpi.name }} · {{ cell.period }}{% if cell.value is not none %}: {{ cell.value }}{{ row.kpi.unit or '' }}{% endif %}{% if cell.note %} — {{ cell.note }}{% endif %}">{{ status_icon(cell.status) }}</div>
-                        {% else %}<span class="text-muted">·</span>{% endif %}
-                    </td>
-                    {% endfor %}
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-            </div>
-            {% else %}<div class="text-muted small">Aún no hay observaciones.</div>{% endif %}
-            </div>
+        <div class="table-responsive">
+        <table class="table table-sm mb-0 tbl-kpi">
+            <thead><tr>
+                <th style="min-width: 220px;">Paso</th><th>KPI</th><th style="width: 90px;">Estado</th><th class="text-end">Último</th><th></th>
+                <th class="zone"><i class="bi bi-check-circle-fill st-green"></i> Verde</th>
+                <th class="zone"><i class="bi bi-exclamation-triangle-fill st-amber"></i> Amarillo</th>
+                <th class="zone"><i class="bi bi-x-octagon-fill st-red"></i> Rojo</th>
+            </tr></thead>
+            {% for p in ev.pillars %}
+            {% set step_no = loop.index %}
+            <tbody class="border-top">
+            {% for k in p.kpis %}
+            <tr>
+                {% if loop.first %}
+                <td rowspan="{{ p.kpis|length }}" class="align-top pt-2">
+                    <div class="d-flex gap-2">
+                        <span class="text-muted font-monospace-data">{{ step_no }}</span>
+                        <div>
+                            <div class="fw-bold">{{ status_icon(p.status) }} {{ p.name }}
+                                {% if p.weight == 0 %}<span class="text-muted small fw-normal">(no puntúa)</span>{% endif %}</div>
+                            {% if p.description %}<div class="small text-muted">{{ p.description }}</div>{% endif %}
+                        </div>
+                    </div>
+                </td>
+                {% endif %}
+                <td role="button" onclick="openKpi({{ k.id }})">
+                    {% if k.name != p.name %}<span class="fw-semibold">{{ k.name }}</span>{% endif %}
+                    {% if k.is_kill_switch %}<i class="bi bi-shield-exclamation text-muted ms-1" title="Kill switch: {{ k.kill_rule }}"></i>{% endif %}
+                    {% if k.auto_metric %}<i class="bi bi-lightning-charge text-muted ms-1" title="Autocompletable desde yfinance"></i>{% endif %}
+                    {% if k.kind == 'qualitative' %}<span class="badge bg-light text-dark border ms-1" style="font-size: .6rem;">cualitativo</span>{% endif %}
+                    {% if k.how_to_measure %}<div class="small text-muted">{{ k.how_to_measure }}</div>{% endif %}
+                    {% if k.baseline %}<div class="small text-muted">Baseline: {{ k.baseline }}</div>{% endif %}
+                </td>
+                <td>{{ status_icon(k.eval.status, true) }}</td>
+                <td class="text-end font-monospace-data text-nowrap">
+                    {% if k.eval.last %}{{ fmt_value(k.eval.last.value, k.unit) if k.eval.last.value is not none else '' }}
+                        <div class="small text-muted">{{ k.eval.last.period }}</div>
+                    {% else %}<span class="text-muted">–</span>{% endif %}
+                </td>
+                <td>{{ trend_icon(k.eval.trend) }}</td>
+                <td class="zone">{{ k.green_text or '' }}</td>
+                <td class="zone">{{ k.amber_text or '' }}</td>
+                <td class="zone">{{ k.red_text or '' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+            {% endfor %}
+            {% if thesis.extra.final_question %}
+            <tbody class="border-top"><tr>
+                <td class="fw-bold pt-2">{{ thesis.extra.final_question }}</td>
+                <td colspan="7" class="pt-2">Veredicto actual: {{ verdict_badge(thesis.verdict) }}
+                    <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#verdictModal">cambiar</button></td>
+            </tr></tbody>
+            {% endif %}
+        </table>
         </div>
     </div>
+    </div>
 
-    <div class="col-12 col-xxl-4">
-        <!-- DIARIO DE DECISIONES -->
-        <div class="card mb-3">
-            <div class="card-header bg-transparent d-flex align-items-center">
-                <span class="fw-bold"><i class="bi bi-journal-text me-1"></i>Diario de decisiones</span>
-                <button class="btn btn-outline-primary btn-sm py-0 ms-auto" onclick="openDecision(null)"><i class="bi bi-plus-lg"></i> Decisión</button>
+    <!-- SEGUIMIENTO: timeline, preguntas maestras y vigilancia -->
+    <div class="tab-pane fade" id="sub-follow">
+        <div class="row g-3">
+            <div class="col-12 col-lg-4"><div class="card">
+                <div class="card-header bg-transparent d-flex align-items-center gap-2 py-2">
+                    <span class="fw-bold small"><i class="bi bi-clock-history me-1"></i>Timeline</span>
+                </div>
+                <div class="card-body">
+        {% for e in thesis.events %}
+        {% set meta = ev_types.get(e.type, ('bi-dot', e.type)) %}
+        <div class="timeline-item imp-{{ e.impact or 'neutral' }}{% if loop.index > 5 %} more-item d-none{% endif %}">
+            <div class="d-flex justify-content-between">
+                <span class="small text-muted"><i class="bi {{ meta[0] }} me-1"></i>{{ e.date }} · {{ meta[1] }}</span>
+                <button class="btn btn-link btn-sm p-0 text-muted" onclick="deleteEvent({{ e.id }})" title="Eliminar"><i class="bi bi-x"></i></button>
             </div>
-            {% if decisions %}
-            <ul class="list-group list-group-flush small">
-            {% for d in decisions %}{% set o = d.outcome %}
-                <li class="list-group-item">
-                    <div class="d-flex justify-content-between gap-2">
-                        <span><strong class="text-capitalize">{{ d.action }}</strong> · {{ d.date }}{% if d.price %} · a {{ d.price }}{% endif %}{% if d.shares %} · {{ d.shares|round(2) }} acc.{% endif %}</span>
-                        <span class="text-nowrap">
-                            {% if o.price_change is not none %}<span class="{{ 'st-green' if o.good else 'st-red' }}" title="Variación del precio desde la decisión ({{ o.days }} días)">{{ num(o.price_change, 1, sign=True) }}%</span>{% endif %}
-                            <button class="btn btn-link btn-sm p-0 text-muted ms-1" onclick="deleteDecision({{ d.id }})" title="Eliminar"><i class="bi bi-x"></i></button>
-                        </span>
-                    </div>
-                    <div class="text-muted">Tesis {{ d.verdict }}{% if d.health_score is not none %} · score {{ d.health_score }}{% endif %}{% if d.weight is not none %} · peso {{ d.weight }}%{% endif %}</div>
-                    {% if d.reason|length > 160 %}<details class="timeline-body"><summary>{{ d.reason[:140] }}… <span class="text-primary">ver más</span></summary><div style="white-space: pre-line;">{{ d.reason }}</div></details>
-                    {% else %}<div style="white-space: pre-line;">{{ d.reason }}</div>{% endif %}
-                    {% if d.lesson %}<div class="mt-1"><i class="bi bi-lightbulb st-amber me-1"></i><strong>Lección:</strong> {{ d.lesson }}</div>{% endif %}
-                    {% if o.review_due %}<button class="btn btn-sm btn-outline-warning py-0 mt-1" onclick="reviewDecision({{ d.id }})"><i class="bi bi-journal-check me-1"></i>Revisar ({{ o.review_due // 30 }} meses)</button>{% endif %}
-                </li>
-            {% endfor %}
-            </ul>
-            {% else %}<div class="card-body small text-muted">Anota cada compra, venta o «no hago nada» con su motivo. A los 6 y 12 meses te pediremos revisarla: es la mejor forma de detectar sesgos propios.</div>{% endif %}
+            <div class="fw-semibold small">{{ e.title }}</div>
+            {% if e.body %}
+                {% if e.body|length > 220 %}
+                <details class="small text-muted timeline-body">
+                    <summary>{{ e.body[:180]|replace('\n', ' ') }}… <span class="text-primary">ver más</span></summary>
+                    <div style="white-space: pre-line;">{{ e.body }}</div>
+                </details>
+                {% else %}<div class="small text-muted" style="white-space: pre-line;">{{ e.body }}</div>{% endif %}
+            {% endif %}
         </div>
-
+        {% else %}<div class="text-muted small">Sin eventos.</div>{% endfor %}
+        {% if thesis.events|length > 5 %}<button class="btn btn-link btn-sm px-0" onclick="showMore(this)">Ver los {{ thesis.events|length - 5 }} más antiguos</button>{% endif %}
+                </div>
+            </div></div>
+            <div class="col-12 col-lg-4"><div class="card">
+                <div class="card-header bg-transparent d-flex align-items-center gap-2 py-2">
+                    <span class="fw-bold small"><i class="bi bi-question-circle me-1"></i>Preguntas maestras</span>
+                    <button class="btn btn-outline-primary btn-sm py-0 ms-auto" onclick="addMasterQuestion('', '')" title="Añadir una pregunta"><i class="bi bi-plus-lg"></i> pregunta</button>
+                </div>
+                <div>
+        {% if thesis.extra.master_questions %}
+        <ol class="list-group list-group-flush list-group-numbered small">
+            {% for q in thesis.extra.master_questions %}<li class="list-group-item d-flex gap-2">
+                <span class="flex-grow-1">{{ q }}</span>
+                <button class="btn btn-link btn-sm p-0 text-muted" title="Retirar pregunta" onclick='removeMasterQuestion({{ q|tojson }}, "")'><i class="bi bi-x"></i></button>
+            </li>{% endfor %}
+        </ol>
+        <div class="small text-muted p-2">La revisión con IA las responde en cada resultado y puede proponer añadir o retirar preguntas.</div>
+        {% else %}<div class="card-body small text-muted">Esta tesis no tiene preguntas maestras. Añádelas tú o deja que la revisión de resultados las proponga.</div>{% endif %}
+                </div>
+            </div></div>
+            <div class="col-12 col-lg-4">
+                <div class="card">
+                <div class="card-header bg-transparent d-flex align-items-center gap-2 py-2">
+                    <span class="fw-bold small"><i class="bi bi-eye me-1"></i>En vigilancia</span>
+                </div>
+                <div>
         {% if thesis.extra.watchlist %}
-        <div class="card mb-3">
-            <div class="card-header bg-transparent fw-bold"><i class="bi bi-eye me-1"></i>En vigilancia</div>
-            <ul class="list-group list-group-flush small">
-            {% for w in thesis.extra.watchlist %}
-                <li class="list-group-item d-flex justify-content-between gap-2">
-                    <div><span class="badge {{ 'text-bg-danger' if w.type == 'riesgo' else 'bg-light text-dark border' }}">{{ w.type }}</span>
-                        <strong>{{ w.title }}</strong> <span class="text-muted">· desde {{ w.added }}</span>
-                        {% if w.rationale %}<div class="text-muted">{{ w.rationale }}</div>{% endif %}</div>
-                    <button class="btn btn-link btn-sm p-0 text-muted" title="Dejar de vigilar" onclick="unwatch({{ loop.index0 }})"><i class="bi bi-x"></i></button>
-                </li>
-            {% endfor %}
-            </ul>
-            <div class="small text-muted p-2">La revisión de resultados y el radar de noticias también los tendrán en cuenta.</div>
-        </div>
-        {% endif %}
-
-        <div class="card mb-3">
-            <div class="card-header bg-transparent d-flex align-items-center">
-                <span class="fw-bold"><i class="bi bi-question-circle me-1"></i>Preguntas maestras</span>
-                <button class="btn btn-outline-primary btn-sm py-0 ms-auto" onclick="addMasterQuestion('', '')" title="Añadir una pregunta"><i class="bi bi-plus-lg"></i> pregunta</button>
-            </div>
-            {% if thesis.extra.master_questions %}
-            <ol class="list-group list-group-flush list-group-numbered small">
-                {% for q in thesis.extra.master_questions %}<li class="list-group-item d-flex gap-2">
-                    <span class="flex-grow-1">{{ q }}</span>
-                    <button class="btn btn-link btn-sm p-0 text-muted" title="Retirar pregunta" onclick='removeMasterQuestion({{ q|tojson }}, "")'><i class="bi bi-x"></i></button>
-                </li>{% endfor %}
-            </ol>
-            <div class="small text-muted p-2">La revisión con IA las responde en cada resultado y puede proponer añadir o retirar preguntas.</div>
-            {% else %}<div class="card-body small text-muted">Esta tesis no tiene preguntas maestras. Añádelas tú o deja que la revisión de resultados las proponga.</div>{% endif %}
-        </div>
-
-        <!-- RADAR SEMANAL -->
-        <div class="card mb-3">
-            <div class="card-header bg-transparent d-flex align-items-center gap-2">
-                <span class="fw-bold"><i class="bi bi-broadcast me-1"></i>Radar semanal</span>
-                <span class="small text-muted ms-auto">
-                    {% if radar_running %}<span class="spinner-border spinner-border-sm"></span> en curso · {% endif %}
-                    {% if news.digest %}{{ news.digest.created_at[:10] }}{% if news.digest.window_days %} · últimos {{ news.digest.window_days }} días{% endif %}{% if news.digest.free_tier %} · gratis{% elif news.digest.usage %} · ${{ num(news.digest.usage.cost_usd, 3) }}{% endif %}{% else %}sin consultar{% endif %}
-                </span>
-                <button class="btn btn-sm {{ 'btn-outline-primary' if news.due else 'btn-outline-secondary' }} py-0" id="btnNews" data-force="{{ 'false' if news.due else 'true' }}"
-                        title="{{ 'Consultar noticias de los últimos 7 días' if news.due else 'Ya se consultó esta semana (próxima: ' ~ news.next_run.strftime('%d/%m') ~ '). Pulsa para forzar.' }}">
-                    <i class="bi bi-arrow-repeat"></i>{% if not news.due %} forzar{% endif %}
-                </button>
-            </div>
-            <div class="card-body">
-            {% if news.digest %}
-                {% if news.digest.grounded == false %}<div class="small st-red mb-2"><i class="bi bi-exclamation-octagon me-1"></i>Gemini no llegó a buscar en internet: este radar no es fiable. Fuérzalo de nuevo.</div>{% endif %}
-                {% if news.digest.summary %}<p class="small mb-2">{{ news.digest.summary }}</p>{% endif %}
-            {% endif %}
-                {% for n in news_items %}
-                <div class="timeline-item imp-{{ n.impact }}" data-news="{{ n.id }}">
-                    <div class="d-flex justify-content-between gap-2">
-                        <span class="small text-muted">{{ n.date }}{% if n.step_name %} · Paso {{ n.step }}: {{ n.step_name }}{% endif %} · {{ n.materiality }}/5
-                            {% if not n.seen %}<span class="badge text-bg-primary badge-new" role="button" title="Marcar como leída" onclick="markNewsRead([{{ n.id }}])">NUEVA ✓</span>{% endif %}</span>
-                        {% if not n.in_timeline %}<button class="btn btn-link btn-sm p-0 text-muted text-nowrap" title="Añadir al timeline"
-                                onclick="newsToTimeline({{ n.id }})"><i class="bi bi-plus-circle"></i></button>{% endif %}
-                    </div>
-                    <div class="fw-semibold small">{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" onclick="markNewsRead([{{ n.id }}])">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>
-                    <div class="small text-muted">{{ n.summary }}</div>
+        <ul class="list-group list-group-flush small">
+        {% for w in thesis.extra.watchlist %}
+            <li class="list-group-item d-flex justify-content-between gap-2">
+                <div><span class="badge {{ 'text-bg-danger' if w.type == 'riesgo' else 'bg-light text-dark border' }}">{{ w.type }}</span>
+                    <strong>{{ w.title }}</strong> <span class="text-muted">· desde {{ w.added }}</span>
+                    {% if w.rationale %}<div class="text-muted">{{ w.rationale }}</div>{% endif %}</div>
+                <button class="btn btn-link btn-sm p-0 text-muted" title="Dejar de vigilar" onclick="unwatch({{ loop.index0 }})"><i class="bi bi-x"></i></button>
+            </li>
+        {% endfor %}
+        </ul>
+        <div class="small text-muted p-2">La revisión de resultados y el radar de noticias también los tendrán en cuenta.</div>
+        {% else %}<div class="card-body small text-muted">Nada en vigilancia. La revisión de resultados puede proponer riesgos y catalizadores para vigilar.</div>{% endif %}
                 </div>
-                {% else %}{% if news.digest %}<div class="small text-muted">Ninguna noticia muy relevante (materialidad ≥4/5) por ahora.</div>{% endif %}{% endfor %}
-                {% if news_items %}<div class="d-flex justify-content-between small">
-                    <a href="/noticias?ticker={{ thesis.ticker }}">Ver todas en Noticias →</a>
-                    {% set unread_news = news_items|rejectattr('seen')|map(attribute='id')|list %}
-                    {% if unread_news %}<a href="#" id="lnkNewsRead" onclick='markNewsRead({{ unread_news|tojson }}); return false;'><i class="bi bi-check2-all"></i> marcar leídas</a>{% endif %}
-                </div>{% endif %}
-            {% if not news.digest %}
-                <div class="small text-muted">Automático, una vez por semana: solo noticias muy relevantes (materialidad ≥4/5) desde el último radar (la primera vez, los últimos 7 días).</div>
-            {% endif %}
-            <div id="newsInfo" class="small text-muted"></div>
-            </div>
-        </div>
-
-        <!-- TIMELINE -->
-        <div class="card mb-3">
-            <div class="card-header bg-transparent fw-bold"><i class="bi bi-clock-history me-1"></i>Timeline</div>
-            <div class="card-body">
-            {% for e in thesis.events %}
-            {% set meta = ev_types.get(e.type, ('bi-dot', e.type)) %}
-            <div class="timeline-item imp-{{ e.impact or 'neutral' }}">
-                <div class="d-flex justify-content-between">
-                    <span class="small text-muted"><i class="bi {{ meta[0] }} me-1"></i>{{ e.date }} · {{ meta[1] }}</span>
-                    <button class="btn btn-link btn-sm p-0 text-muted" onclick="deleteEvent({{ e.id }})" title="Eliminar"><i class="bi bi-x"></i></button>
                 </div>
-                <div class="fw-semibold small">{{ e.title }}</div>
-                {% if e.body %}
-                    {% if e.body|length > 220 %}
-                    <details class="small text-muted timeline-body">
-                        <summary>{{ e.body[:180]|replace('\n', ' ') }}… <span class="text-primary">ver más</span></summary>
-                        <div style="white-space: pre-line;">{{ e.body }}</div>
-                    </details>
-                    {% else %}<div class="small text-muted" style="white-space: pre-line;">{{ e.body }}</div>{% endif %}
-                {% endif %}
-            </div>
-            {% else %}<div class="text-muted small">Sin eventos.</div>{% endfor %}
             </div>
         </div>
     </div>
@@ -423,7 +418,13 @@
                 <div class="card doc-toc"><div class="card-body p-2">
                     <div class="kpi-label px-2 pb-1">Apartados</div>
                     <nav class="nav flex-column">
-                        {% for sec in document.sections %}<a class="nav-link py-1 px-2 small" href="#{{ sec.id }}">{{ sec.name|safe }}</a>{% endfor %}
+                        {% for sec in document.sections %}<div class="toc-sec" data-sec="{{ sec.id }}">
+                            <div class="d-flex align-items-start">
+                                <a class="nav-link py-1 px-2 small fw-semibold flex-grow-1" href="#{{ sec.id }}">{{ sec.name|safe }}</a>
+                                {% if sec.subs %}<button type="button" class="btn btn-link btn-sm py-1 px-1 text-muted toc-toggle" aria-expanded="false" aria-label="Ver subapartados" title="{{ sec.subs|length }} subapartados"><i class="bi bi-chevron-down"></i></button>{% endif %}
+                            </div>
+                            {% if sec.subs %}<div class="toc-subs d-none">{% for sub in sec.subs %}<a class="nav-link toc-sub small" href="#{{ sub.id }}">{{ sub.name|safe }}</a>{% endfor %}</div>{% endif %}
+                        </div>{% endfor %}
                     </nav>
                     {% if thesis.source_document %}<div class="small text-muted px-2 pt-2 border-top mt-2">Fuente: <code>{{ thesis.source_document }}</code></div>{% endif %}
                 </div></div>
@@ -598,8 +599,58 @@
     </div>
 </div></div></div>
 
+
+<!-- DIARIO DE DECISIONES (panel lateral) -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="diaryPanel" style="width: min(480px, 100vw);">
+    <div class="offcanvas-header border-bottom">
+        <h6 class="offcanvas-title fw-bold"><i class="bi bi-journal-text me-1"></i>Diario de decisiones · {{ thesis.ticker }}</h6>
+        <button class="btn btn-outline-primary btn-sm py-0 ms-auto me-2" onclick="openDecision(null)"><i class="bi bi-plus-lg"></i> Decisión</button>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body p-0">
+    {% if decisions %}
+        <ul class="list-group list-group-flush small">
+        {% for d in decisions %}{% set o = d.outcome %}
+            <li class="list-group-item">
+                <div class="d-flex justify-content-between gap-2">
+                    <span><strong class="text-capitalize">{{ d.action }}</strong> · {{ d.date }}{% if d.price %} · a {{ d.price }}{% endif %}{% if d.shares %} · {{ d.shares|round(2) }} acc.{% endif %}</span>
+                    <span class="text-nowrap">
+                        {% if o.price_change is not none %}<span class="{{ 'st-green' if o.good else 'st-red' }}" title="Variación del precio desde la decisión ({{ o.days }} días)">{{ num(o.price_change, 1, sign=True) }}%</span>{% endif %}
+                        <button class="btn btn-link btn-sm p-0 text-muted ms-1" onclick="deleteDecision({{ d.id }})" title="Eliminar"><i class="bi bi-x"></i></button>
+                    </span>
+                </div>
+                <div class="text-muted">Tesis {{ d.verdict }}{% if d.health_score is not none %} · score {{ d.health_score }}{% endif %}{% if d.weight is not none %} · peso {{ d.weight }}%{% endif %}</div>
+                {% if d.reason|length > 160 %}<details class="timeline-body"><summary>{{ d.reason[:140] }}… <span class="text-primary">ver más</span></summary><div style="white-space: pre-line;">{{ d.reason }}</div></details>
+                {% else %}<div style="white-space: pre-line;">{{ d.reason }}</div>{% endif %}
+                {% if d.lesson %}<div class="mt-1"><i class="bi bi-lightbulb st-amber me-1"></i><strong>Lección:</strong> {{ d.lesson }}</div>{% endif %}
+                {% if o.review_due %}<button class="btn btn-sm btn-outline-warning py-0 mt-1" onclick="reviewDecision({{ d.id }})"><i class="bi bi-journal-check me-1"></i>Revisar ({{ o.review_due // 30 }} meses)</button>{% endif %}
+            </li>
+        {% endfor %}
+        </ul>
+    {% endif %}
+            {% if not decisions %}<div class="card-body small text-muted">Anota cada compra, venta o «no hago nada» con su motivo. A los 6 y 12 meses te pediremos revisarla: es la mejor forma de detectar sesgos propios.</div>{% endif %}
+        <div class="small text-muted p-3">Cada decisión aparece también en el Timeline. A los 6 y 12 meses se te pedirá revisarla.</div>
+    </div>
+</div>
+
 <script>
+document.getElementById('diaryPanel').addEventListener('click', e => {
+    if (e.target.closest('button:not(.btn-close)')) try { sessionStorage.setItem('diaryOpen', THESIS_ID); } catch (err) {}
+});
+document.addEventListener('DOMContentLoaded', () => {
+    let open = null;
+    try { open = sessionStorage.getItem('diaryOpen'); sessionStorage.removeItem('diaryOpen'); } catch (err) {}
+    if (open == THESIS_ID && performance.getEntriesByType('navigation')[0]?.type === 'reload')
+        bootstrap.Offcanvas.getOrCreateInstance('#diaryPanel').show();
+});
+function showMore(btn) {
+    btn.closest('.card').querySelectorAll('.more-item').forEach(el => el.classList.remove('d-none'));
+    btn.remove();
+}
 document.querySelectorAll('[data-bs-toggle="tab"][data-hash]').forEach(btn => btn.addEventListener('shown.bs.tab', () => {
+    // si el enlace ya apunta a un apartado de la tesis completa, se conserva (al recargar vuelve a él)
+    const inDoc = location.hash.length > 1 && document.getElementById(decodeURIComponent(location.hash.slice(1)))?.closest('.thesis-doc');
+    if (btn.dataset.hash === 'tesis' && inDoc) return;
     history.replaceState(null, '', btn.dataset.hash ? '#' + btn.dataset.hash : location.pathname);
 }));
 // bootstrap.bundle se carga después del contenido: abrir la pestaña cuando ya está disponible
@@ -610,13 +661,57 @@ document.addEventListener('DOMContentLoaded', () => {
     const docBtn = document.querySelector('[data-bs-target="#tab-doc"]');
     if (docBtn && (location.hash === '#tesis' || (hashTarget && hashTarget.closest('.thesis-doc')))) {
         bootstrap.Tab.getOrCreateInstance(docBtn).show();
-        if (hashTarget) setTimeout(() => hashTarget.scrollIntoView({block: 'start'}), 200);
+        if (hashTarget) { setTimeout(() => hashTarget.scrollIntoView({block: 'start'}), 200); tocActivate(hashTarget.id); }
     }
 });
+// Índice: apartados con sus subapartados plegados; se abre el del apartado que se está leyendo
+function tocExpand(sec, open) {
+    const subs = sec && sec.querySelector('.toc-subs');
+    if (!subs) return;
+    subs.classList.toggle('d-none', !open);
+    const btn = sec.querySelector('.toc-toggle');
+    btn.setAttribute('aria-expanded', open);
+    btn.querySelector('i').className = open ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+}
+function tocActivate(id) {
+    const link = [...document.querySelectorAll('.doc-toc a')].find(a => a.getAttribute('href') === '#' + id);
+    if (!link) return;
+    const sec = link.closest('.toc-sec');
+    document.querySelectorAll('.doc-toc .toc-sec').forEach(s => { s.classList.toggle('active', s === sec); if (s !== sec) tocExpand(s, false); });
+    document.querySelectorAll('.doc-toc a.toc-sub').forEach(a => a.classList.toggle('active', a === link));
+    tocExpand(sec, true);
+}
 document.querySelectorAll('.doc-toc a').forEach(a => a.addEventListener('click', (e) => {
     e.preventDefault();
-    document.querySelector(a.getAttribute('href')).scrollIntoView({behavior: 'smooth', block: 'start'});
+    // por id y no con querySelector: los apartados numerados («#11-la-empresa…») no son selectores CSS válidos
+    const id = decodeURIComponent(a.getAttribute('href').slice(1));
+    const target = document.getElementById(id);
+    if (!target) return;
+    target.scrollIntoView({behavior: 'smooth', block: 'start'});
+    history.replaceState(null, '', '#' + id);   // el enlace queda copiable y al recargar vuelve al apartado
+    tocActivate(id);
 }));
+document.querySelectorAll('.doc-toc .toc-toggle').forEach(btn => btn.addEventListener('click', () => {
+    tocExpand(btn.closest('.toc-sec'), btn.getAttribute('aria-expanded') !== 'true');
+}));
+// al ir leyendo: el último encabezado del índice que ya ha pasado por arriba marca dónde estás
+(function tocFollowScroll() {
+    const ids = [...document.querySelectorAll('.doc-toc a')].map(a => decodeURIComponent(a.getAttribute('href').slice(1)));
+    const heads = ids.map(id => document.getElementById(id)).filter(Boolean);
+    if (!heads.length) return;
+    let current = null, ticking = false;
+    window.addEventListener('scroll', () => {
+        if (ticking || !document.getElementById('tab-doc').classList.contains('active')) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+            ticking = false;
+            const passed = heads.filter(h => h.getBoundingClientRect().top < 120);
+            if (!passed.length) return;   // aún por encima del primer apartado: se deja como está
+            const id = passed[passed.length - 1].id;
+            if (id !== current) { current = id; tocActivate(id); }
+        });
+    }, { passive: true });
+})();
 const THESIS_ID = {{ thesis.id }};
 const KPIS = {};
 {% for p in ev.pillars %}{% for k in p.kpis %}KPIS[{{ k.id }}] = {{ k|tojson }};
@@ -864,6 +959,8 @@ async function markNewsRead(ids) {
     try { await api('/api/theses/news/seen', 'POST', {ids}); } catch (e) { return; }
     ids.forEach(id => document.querySelector(`[data-news="${id}"] .badge-new`)?.remove());
     if (!document.querySelector('.timeline-item .badge-new')) document.getElementById('lnkNewsRead')?.remove();
+    const left = document.querySelectorAll('[data-news] .badge-new').length, unread = document.getElementById('radarUnread');
+    if (unread) left ? unread.textContent = left + (left > 1 ? ' nuevas' : ' nueva') : unread.remove();
     window.refreshSidebarNewsBadge && window.refreshSidebarNewsBadge();
 }
 

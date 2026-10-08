@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Alpha-Flow · Base de Datos{% endblock %}
 {% block content %}
+<style>
+    /* filas más bajas para que entren más por página (el estilo común pone 10 px arriba y abajo) */
+    #dbTable tbody td { padding-top: .3rem; padding-bottom: .3rem; }
+    #dbTable thead th { padding-top: .45rem; padding-bottom: .45rem; }
+</style>
+{% from "_ui_macros.html" import chg_pill %}
 {% set roles = portfolio_roles() %}{% set roles_by_key = {} %}{% for r in roles %}{% set _ = roles_by_key.update({r.key: r}) %}{% endfor %}
 <style>
     /* Estilos ultra-compactos y profesionales para la Base de Datos */
@@ -121,22 +127,12 @@
     }
     /* rol en cartera junto al ticker: «+ rol» solo al pasar por la fila */
     .role-tag { white-space: nowrap; font-size: .65rem; border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: 0 .45rem; background: transparent; color: var(--bs-body-color); line-height: 1.4; }
-    .role-tag.role-empty { color: var(--bs-secondary-color); border-style: dashed; visibility: hidden; }
-    .ticker-row:hover .role-tag.role-empty, .role-dd.show .role-tag { visibility: visible; }
+    .role-tag.role-empty { color: var(--bs-secondary-color); border-style: dashed; opacity: .55; }
+    .ticker-row:hover .role-tag.role-empty, .role-dd.show .role-tag { opacity: 1; }
 </style>
 
 <div class="row">
     <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4 class="fw-bold mb-0 text-white" style="font-size: 1.25rem;">Base de Datos de Análisis</h4>
-            <div class="d-flex gap-2">
-                <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse" aria-expanded="false" aria-controls="filtersCollapse">
-                    <i class="bi bi-funnel"></i> Filtros Avanzados
-                </button>
-                <button class="btn btn-sm btn-outline-success" onclick="exportActiveTable()" title="Exportar a CSV">📊 Exportar</button>
-            </div>
-        </div>
-
         <!-- Filtros Colapsables -->
         <div class="collapse mb-4" id="filtersCollapse">
             <div class="card shadow-sm border-0">
@@ -178,6 +174,37 @@
                                         <div class="form-check dropdown-item py-1">
                                             <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="REJECTED" id="status-REJECTED" onchange="handleItemSelect('status')">
                                             <label class="form-check-label w-100" for="status-REJECTED">❌ Descartadas</label>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold">Capitalización</label>
+                            <div class="dropdown filter-dropdown" id="dropdown-cap">
+                                <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-cap">
+                                    Todas
+                                </button>
+                                <ul class="dropdown-menu p-2 dropdown-menu-form shadow" style="max-height: 280px; overflow-y: auto;">
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="ALL" id="cap-ALL" checked onchange="handleSelectAll('cap')">
+                                            <label class="form-check-label w-100" for="cap-ALL">Todas</label>
+                                        </div>
+                                    </li>
+                                    <li><hr class="dropdown-divider my-1"></li>
+                                    {% for c in cap_tiers %}
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="{{ c.key }}" id="cap-{{ c.key }}" onchange="handleItemSelect('cap')">
+                                            <label class="form-check-label w-100 d-flex justify-content-between gap-2" for="cap-{{ c.key }}"><span>{{ c.name }}</span><span class="text-muted small">{{ c.range }}</span></label>
+                                        </div>
+                                    </li>
+                                    {% endfor %}
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="none" id="cap-none" onchange="handleItemSelect('cap')">
+                                            <label class="form-check-label w-100 text-muted" for="cap-none">Sin dato</label>
                                         </div>
                                     </li>
                                 </ul>
@@ -377,6 +404,10 @@
                 </li>
             </ul>
             <div class="d-flex align-items-center gap-2 pb-1">
+                <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse" aria-expanded="false" aria-controls="filtersCollapse">
+                    <i class="bi bi-funnel"></i> Filtros Avanzados
+                </button>
+                <button class="btn btn-sm btn-outline-success" onclick="exportActiveTable()" title="Exportar a CSV">📊 Exportar</button>
                 <select class="form-select form-select-sm shadow-sm" id="period-select" style="width: 100px;" onchange="onPeriodChange(this.value)">
                     <option value="1d" selected>1D</option>
                     <option value="1w">1 Sem.</option>
@@ -402,16 +433,19 @@
                     <thead>
                         <tr style="cursor: pointer;">
                             <th class="ps-4" style="width: 10%;" onclick="sortRows(0)">Ticker</th>
-                            <th style="width: 15%;" onclick="sortRows(1)">Nombre</th>
+                            <th style="width: 11%;" onclick="sortRows(1)">Nombre</th>
                             <th style="width: 8%;" onclick="sortRows(2)">País</th>
-                            <th style="width: 12%;" onclick="sortRows(3)">Sector</th>
-                            <th style="width: 12%;" onclick="sortRows(4)">Subsector</th>
-                            <th class="text-center" style="width: 8%;" onclick="sortRows(5)">Precio</th>
-                            <th class="text-center" style="width: 9%;" onclick="sortRows(6)" id="var-header">Variación <span id="var-header-period"></span></th>
-                            <th class="text-center" style="width: 8%;" onclick="sortRows(7)">Normas Calidad</th>
-                            <th class="text-center" style="width: 8%;" onclick="sortRows(8)">Veredicto</th>
-                            <th class="text-center" style="width: 8%;" onclick="sortRows(9)">Media</th>
-                            <th class="text-center" style="width: 8%;" onclick="sortRows(10)">Valuación</th>
+                            <th style="width: 10%;" onclick="sortRows(3)">Sector</th>
+                            <th style="width: 10%;" onclick="sortRows(4)">Subsector</th>
+                            <th class="text-end" style="width: 9%;" onclick="sortRows(5)" title="Capitalización en USD (acciones en circulación × último precio × tipo de cambio) y su categoría">Capitalización</th>
+                            <th class="text-center" style="width: 8%;" onclick="sortRows(6)">Precio</th>
+                            <th class="text-end" style="width: 7%;" onclick="sortRows(7)" id="var-header" title="Cuánto se ha movido el precio, en su moneda">Var. <span class="var-header-period"></span></th>
+                            <th class="text-end" style="width: 8%;" onclick="sortRows(8)" title="Variación en %">Var. % <span class="var-header-period"></span></th>
+                            <th class="text-center" style="width: 8%;" onclick="sortRows(9)">Normas Calidad</th>
+                            <th class="text-center" style="width: 8%;" onclick="sortRows(10)">Veredicto</th>
+                            <th class="text-center" style="width: 8%;" onclick="sortRows(11)">Media</th>
+                            <th class="text-center" style="width: 8%;" onclick="sortRows(12)">Valuación</th>
+                            <th class="text-center" style="width: 7%;" onclick="sortRows(13)" title="Rol en el Portfolio ideal">Rol</th>
                             <th class="text-center actions-column" style="width: 15%; display: none;">Acciones</th>
                         </tr>
                     </thead>
@@ -429,6 +463,7 @@
                             data-region="{{ t.region }}"
                             data-sector="{{ t.sector }}"
                             data-subsector="{{ t.subsector }}"
+                            data-cap="{{ t.mcap.tier.key if t.mcap else 'none' }}"
                             data-valuation="{{ t.valuation.status }}"
                             data-score-rules="{{ t.get('rules_score', '-') if t.get('rules_score', '-') != '-' else '0' }}"
                             data-score-general="{{ v_score if v_score != '-' else '0' }}"
@@ -439,14 +474,6 @@
                                         <i class="bi {{ 'bi-star-fill text-warning' if t.is_favorite else 'bi-star text-muted' }}"></i>
                                     </span>
                                     <span class="fw-bold ticker-name">{{ clean_ticker(t.name) }}</span>
-                                    <span class="dropdown role-dd ms-1" onclick="event.stopPropagation();">
-                                        <button type="button" class="role-tag {{ 'role-empty' if t.role not in roles_by_key }}" data-bs-toggle="dropdown" aria-expanded="false" title="{{ roles_by_key[t.role].name if t.role in roles_by_key else 'Asignar rol en cartera' }}">{{ roles_by_key[t.role].emoji ~ ' ' ~ t.role if t.role in roles_by_key else '+ rol' }}</button>
-                                        <ul class="dropdown-menu dropdown-menu-sm">
-                                            {% for r in roles %}<li><a class="dropdown-item small" href="#" onclick="event.preventDefault(); updateTickerRole('{{ t.name }}', '{{ r.key }}', this)">{{ r.emoji }} {{ r.name }}</a></li>{% endfor %}
-                                            <li><hr class="dropdown-divider"></li>
-                                            <li><a class="dropdown-item small text-muted" href="#" onclick="event.preventDefault(); updateTickerRole('{{ t.name }}', '', this)">Quitar rol</a></li>
-                                        </ul>
-                                    </span>
                                 </div>
                             </td>
                             <td class="align-middle fw-semibold text-truncate" style="max-width: 200px;" data-sort-value="{{ t.company_name }}">
@@ -455,15 +482,14 @@
                             <td class="text-muted align-middle text-truncate" style="max-width: 100px;" data-sort-value="{{ t.country }}">{{ t.country }}</td>
                             <td class="text-muted align-middle text-truncate" style="max-width: 180px;" data-sort-value="{{ t.sector }}">{{ t.sector }}</td>
                             <td class="text-muted align-middle text-truncate" style="max-width: 180px;" data-sort-value="{{ t.subsector }}">{{ t.subsector }}</td>
+                            <td class="text-end align-middle num-font small text-nowrap" data-sort-value="{{ t.mcap.usd if t.mcap else '-' }}" {% if t.mcap %}title="{{ t.mcap.tier.name }} · {{ t.mcap.tier.range }}"{% endif %}>
+                                {% if t.mcap %}{{ t.mcap.label }} <span class="cap-badge cap-{{ t.mcap.tier.key }}">{{ t.mcap.tier.name|replace(' cap', '') }}</span>{% else %}<span class="text-muted" title="Aún sin acciones en circulación: se descargan en segundo plano">–</span>{% endif %}
+                            </td>
                             <td class="text-center align-middle fw-bold num-font" data-sort-value="{{ t.market_data.price }}">
                                 {{ format_euro(t.market_data.price, 2) }} {{ t.currency_symbol }}
                             </td>
-                            <td class="text-center align-middle var-cell" data-sort-value="{{ t.market_data.pct }}" data-abs-1d="{{ t.market_data.change }}" data-pct-1d="{{ t.market_data.pct }}">
-                                <span class="small fw-bold num-font {% if t.market_data.change > 0 %}text-success{% elif t.market_data.change < 0 %}text-danger{% else %}text-muted{% endif %}">
-                                    {% if t.market_data.change > 0 %}+{% endif %}{{ format_euro(t.market_data.change, 2) }}
-                                    ({% if t.market_data.pct > 0 %}+{% endif %}{{ format_euro(t.market_data.pct, 2) }}%)
-                                </span>
-                            </td>
+                            <td class="text-end align-middle num-font small var-abs-cell {% if t.market_data.change > 0 %}text-success{% elif t.market_data.change < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ t.market_data.change }}">{% if t.market_data.change > 0 %}+{% endif %}{{ format_euro(t.market_data.change, 2) }}</td>
+                            <td class="text-end align-middle var-cell" data-sort-value="{{ t.market_data.pct }}" data-abs-1d="{{ t.market_data.change }}" data-pct-1d="{{ t.market_data.pct }}" data-price="{{ t.market_data.price }}">{{ chg_pill(t.market_data.pct) }}</td>
                             {% set r_score = t.get('rules_score', '-') %}
                             <td class="text-center fw-bold align-middle num-font {% if r_score != '-' %}{% if r_score|float >= 8.0 %}text-success{% elif r_score|float <= 5.0 %}text-danger{% else %}text-warning{% endif %}{% else %}text-muted{% endif %}" data-sort-value="{{ r_score }}">
                                 {{ r_score }}
@@ -502,27 +528,31 @@
                             </td>
                             {% endif %}
                             <td class="text-center align-middle" data-sort-value="{{ t.valuation.ratio }}">
-                                <div class="d-flex flex-column align-items-center">
+                                <div class="d-flex justify-content-center" title="{{ 'PER: ' ~ format_euro(t.valuation.market|float, 1) ~ ' / justo ' ~ format_euro(t.valuation.fair|float, 1) if t.valuation.market != '-' else '' }}">
                                     {% if t.valuation.status == 'Ganga' %}
-                                    <span class="badge bg-success bg-opacity-75 mb-1" style="font-size: 0.7rem;">🔥 GANGA</span>
+                                    <span class="badge bg-success bg-opacity-75" style="font-size: 0.7rem;">🔥 GANGA</span>
                                     {% elif t.valuation.status == 'Barato' %}
-                                    <span class="badge bg-success mb-1" style="font-size: 0.7rem;">✅ BARATO</span>
+                                    <span class="badge bg-success" style="font-size: 0.7rem;">✅ BARATO</span>
                                     {% elif t.valuation.status == 'Precio Justo' %}
-                                    <span class="badge bg-secondary mb-1" style="font-size: 0.7rem;">⚖️ PRECIO JUSTO</span>
+                                    <span class="badge bg-secondary" style="font-size: 0.7rem;">⚖️ PRECIO JUSTO</span>
                                     {% elif t.valuation.status == 'Caro' %}
-                                    <span class="badge bg-warning text-dark mb-1" style="font-size: 0.7rem;">⚠️ CARO</span>
+                                    <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">⚠️ CARO</span>
                                     {% elif t.valuation.status == 'Burbuja' %}
-                                    <span class="badge bg-danger mb-1" style="font-size: 0.7rem;">🚨 BURBUJA</span>
+                                    <span class="badge bg-danger" style="font-size: 0.7rem;">🚨 BURBUJA</span>
                                     {% else %}
-                                    <span class="badge bg-light text-muted border mb-1" style="font-size: 0.7rem;">PENDIENTE</span>
-                                    {% endif %}
-                                    
-                                    {% if t.valuation.market != '-' %}
-                                    <small class="text-muted" style="font-size: 0.65rem;">
-                                        PER: {{ format_euro(t.valuation.market|float, 1) }} / {{ format_euro(t.valuation.fair|float, 1) }}
-                                    </small>
+                                    <span class="badge bg-light text-muted border" style="font-size: 0.7rem;">PENDIENTE</span>
                                     {% endif %}
                                 </div>
+                            </td>
+                            <td class="text-center align-middle role-cell" data-sort-value="{{ t.role if t.role in roles_by_key else '' }}" onclick="event.stopPropagation();">
+                                    <span class="dropdown role-dd">
+                                        <button type="button" class="role-tag {{ 'role-empty' if t.role not in roles_by_key }}" data-bs-toggle="dropdown" aria-expanded="false" title="{{ roles_by_key[t.role].name if t.role in roles_by_key else 'Asignar rol en cartera' }}">{{ roles_by_key[t.role].emoji ~ ' ' ~ t.role if t.role in roles_by_key else '+ rol' }}</button>
+                                        <ul class="dropdown-menu dropdown-menu-sm dropdown-menu-end">
+                                            {% for r in roles %}<li><a class="dropdown-item small" href="#" onclick="event.preventDefault(); updateTickerRole('{{ t.name }}', '{{ r.key }}', this)">{{ r.emoji }} {{ r.name }}</a></li>{% endfor %}
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item small text-muted" href="#" onclick="event.preventDefault(); updateTickerRole('{{ t.name }}', '', this)">Quitar rol</a></li>
+                                        </ul>
+                                    </span>
                             </td>
                             <td class="text-center actions-column" style="display: none;" onclick="event.stopPropagation();">
                                 {% if t.status == 'PENDING' %}
@@ -570,7 +600,7 @@
 
     async function onPeriodChange(period) {
         currentPeriod = period;
-        document.getElementById('var-header-period').textContent = periodLabels[period] || '';
+        document.querySelectorAll('.var-header-period').forEach(el => el.textContent = periodLabels[period] || '');
 
         if (period === '1d') {
             document.querySelectorAll('#dbBody td.var-cell').forEach(cell => {
@@ -579,7 +609,7 @@
                 cell.setAttribute('data-sort-value', cell.getAttribute('data-pct-1d'));
                 renderVarCell(cell, pct, abs);
             });
-            if (currentSort.col === 6) sortRows(6, false);
+            if (currentSort.col === 7 || currentSort.col === 8) sortRows(currentSort.col, false);
             return;
         }
 
@@ -615,23 +645,26 @@
             if (pct === undefined || pct === null) {
                 cell.setAttribute('data-sort-value', '-');
                 cell.innerHTML = '<span class="small text-muted">-</span>';
+                const absCell = cell.previousElementSibling;
+                absCell.setAttribute('data-sort-value', '-'); absCell.className = 'text-end align-middle num-font small var-abs-cell text-muted'; absCell.textContent = '-';
                 return;
             }
             cell.setAttribute('data-sort-value', pct);
             renderVarCell(cell, pct, null);
         });
-        if (currentSort.col === 6) sortRows(6, false);
+        if (currentSort.col === 7 || currentSort.col === 8) sortRows(currentSort.col, false);
     }
 
+    // Var. (en su moneda) y Var. % (píldora). Para otros periodos solo llega el %: lo movido se saca del precio de hoy
     function renderVarCell(cell, pct, abs) {
-        const colorClass = pct > 0 ? 'text-success' : (pct < 0 ? 'text-danger' : 'text-muted');
-        const sign = pct > 0 ? '+' : '';
-        let absPart = '';
-        if (abs !== null && abs !== undefined && !isNaN(abs)) {
-            const absSign = abs > 0 ? '+' : '';
-            absPart = `${absSign}${fmtNum(abs, 2)} `;
-        }
-        cell.innerHTML = `<span class="small fw-bold num-font ${colorClass}">${absPart}(${sign}${fmtNum(pct, 2)}%)</span>`;
+        const price = parseFloat(cell.dataset.price);
+        if ((abs === null || abs === undefined || isNaN(abs)) && !isNaN(price) && pct !== null && !isNaN(pct)) abs = price - price / (1 + pct / 100);
+        cell.innerHTML = chgPill(pct);
+        const absCell = cell.previousElementSibling;
+        const ok = abs !== null && abs !== undefined && !isNaN(abs);
+        absCell.setAttribute('data-sort-value', ok ? abs : '-');
+        absCell.className = 'text-end align-middle num-font small var-abs-cell ' + (!ok ? 'text-muted' : abs > 0 ? 'text-success' : abs < 0 ? 'text-danger' : 'text-muted');
+        absCell.textContent = ok ? fmtNum(abs, 2, true) : '-';
     }
 
     function filterDropdownItems(input) {
@@ -694,7 +727,8 @@
             const allLabel = container.querySelector(`input[value="ALL"]`).nextElementSibling.textContent.trim();
             btn.textContent = allLabel;
         } else if (checkedItems.length === 1) {
-            btn.textContent = checkedItems[0].nextElementSibling.textContent.trim();
+            const lbl = checkedItems[0].nextElementSibling;
+            btn.textContent = (lbl.querySelector('span') || lbl).textContent.trim();
         } else {
             let labelName = "";
             if (filterPrefix === 'status') labelName = 'Estados';
@@ -703,6 +737,7 @@
             else if (filterPrefix === 'sector') labelName = 'Sectores';
             else if (filterPrefix === 'subsector') labelName = 'Subsectores';
             else if (filterPrefix === 'country') labelName = 'Países';
+            else if (filterPrefix === 'cap') labelName = 'Capitalizaciones';
             btn.textContent = `${labelName} (${checkedItems.length})`;
         }
     }
@@ -745,6 +780,7 @@
         const selectedSectors = getSelectedValues("sector");
         const selectedSubsectors = getSelectedValues("subsector");
         const selectedCountries = getSelectedValues("country");
+        const selectedCaps = getSelectedValues("cap");
         const minScore = parseFloat(document.getElementById("filter-score").value) || 0;
 
         const rows = document.querySelectorAll("#dbBody tr.ticker-row");
@@ -773,6 +809,7 @@
             if (match && !selectedSectors.includes("ALL") && !selectedSectors.includes(row.getAttribute("data-sector"))) match = false;
             if (match && !selectedSubsectors.includes("ALL") && !selectedSubsectors.includes(row.getAttribute("data-subsector"))) match = false;
             if (match && !selectedCountries.includes("ALL") && !selectedCountries.includes(row.getAttribute("data-country"))) match = false;
+            if (match && !selectedCaps.includes("ALL") && !selectedCaps.includes(row.getAttribute("data-cap"))) match = false;
             
             if (match && parseFloat(row.getAttribute("data-score-general") || 0) < minScore) match = false;
 
@@ -791,9 +828,11 @@
         renderTable();
     }
 
-    function renderTable() {
+    function renderTable(trim = false) {
         const rows = Array.from(document.querySelectorAll("#dbBody tr.ticker-row"));
         const filteredRows = rows.filter(r => r.getAttribute("data-filtered") === "true");
+        // sin scroll: tantas filas por página como quepan en la ventana
+        if (trim !== true) itemsPerPage = rowsPerPage('dbTable', itemsPerPage);
         
         rows.forEach(r => r.style.display = "none");
         
@@ -802,7 +841,15 @@
         filteredRows.slice(start, end).forEach(r => r.style.display = "");
         
         renderPagination(filteredRows.length);
+        // con el paginador ya pintado, si la página aún se sale (redondeos), una fila menos
+        const over = trim === true ? 0 : pageOverflowRows('dbTable');
+        if (over && itemsPerPage - over >= 4) { itemsPerPage -= over; renderTable(true); }
     }
+
+    window.addEventListener('resize', () => { clearTimeout(window.__dbResize); window.__dbResize = setTimeout(renderTable, 150); });
+    // las filas por página se calculan al cargar; con las fuentes e iconos ya cargados las filas pueden crecer algo
+    window.addEventListener('load', () => renderTable());
+    if (document.fonts) document.fonts.ready.then(() => renderTable());
 
     function renderPagination(total) {
         const container = document.getElementById("paginationContainer");
@@ -929,7 +976,7 @@
         }
     }
 
-    // Rol en el Portfolio ideal (CORE, GROWTH…): desplegable junto al ticker
+    // Rol en el Portfolio ideal (CORE, GROWTH…): desplegable en la columna «Rol»
     const ROLES = {{ portfolio_roles()|tojson }};
     function setRowRole(row, role) {
         const r = ROLES.find(x => x.key === role);
@@ -939,6 +986,8 @@
         tag.textContent = r ? `${r.emoji} ${r.key}` : '+ rol';
         tag.title = r ? r.name : 'Asignar rol en cartera';
         tag.classList.toggle('role-empty', !r);
+        const cell = row.querySelector('.role-cell');
+        if (cell) cell.dataset.sortValue = r ? r.key : '';
     }
     async function updateTickerRole(ticker, role, el) {
         const row = el.closest('tr');
@@ -1003,8 +1052,8 @@
         applyFilters();
         
         // Ordenar inicialmente por nota media de forma descendente (de mayor a menor)
-        currentSort = { col: 9, asc: true };
-        sortRows(9);
+        currentSort = { col: 11, asc: true };
+        sortRows(11);
     });
 </script>
 {% endblock %}

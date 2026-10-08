@@ -30,6 +30,7 @@ class TransactionItem(BaseModel):
     fee: float = 0.0
     fx_rate_at_purchase: Optional[float] = None  # si None, se auto-fetcha
     broker: str = 'IBKR'
+    comment: Optional[str] = None  # opcional: el porqué de la operación
 
 
 def _fetch_fx_rate(currency: str, date_str: str) -> Optional[float]:
@@ -118,10 +119,46 @@ async def suggest_role(ticker: str, asset_repo: SqlAlchemyAssetRepository = Depe
         logger.error(f"Error en la sugerencia de rol de {ticker_upper}: {e}")
         raise HTTPException(status_code=502, detail="La IA no ha podido proponer un rol; inténtalo de nuevo.")
 
+TX_NOTES_KEY = "tx_notes"   # en el activo: {«fecha|tipo|acciones|precio»: comentario}
+
+
+def tx_ref(date: str, tx_type: str, shares: float, price: float) -> str:
+    """La misma referencia que usa el diario de decisiones de la tesis para vincular una operación."""
+    return f"{str(date)[:10]}|{tx_type}|{shares:g}|{price:g}"
+
+
+def _save_comment(db: Session, asset_repo, portfolio_service, tx: Transaction, comment: str, held_before: float) -> None:
+    """Guarda el comentario con la operación y, si la empresa tiene tesis, también en su diario de decisiones."""
+    from app.infrastructure.db.models import DBThesis
+    from app.infrastructure.repositories.sqlalchemy_thesis_repository import SqlAlchemyThesisRepository
+    from app.interfaces.api.thesis_api import DecisionCreate, add_decision
+    ticker, kind = tx.ticker.upper(), tx.type.value
+    ref = tx_ref(tx.date, kind, tx.shares, tx.price)
+    notes = dict(asset_repo.get_asset_data(ticker).get(TX_NOTES_KEY) or {})
+    notes[ref] = comment
+    asset_repo.save_asset_data(ticker, TX_NOTES_KEY, notes)
+    thesis = db.query(DBThesis.id).filter(DBThesis.ticker == ticker).first()
+    if not thesis:
+        return
+    if kind == "BUY":
+        action = "aumentar" if held_before > 0 else "comprar"
+    else:
+        action = "vender" if held_before - tx.shares <= 1e-9 else "reducir"
+    try:
+        add_decision(thesis.id, DecisionCreate(date=str(tx.date)[:10], action=action, reason=comment, price=tx.price,
+                                               shares=tx.shares, transaction_ref=ref),
+                     SqlAlchemyThesisRepository(db), asset_repo, portfolio_service)
+    except Exception as e:   # el comentario ya está guardado con la operación
+        logger.warning("No se pudo anotar la decisión en la tesis de %s: %s", ticker, e)
+
+
+# Sin async: el recálculo de la cartera es síncrono (BD y Yahoo); en un async bloquearía todo el servidor mientras dura
 @router.post("/add")
-async def add_portfolio_item(
+def add_portfolio_item(
     item: TransactionItem,
-    portfolio_service: PortfolioService = Depends(get_portfolio_service)
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
+    asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
+    db: Session = Depends(get_db),
 ):
     try:
         fx_rate = item.fx_rate_at_purchase
@@ -139,13 +176,19 @@ async def add_portfolio_item(
             fx_rate_at_purchase=fx_rate,
             broker=item.broker or 'AUTO'
         )
+        comment = (item.comment or "").strip()
+        held_before = 0.0
+        if comment:
+            held_before = next((p.shares for p in portfolio_service.get_active_portfolio() if p.ticker == item.ticker.upper()), 0.0)
         portfolio_service.add_manual_transaction(tx)
+        if comment:
+            _save_comment(db, asset_repo, portfolio_service, tx, comment, held_before)
         return {"status": "success", "fx_rate_used": fx_rate}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/{ticker}")
-async def delete_portfolio_item(
+def delete_portfolio_item(
     ticker: str,
     portfolio_service: PortfolioService = Depends(get_portfolio_service)
 ):
@@ -153,10 +196,11 @@ async def delete_portfolio_item(
     return {"status": "success"}
 
 @router.post("/transaction/delete/{ticker}")
-async def delete_transaction(
+def delete_transaction(
     ticker: str, 
     item: DeleteTransactionRequest,
-    portfolio_service: PortfolioService = Depends(get_portfolio_service)
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
+    asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
 ):
     tx = Transaction(
         date=item.date,
@@ -166,10 +210,14 @@ async def delete_transaction(
         price=item.price
     )
     portfolio_service.delete_manual_transaction(tx)
+    # su comentario, si lo tenía, se va con ella
+    notes = dict(asset_repo.get_asset_data(ticker.upper()).get(TX_NOTES_KEY) or {})
+    if notes.pop(tx_ref(item.date, item.type.upper(), item.shares, item.price), None) is not None:
+        asset_repo.save_asset_data(ticker.upper(), TX_NOTES_KEY, notes)
     return {"status": "success"}
 
 @router.post("/transaction/edit-broker")
-async def edit_transaction_broker(
+def edit_transaction_broker(
     request: EditTransactionRequest,
     portfolio_service: PortfolioService = Depends(get_portfolio_service)
 ):
@@ -239,7 +287,7 @@ async def set_performance_start_date(
 
 
 @router.post("/rebuild")
-async def rebuild_portfolio_endpoint(
+def rebuild_portfolio_endpoint(
     portfolio_service: PortfolioService = Depends(get_portfolio_service)
 ):
     """Reconstruye el portfolio desde cero (transacciones + dividendos + splits)."""

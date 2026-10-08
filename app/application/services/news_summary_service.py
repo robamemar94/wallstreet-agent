@@ -1,14 +1,14 @@
 """Resumen semanal conjunto de las noticias de todas las tesis.
 
-No vuelve a buscar en internet: resume lo que el radar de cada tesis ya encontró (noticias de los últimos 7 días
-y el resumen de cada radar). Una sola llamada a Gemini, sin búsqueda. Solo se genera al terminar la pasada semanal
-del radar (y si el último tiene ya una semana: el radar de una tesis nueva a mitad de semana no lo lanza),
+No vuelve a buscar en internet: resume lo que el radar de cada tesis ya encontró (noticias de la semana del radar,
+desde el lunes, y el resumen de cada radar). Una sola llamada a Gemini, sin búsqueda. Solo se genera al terminar la pasada semanal
+del radar de los lunes (y si el último es de una semana anterior: el radar de una tesis nueva a mitad de semana no lo lanza),
 o a mano con «Regenerar».
 """
 import json
 import logging
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from app.infrastructure.db.models import DBSetting
@@ -16,7 +16,6 @@ from app.infrastructure.db.models import DBSetting
 logger = logging.getLogger(__name__)
 
 SETTING_KEY = "news_weekly_summary"
-WINDOW_DAYS = 7
 MAX_NEWS = 60
 RETRY_AFTER_S = 3600   # si falla (sin clave, cuota…) no se reintenta en cada visita
 _lock = threading.Lock()
@@ -42,23 +41,29 @@ def is_running() -> bool:
     return _running
 
 
-SUMMARY_EVERY_DAYS = 6   # margen de un día para que la pasada semanal del radar siempre lo renueve
-
-
 def due_after_radar(summary: Optional[Dict[str, Any]], now: Optional[datetime] = None) -> bool:
-    """¿Toca resumen al terminar una pasada del radar? Solo si no hay o el último tiene ya una semana."""
-    if not summary:
+    """¿Toca resumen al terminar una pasada del radar? Solo si no hay o el último es de una semana anterior
+    (la del radar, desde el lunes): el radar de una tesis nueva a mitad de semana no lo repite."""
+    from app.application.services.thesis_ai_service import radar_week_start
+    if not summary or not summary.get("created_at"):
         return True
-    now = now or datetime.now()
-    return (summary.get("created_at") or "") < (now - timedelta(days=SUMMARY_EVERY_DAYS)).isoformat(timespec="seconds")
+    return datetime.fromisoformat(summary["created_at"]) < radar_week_start(now)
+
+
+def week_of(found_at: str) -> str:
+    """Semana del radar a la que pertenece una noticia: la fecha (ISO) del lunes de la pasada que la encontró."""
+    from app.application.services.thesis_ai_service import radar_week_start
+    return radar_week_start(datetime.fromisoformat(found_at)).date().isoformat()
 
 
 def _window_news(repo, now: datetime) -> List[Dict[str, Any]]:
-    since = (now - timedelta(days=WINDOW_DAYS)).isoformat(timespec="seconds")
+    """Noticias de esta semana del radar (desde el lunes): las de semanas anteriores ya salieron en su resumen."""
+    from app.application.services.thesis_ai_service import radar_week_start
+    since = radar_week_start(now).isoformat(timespec="seconds")
     return [n for n in repo.list_news(limit=200) if (n.get("found_at") or "") >= since][:MAX_NEWS]
 
 
-def build_prompt(news: List[Dict[str, Any]], radars: List[Dict[str, Any]], today: str) -> str:
+def build_prompt(news: List[Dict[str, Any]], radars: List[Dict[str, Any]], today: str, week: str = "") -> str:
     news_lines = "\n".join(
         f"- [{n['ticker']}] {n.get('date') or '¿fecha?'} · materialidad {n['materiality']}/5 · impacto {n.get('impact') or 'neutral'}"
         f"{' · paso: ' + n['step_name'] if n.get('step_name') else ''} · {n['title']}: {n.get('summary') or ''}" for n in news) or "(ninguna)"
@@ -67,7 +72,7 @@ def build_prompt(news: List[Dict[str, Any]], radars: List[Dict[str, Any]], today
 Resume en español, de forma breve y útil para decidir, lo que ha pasado esta semana con las empresas de la cartera.
 Usa SOLO la información de abajo (no inventes ni busques nada más).
 
-NOTICIAS RELEVANTES ENCONTRADAS POR EL RADAR (últimos {WINDOW_DAYS} días):
+NOTICIAS RELEVANTES ENCONTRADAS POR EL RADAR SEMANAL{' DEL LUNES ' + week if week else ''} (cubre la semana anterior):
 {news_lines}
 
 RESUMEN DEL ÚLTIMO RADAR DE CADA TESIS:
@@ -91,15 +96,16 @@ def generate(db) -> Dict[str, Any]:
     now = datetime.now()
     repo = SqlAlchemyThesisRepository(db)
     news = _window_news(repo, now)
+    week = ai.radar_week_start(now)
     radars = [{"ticker": t["ticker"], "verdict": t.get("verdict"), "summary": (t["extra"].get("news_digest") or {}).get("summary")}
               for t in repo.list_theses()]
     radars = [r for r in radars if r["summary"]]
-    base = {"created_at": now.isoformat(timespec="seconds"), "window_days": WINDOW_DAYS, "news_count": len(news)}
+    base = {"created_at": now.isoformat(timespec="seconds"), "week": week.date().isoformat(), "news_count": len(news)}
     if not news and not radars:
         summary = {**base, "headline": "Semana sin noticias relevantes en las tesis.", "overview": "", "by_thesis": [], "to_review": []}
     else:
         from google.genai import types
-        prompt = build_prompt(news, radars, now.strftime("%d/%m/%Y"))
+        prompt = build_prompt(news, radars, now.strftime("%d/%m/%Y"), week.strftime("%d/%m/%Y"))
         def call(client, model):
             with llm_usage.track_usage("news-weekly-summary", background=True):   # el consumo se registra solo
                 response = client.models.generate_content(model=model, contents=prompt,

@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Alpha-Flow · Uso de IA{% endblock %}
+
+{% macro money(x) %}{% if x and x < 0.01 %}${{ num(x, 3) }}{% else %}${{ num(x or 0, 2) }}{% endif %}{% endmacro %}
+
+{% block content %}
+{# colores de los tipos de tarea: orden fijo (el mismo en el gráfico y en la tabla), con su versión para el tema oscuro #}
+<style>
+    .ai-usage { --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100; --cat-5: #e87ba4; --cat-6: #4a3aa7; }
+    [data-bs-theme="dark"] .ai-usage { --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500; --cat-5: #d55181; --cat-6: #9085e9; }
+    .ai-usage .kpi-value { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.25; }
+    .ai-usage .kpi-label { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); }
+    .ai-usage .kpi-note { font-size: .68rem; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ai-figs { overflow-x: auto; }
+    .ai-figs-row { min-width: 760px; }
+    .ai-fig { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: .1rem; padding: .45rem .7rem; border-right: 1px solid var(--bs-border-color); }
+    .ai-fig:last-child { border-right: 0; }
+    .ai-fig-budget { flex: 1.6 1 0; }
+    .ai-usage .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+    .ai-usage .swatch { display: inline-block; width: .7rem; height: .7rem; border-radius: 2px; margin-right: .4rem; vertical-align: baseline; }
+    .ai-usage .budget-bar { height: .35rem; margin: .15rem 0; }
+    .ai-usage .table td, .ai-usage .table th { padding-top: .25rem; padding-bottom: .25rem; }
+    /* Consultas: una línea por fila (el detalle, al pasar el ratón) para que quepan más por página */
+    #runsTable td, #runsTable th { white-space: nowrap; }
+    #runsTable .run-parts { display: inline-block; max-width: 32vw; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+</style>
+<div class="ai-usage">
+    {% set k = u.kpis %}
+    {% set b = u.budget_status %}
+    {% set months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'] %}
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <h2 class="fw-bold mb-0" style="font-size: 1.3rem;"><i class="bi bi-cpu me-2"></i>Uso de IA</h2>
+        <span class="small text-muted" title="Coste estimado con los precios publicados de cada modelo (tokens y búsquedas de Google por encima de las 5.000 gratuitas del mes); la factura real está en la consola de Google. Las llamadas con la clave gratuita no cuentan.">
+            Coste estimado en USD{% if u.since %} · registro desde el {{ u.since.strftime('%d/%m/%Y') }}{% endif %} <i class="bi bi-info-circle"></i>
+            {% if u.unpriced %}<span class="text-warning ms-2" title="Sin precio conocido (no suman): {{ u.unpriced|join(', ') }}"><i class="bi bi-exclamation-triangle"></i> {{ u.unpriced|length }} sin precio</span>{% endif %}
+        </span>
+    </div>
+
+    {# --- Cifras clave y presupuesto: una franja --- #}
+    <div class="card border-0 shadow-sm mb-2 ai-figs">
+        <div class="d-flex ai-figs-row">
+            <div class="ai-fig"><span class="kpi-label">Hoy</span><span class="kpi-value">{{ money(k.today) }}</span></div>
+            <div class="ai-fig"><span class="kpi-label">Esta semana</span><span class="kpi-value">{{ money(k.week) }}</span><span class="kpi-note">desde el lunes</span></div>
+            <div class="ai-fig"><span class="kpi-label">Este mes</span><span class="kpi-value">{{ money(k.month) }}</span>
+                <span class="kpi-note">previsión {{ money(k.forecast) }} · {{ months[k.prev_month_label.month - 1] }} {{ money(k.prev_month) }}</span></div>
+            <div class="ai-fig"><span class="kpi-label">Este año</span><span class="kpi-value">{{ money(k.year) }}</span></div>
+            <div class="ai-fig ai-fig-budget">
+                <span class="kpi-label d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-piggy-bank me-1"></i>Presupuesto mensual</span>
+                    <span class="dropdown">
+                        <button class="btn btn-link btn-sm p-0 text-muted" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" title="Cambiar el presupuesto"><i class="bi bi-pencil"></i></button>
+                        <form class="dropdown-menu dropdown-menu-end p-2" style="min-width: 240px;" onsubmit="saveBudget(event)">
+                            <label class="form-label small mb-1" for="budgetUsd">Límite al mes (USD)</label>
+                            <input type="number" class="form-control form-control-sm mb-2" id="budgetUsd" min="0" step="0.5" value="{{ u.budget.monthly_usd or '' }}" placeholder="0 = sin límite">
+                            <label class="form-label small mb-1" for="budgetPct">Avisar al</label>
+                            <div class="input-group input-group-sm mb-2">
+                                <input type="number" class="form-control" id="budgetPct" min="1" max="100" step="1" value="{{ u.budget.alert_pct|int }}"><span class="input-group-text">%</span>
+                            </div>
+                            <button class="btn btn-primary btn-sm w-100" type="submit">Guardar</button>
+                        </form>
+                    </span>
+                </span>
+                {% if b %}
+                    {% set color = {'ok': 'success', 'alert': 'warning', 'over': 'danger'}[b.level] %}
+                    <div class="d-flex align-items-baseline gap-2">
+                        <span class="kpi-value text-{{ color }}">{{ num(b.pct, 0) }}%</span>
+                        <span class="kpi-note">{{ money(k.month) }} de {{ money(b.limit) }}{% if b.left > 0 %} · quedan {{ money(b.left) }}{% endif %}</span>
+                    </div>
+                    <div class="progress budget-bar" role="progressbar" aria-valuenow="{{ b.pct }}" aria-valuemin="0" aria-valuemax="100" aria-label="Presupuesto gastado">
+                        <div class="progress-bar bg-{{ color }}" style="width: {{ [b.pct, 100]|min }}%"></div>
+                    </div>
+                    <span class="kpi-note {{ 'text-warning' if b.forecast_over }}">{% if b.forecast_over %}<i class="bi bi-graph-up-arrow me-1"></i>a este ritmo, {{ money(k.forecast) }} ({{ num(b.forecast_pct, 0) }}%){% else %}a este ritmo, dentro ({{ money(k.forecast) }}){% endif %}</span>
+                {% else %}
+                    <span class="kpi-note mt-1">Sin presupuesto: fíjalo con <i class="bi bi-pencil"></i> y te avisaremos en la campana.</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# --- Pestañas; el periodo manda en el gráfico y en las tablas --- #}
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+        <ul class="nav nav-pills nav-sm" role="tablist">
+            <li class="nav-item"><button class="nav-link active py-1 px-3" id="tab-ai-summary" data-bs-toggle="pill" data-bs-target="#ai-summary" type="button" role="tab"><i class="bi bi-bar-chart me-1"></i>Resumen</button></li>
+            <li class="nav-item"><button class="nav-link py-1 px-3" id="tab-ai-runs" data-bs-toggle="pill" data-bs-target="#ai-runs" type="button" role="tab"><i class="bi bi-list-ul me-1"></i>Consultas <span class="badge text-bg-secondary ms-1">{{ u.period_runs }}</span></button></li>
+        </ul>
+        <div class="d-flex align-items-center gap-2">
+            <span class="small text-muted">{{ money(u.period_total) }} en {{ u.period_runs }} {{ 'consulta' if u.period_runs == 1 else 'consultas' }}</span>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Periodo">
+                {% for p, label in [('semana', 'Semana'), ('mes', 'Mes'), ('anio', 'Año'), ('todo', 'Todo')] %}
+                <a href="/ia?periodo={{ p }}" class="btn btn-outline-secondary py-0 {{ 'active' if u.period == p }}" data-keep-tab>{{ label }}</a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content">
+        {# Resumen: el gráfico y los tres desgloses #}
+        <div class="tab-pane fade show active" id="ai-summary" role="tabpanel">
+            <div class="card mb-2">
+                <div class="card-header bg-transparent fw-bold py-1 small">Gasto {{ 'por día' if u.period in ('semana', 'mes') else 'por mes' }}, por tipo de tarea</div>
+                <div class="card-body p-1">
+                    {% if u.chart.series %}<div id="aiChart" style="height: 220px;"></div>
+                    {% else %}<div class="text-muted small py-4 text-center">Sin gasto en este periodo.</div>{% endif %}
+                </div>
+            </div>
+            <div class="row g-2">
+                <div class="col-12 col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-header bg-transparent fw-bold py-1 small">Por tipo de tarea</div>
+                        <div class="table-responsive" data-fit="90" data-fit-fill><table class="table table-sm small mb-0">
+                            <thead><tr><th>Tarea</th><th class="num">Consultas</th><th class="num">Total</th><th class="num">Media</th><th class="num">%</th></tr></thead>
+                            <tbody>
+                            {% for c in u.by_category %}
+                                <tr><td><span class="swatch" style="background: var(--cat-{{ u.cat_index[c.key] }})"></span>{{ c.name }}</td>
+                                    <td class="num">{{ c.count }}{% if c.free %} <span class="text-muted" title="Con la clave gratuita: sin coste">({{ c.free }} gratis)</span>{% endif %}</td>
+                                    <td class="num">{{ money(c.cost) if c.cost else 'gratis' }}</td><td class="num">{{ money(c.avg) if c.avg else '–' }}</td><td class="num">{{ num(c.pct, 0) }}%</td></tr>
+                            {% else %}<tr><td colspan="5" class="text-muted">Sin consultas en este periodo.</td></tr>{% endfor %}
+                            </tbody>
+                        </table></div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="card h-100">
+                        <div class="card-header bg-transparent fw-bold py-1 small">Por empresa <span class="text-muted fw-normal">· top 10</span></div>
+                        <div class="table-responsive" data-fit="90" data-fit-fill><table class="table table-sm small mb-0">
+                            <thead><tr><th>Empresa</th><th class="num">Consultas</th><th class="num">Total</th></tr></thead>
+                            <tbody>
+                            {% for t in u.by_ticker %}
+                                <tr><td><a href="/ticker/{{ t.key }}" class="text-decoration-none fw-bold">{{ t.key }}</a></td><td class="num">{{ t.count }}</td><td class="num">{{ money(t.cost) if t.cost else 'gratis' }}</td></tr>
+                            {% else %}<tr><td colspan="3" class="text-muted">—</td></tr>{% endfor %}
+                            </tbody>
+                        </table></div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="card h-100">
+                        <div class="card-header bg-transparent fw-bold py-1 small">Por modelo</div>
+                        <div class="table-responsive" data-fit="90" data-fit-fill><table class="table table-sm small mb-0">
+                            <thead><tr><th>Modelo</th><th class="num">Consultas</th><th class="num">Total</th></tr></thead>
+                            <tbody>
+                            {% for m in u.by_model %}
+                                <tr><td>{{ m.key }}</td><td class="num">{{ m.count }}</td><td class="num">{{ money(m.cost) if m.cost else 'gratis' }}</td></tr>
+                            {% else %}<tr><td colspan="3" class="text-muted">—</td></tr>{% endfor %}
+                            </tbody>
+                        </table></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Consultas, de la más reciente a la más antigua #}
+        <div class="tab-pane fade" id="ai-runs" role="tabpanel">
+            <div class="card mb-0">
+                <div class="table-responsive"><table class="table table-sm table-hover small mb-0" id="runsTable">
+                    <thead><tr><th>Fecha</th><th>Empresa</th><th>Tarea</th><th>Modelo</th><th class="num">Tokens</th><th class="num">Búsquedas</th><th class="num">Coste</th></tr></thead>
+                    <tbody>
+                    {% for r in u.runs %}
+                        <tr data-run>
+                            <td class="text-nowrap">{{ r.when.strftime('%d/%m %H:%M') }}</td>
+                            <td>{% if r.ticker %}<a href="/ticker/{{ r.ticker }}" class="text-decoration-none fw-bold">{{ r.ticker }}</a>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                            <td><span class="swatch" style="background: var(--cat-{{ u.cat_index[r.category] }})" title="{{ u.cat_name[r.category] }}"></span>{{ r.task }}
+                                {% if r.parts|length > 1 %}<span class="text-muted ms-1 run-parts" style="font-size: .72rem" title="{{ r.parts|unique|join(' · ') }}">· {{ r.parts|unique|join(' · ') }}</span>{% endif %}</td>
+                            <td class="text-muted">{{ r.models|join(', ') }}</td>
+                            <td class="num">{{ num(r.tokens, 0) }}</td>
+                            <td class="num">{{ r.searches or '–' }}</td>
+                            <td class="num fw-bold">{% if r.free %}<span class="text-muted fw-normal" title="Con la clave gratuita">gratis</span>{% else %}{{ money(r.cost) }}{% endif %}</td>
+                        </tr>
+                    {% else %}<tr><td colspan="7" class="text-muted">Sin consultas en este periodo.</td></tr>{% endfor %}
+                    </tbody>
+                </table></div>
+                <div class="card-footer bg-transparent d-flex justify-content-between align-items-center small py-1">
+                    <span class="text-muted"><span id="runsRange"></span>
+                        <span class="ms-2" title="Las partes de un análisis de la misma empresa hechas seguidas cuentan como una sola consulta"><i class="bi bi-info-circle me-1"></i>las partes de un análisis cuentan como una consulta</span></span>
+                    <ul class="pagination pagination-sm mb-0" id="runsPager"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Consultas sin scroll: tantas filas por página como quepan en la ventana (como en Alertas)
+let RUNS_PER_PAGE = 15, runsPage = 0;
+function paginateRuns(trim = false) {
+    const table = document.getElementById('runsTable');
+    const rows = [...table.querySelectorAll('tbody tr[data-run]')];
+    if (!table.offsetParent || !rows.length) return;
+    if (!trim) { rows.forEach(r => r.style.display = ''); RUNS_PER_PAGE = rowsPerPage(table, RUNS_PER_PAGE); }
+    const pages = Math.max(1, Math.ceil(rows.length / RUNS_PER_PAGE));
+    runsPage = Math.min(runsPage, pages - 1);
+    rows.forEach((r, i) => r.style.display = i >= runsPage * RUNS_PER_PAGE && i < (runsPage + 1) * RUNS_PER_PAGE ? '' : 'none');
+    document.getElementById('runsRange').textContent = `${runsPage * RUNS_PER_PAGE + 1}–${Math.min(rows.length, (runsPage + 1) * RUNS_PER_PAGE)} de ${rows.length}`;
+    const pager = document.getElementById('runsPager');
+    if (pages <= 1) pager.innerHTML = '';
+    else {
+        const show = [...new Set([0, pages - 1, runsPage - 1, runsPage, runsPage + 1])].filter(p => p >= 0 && p < pages).sort((a, b) => a - b);
+        let html = `<li class="page-item ${runsPage === 0 ? 'disabled' : ''}"><a class="page-link" href="#" data-page="${runsPage - 1}" aria-label="Anterior">‹</a></li>`;
+        show.forEach((p, i) => {
+            if (i && p - show[i - 1] > 1) html += '<li class="page-item disabled"><span class="page-link">…</span></li>';
+            html += `<li class="page-item ${p === runsPage ? 'active' : ''}"><a class="page-link" href="#" data-page="${p}">${p + 1}</a></li>`;
+        });
+        html += `<li class="page-item ${runsPage === pages - 1 ? 'disabled' : ''}"><a class="page-link" href="#" data-page="${runsPage + 1}" aria-label="Siguiente">›</a></li>`;
+        pager.innerHTML = html;
+        pager.querySelectorAll('[data-page]').forEach(a => a.addEventListener('click', e => {
+            e.preventDefault();
+            const p = parseInt(a.dataset.page);
+            if (p >= 0 && p < pages) { runsPage = p; paginateRuns(); }
+        }));
+    }
+    // si con el paginador ya pintado aún se sale la página, una pasada más con las filas que sobran de menos
+    const over = trim ? 0 : pageOverflowRows(table);
+    if (over && RUNS_PER_PAGE - over >= 4) { RUNS_PER_PAGE -= over; paginateRuns(true); }
+}
+window.addEventListener('resize', () => { clearTimeout(window.__runsResize); window.__runsResize = setTimeout(paginateRuns, 150); });
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('tab-ai-runs').addEventListener('shown.bs.tab', () => paginateRuns());
+    if (location.hash === '#consultas') bootstrap.Tab.getOrCreateInstance(document.getElementById('tab-ai-runs')).show();
+    document.getElementById('tab-ai-runs').addEventListener('shown.bs.tab', () => history.replaceState(null, '', '#consultas'));
+    document.getElementById('tab-ai-summary').addEventListener('shown.bs.tab', () => history.replaceState(null, '', location.pathname + location.search));
+    document.querySelectorAll('[data-keep-tab]').forEach(a => a.addEventListener('click', () => { a.href = a.href.split('#')[0] + location.hash; }));
+});
+async function saveBudget(ev) {
+    ev.preventDefault();
+    const body = {monthly_usd: parseFloat(document.getElementById('budgetUsd').value || '0'),
+                  alert_pct: parseFloat(document.getElementById('budgetPct').value || '80')};
+    try {
+        const r = await fetch('/api/settings/ai-budget', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+        if (!r.ok) throw new Error((await r.json()).detail?.[0]?.msg || r.statusText);
+        location.reload();
+    } catch (e) { showToast('❌ Error', 'No se pudo guardar el presupuesto: ' + e.message, 'error'); }
+}
+
+{% if u.chart.series %}
+(function drawChart() {
+    const chart = {{ u.chart|tojson }}, catIndex = {{ u.cat_index|tojson }};
+    const root = document.querySelector('.ai-usage'), css = getComputedStyle(root);
+    const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const ink = css.getPropertyValue('--bs-secondary-color').trim() || (dark ? '#c3c2b7' : '#52514e');
+    const grid = dark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)';
+    const surface = css.getPropertyValue('--bs-body-bg').trim() || (dark ? '#212529' : '#fff');
+    const traces = chart.series.map(s => ({
+        type: 'bar', name: s.name, x: chart.labels, y: s.values,
+        marker: {color: css.getPropertyValue('--cat-' + catIndex[s.key]).trim(), line: {color: surface, width: 1}},
+        hovertemplate: `<b>%{x}</b> · ${s.name}<br>$%{customdata}<extra></extra>`,
+        customdata: s.values.map(v => fmtNum(v, v && v < 0.01 ? 3 : 2)),
+    }));
+    Plotly.newPlot('aiChart', traces, {
+        barmode: 'stack', bargap: 0.35, margin: {l: 48, r: 8, t: 8, b: 32},
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: {color: ink, size: 11},
+        xaxis: {showgrid: false, tickfont: {color: ink}, fixedrange: true},
+        yaxis: {gridcolor: grid, zeroline: false, tickprefix: '$', separatethousands: true, fixedrange: true, tickfont: {color: ink}},
+        legend: {orientation: 'h', x: 0, y: 1.12, font: {color: ink}},
+        hoverlabel: {font: {size: 12}}, separators: ',.',
+    }, {displayModeBar: false, responsive: true});
+})();
+{% endif %}
+</script>
+{% endblock %}

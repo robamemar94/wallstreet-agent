@@ -473,20 +473,25 @@ def start_review(thesis_id: int) -> Optional[int]:
     return review_id
 
 
+def held_tickers(db) -> set:
+    """Empresas con acciones en cartera: sus tesis son «de cartera»; las demás, «en seguimiento» (sin IA automática)."""
+    from app.application.services.portfolio_service import PortfolioService
+    from app.infrastructure.repositories.sqlalchemy_portfolio_repository import SqlAlchemyPortfolioRepository
+    return {i.ticker for i in PortfolioService(SqlAlchemyPortfolioRepository(db)).get_active_portfolio() if i.shares > 0}
+
+
 def compute_notices(repo, weights: Optional[Dict[str, float]] = None) -> List[Dict[str, Any]]:
     """Avisos: resultados publicados sin revisar, revisiones listas para mirar y posiciones relevantes
     cuya tesis se deteriora (si se pasan los pesos de la cartera)."""
-    from app.application.services.thesis_service import decision_outcome, exposure_risk, unlogged_transactions
+    from app.application.services.thesis_service import decision_outcome, exposure_risk
     notices = []
+    held = held_tickers(repo.db)
     for t in repo.list_theses():
         risk = exposure_risk(t, evaluate_thesis(t), (weights or {}).get(t["ticker"]))
         if risk:
             notices.append({"thesis_id": t["id"], "ticker": t["ticker"], "type": "portfolio_risk", "text": risk})
         decisions = repo.list_decisions(t["id"])
-        for tx in unlogged_transactions(repo.transactions_for(t["ticker"], t["created_at"][:10]), decisions, t["created_at"][:10]):
-            verb = "compra" if tx["type"] == "BUY" else "venta"
-            notices.append({"thesis_id": t["id"], "ticker": t["ticker"], "type": "decision_missing", "transaction_ref": tx["ref"],
-                            "text": f"Anota el motivo de tu {verb} del {tx['date']} ({tx['shares']:g} acc. a {tx['price']:g})"})
+        # (ya no hay aviso de «anota el motivo»: el comentario es opcional, en el formulario de la operación)
         for d in decisions:
             due = decision_outcome(d, None)["review_due"]
             if due:
@@ -509,6 +514,8 @@ def compute_notices(repo, weights: Optional[Dict[str, float]] = None) -> List[Di
         if len(str(t.get("reference_date") or "")) < 10:
             covered.append(t["created_at"][:10])
         if last["date"] > max(covered):
-            notices.append({"thesis_id": t["id"], "ticker": t["ticker"], "type": "new_results",
-                            "text": f"Resultados publicados el {last['date']} sin revisar"})
+            # en seguimiento solo informa: el análisis lo pides tú cuando quieras
+            tracking = t["ticker"] not in held
+            notices.append({"thesis_id": t["id"], "ticker": t["ticker"], "type": "new_results", "tracking": tracking,
+                            "text": f"Resultados publicados el {last['date']}" + (" (en seguimiento: analízalos si te interesa)" if tracking else " sin revisar")})
     return notices

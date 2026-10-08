@@ -302,6 +302,28 @@ def fetch_15y(
     asset_repo.save_asset_data(ticker, "financials_hist_15y", data)
     return {"status": "success"}
 
+@router.post("/rules_synthesis/{ticker}")
+def generate_rules_synthesis(
+    ticker: str,
+    asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository)
+):
+    """Síntesis de las Normas de Calidad (solo a mano, con los 5 pilares hechos)."""
+    from app.application.services import rules_synthesis_service
+    data = asset_repo.get_asset_data(ticker) or {}
+    try:
+        company = (yf.Ticker(ticker).info or {}).get("longName") or ticker
+    except Exception:
+        company = ticker
+    try:
+        syn = rules_synthesis_service.generate(ticker, data, company)
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        logger.exception("Síntesis de normas de %s", ticker)
+        return {"status": "error", "message": str(e)[:200]}
+    asset_repo.save_asset_data(ticker, rules_synthesis_service.KEY, syn)
+    return {"status": "success", "data": syn}
+
 @router.post("/fair_pe/{ticker}")
 def fetch_fair_pe(
     ticker: str,

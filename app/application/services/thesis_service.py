@@ -10,6 +10,7 @@ Reglas (tomadas de las propias tesis):
 """
 import math
 import os
+import re
 from datetime import date as date_cls, datetime
 from typing import Any, Dict, List, Optional
 
@@ -23,6 +24,10 @@ KILL_SWITCH_PERIODS = 2
 # Estados del framework: Strengthening / Intact / Watch / Weakening / Broken
 VERDICTS = ["REFORZADA", "INTACTA", "VIGILANCIA", "DEBILITADA", "ROTA"]
 STATUSES = ["ACTIVA", "EN_REVISION", "CERRADA"]
+# Tesis «de cartera» o «en seguimiento» no es un estado: depende de si tienes acciones de la empresa (ver
+# thesis_review_service.held_tickers). Las de seguimiento no tienen IA automática (ni radar semanal de noticias) y sus
+# resultados se analizan solo cuando lo pides. Una «CERRADA» tampoco gasta en radar.
+AUTO_RADAR_STATUSES = ("ACTIVA", "EN_REVISION")
 EVENT_TYPES = ["earnings", "news", "verdict", "decision", "note", "thesis"]
 
 AUTO_METRICS = {
@@ -521,12 +526,26 @@ def load_thesis_yaml(path: str) -> Dict[str, Any]:
     return spec
 
 
+def _is_doc_title(token: Dict[str, Any]) -> bool:
+    """El primer «#» del documento es su título si no va numerado («0.», «1.», «I.»…)."""
+    return not re.match(r"^\s*(\d+|[IVXLC]+)\s*[.)]", token["name"])
+
+
 def render_document(md_text: Optional[str]) -> Dict[str, Any]:
-    """Renderiza la tesis en Markdown a HTML con índice de apartados (## = apartado)."""
+    """Renderiza la tesis en Markdown a HTML con índice de apartados y sus subapartados.
+    Con un solo «#» (el título), los apartados son los «##» y los subapartados los «###»; si el documento usa «#» para
+    los apartados («# 1. Negocio»), son esos y los «##» sus subapartados (el título y su subtítulo no cuentan)."""
     if not md_text:
         return {"html": None, "sections": []}
     import markdown
-    md = markdown.Markdown(extensions=["tables", "toc", "sane_lists"], extension_configs={"toc": {"toc_depth": "2"}})
+    md = markdown.Markdown(extensions=["tables", "toc", "sane_lists"], extension_configs={"toc": {"toc_depth": "3"}})
     html = md.convert(md_text)
-    sections = [{"id": t["id"], "name": t["name"]} for top in md.toc_tokens for t in ([top] if top["level"] == 2 else top["children"])]
+    top = md.toc_tokens
+    h1 = [t for t in top if t["level"] == 1]
+    if len(h1) > 1:
+        heads = top[1:] if _is_doc_title(top[0]) else top
+    else:
+        heads = [c for t in top for c in (t["children"] if t["level"] == 1 else [t])]
+    sections = [{"id": t["id"], "name": t["name"], "subs": [{"id": c["id"], "name": c["name"]} for c in t["children"]]}
+                for t in heads]
     return {"html": html, "sections": sections}

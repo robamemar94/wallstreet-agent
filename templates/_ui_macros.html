@@ -1,0 +1,8 @@
+{# Piezas comunes de la interfaz #}
+{# Variación en % como píldora: verde/roja, más intensa cuanto mayor el movimiento (llena a partir de ±3 %) #}
+{% macro chg_pill(pct) -%}
+{%- if pct is not defined or pct is none -%}<span class="text-muted">–</span>
+{%- else -%}{%- set a = [pct|abs / 3, 1]|min -%}
+<span class="chg-pill {{ 'chg-up' if pct > 0 else ('chg-down' if pct < 0 else 'chg-flat') }}{{ ' chg-strong' if pct|abs >= 2 }}" style="--a: {{ '%.2f'|format(0.12 + a * 0.6) }}">{{ '+' if pct > 0 }}{{ num(pct, 2) }}%</span>
+{%- endif -%}
+{%- endmacro %}

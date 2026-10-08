@@ -8,7 +8,7 @@
 <style>
     /* tarjetas compactas: hasta 4 por fila */
     .thesis-card .card-body { padding: .75rem .85rem; }
-    .thesis-card .health-num { font-size: 1.7rem; }
+    .thesis-card .health-num { font-size: 1.35rem; line-height: 1.1; }
     .thesis-card .pillar-row { font-size: .74rem; padding: 1px 0; }
     .thesis-card .border-top.pt-2 { padding-top: .35rem !important; margin-top: .35rem !important; }
     .thesis-card .small { font-size: .74rem; }
@@ -23,6 +23,16 @@
     .thesis-logo-upload { position: absolute; inset: 0; z-index: 2; border: 0; background: rgba(0,0,0,.55); color: #fff;
                           opacity: 0; transition: opacity .15s; font-size: .85rem; }
     .thesis-logo:hover .thesis-logo-upload, .thesis-logo-upload:focus { opacity: 1; }
+    /* pasos de un vistazo: una barra por paso (color = estado); el detalle, al desplegar */
+    .pillar-dots { display: flex; gap: 3px; }
+    .pillar-dots .pdot { flex: 1 1 0; height: 7px; border-radius: 3px; background: var(--bs-border-color); }
+    .pillar-dots .pdot.green { background: var(--fin-green, #089981); }
+    .pillar-dots .pdot.amber { background: #f0a500; }
+    .pillar-dots .pdot.red { background: var(--fin-red, #f23645); }
+    .pillar-dots .pdot.aux { opacity: .45; }
+    .pillar-toggle { font-size: .72rem; }
+    .pillar-toggle .bi { transition: transform .15s; }
+    .pillar-toggle[aria-expanded="true"] .bi { transform: rotate(180deg); }
 </style>
 <input type="file" id="logoInput" accept="image/*" class="d-none">
 <div class="container-fluid py-4">
@@ -59,15 +69,14 @@
     </a>
     {% elif radar_running %}<div class="small text-muted mb-3"><span class="spinner-border spinner-border-sm me-1"></span>Radar semanal de noticias en curso…</div>{% endif %}
 
-    {% if not cards %}
+    {% if not cards and not tracking_cards %}
     <div class="card"><div class="card-body text-center text-muted py-5">
         <i class="bi bi-clipboard2 fs-2 d-block mb-2"></i>
         No hay tesis. Añade un fichero en <code>config/theses/</code> y pulsa «Reimportar YAML».
     </div></div>
     {% endif %}
 
-    <div class="row g-3">
-    {% for c in cards %}
+    {% macro thesis_card(c) %}
         {% set t = c.thesis %}{% set ev = c.ev %}
         <div class="col-12 col-md-6 col-xl-4 col-xxl-3">
         <a href="/tesis/{{ t.id }}" class="text-decoration-none text-body">
@@ -96,22 +105,20 @@
                 </div>
             </div>
 
-            <div class="d-flex align-items-end gap-3 mb-1">
-                <div>
-                    <div class="kpi-label">Health score</div>
-                    <div class="health-num {{ 'st-' ~ ev.health_status if ev.health_status else 'st-none' }}">{{ ev.health_score if ev.health_score is not none else '–' }}</div>
-                </div>
-                <div class="flex-grow-1 pb-1">
+            <div class="d-flex align-items-center gap-3 mb-1">
+                <div class="health-num {{ 'st-' ~ ev.health_status if ev.health_status else 'st-none' }}" title="Health score">{{ ev.health_score if ev.health_score is not none else '–' }}</div>
+                <div class="flex-grow-1 min-w-0">
                     <div class="d-flex justify-content-between small text-muted mb-1">
-                        <span>Cobertura {{ ev.coverage }}%</span>
+                        <span title="KPIs con dato">Cobertura {{ ev.coverage }}%</span>
                         <span class="font-monospace-data">
                             {{ status_icon('green') }} {{ ev.counts.green }}&nbsp;
                             {{ status_icon('amber') }} {{ ev.counts.amber }}&nbsp;
-                            {{ status_icon('red') }} {{ ev.counts.red }}&nbsp;
-                            {{ status_icon(None) }} {{ ev.counts.none }}
+                            {{ status_icon('red') }} {{ ev.counts.red }}
                         </span>
                     </div>
-                    <div class="health-bar"><div class="bg-primary" style="width: {{ ev.coverage }}%"></div></div>
+                    <div class="pillar-dots" title="Pasos de la tesis (color = estado)">
+                        {% for p in ev.pillars %}<span class="pdot {{ p.status or '' }} {{ 'aux' if p.weight == 0 }}" title="{{ p.name }} · {{ p.score|round|int if p.score is not none else 'sin dato' }}{{ ' (no puntúa)' if p.weight == 0 }}"></span>{% endfor %}
+                    </div>
                 </div>
             </div>
 
@@ -120,7 +127,9 @@
                 Kill switch disparado: {{ ev.kill_triggered|map(attribute='name')|join(', ') }}. Revisión recomendada.</div>
             {% endif %}
 
-            <div class="border-top pt-2 mt-2">
+            <button type="button" class="btn btn-link p-0 text-muted text-decoration-none pillar-toggle" aria-expanded="false"
+                    onclick="event.preventDefault(); event.stopPropagation(); togglePillars(this)">Ver pasos <i class="bi bi-chevron-down"></i></button>
+            <div class="border-top pt-2 mt-1 d-none pillar-list">
                 {% for p in ev.pillars %}
                 <div class="pillar-row">
                     {{ status_icon(p.status) }}
@@ -132,27 +141,40 @@
             </div>
 
             <div class="border-top pt-1 mt-1 d-flex justify-content-between small text-muted flex-wrap gap-1 thesis-foot">
+                {% if c.position %}<span title="Peso en cartera · {{ format_euro(c.position.value_eur, 0) }} €"><i class="bi bi-briefcase me-1"></i><strong class="text-body">{{ num(c.position.weight, 1) }}%</strong>{% if c.position.pnl_pct is not none %} <span class="{{ 'text-success' if c.position.pnl_pct >= 0 else 'text-danger' }}">{{ num(c.position.pnl_pct, 1, sign=True) }}%</span>{% endif %}</span>
+                {% else %}<span title="No está en cartera"><i class="bi bi-briefcase me-1"></i>–</span>{% endif %}
                 {% set watch = ev.kill_switches|selectattr('state', 'equalto', 'watch')|list %}
                 <span title="Kill switches disparados · en vigilancia"><i class="bi bi-shield-check me-1"></i>{{ ev.kill_triggered|length }} · {{ watch|length }} vig.</span>
-                <span title="Próximos resultados"><i class="bi bi-calendar-event me-1"></i>
-                    {% if c.next_earnings %}{{ c.next_earnings.strftime('%d/%m/%y') }} ({{ c.days_to_earnings }} d){% else %}sin fecha{% endif %}
-                </span>
+                <span title="Próximos resultados"><i class="bi bi-calendar-event me-1"></i>{% if c.next_earnings %}{{ c.next_earnings.strftime('%d/%m') }} ({{ c.days_to_earnings }} d){% else %}sin fecha{% endif %}</span>
             </div>
-            <div class="small mt-1">
-                {% if c.position %}<i class="bi bi-briefcase me-1"></i>En cartera: <strong>{{ num(c.position.weight, 1) }}%</strong>
-                    <span class="text-muted">· {{ format_euro(c.position.value_eur, 0) }} €{% if c.position.pnl_pct is not none %} · <span class="{{ 'text-success' if c.position.pnl_pct >= 0 else 'text-danger' }}">{{ num(c.position.pnl_pct, 1, sign=True) }}%</span>{% endif %}</span>
-                {% else %}<span class="text-muted"><i class="bi bi-briefcase me-1"></i>No está en cartera</span>{% endif %}
-            </div>
-            {% if c.news.digest %}
+            {% if c.news.digest and c.news.digest['items'] %}
             {% set critical = c.news.digest['items']|selectattr('materiality', 'ge', 5)|list %}
             <div class="small {{ 'st-amber' if c.news.digest['items'] else 'text-muted' }} mt-1"><i class="bi bi-broadcast me-1"></i>Radar {{ c.news.digest.created_at[:10] }}:
-                {% if c.news.digest['items'] %}{{ c.news.digest['items']|length }} noticia{{ 's' if c.news.digest['items']|length > 1 }} muy relevante{{ 's' if c.news.digest['items']|length > 1 }}{% if critical %} · {{ critical|length }} puede{{ 'n' if critical|length > 1 }} cambiar la tesis{% endif %}{% else %}sin noticias muy relevantes{% endif %}</div>
+                {% if c.news.digest['items'] %}{{ c.news.digest['items']|length }} noticia{{ 's' if c.news.digest['items']|length > 1 }} muy relevante{{ 's' if c.news.digest['items']|length > 1 }}{% if critical %} · {{ critical|length }} puede{{ 'n' if critical|length > 1 }} cambiar la tesis{% endif %}{% endif %}</div>
             {% endif %}
 
         </div></div>
         </a>
         </div>
-    {% endfor %}
+    {% endmacro %}
+
+    {# Cartera / Seguimiento: según tengas o no acciones de la empresa (no es un estado que se elija). Las de seguimiento
+       no tienen radar automático de noticias ni análisis automáticos: los resultados, cuando los pidas. #}
+    <ul class="nav nav-pills nav-sm mb-3 thesis-group-tabs" role="tablist">
+        <li class="nav-item"><button class="nav-link active py-1 px-3" data-bs-toggle="pill" data-bs-target="#grpCartera" type="button" data-group="cartera">
+            <i class="bi bi-briefcase me-1"></i>Cartera <span class="badge rounded-pill text-bg-secondary ms-1">{{ cards|length }}</span></button></li>
+        <li class="nav-item"><button class="nav-link py-1 px-3" data-bs-toggle="pill" data-bs-target="#grpSeguimiento" type="button" data-group="seguimiento"
+                title="Empresas que no tienes en cartera: sin radar automático de noticias ni análisis automáticos; los resultados los analizas cuando quieras desde su tesis. Pasan solas a Cartera cuando compras.">
+            <i class="bi bi-binoculars me-1"></i>Seguimiento <span class="badge rounded-pill text-bg-secondary ms-1">{{ tracking_cards|length }}</span></button></li>
+    </ul>
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="grpCartera" data-fit data-fit-snap=".row > [class*=col]">
+            <div class="row g-3">{% for c in cards %}{{ thesis_card(c) }}{% else %}<div class="col-12 small text-muted">Ninguna tesis de empresas en cartera.</div>{% endfor %}</div>
+        </div>
+        <div class="tab-pane fade" id="grpSeguimiento" data-fit data-fit-snap=".row > [class*=col]">
+            <div class="small text-muted mb-2"><i class="bi bi-info-circle me-1"></i>Empresas que no tienes en cartera: sin radar automático de noticias ni análisis automáticos. Los resultados los analizas cuando quieras desde su tesis; pasan solas a Cartera cuando compras.</div>
+            <div class="row g-3">{% for c in tracking_cards %}{{ thesis_card(c) }}{% else %}<div class="col-12 small text-muted">Ninguna tesis de empresas en seguimiento.</div>{% endfor %}</div>
+        </div>
     </div>
 </div>
 
@@ -214,6 +236,18 @@ document.getElementById('btnPdfConfirm').addEventListener('click', async (e) => 
         location.href = `/tesis/${d.thesis_id}`;
     } catch (err) { status.textContent = 'Error: ' + err.message; }
 });
+// Pestañas Cartera / Seguimiento: #seguimiento en la URL o la última elegida (Bootstrap se carga al final de la página)
+document.addEventListener('DOMContentLoaded', function () {
+    const btns = document.querySelectorAll('.thesis-group-tabs [data-group]');
+    let group = location.hash.slice(1);
+    try { if (!group) group = localStorage.getItem('thesisGroup') || ''; } catch (e) {}
+    const btn = [...btns].find(b => b.dataset.group === group);
+    if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
+    btns.forEach(b => b.addEventListener('shown.bs.tab', () => {
+        try { localStorage.setItem('thesisGroup', b.dataset.group); } catch (e) {}
+        history.replaceState(null, '', b.dataset.group === 'cartera' ? location.pathname : '#' + b.dataset.group);
+    }));
+});
 document.getElementById('btnReimport').addEventListener('click', async (e) => {
     const btn = e.currentTarget; btn.disabled = true;
     try {
@@ -242,5 +276,14 @@ document.getElementById('logoInput').addEventListener('change', async e => {
     } catch (x) { alert('No se pudo subir el logo: ' + x.message); }
     e.target.value = '';
 });
+</script>
+<script>
+// «Ver pasos»: despliega el detalle de los pasos de una tarjeta (la tarjeta entera es un enlace a la tesis)
+function togglePillars(btn) {
+    const open = btn.getAttribute('aria-expanded') !== 'true';
+    btn.setAttribute('aria-expanded', open);
+    btn.firstChild.textContent = open ? 'Ocultar pasos ' : 'Ver pasos ';
+    btn.nextElementSibling.classList.toggle('d-none', !open);
+}
 </script>
 {% endblock %}

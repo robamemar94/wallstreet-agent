@@ -61,3 +61,15 @@ def test_market_open_logic_mock():
 
 if __name__ == "__main__":
     test_market_open_logic_mock()
+
+
+def test_day_change_takes_both_fx_rates_from_the_same_source(monkeypatch):
+    """Sin moverse el precio, en euros solo cuenta lo que se mueva la divisa entre el cierre de ayer y ahora (Yahoo), no
+    la diferencia con el cambio de reserva (0,92 fijo), que salía como +3 % en todo lo que está en dólares."""
+    import datetime
+    from app.interfaces.views import portfolio_views as pv
+    today = datetime.date(2026, 10, 6)
+    monkeypatch.setitem(pv.INDEX_CACHE["data"], "USDEUR=X", {"price": 0.8883, "prev": 0.8885, "last_date": today})
+    monkeypatch.setattr(pv, "get_current_rate", lambda c: 0.92)
+    d = pv.day_change(16, 530.15, 530.15, today, "USD", today=today)
+    assert d["pct"] == 0 and abs(d["eur"] - 16 * 530.15 * (0.8883 - 0.8885)) < 1e-6

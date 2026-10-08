@@ -38,8 +38,7 @@ def _compute_media_score(db_d: dict) -> Optional[float]:
     rules = _parse_score(db_d.get("rules_score"))
     if rules is None:
         pilares = [_parse_score(db_d.get(f"rules_pilar{i}_score")) for i in range(1, 6)]
-        pilares = [p for p in pilares if p is not None]
-        if pilares:
+        if all(p is not None for p in pilares):   # solo con los 5: una suma parcial no es una nota
             rules = round(sum(pilares), 1)
     verdict = _parse_score(db_d.get("verdict_score"))
     valid = [v for v in (rules, verdict) if v is not None]

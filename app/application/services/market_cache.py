@@ -1,6 +1,6 @@
 """Caché en disco de datos de mercado lentos de obtener (FCF/BPA TTM, dividendo, fechas de resultados).
 
-Sobrevive a los reinicios de la app, así la primera carga del Centro de mando no espera a yfinance.
+Sobrevive a los reinicios de la app, así la primera carga de Mercado no espera a yfinance.
 Cada dato caduca a las `ttl` horas: el BPA/FCF de partida se renueva al menos una vez al día.
 """
 import json
@@ -35,12 +35,13 @@ def _save() -> None:
     os.replace(tmp, CACHE_FILE)
 
 
-def cached(kind: str, ticker: str, fetch: Callable[[], Any], ttl_hours: float = 12) -> Any:
-    """Valor guardado si es reciente; si no, lo pide con fetch() y lo guarda (también un None: no se reintenta hasta que caduque)."""
+def cached(kind: str, ticker: str, fetch: Callable[[], Any], ttl_hours: float = 12, force: bool = False) -> Any:
+    """Valor guardado si es reciente; si no, lo pide con fetch() y lo guarda (también un None: no se reintenta hasta que caduque).
+    force=True lo vuelve a pedir aunque esté fresco."""
     with _lock:
         _ensure_loaded()
         hit = _data.get(kind, {}).get(ticker)
-    if hit and time.time() - hit[0] < ttl_hours * 3600:
+    if hit and not force and time.time() - hit[0] < ttl_hours * 3600:
         return hit[1]
     value = fetch()
     with _lock:
