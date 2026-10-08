@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional
+from typing import List, Dict
 from app.domain.models import PortfolioItem, Transaction, LedgerEntry
 
 class PortfolioRepositoryInterface(ABC):

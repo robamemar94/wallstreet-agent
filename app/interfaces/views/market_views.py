@@ -352,8 +352,6 @@ def index(
     db_session: Session = Depends(get_db)
 ):
     settings = get_settings_from_db(db_session)
-    val_cfg = settings.get("valuation", {"ganga": 0.60, "barata": 0.85, "justo_max": 1.15, "cara_max": 1.40})
-
     active_portfolio = portfolio_service.get_active_portfolio()
     indices_to_fetch = MARKET_INDICES
 

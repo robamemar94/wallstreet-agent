@@ -1,4 +1,3 @@
-import re
 
 with open('templates/portfolio.html', 'r') as f:
     content = f.read()

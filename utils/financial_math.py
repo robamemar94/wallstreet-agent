@@ -3,6 +3,8 @@ import yfinance as yf
 import pandas as pd
 import logging
 
+from utils import alpha_vantage
+
 logger = logging.getLogger(__name__)
 
 def calculate_custom_metrics(info, close_prices, stock=None):
@@ -280,14 +282,10 @@ def get_financials_history(ticker, stock, db):
     if financials_hist_10y and "years" in financials_hist_10y:
         return {**financials_hist_10y, "source": "ia"}
         
-    # 2. Fallback a AlphaVantage
-    try:
-        av = AlphaVantageFetcher()
-        financials_hist = av.get_financials(ticker)
-        if financials_hist and financials_hist.get('years'):
-            return {**financials_hist, "source": "alphavantage"}
-    except Exception as e:
-        logger.error(f"Fallo en AlphaVantage fetch: {e}")
+    # 2. Fallback a AlphaVantage (solo con ALPHAVANTAGE_API_KEY y empresas de EE. UU.)
+    financials_hist = alpha_vantage.get_financials(ticker)
+    if financials_hist and financials_hist.get('years'):
+        return {**financials_hist, "source": "alphavantage"}
 
     # 3. Último recurso: yfinance directo (solo 4 años aprox)
     # source: de dónde sale el histórico (la ficha avisa cuando no hay datos cargados por el usuario)

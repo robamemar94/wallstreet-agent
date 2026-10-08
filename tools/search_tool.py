@@ -97,13 +97,8 @@ def generate_15y_financials_json(ticker: str) -> dict:
         client = genai.Client(api_key=api_key)
         
         current_dt = datetime.now()
-        current_date = current_dt.strftime("%A, %d de %B de %Y")
-        
         # Calculate exactly 15 years ending in the previous year
         last_year = current_dt.year - 1
-        start_year = last_year - 14
-        years_list = [str(y) for y in range(start_year, last_year + 1)]
-        years_json_str = json.dumps(years_list)
         
         prompt = f"""
 Actúa como una base de datos financiera. Necesito el historial financiero de los últimos 15 años (hasta {last_year}) para la empresa con ticker {ticker}.

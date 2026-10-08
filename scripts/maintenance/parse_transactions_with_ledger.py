@@ -269,4 +269,4 @@ with open('data/portfolio.json', 'w') as f: json.dump(active_portfolio, f, inden
 with open('data/closed_portfolio.json', 'w') as f: json.dump(closed_portfolio, f, indent=4)
 with open('data/ledger.json', 'w') as f: json.dump(ledger, f, indent=4)
 
-print(f"Finalizado. Cachés actualizados en data/")
+print("Finalizado. Cachés actualizados en data/")

@@ -8,8 +8,7 @@ from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlche
 from app.infrastructure.dependencies import get_asset_repository, get_settings_from_db
 from app.infrastructure.templates import templates
 from app.application.services.alerts_service import (
-    get_alerts_data, save_alerts_data, run_alerts_scan, build_alert_key, valuation_direction, purge_old, alert_when,
-    AUTO_CLEAN_DAYS,
+    get_alerts_data, save_alerts_data, run_alerts_scan, build_alert_key, valuation_direction, purge_old, AUTO_CLEAN_DAYS,
 )
 
 router = APIRouter(tags=["Alerts Views"])

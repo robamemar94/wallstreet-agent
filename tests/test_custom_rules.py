@@ -1,8 +1,7 @@
-import pytest
 from fastapi.testclient import TestClient
 from main import app
 from app.infrastructure.db.database import SessionLocal
-from app.infrastructure.dependencies import get_settings_from_db, DEFAULT_SETTINGS
+from app.infrastructure.dependencies import get_settings_from_db
 from agents.utils import create_agent_and_task
 from unittest.mock import patch, MagicMock
 

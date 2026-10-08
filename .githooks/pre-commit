@@ -1,0 +1,9 @@
+#!/bin/sh
+# ruff (solo errores reales: ver [tool.ruff] en pyproject.toml) sobre los .py del commit.
+# Activar en un clon nuevo: git config core.hooksPath .githooks  ·  saltárselo una vez: git commit --no-verify
+files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.py')
+[ -z "$files" ] && exit 0
+echo "$files" | xargs uv run --quiet ruff check --force-exclude || {
+    echo "ruff ha encontrado errores: arréglalos (muchos se arreglan con «uv run ruff check --fix») o usa --no-verify"
+    exit 1
+}

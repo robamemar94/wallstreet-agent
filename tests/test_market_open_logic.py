@@ -49,8 +49,6 @@ def test_market_open_logic_mock():
     response = client.get("/")
     assert response.status_code == 200, "Failed to load index page"
     
-    html = response.text
-    
     # Verify that the European index (^IBEX) and stock (ASML) have active changes shown
     # whereas the US index (^GSPC) and stock (MSFT) show no change or are set to 0
     # Because MSFT last_date is yesterday, its change today is 0

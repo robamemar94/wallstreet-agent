@@ -1,4 +1,3 @@
-import re
 
 with open('config/agents.yaml', 'r') as f:
     content = f.read()

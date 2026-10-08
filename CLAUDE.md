@@ -24,6 +24,8 @@ uv run pytest -q -m network             # los que llaman a yfinance de verdad (s
 ```
 - Los tests usan una **copia temporal** de la base de datos (`tests/conftest.py` + variable `ALPHA_FLOW_DB`); nunca la real.
   Si un test nuevo necesita internet, márcalo con `@pytest.mark.network`.
+- **ruff** (solo reglas F: nombres sin definir, imports y variables que no se usan): `uv run ruff check --fix .`
+  El hook `.githooks/pre-commit` lo pasa sobre los `.py` del commit (en un clon nuevo: `git config core.hooksPath .githooks`).
 - Para ver una página sin navegador: `curl -s http://127.0.0.1:8000/mercado/centro | grep ...`
 
 ## Mapa: pantalla → archivos
@@ -62,7 +64,8 @@ uv run pytest -q -m network             # los que llaman a yfinance de verdad (s
 ## Stack
 FastAPI, Jinja2, SQLAlchemy 2 + Alembic (SQLite en `data/alpha_flow.db`), yfinance, CrewAI + Gemini 2.5 Pro, `uv`, Python 3.13.
 Agentes en `agents/` (prompts en `config/agents.yaml`, `tasks.yaml`, `prompts.yaml`).
-Variables en `.env`: `GOOGLE_API_KEY`/`GEMINI_API_KEY`, `SERPER_API_KEY`, `CREWAI_TELEMETRY_OPT_OUT=true`.
+Variables en `.env`: `GOOGLE_API_KEY`/`GEMINI_API_KEY`, `SERPER_API_KEY`, `CREWAI_TELEMETRY_OPT_OUT=true`,
+`ALPHAVANTAGE_API_KEY` (opcional: plan B del histórico financiero en la ficha, `utils/alpha_vantage.py`; sin ella no se usa).
 
 ## No leer (ruido)
 `scripts/legacy/` (scripts sueltos antiguos), `data/*.json` (cachés), `logos_cache/`, `migrations/versions/` (salvo que se toquen migraciones).

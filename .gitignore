@@ -25,3 +25,6 @@ data/market_snapshot.json.tmp
 logos_cache/*.none
 data/price_history_backup.pkl
 data/price_history_backup.pkl.tmp
+
+# Caché del histórico financiero de Alpha Vantage
+data/alphavantage/

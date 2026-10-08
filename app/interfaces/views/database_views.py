@@ -84,9 +84,6 @@ async def database_page(
 ):
     settings = get_settings_from_db(db_session)
     val_cfg = settings.get("valuation", {"ganga": 0.60, "barata": 0.85, "justo_max": 1.15, "cara_max": 1.40})
-    session_indices = ["^GSPC", "^IXIC", "^IBEX", "^STOXX50E", "URTH"]
-    dates_found = [INDEX_CACHE["data"][idx]["last_date"] for idx in session_indices if idx in INDEX_CACHE["data"]]
-    latest_market_date = max(dates_found) if dates_found else datetime.date.today()
 
     active_portfolio_tickers = {
         p.ticker for p in db_session.query(DBPortfolioItem).filter(DBPortfolioItem.is_closed == False).all()

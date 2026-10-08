@@ -6,7 +6,6 @@ Convierte una tesis en PDF a Markdown por apartados (## N. Título) y propone su
 - Si el PDF trae celdas recortadas o texto solapado, la extracción lo hereda: el resultado se revisa antes de importar.
 """
 import re
-import sys
 from collections import Counter
 
 FOOTER = re.compile(r"(Página \d+$)|(^Investment Research [·-] .* \d+$)")

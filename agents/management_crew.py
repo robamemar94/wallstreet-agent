@@ -1,4 +1,4 @@
-from agents.utils import get_current_date, get_agent, create_task, execute_crew, load_agent_config
+from agents.utils import get_current_date, get_agent, create_task, load_agent_config
 from crewai import Crew
 import logging
 

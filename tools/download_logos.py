@@ -1,4 +1,3 @@
-import os
 
 def download_logo(ticker: str):
     """

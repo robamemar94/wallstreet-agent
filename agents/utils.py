@@ -2,7 +2,7 @@ import sys
 import os
 import logging
 from datetime import datetime
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Tuple
 
 # Añadir el directorio raíz al path para que pueda importar módulos como file_manager o tools
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -127,7 +127,7 @@ def execute_crew(agent: Agent, task: Task) -> str:
     crew = Crew(agents=[agent], tasks=[task], verbose=True)
     try:
         result = crew.kickoff()
-        logging.info(f"Ejecución completada con éxito.")
+        logging.info("Ejecución completada con éxito.")
         return str(result)
     except Exception as e:
         logging.error(f"Error during crew kickoff: {e}", exc_info=True)

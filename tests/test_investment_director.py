@@ -1,5 +1,4 @@
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from agents.investment_director import run_investment_director
 
 @patch("agents.investment_director.create_agent_and_task")

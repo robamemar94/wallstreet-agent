@@ -1,4 +1,3 @@
-import pytest
 from app.infrastructure.db.database import SessionLocal
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
 from app.infrastructure.db.models import DBAsset

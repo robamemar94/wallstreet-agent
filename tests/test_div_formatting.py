@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock, patch
 from tools.search_tool import get_yfinance_metrics
 

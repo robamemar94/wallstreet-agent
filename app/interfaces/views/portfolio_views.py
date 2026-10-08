@@ -4,7 +4,6 @@ import pandas as pd
 import time
 import datetime
 import concurrent.futures
-import os
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Request, Depends
@@ -23,7 +22,6 @@ from app.infrastructure.dependencies import (
 )
 from app.infrastructure.templates import templates
 from app.interfaces.views.market_views import get_currency_symbol, is_reload_request, INDEX_CACHE, ensure_prices_cached, prices_banner_context
-from app.domain.models import TransactionType
 from app.infrastructure.db.models import DBAsset
 from app.interfaces.views.thesis_views import portfolio_exposure
 from app.interfaces.views.watchlist_views import proximity

@@ -6,7 +6,7 @@ import yfinance as yf
 from datetime import datetime
 from fastapi import APIRouter, Request, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List, Dict
+from typing import Optional
 from sqlalchemy import func, desc
 from sqlalchemy.orm import Session
 from app.infrastructure.db.database import get_db, SessionLocal

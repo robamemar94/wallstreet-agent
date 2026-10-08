@@ -5,7 +5,6 @@ desde el lunes, y el resumen de cada radar). Una sola llamada a Gemini, sin bús
 del radar de los lunes (y si el último es de una semana anterior: el radar de una tesis nueva a mitad de semana no lo lanza),
 o a mano con «Regenerar».
 """
-import json
 import logging
 import threading
 from datetime import datetime

@@ -1,6 +1,5 @@
 """Alertas sin ruido: margen en los límites de zona, una alerta de valoración por empresa y día, y caídas que se
 cierran o se reabren sin volver a avisar."""
-from datetime import datetime, timedelta
 
 import pandas as pd
 from sqlalchemy import create_engine

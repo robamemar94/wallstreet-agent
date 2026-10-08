@@ -28,9 +28,18 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "ruff>=0.16.10",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-m 'not network'"
+
+[tool.ruff]
+target-version = "py312"
+extend-exclude = ["scripts/legacy", "migrations"]
+
+[tool.ruff.lint]
+# solo errores reales (nombres sin definir, imports y variables que no se usan…), nada de estilo
+select = ["F"]

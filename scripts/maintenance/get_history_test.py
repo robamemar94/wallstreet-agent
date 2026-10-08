@@ -1,5 +1,4 @@
 import yfinance as yf
-import pandas as pd
 
 # Test fetching history for multiple tickers and normalizing to a base 100
 tickers = ["AAPL", "MSFT"]

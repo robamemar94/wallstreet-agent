@@ -1,6 +1,6 @@
-from typing import List, Dict, Optional
+from typing import List, Dict
 from sqlalchemy.orm import Session
-from app.domain.models import PortfolioItem, Transaction, LedgerEntry, TransactionType
+from app.domain.models import PortfolioItem, Transaction, LedgerEntry
 from app.domain.repositories.portfolio_repository import PortfolioRepositoryInterface
 from app.infrastructure.db.models import DBPortfolioItem, DBLedgerEntry, DBTransaction, DBAsset
 

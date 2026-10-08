@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch, MagicMock
 from agents.franchise_crew import run_franchise_crew
 from agents.management_crew import run_management_crew

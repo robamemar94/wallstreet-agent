@@ -1,4 +1,3 @@
-import re
 
 with open('utils/portfolio_manager.py', 'r') as f:
     content = f.read()
