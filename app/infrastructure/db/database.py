@@ -2,7 +2,10 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATABASE_URL = "sqlite:///./data/alpha_flow.db"
+# ALPHA_FLOW_DB: otra base de datos (los tests usan una copia temporal; ver tests/conftest.py)
+DEFAULT_DB_PATH = "./data/alpha_flow.db"
+DB_PATH = os.getenv("ALPHA_FLOW_DB", DEFAULT_DB_PATH)
+DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 # Asegurar que el directorio data exista
 os.makedirs("data", exist_ok=True)
@@ -15,8 +18,8 @@ BACKUP_KEEP = 14
 def make_rolling_backup():
     import shutil
     from datetime import date
-    db_path = "./data/alpha_flow.db"
-    if not (os.path.exists(db_path) and os.path.getsize(db_path) > 10000):
+    db_path = DB_PATH
+    if db_path != DEFAULT_DB_PATH or not (os.path.exists(db_path) and os.path.getsize(db_path) > 10000):
         return
     os.makedirs(BACKUP_DIR, exist_ok=True)
     today_path = os.path.join(BACKUP_DIR, f"alpha_flow-{date.today():%Y-%m-%d}.db")
@@ -36,7 +39,7 @@ make_rolling_backup()
 # Autocorregir esquema agregando columna 'broker' si no existe
 def check_and_add_broker_column():
     import sqlite3
-    db_path = "./data/alpha_flow.db"
+    db_path = DB_PATH
     if os.path.exists(db_path):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()

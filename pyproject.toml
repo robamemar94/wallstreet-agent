@@ -24,3 +24,13 @@ dependencies = [
     "sqlalchemy>=2.0.48",
     "alembic>=1.18.4",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-m 'not network'"

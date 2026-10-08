@@ -40,6 +40,7 @@ def test_run_technical_analyst(mock_create_task, mock_get_agent, mock_execute_cr
     assert args[4] == feedback
 
 
+@pytest.mark.network
 def test_get_technical_analysis_data_integration():
     # Use a real/popular ticker that always exists to verify the calculation doesn't raise exceptions
     res = get_technical_analysis_data.func("MSFT")

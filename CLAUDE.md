@@ -18,9 +18,12 @@ tesis de inversión con radar semanal de noticias, Centro de mando (avisos, agen
 ```bash
 uv run uvicorn main:app --reload        # http://127.0.0.1:8000 (normalmente ya está arrancada)
 alembic upgrade head                    # migraciones (SQLite)
-PYTHONPATH=. uv run --with pytest python -m pytest -q tests/test_notices.py   # pytest NO está en el venv
+uv run pytest -q                        # suite completa, ~40 s, sin internet
+uv run pytest -q tests/test_notices.py  # solo un área
+uv run pytest -q -m network             # los que llaman a yfinance de verdad (se saltan por defecto)
 ```
-- La suite completa tarda unos 5 min: mejor pasar solo los tests del área que se ha tocado.
+- Los tests usan una **copia temporal** de la base de datos (`tests/conftest.py` + variable `ALPHA_FLOW_DB`); nunca la real.
+  Si un test nuevo necesita internet, márcalo con `@pytest.mark.network`.
 - Para ver una página sin navegador: `curl -s http://127.0.0.1:8000/mercado/centro | grep ...`
 
 ## Mapa: pantalla → archivos
