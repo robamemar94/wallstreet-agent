@@ -381,6 +381,8 @@
     .qa-fill.report-open .qa-box { flex: none; }
     /* la nota, en una píldora (el JS de los gauges le vuelve a poner score-badge-circle) */
     .qa-scoreline .score-badge-circle { width: auto; height: auto; min-width: 3.2rem; border-radius: 999px; padding: .05rem .6rem; font-size: 1rem; box-shadow: none; border-width: 1px; }
+    .qa-scorehead .score-badge-circle { font-size: 1.6rem; min-width: 4.6rem; padding: .1rem .8rem; border-width: 2px; }
+    .qa-scorehead .qa-scorebar { flex: 0 0 140px; height: 7px; }
     .qa-scorebar { height: 5px; border-radius: 3px; background: var(--bs-secondary-bg); overflow: hidden; max-width: 260px; }
     .qa-scorebar > span { display: block; height: 100%; border-radius: 3px; }
     .qa-fill .qa-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; font-size: .76rem; }
@@ -1530,7 +1532,32 @@ function openStats() {
 
                 <!-- Toolbar del Informe -->
                 <div class="report-header-toolbar d-flex justify-content-between align-items-center gap-3 mb-2">
+                    {% if key not in ['val', 'technical'] %}
+                    {% set current_score = 'N/A' %}
+                    {% if reports_meta and key in reports_meta %}
+                        {% set current_score = reports_meta[key].score %}
+                    {% endif %}
+                    {# Extraer el número si viene como 'X.X/10' #}
+                    {% set score_num = -1.0 %}
+                    {% if current_score and current_score != 'N/A' %}
+                        {% set score_num = current_score.split('/')[0]|trim|float(-1.0) %}
+                    {% endif %}
+                        <div id="scorehead-{{ key }}" class="qa-scoreline qa-scorehead d-flex align-items-center gap-2 {{ 'd-none' if not db.get(key) }}">
+                            <span class="text-uppercase text-muted fw-bold" style="font-size: 0.65rem; letter-spacing: .3px;">Calidad</span>
+                            <div id="score-badge-{{ key }}" class="score-badge-circle
+                                {% if score_num >= 8.5 %}score-high
+                                {% elif score_num >= 7.0 %}score-notable
+                                {% elif score_num >= 5.0 %}score-medium
+                                {% elif score_num >= 0.0 %}score-low
+                                {% else %}score-na{% endif %}">
+                                <span id="score-{{ key }}">{{ current_score.split('/')[0]|trim if current_score and current_score != 'N/A' else 'N/A' }}</span>
+                            </div>
+                            <span class="text-muted small">/ 10</span>
+                            <div class="qa-scorebar flex-grow-1"><span class="{{ 'bg-success' if score_num >= 8.5 else ('bg-warning' if score_num >= 7.0 else ('bg-orange' if score_num >= 5.0 else 'bg-danger')) }}" style="width: {{ ((score_num if score_num > 0 else 0) * 10)|round(0) }}%;{{ ' background: #fd7e14;' if 5.0 <= score_num < 7.0 }}"></span></div>
+                        </div>
+                    {% else %}
                     <div class="text-muted text-truncate" style="font-size: 0.74rem; min-width: 0;" title="{{ tabs_desc[key] }}">{{ tabs_desc[key] }}</div>
+                    {% endif %}
                     <div class="d-flex gap-2 flex-shrink-0">
                         {% if key == 'audit' %}
                             <button class="btn btn-sm btn-outline-primary py-0" type="button" onclick="switchToFinancialsAndOpenAuditData()">
@@ -1572,30 +1599,8 @@ function openStats() {
                 <!-- Meta Fields (Score, Pros/Cons) -->
                 <div id="meta-{{ key }}" class="qa-meta {% if not db.get(key) %}d-none{% endif %} mb-2">
                     {% if key != 'val' and key != 'technical' %}
-                    {% set current_score = 'N/A' %}
-                    {% if reports_meta and key in reports_meta %}
-                        {% set current_score = reports_meta[key].score %}
-                    {% endif %}
-                    {# Extraer el número si viene como 'X.X/10' #}
-                    {% set score_num = -1.0 %}
-                    {% if current_score and current_score != 'N/A' %}
-                        {% set score_num = current_score.split('/')[0]|trim|float(-1.0) %}
-                    {% endif %}
-                    {# Nota en una línea; fortalezas arriba y debilidades abajo, a todo el ancho para leer líneas completas #}
+{# Nota en una línea; fortalezas arriba y debilidades abajo, a todo el ancho para leer líneas completas #}
                     <div class="qa-row d-flex flex-column gap-2">
-                        <div class="qa-scoreline d-flex align-items-center gap-2">
-                            <span class="text-uppercase text-muted fw-bold" style="font-size: 0.65rem; letter-spacing: .3px;">Puntuación de calidad</span>
-                            <div id="score-badge-{{ key }}" class="score-badge-circle
-                                {% if score_num >= 8.5 %}score-high
-                                {% elif score_num >= 7.0 %}score-notable
-                                {% elif score_num >= 5.0 %}score-medium
-                                {% elif score_num >= 0.0 %}score-low
-                                {% else %}score-na{% endif %}">
-                                <span id="score-{{ key }}">{{ current_score.split('/')[0]|trim if current_score and current_score != 'N/A' else 'N/A' }}</span>
-                            </div>
-                            <span class="text-muted small">/ 10</span>
-                            <div class="qa-scorebar flex-grow-1"><span class="{{ 'bg-success' if score_num >= 8.5 else ('bg-warning' if score_num >= 7.0 else ('bg-orange' if score_num >= 5.0 else 'bg-danger')) }}" style="width: {{ ((score_num if score_num > 0 else 0) * 10)|round(0) }}%;{{ ' background: #fd7e14;' if 5.0 <= score_num < 7.0 }}"></span></div>
-                        </div>
                         <div class="border rounded p-2 px-3 qa-box">
                             {% if key == 'rules' %}
                             <h6 class="text-success fw-bold text-uppercase mb-1" style="font-size: 0.72rem;"><i class="bi bi-check-circle-fill me-1"></i> Normas Aprobadas (Aprobados)</h6>
@@ -2281,6 +2286,7 @@ function openStats() {
                     <div class="card-header bg-light py-1 border-bottom d-flex align-items-center justify-content-between {% if key == 'verdict' %}bg-primary bg-opacity-10 text-primary{% endif %}">
                         <h5 class="fw-bold mb-0 text-uppercase {% if key == 'verdict' %}text-primary{% else %}text-dark{% endif %}" style="font-size: .78rem; letter-spacing: .4px;">
                             <i class="bi {{ icon }} me-1"></i> {{ label_full }}
+                            {% if tabs_desc[key] %}<i class="bi bi-info-circle text-muted ms-1 fw-normal" role="button" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ tabs_desc[key] }}" style="font-size: .8rem; cursor: help;"></i>{% endif %}
                         </h5>
                         {% if key in ['franchise', 'audit', 'mgmt_alloc'] %}
                             <span class="badge bg-secondary bg-opacity-10 text-secondary">Estudio de Calidad</span>
@@ -3910,6 +3916,7 @@ function openStats() {
         const metaDiv = document.getElementById(`meta-${type}`);
         const accordionContainer = document.getElementById(`accordion-container-${type}`);
         if (metaDiv) metaDiv.classList.add('d-none');
+        document.getElementById(`scorehead-${type}`)?.classList.add('d-none');
         if (accordionContainer) accordionContainer.classList.add('d-none');
 
         const unlockUI = () => {
@@ -4026,6 +4033,7 @@ function openStats() {
                                 if (statusData.meta && !type.startsWith('rules_')) {
                                     const metaDiv = document.getElementById(`meta-${type}`);
                                     if (metaDiv) metaDiv.classList.remove('d-none');
+                                    document.getElementById(`scorehead-${type}`)?.classList.remove('d-none');
 
                                     // Handle Legacy UI dynamically
                                     const legacyIconEl = document.getElementById(`legacy-icon-${type}`);
@@ -4180,7 +4188,7 @@ function openStats() {
                                         if (scoreEl) scoreEl.innerText = String(statusData.meta.score || 'N/A').split('/')[0].trim();
                                         drawGauge(`gauge-${type}`, statusData.meta.score);
                                         // barra de la nota (0-10)
-                                        const bar = document.querySelector(`#meta-${type} .qa-scorebar > span`);
+                                        const bar = document.querySelector(`#scorehead-${type} .qa-scorebar > span`);
                                         const sn = parseFloat(String(statusData.meta.score || '').replace(',', '.'));
                                         if (bar) {
                                             bar.style.width = (isNaN(sn) ? 0 : Math.min(100, sn * 10)) + '%';

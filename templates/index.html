@@ -328,6 +328,16 @@
     </div>
 </div>
 
+<style>
+    .dash-tab { background: transparent; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.6); font-size: .74rem; font-weight: 600; padding: .05rem .45rem; line-height: 1.4; white-space: nowrap; display: inline-flex; align-items: center; }
+    #dashboardListTitle:empty { display: none; }
+    .dash-tabs .dash-tab:first-child { border-radius: 4px 0 0 4px; }
+    .dash-tabs .dash-tab:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
+    .dropdown > .dash-tab, #btnBuyZoneHeld { border-radius: 4px; }
+    .dash-tab:hover { color: #fff; }
+    .dash-tab.active { color: #ffc107; border-color: rgba(255,193,7,.55); background: rgba(255,193,7,.1); }
+    .dash-tab[data-dash-tab="buyzone"].active, #btnBuyZoneHeld.active { color: #0dcaf0; border-color: rgba(13,202,240,.55); background: rgba(13,202,240,.1); }
+</style>
 <div class="row g-2 mb-4">
     <!-- Ganadores -->
     <div class="col-xl-3 col-lg-3 col-md-6 col-12">
@@ -415,28 +425,36 @@
     <div class="col-xl-3 col-lg-3 col-md-6 col-12">
         <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
             <div class="card-header border-0 pt-2 pb-1 d-flex justify-content-between align-items-center" style="background: transparent;">
-                <!-- Selector Dinámico de Lista -->
-                <div class="dropdown">
-                    <button class="btn btn-xs btn-link text-warning fw-bold p-0 border-0 dropdown-toggle d-flex align-items-center gap-1.5" type="button" id="dashboardListSelectorButton" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.82rem; text-decoration: none; box-shadow: none;">
-                        <i class="bi bi-star-fill" id="dashboardListIcon" class="me-1"></i> <span id="dashboardListTitle">Favoritos</span>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-dark p-1 shadow" aria-labelledby="dashboardListSelectorButton" style="font-size: 0.76rem; background-color: var(--fin-card-bg); border: 1px solid rgba(255,255,255,0.15); min-width: 160px; z-index: 1050;">
-                        <li>
-                            <button class="dropdown-item py-1 fw-bold text-warning" onclick="switchDashboardList('fav', 'Favoritos', 'bi-star-fill')">
-                                <i class="bi bi-star-fill me-1.5"></i> Favoritos
-                            </button>
-                        </li>
-                        {% for list in custom_lists %}
-                        <li>
-                            <button class="dropdown-item py-1 text-white" onclick="switchDashboardList('list-{{ list.id }}', '{{ list.name }}', 'bi-folder2-open')">
-                                <i class="bi bi-folder2-open me-1.5"></i> {{ list.name }}
-                            </button>
-                        </li>
-                        {% endfor %}
-                    </ul>
+                <!-- Pestañas: Favoritos · Compra (cerca de su precio de compra) y, aparte, las listas propias -->
+                <div class="d-flex align-items-center gap-1">
+                    <div class="dash-tabs d-flex">
+                        <button type="button" class="dash-tab active" data-dash-tab="fav" onclick="switchDashboardList('fav')"><i class="bi bi-star-fill me-1"></i>Favoritos</button>
+                        <button type="button" class="dash-tab" data-dash-tab="buyzone" onclick="switchDashboardList('buyzone')"
+                                title="Empresas de la Watchlist (añadidas a mano y favoritas) con valoración base, de la más cercana a la más lejana de su precio de compra (verde: en zona · azul: a menos de un 15 % · amarillo: hasta un 30 % · gris: más lejos)"><i class="bi bi-bullseye me-1"></i>Compra{% set near_n = buy_zone|rejectattr('held')|selectattr('group', 'in', ['zona', 'cerca'])|list|length %}{% if near_n %} <span class="badge text-bg-info ms-1" style="font-size: .6rem;" title="{{ near_n }} en zona o a menos de un 15 %">{{ near_n }}</span>{% endif %}</button>
+                    </div>
+                    {% if custom_lists %}
+                    <div class="dropdown">
+                        <button class="dash-tab dropdown-toggle" type="button" data-dash-tab="lists" data-bs-toggle="dropdown" aria-expanded="false" title="Tus listas">
+                            <i class="bi bi-folder2-open"></i><span id="dashboardListTitle" class="ms-1 text-truncate" style="max-width: 6rem;"></span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-dark p-1 shadow" style="font-size: 0.76rem; background-color: var(--fin-card-bg); border: 1px solid rgba(255,255,255,0.15); min-width: 160px; z-index: 1050;">
+                            {% for list in custom_lists %}
+                            <li>
+                                <button class="dropdown-item py-1 text-white" onclick="switchDashboardList('list-{{ list.id }}', '{{ list.name }}')">
+                                    <i class="bi bi-folder2-open me-1.5"></i> {{ list.name }}
+                                </button>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
                 </div>
 
                 <div class="d-flex align-items-center gap-2">
+                    <!-- Solo en «Compra»: las de tu cartera también (por defecto, solo la Watchlist) -->
+                    <button type="button" class="dash-tab d-none" id="btnBuyZoneHeld" onclick="toggleBuyZoneHeld()" title="Incluir también las empresas que ya tienes en cartera (por defecto, solo la Watchlist)">
+                        <i class="bi bi-briefcase"></i>
+                    </button>
                     <!-- Botón único toggle 1-click: Alza / Caída (Solo icono) -->
                     <button class="btn btn-xs btn-outline-secondary py-0 px-1.5 d-flex align-items-center" onclick="toggleFavPerformanceSort()" id="btnFavSortToggle" style="font-size: 0.72rem; border-color: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); min-width: 24px; justify-content: center;" title="Alternar orden por rendimiento (Mejor / Peor)">
                         <i class="bi bi-arrow-down-up"></i>
@@ -478,6 +496,41 @@
                             {% if not fav_movers %}
                             <tr><td colspan="4" class="text-center py-4 text-muted small">Sin favoritos con actividad hoy</td></tr>
                             {% endif %}
+                        </tbody>
+
+                        <!-- Cerca de compra: favoritas y cartera en zona o a ≤15 % del precio de compra -->
+                        <tbody id="list-body-buyzone" class="dashboard-list-body" style="display: none;">
+                            {% for t in buy_zone %}
+                            <tr onclick="window.location='/ticker/{{ t.name }}#valoracion'" style="cursor: pointer; display: none;" class="buyzone-item"
+                                data-ticker="{{ clean_ticker(t.name) }}"
+                                data-price="{{ t.price or 0 }}"
+                                data-pct="{{ t.pct or 0 }}"
+                                data-drop="{{ t.drop_pct }}"{{ ' data-held=1' if t.held }}
+                                data-region="{{ t.region }}"
+                                data-status="{{ t.status }}">
+                                <td class="ps-3 py-1">
+                                    <div class="ticker-info" style="gap: 6px;">
+                                        <div>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>
+                                            {% if t.held %}<i class="bi bi-briefcase-fill text-primary ms-1" style="font-size: .65rem;" title="En cartera"></i>{% endif %}
+                                            <span class="company-name text-truncate text-muted ms-1" style="max-width: 80px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-3 align-middle num-font">
+                                    <div class="d-flex align-items-center justify-content-end gap-2">
+                                        <span class="fw-bold text-white" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.72rem; white-space: nowrap;" title="Variación de hoy">{% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 1) }}%</span>
+                                        {% if t.drop_pct <= 0 %}
+                                        <span class="badge text-bg-success" style="font-size: .66rem; min-width: 4.4rem;" title="Cotiza un {{ num(-t.drop_pct, 1) }}% por debajo de su precio de compra">✓ en zona</span>
+                                        {% else %}
+                                        <span class="badge {{ {'cerca': 'bg-info bg-opacity-25 text-info', 'seguimiento': 'bg-warning bg-opacity-10 text-warning'}.get(t.group, 'bg-secondary bg-opacity-25 text-secondary') }}" style="font-size: .66rem; min-width: 4.4rem;" title="Le falta caer un {{ num(t.drop_pct, 1) }}% para llegar a su precio de compra">a {{ num(t.drop_pct, 1) }}%</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            <tr class="buyzone-empty d-none"><td colspan="4" class="text-center py-4 text-muted small">Ninguna empresa de la Watchlist con valoración base</td></tr>
                         </tbody>
 
                         <!-- Cuerpos de Listas Personalizadas -->
@@ -678,6 +731,7 @@
         const activeListId = 'list-body-' + (window.currentDashboardListId || 'fav');
         window.paginationStates?.[activeListId]?.refresh();
         window.paginationStates?.['portListMarket']?.refresh();
+        if (typeof paintBuyZoneEmpty === 'function') paintBuyZoneEmpty();
     }
 
     function setupSimplePagination(listId, itemClass, paginationId, itemsPerPage, filterFn) {
@@ -733,29 +787,43 @@
 
     // Cambiar la lista que se muestra en el dashboard dinámicamente
     window.currentDashboardListId = 'fav';
-    window.switchDashboardList = function(listId, name, iconClass) {
+    // Las de cartera, en «Compra», solo con el filtro «cartera»; las demás pestañas solo usan el filtro de actividad
+    let buyZoneHeld = false;
+    const dashFilter = listId => listId !== 'buyzone' ? window.activityFilterFn
+        : el => (buyZoneHeld || !el.dataset.held) && (!window.activityFilterFn || window.activityFilterFn(el));
+    window.switchDashboardList = function(listId, name) {
         window.currentDashboardListId = listId;
-        
-        // Actualizar el título y el icono del selector
-        document.getElementById('dashboardListTitle').innerText = name;
-        const iconEl = document.getElementById('dashboardListIcon');
-        iconEl.className = 'bi ' + iconClass;
-        
+        const isList = listId.startsWith('list-');
+        document.querySelectorAll('[data-dash-tab]').forEach(b => b.classList.toggle('active', b.dataset.dashTab === (isList ? 'lists' : listId)));
+        const title = document.getElementById('dashboardListTitle');
+        if (title) title.innerText = isList ? name : '';
+        document.getElementById('btnBuyZoneHeld')?.classList.toggle('d-none', listId !== 'buyzone');
+
         // Ocultar todos los cuerpos de tabla y mostrar solo el activo
         document.querySelectorAll('.dashboard-list-body').forEach(tbody => {
             tbody.style.setProperty('display', 'none', 'important');
         });
-        
         const activeTbodyId = 'list-body-' + listId;
         const activeTbody = document.getElementById(activeTbodyId);
-        if (activeTbody) {
-            activeTbody.style.display = '';
-        }
-        
-        // Re-inicializar paginación
+        if (activeTbody) activeTbody.style.display = '';
+
+        try { localStorage.setItem('dashboardList', JSON.stringify([listId, name || ''])); } catch (e) {}
         const itemClass = listId === 'fav' ? 'fav-item' : listId + '-item';
-        setupSimplePagination(activeTbodyId, itemClass, 'favPagination', Infinity, window.activityFilterFn);
+        setupSimplePagination(activeTbodyId, itemClass, 'favPagination', Infinity, dashFilter(listId));
+        paintBuyZoneEmpty();
+        paintFavSortButton();
     };
+    window.toggleBuyZoneHeld = function() {
+        buyZoneHeld = !buyZoneHeld;
+        document.getElementById('btnBuyZoneHeld').classList.toggle('active', buyZoneHeld);
+        setupSimplePagination('list-body-buyzone', 'buyzone-item', 'favPagination', Infinity, dashFilter('buyzone'));
+        paintBuyZoneEmpty();
+    };
+    function paintBuyZoneEmpty() {
+        const f = dashFilter('buyzone');
+        const any = [...document.querySelectorAll('#list-body-buyzone .buyzone-item')].some(el => !f || f(el));
+        document.querySelector('#list-body-buyzone .buyzone-empty')?.classList.toggle('d-none', any);
+    }
 
     // Ordenar la lista activa de forma dinámica (Mejora UX en página principal)
     window.sortFavoritesList = function(criteria, ascending) {
@@ -772,6 +840,8 @@
                 valA = a.getAttribute('data-ticker').toLowerCase();
                 valB = b.getAttribute('data-ticker').toLowerCase();
                 return ascending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else if (criteria === 'drop') {   // Cerca de compra: la más cercana a su precio de compra primero
+                return (parseFloat(a.dataset.drop) || 0) - (parseFloat(b.dataset.drop) || 0);
             } else if (criteria === 'price') {
                 valA = parseFloat(a.getAttribute('data-price')) || 0;
                 valB = parseFloat(b.getAttribute('data-price')) || 0;
@@ -787,33 +857,36 @@
         items.forEach(item => list.appendChild(item));
         
         // Re-inicializar paginación con el nuevo orden
-        setupSimplePagination('list-body-' + listId, itemClass, 'favPagination', Infinity, window.activityFilterFn);
+        setupSimplePagination('list-body-' + listId, itemClass, 'favPagination', Infinity, dashFilter(listId));
     };
 
-    // Alternar ordenación de favoritos (Mejor rendimiento / Peor rendimiento) con un solo clic
+    // Botón ⇅ de la tarjeta: en las listas, mejor / peor del día; en «Cerca de compra», más cerca de compra / más caída hoy
     let favSortAscending = false; // por defecto empieza mostrando los mejores
+    let buyZoneByFall = false;    // por defecto, la más cercana a su precio de compra primero
     window.toggleFavPerformanceSort = function() {
-        favSortAscending = !favSortAscending;
-        
-        // Ordenar:
-        // Si favSortAscending es true, ordenamos de PEOR a MEJOR (caídas primero, ascending=false en sortFavoritesList)
-        // Si favSortAscending es false, ordenamos de MEJOR a PEOR (alzas primero, ascending=true en sortFavoritesList)
-        sortFavoritesList('pct', !favSortAscending);
-        
-        // Actualizar icono y color del botón unificado (solo icono, sin texto)
-        const btn = document.getElementById('btnFavSortToggle');
-        if (btn) {
-            if (favSortAscending) {
-                // Modo Caídas (Peores primero)
-                btn.innerHTML = '<i class="bi bi-sort-down text-danger fw-bold" style="font-size:0.72rem;"></i>';
-                btn.className = "btn btn-xs btn-outline-danger py-0 px-1.5 d-flex align-items-center";
-            } else {
-                // Modo Alzas (Mejores primero)
-                btn.innerHTML = '<i class="bi bi-sort-up text-success fw-bold" style="font-size:0.72rem;"></i>';
-                btn.className = "btn btn-xs btn-outline-success py-0 px-1.5 d-flex align-items-center";
-            }
+        if (window.currentDashboardListId === 'buyzone') {
+            buyZoneByFall = !buyZoneByFall;
+            sortFavoritesList(buyZoneByFall ? 'pct' : 'drop', false);   // 'pct' sin ascending: la mayor caída primero
+        } else {
+            favSortAscending = !favSortAscending;
+            sortFavoritesList('pct', !favSortAscending);
         }
+        paintFavSortButton();
     };
+    function paintFavSortButton() {
+        const btn = document.getElementById('btnFavSortToggle');
+        if (!btn) return;
+        const set = (icon, tone, title) => {
+            btn.innerHTML = `<i class="bi ${icon} text-${tone} fw-bold" style="font-size:0.72rem;"></i>`;
+            btn.className = `btn btn-xs btn-outline-${tone} py-0 px-1.5 d-flex align-items-center`;
+            btn.title = title;
+        };
+        if (window.currentDashboardListId === 'buyzone') {
+            if (buyZoneByFall) set('bi-sort-down', 'danger', 'Ordenadas por la caída de hoy · pulsa para ordenar por cercanía al precio de compra');
+            else set('bi-bullseye', 'info', 'Ordenadas por cercanía al precio de compra · pulsa para ordenar por la caída de hoy');
+        } else if (favSortAscending) set('bi-sort-down', 'danger', 'Peores del día primero · pulsa para ver las mejores');
+        else set('bi-sort-up', 'success', 'Mejores del día primero · pulsa para ver las peores');
+    }
 
     // Ordenar la lista de "Mi Cartera" de forma dinámica (mismo patrón que favoritos)
     window.sortPortfolioList = function(criteria, ascending) {
@@ -900,6 +973,10 @@
         setupSimplePagination('portListMarket', 'port-item-market', 'portPagination', Infinity, window.activityFilterFn);
         setupSimplePagination('portAllList', 'port-all-item', 'portAllPagination', Infinity);
         setupSimplePagination('list-body-fav', 'fav-item', 'favPagination', Infinity, window.activityFilterFn);
+        try {   // la tarjeta abre con la última lista elegida (Favoritos, Cerca de compra o una lista propia)
+            const last = JSON.parse(localStorage.getItem('dashboardList') || 'null');
+            if (last && last[0] !== 'fav' && document.getElementById('list-body-' + last[0])) switchDashboardList(...last);
+        } catch (e) {}
         setupSimplePagination('oppList', 'opp-item', 'oppPagination', Infinity);
         setupSimplePagination('dropAlertList', 'drop-alert-item', 'dropAlertPagination', Infinity);
         window.applyAlertSeenState();

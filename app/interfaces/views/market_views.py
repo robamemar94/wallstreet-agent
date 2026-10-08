@@ -16,9 +16,11 @@ from app.infrastructure.dependencies import (
     get_portfolio_service,
     get_performance_service,
     get_settings_from_db,
+    get_watchlist_repository,
 )
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
-from app.application.services import market_cache
+from app.infrastructure.repositories.sqlalchemy_watchlist_repository import SqlAlchemyWatchlistRepository
+from app.application.services import base_valuation_service, market_cache
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.performance_service import PerformanceService
 from app.infrastructure.templates import templates
@@ -349,6 +351,7 @@ def index(
     asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
     portfolio_service: PortfolioService = Depends(get_portfolio_service),
     performance_service: PerformanceService = Depends(get_performance_service),
+    watchlist_repo: SqlAlchemyWatchlistRepository = Depends(get_watchlist_repository),
     db_session: Session = Depends(get_db)
 ):
     settings = get_settings_from_db(db_session)
@@ -525,9 +528,12 @@ def index(
     except Exception as e:
         logging.error(f"Error calculating custom lists movers: {e}")
 
+    watchlist = {i["ticker"] for i in watchlist_repo.list_items()} | set(asset_repo.get_watch_candidates())
+    buy_zone = buy_zone_movers(all_daily_movers, asset_repo, watchlist, portfolio_tickers)
+
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "top_gainers": top_gainers, "top_losers": top_losers, "fav_movers": fav_movers,
+        "top_gainers": top_gainers, "top_losers": top_losers, "fav_movers": fav_movers, "buy_zone": buy_zone,
         "custom_lists": custom_lists_movers,
         "port_all": sorted_port_movers,
         "market_indices": market_indices,
@@ -536,6 +542,28 @@ def index(
         "settings": settings,
         **prices_banner_context(),
     })
+
+def buy_zone_movers(movers, asset_repo, watchlist: set, held: set) -> list:
+    """Pestaña «Compra» de la tarjeta de Favoritos: empresas de la Watchlist (a mano + favoritas) y de la cartera con valoración
+    base, de la más cercana a la más lejana de su precio de compra (la misma distancia y los mismos grupos que la Watchlist:
+    zona, cerca ≤15 %, seguimiento ≤30 %, lejos). Las de cartera solo se ven con el filtro «cartera»."""
+    from app.interfaces.views.watchlist_views import proximity   # aquí: watchlist_views importa este módulo
+    cands = [m for m in movers if m["name"] in watchlist or m["name"] in held]
+    data = {m["name"]: asset_repo.get_asset_data(m["name"]) for m in cands}   # la sesión de BBDD, fuera de los hilos
+
+    def one(m):
+        try:
+            val = base_valuation_service.live(m["name"], data[m["name"]], m["price"])
+        except Exception:
+            logging.exception(f"Cerca de compra: no se pudo valorar {m['name']}")
+            return None
+        group, drop = proximity(val, m["price"])
+        return {**m, "drop_pct": drop, "group": group, "held": m["name"] in held} if drop is not None else None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:   # la métrica TTM, si no está en caché, se descarga
+        rows = [r for r in pool.map(one, cands) if r]
+    return sorted(rows, key=lambda r: r["drop_pct"])
+
 
 @router.get("/oportunidades")
 def oportunidades_page():
