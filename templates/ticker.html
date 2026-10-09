@@ -3833,8 +3833,14 @@ function openStats() {
         if (t) bootstrap.Tab.getOrCreateInstance(t).show();
     }
     document.addEventListener('DOMContentLoaded', refreshReportDeps);
+    // Informes que seguían generándose al cargar la página: se retoma la espera (sin lanzar nada nuevo)
+    document.addEventListener('DOMContentLoaded', () => {
+        Object.entries({{ (running_tasks or {})|tojson }}).forEach(([type, taskId]) => generateReport('{{ ticker }}', type, null, taskId));
+    });
 
-    async function generateReport(ticker, type, providedFeedback = null) {
+    // resumeTaskId: el informe ya se está generando (se lanzó antes de recargar la página); no se lanza otro,
+    // solo se pone la pestaña en «Ejecutando…» y se sigue esperando a esa tarea
+    async function generateReport(ticker, type, providedFeedback = null, resumeTaskId = null) {
         if (window.activeReports[type]) {
             if (typeof showToast === 'function') {
                 showToast('⚠️ Agente Ocupado', 'Este análisis ya está en curso.', 'primary');
@@ -3888,7 +3894,7 @@ function openStats() {
         };
         const reportName = reportNames[type] || 'Reporte';
 
-        if (typeof showToast === 'function') {
+        if (typeof showToast === 'function' && !resumeTaskId) {
             showToast('🤖 Agente Iniciado', `El análisis <strong>${reportName}</strong> se está ejecutando.`, 'primary');
         }
 
@@ -3947,12 +3953,11 @@ function openStats() {
         }
 
         try {
-            const response = await fetch(`/api/generate/${ticker}/${type}`, {
+            const data = resumeTaskId ? {status: 'processing', task_id: resumeTaskId} : await (await fetch(`/api/generate/${ticker}/${type}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ feedback: feedbackText })
-            });
-            const data = await response.json();            
+            })).json();
             
             if (data.status === 'processing') {
                 const taskId = data.task_id;

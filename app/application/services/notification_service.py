@@ -94,9 +94,13 @@ def sync_budget_notice(db: Session, notice_repo) -> None:
 def unread_counts(items: List[Dict[str, Any]]) -> Dict[str, int]:
     """No leídas de empresas en cartera (las que cuentan en la campana y en Tesis) y, aparte, todas las no leídas
     y todas las alertas (el globo de «Alertas» cuenta cualquier empresa vigilada). Las que no cuentan («counts»
-    falso: cambios de valoración que no van hacia zona de compra) no suman en ninguno."""
-    out = {"total": 0, "alertas": 0, "noticias": 0, "avisos": 0, "monitor": 0, "all": 0, "alertas_all": 0}
+    falso: cambios de valoración que no van hacia zona de compra) no suman en ninguno.
+    «quiet»: las no leídas que no van en el número de la campana (de fuera de cartera o que no cuentan): la campana
+    las avisa con un punto."""
+    out = {"total": 0, "alertas": 0, "noticias": 0, "avisos": 0, "monitor": 0, "all": 0, "alertas_all": 0, "quiet": 0}
     for i in items:
+        if not i["read"] and not (i.get("portfolio") and i.get("counts", True)):
+            out["quiet"] += 1
         if not i["read"] and i.get("counts", True):
             out["all"] += 1
             out["alertas_all"] += i["group"] == "alertas"   # el globo de «Alertas» cuenta todas, como antes

@@ -49,3 +49,30 @@ def _portfolio_roles():
 
 # roles de cartera (CORE, GROWTH…) para los selectores y etiquetas de rol: portfolio_roles()
 templates.env.globals["portfolio_roles"] = _portfolio_roles
+
+
+# País (como lo da yfinance, en inglés) → código ISO de 2 letras y nombre en español, para las columnas estrechas
+COUNTRIES = {
+    "United States": ("US", "Estados Unidos"), "Sweden": ("SE", "Suecia"), "France": ("FR", "Francia"),
+    "United Kingdom": ("GB", "Reino Unido"), "Canada": ("CA", "Canadá"), "Switzerland": ("CH", "Suiza"),
+    "Spain": ("ES", "España"), "Germany": ("DE", "Alemania"), "Australia": ("AU", "Australia"),
+    "Netherlands": ("NL", "Países Bajos"), "Italy": ("IT", "Italia"), "Mexico": ("MX", "México"), "Japan": ("JP", "Japón"),
+    "Poland": ("PL", "Polonia"), "Norway": ("NO", "Noruega"), "Uruguay": ("UY", "Uruguay"), "Taiwan": ("TW", "Taiwán"),
+    "Singapore": ("SG", "Singapur"), "New Zealand": ("NZ", "Nueva Zelanda"), "Luxembourg": ("LU", "Luxemburgo"),
+    "Ireland": ("IE", "Irlanda"), "Greece": ("GR", "Grecia"), "Finland": ("FI", "Finlandia"), "Denmark": ("DK", "Dinamarca"),
+    "Cyprus": ("CY", "Chipre"), "China": ("CN", "China"), "Belgium": ("BE", "Bélgica"), "Austria": ("AT", "Austria"),
+    "Portugal": ("PT", "Portugal"), "Israel": ("IL", "Israel"), "Brazil": ("BR", "Brasil"), "India": ("IN", "India"),
+    "South Korea": ("KR", "Corea del Sur"), "Hong Kong": ("HK", "Hong Kong"), "Bermuda": ("BM", "Bermudas"),
+    "Cayman Islands": ("KY", "Islas Caimán"), "Jersey": ("JE", "Jersey"), "Argentina": ("AR", "Argentina"),
+    "Chile": ("CL", "Chile"), "Colombia": ("CO", "Colombia"), "Peru": ("PE", "Perú"), "South Africa": ("ZA", "Sudáfrica"),
+}
+
+
+def country_iso(name):
+    """(código, nombre en español) de un país; si no está en la lista, las 2 primeras letras y el nombre tal cual."""
+    if not name or name == "-":
+        return ("–", "Sin país")
+    return COUNTRIES.get(name, (name[:2].upper(), name))
+
+
+templates.env.globals["country_iso"] = country_iso

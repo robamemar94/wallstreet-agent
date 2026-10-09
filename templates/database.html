@@ -5,6 +5,26 @@
     /* filas más bajas para que entren más por página (el estilo común pone 10 px arriba y abajo) */
     #dbTable tbody td { padding-top: .3rem; padding-bottom: .3rem; }
     #dbTable thead th { padding-top: .45rem; padding-bottom: .45rem; }
+    /* Pestañas como las de Cartera: texto gris, la activa en verde con raya; el número, discreto */
+    .db-tabs { border-bottom: 1px solid var(--bs-border-color); }
+    #dbTabs .nav-link { font-size: .8rem; font-weight: 600; padding: .35rem .7rem; color: var(--bs-secondary-color);
+                         border: 0; border-bottom: 2px solid transparent; background: transparent; }
+    .db-tabs .nav-link:hover { color: var(--bs-body-color); }
+    #dbTabs .nav-link.active { color: var(--fin-green); border-bottom-color: var(--fin-green); background: transparent; }
+    /* Una marca pequeña de color por pestaña: estrella (Favoritas), maletín (En cartera) y punto de estado */
+    .db-tabs .tab-mark { color: var(--mark); font-size: .72rem; margin-right: .3rem; }
+    .db-tabs .tab-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--mark); margin-right: .35rem; vertical-align: .08rem; }
+    .db-tabs .tab-count { font-size: .7rem; font-weight: 500; opacity: .7; margin-left: .15rem; }
+    .db-tabs-sep { width: 1px; background: var(--bs-border-color); margin: .45rem .4rem; }
+    .db-search-icon { background: transparent; color: var(--bs-secondary-color); }
+    .db-toolbar .input-group .form-control { border-left: 0; }
+    .db-toolbar .input-group .input-group-text { border-right: 0; }
+    .filter-chip { display: inline-flex; align-items: center; gap: .3rem; font-size: .72rem; padding: .1rem .25rem .1rem .55rem;
+                   border: 1px solid var(--bs-border-color); border-radius: 1rem; color: var(--bs-body-color); background: var(--bs-tertiary-bg); }
+    .filter-chip .text-muted { font-weight: 500; }
+    .filter-chip button { border: 0; background: transparent; color: var(--bs-secondary-color); padding: 0 .2rem; line-height: 1; }
+    .filter-chip button:hover { color: var(--bs-danger); }
+    .filter-chip-clear { font-size: .72rem; }
 </style>
 {% from "_ui_macros.html" import chg_pill %}
 {% set roles = portfolio_roles() %}{% set roles_by_key = {} %}{% for r in roles %}{% set _ = roles_by_key.update({r.key: r}) %}{% endfor %}
@@ -127,6 +147,15 @@
     }
     /* rol en cartera junto al ticker: «+ rol» solo al pasar por la fila */
     .role-tag { white-space: nowrap; font-size: .65rem; border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: 0 .45rem; background: transparent; color: var(--bs-body-color); line-height: 1.4; }
+    .role-cell .role-tag { padding: 0 .35rem; font-size: .75rem; }
+    .country-cell { font-size: .72rem; font-weight: 600; letter-spacing: .3px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* Zona de valoración: etiqueta pequeña, fondo tenue del color de la zona */
+    .val-tag { font-size: .66rem; font-weight: 700; padding: .05rem .4rem; border-radius: .3rem; white-space: nowrap; }
+    .val-ganga { color: #16a34a; background: rgba(22, 163, 74, .16); }
+    .val-barata { color: #22c55e; background: rgba(34, 197, 94, .10); }
+    .val-justo { color: var(--bs-secondary-color); background: rgba(127, 127, 127, .12); }
+    .val-cara { color: #d97706; background: rgba(245, 158, 11, .14); }
+    .val-burbuja { color: #dc2626; background: rgba(239, 68, 68, .14); }
     .role-tag.role-empty { color: var(--bs-secondary-color); border-style: dashed; opacity: .55; }
     .ticker-row:hover .role-tag.role-empty, .role-dd.show .role-tag { opacity: 1; }
 </style>
@@ -378,37 +407,40 @@
             </div>
         </div>
 
-        <!-- Tabs Header -->
-        <div class="d-flex justify-content-between align-items-end mb-3">
-            <ul class="nav nav-tabs border-bottom-0" id="dbTabs" role="tablist">
+        <!-- Pestañas: qué empresas (Todas · Favoritas · En cartera) | estado del análisis; con cuántas hay en cada una -->
+        <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-2 db-toolbar">
+            <ul class="nav nav-tabs db-tabs" id="dbTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active fw-bold text-dark" id="all-tab" data-bs-toggle="tab" data-bs-target="#tab-all" type="button" role="tab">🌐 Todas</button>
+                    <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#tab-all" type="button" role="tab">Todas <span class="tab-count" data-tab-count="all-tab"></span></button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link fw-bold text-warning" id="fav-tab" data-bs-toggle="tab" data-bs-target="#tab-fav" type="button" role="tab">⭐ Favoritos</button>
+                    <button class="nav-link" id="fav-tab" data-bs-toggle="tab" data-bs-target="#tab-fav" type="button" role="tab"><i class="bi bi-star-fill tab-mark" style="--mark: #f0ad4e;"></i>Favoritas <span class="tab-count" data-tab-count="fav-tab"></span></button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link fw-bold text-primary" id="portfolio-tab" data-bs-toggle="tab" data-bs-target="#tab-portfolio" type="button" role="tab">💼 Mi Cartera</button>
+                    <button class="nav-link" id="portfolio-tab" data-bs-toggle="tab" data-bs-target="#tab-portfolio" type="button" role="tab"><i class="bi bi-briefcase-fill tab-mark" style="--mark: #58a6ff;"></i>En cartera <span class="tab-count" data-tab-count="portfolio-tab"></span></button>
+                </li>
+                <li class="nav-item db-tabs-sep" role="presentation" aria-hidden="true"></li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="accepted-tab" data-bs-toggle="tab" data-bs-target="#tab-accepted" type="button" role="tab"><span class="tab-dot" style="--mark: var(--fin-green);"></span>Seguimiento <span class="tab-count" data-tab-count="accepted-tab"></span></button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link fw-bold text-success" id="accepted-tab" data-bs-toggle="tab" data-bs-target="#tab-accepted" type="button" role="tab">✅ Seguimiento</button>
+                    <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#tab-pending" type="button" role="tab"><span class="tab-dot" style="--mark: #8b949e;"></span>Pendientes <span class="tab-count" data-tab-count="pending-tab"></span></button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link fw-bold text-secondary" id="pending-tab" data-bs-toggle="tab" data-bs-target="#tab-pending" type="button" role="tab">⏳ Pendientes</button>
+                    <button class="nav-link" id="standby-tab" data-bs-toggle="tab" data-bs-target="#tab-standby" type="button" role="tab"><span class="tab-dot" style="--mark: #f0ad4e;"></span>Dudas <span class="tab-count" data-tab-count="standby-tab"></span></button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link fw-bold text-warning" id="standby-tab" data-bs-toggle="tab" data-bs-target="#tab-standby" type="button" role="tab">🤔 Dudas</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link fw-bold text-danger" id="rejected-tab" data-bs-toggle="tab" data-bs-target="#tab-rejected" type="button" role="tab">❌ Descartadas</button>
+                    <button class="nav-link" id="rejected-tab" data-bs-toggle="tab" data-bs-target="#tab-rejected" type="button" role="tab"><span class="tab-dot" style="--mark: var(--fin-red);"></span>Descartadas <span class="tab-count" data-tab-count="rejected-tab"></span></button>
                 </li>
             </ul>
             <div class="d-flex align-items-center gap-2 pb-1">
-                <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse" aria-expanded="false" aria-controls="filtersCollapse">
-                    <i class="bi bi-funnel"></i> Filtros Avanzados
-                </button>
-                <button class="btn btn-sm btn-outline-success" onclick="exportActiveTable()" title="Exportar a CSV">📊 Exportar</button>
-                <select class="form-select form-select-sm shadow-sm" id="period-select" style="width: 100px;" onchange="onPeriodChange(this.value)">
+                <div style="width: 260px;" class="suggestions-container">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text db-search-icon"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control filter-input" id="filter-search" placeholder="Buscar ticker, nombre o sector…" autocomplete="off">
+                    </div>
+                </div>
+                <select class="form-select form-select-sm" id="period-select" style="width: 100px;" onchange="onPeriodChange(this.value)" title="Periodo de la variación">
                     <option value="1d" selected>1D</option>
                     <option value="1w">1 Sem.</option>
                     <option value="1m">1 Mes</option>
@@ -418,34 +450,34 @@
                     <option value="3y">3 Años</option>
                     <option value="5y">5 Años</option>
                 </select>
-                <div style="width: 250px;" class="suggestions-container">
-                    <div class="input-group input-group-sm shadow-sm">
-                        <span class="input-group-text bg-white border-end-0">🔍</span>
-                        <input type="text" class="form-control border-start-0 filter-input" id="filter-search" placeholder="Filtro rápido..." autocomplete="off">
-                    </div>
-                </div>
+                <button class="btn btn-outline-secondary btn-sm text-nowrap" type="button" data-bs-toggle="collapse" data-bs-target="#filtersCollapse" aria-expanded="false" aria-controls="filtersCollapse">
+                    <i class="bi bi-sliders me-1"></i>Filtros<span id="filtersCount"></span>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="exportActiveTable()" title="Exportar la tabla a CSV" aria-label="Exportar a CSV"><i class="bi bi-download"></i></button>
             </div>
         </div>
+        <!-- Filtros puestos: se ven sin abrir el panel y se quitan con la × -->
+        <div id="activeFilters" class="d-flex flex-wrap gap-1 mb-2 d-none"></div>
         
         <div class="bg-white border rounded shadow-sm">
             <div class="table-responsive">
                 <table class="table table-modern align-middle mb-0" id="dbTable" style="table-layout: fixed; width: 100%;">
                     <thead>
                         <tr style="cursor: pointer;">
-                            <th class="ps-4" style="width: 10%;" onclick="sortRows(0)">Ticker</th>
-                            <th style="width: 11%;" onclick="sortRows(1)">Nombre</th>
-                            <th style="width: 8%;" onclick="sortRows(2)">País</th>
+                            <th class="ps-3" style="width: 7.5%;" onclick="sortRows(0)">Ticker</th>
+                            <th style="width: 19%;" onclick="sortRows(1)">Nombre</th>
+                            <th class="text-center" style="width: 4%;" onclick="sortRows(2)">País</th>
                             <th style="width: 10%;" onclick="sortRows(3)">Sector</th>
                             <th style="width: 10%;" onclick="sortRows(4)">Subsector</th>
                             <th class="text-end" style="width: 9%;" onclick="sortRows(5)" title="Capitalización en USD (acciones en circulación × último precio × tipo de cambio) y su categoría">Capitalización</th>
-                            <th class="text-center" style="width: 8%;" onclick="sortRows(6)">Precio</th>
-                            <th class="text-end" style="width: 7%;" onclick="sortRows(7)" id="var-header" title="Cuánto se ha movido el precio, en su moneda">Var. <span class="var-header-period"></span></th>
-                            <th class="text-end" style="width: 8%;" onclick="sortRows(8)" title="Variación en %">Var. % <span class="var-header-period"></span></th>
-                            <th class="text-center" style="width: 8%;" onclick="sortRows(9)">Normas Calidad</th>
-                            <th class="text-center" style="width: 8%;" onclick="sortRows(10)">Veredicto</th>
-                            <th class="text-center" style="width: 8%;" onclick="sortRows(11)">Media</th>
-                            <th class="text-center" style="width: 8%;" onclick="sortRows(12)">Valuación</th>
-                            <th class="text-center" style="width: 7%;" onclick="sortRows(13)" title="Rol en el Portfolio ideal">Rol</th>
+                            <th class="text-end" style="width: 7%;" onclick="sortRows(6)">Precio</th>
+                            <th class="text-end" style="width: 6%;" onclick="sortRows(7)" id="var-header" title="Cuánto se ha movido el precio, en su moneda">Var. <span class="var-header-period"></span></th>
+                            <th class="text-end" style="width: 6.5%;" onclick="sortRows(8)" title="Variación en %">Var. % <span class="var-header-period"></span></th>
+                            <th class="text-center" style="width: 4.5%;" onclick="sortRows(9)" title="Nota de las Normas de Calidad (0-10)">Normas</th>
+                            <th class="text-center" style="width: 4.5%;" onclick="sortRows(10)" title="Nota del Veredicto Final (0-10)">Verd.</th>
+                            <th class="text-center" style="width: 4.5%;" onclick="sortRows(11)" title="Media de Normas y Veredicto">Media</th>
+                            <th class="text-center" style="width: 6%;" onclick="sortRows(12)" title="Zona de valoración">Valor.</th>
+                            <th class="text-center" style="width: 3.5%;" onclick="sortRows(13)" title="Rol en el Portfolio ideal">Rol</th>
                             <th class="text-center actions-column" style="width: 15%; display: none;">Acciones</th>
                         </tr>
                     </thead>
@@ -468,7 +500,7 @@
                             data-score-rules="{{ t.get('rules_score', '-') if t.get('rules_score', '-') != '-' else '0' }}"
                             data-score-general="{{ v_score if v_score != '-' else '0' }}"
                             onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;">
-                            <td class="ps-4" data-sort-value="{{ clean_ticker(t.name) }}">
+                            <td class="ps-3 text-nowrap" data-sort-value="{{ clean_ticker(t.name) }}">
                                 <div class="ticker-info">
                                     <span class="me-2 favorite-star" onclick="event.stopPropagation(); toggleFavorite('{{ t.name }}', this)">
                                         <i class="bi {{ 'bi-star-fill text-warning' if t.is_favorite else 'bi-star text-muted' }}"></i>
@@ -476,16 +508,16 @@
                                     <span class="fw-bold ticker-name">{{ clean_ticker(t.name) }}</span>
                                 </div>
                             </td>
-                            <td class="align-middle fw-semibold text-truncate" style="max-width: 200px;" data-sort-value="{{ t.company_name }}">
-                                <span class="company-name text-truncate" style="max-width: 200px; display: inline-block;">{{ t.company_name }}</span>
+                            <td class="align-middle fw-semibold text-truncate" data-sort-value="{{ t.company_name }}">
+                                <span class="company-name text-truncate" style="max-width: 100%; display: inline-block; vertical-align: middle;">{{ t.company_name }}</span>
                             </td>
-                            <td class="text-muted align-middle text-truncate" style="max-width: 100px;" data-sort-value="{{ t.country }}">{{ t.country }}</td>
+                            {% set ciso = country_iso(t.country) %}<td class="text-muted align-middle text-center country-cell" data-sort-value="{{ t.country }}" data-iso="{{ ciso[0] }}" data-name="{{ ciso[1] }}" title="{{ ciso[1] }}" onclick="event.stopPropagation(); toggleCountry(this)">{{ ciso[0] }}</td>
                             <td class="text-muted align-middle text-truncate" style="max-width: 180px;" data-sort-value="{{ t.sector }}">{{ t.sector }}</td>
                             <td class="text-muted align-middle text-truncate" style="max-width: 180px;" data-sort-value="{{ t.subsector }}">{{ t.subsector }}</td>
                             <td class="text-end align-middle num-font small text-nowrap" data-sort-value="{{ t.mcap.usd if t.mcap else '-' }}" {% if t.mcap %}title="{{ t.mcap.tier.name }} · {{ t.mcap.tier.range }}"{% endif %}>
                                 {% if t.mcap %}{{ t.mcap.label }} <span class="cap-badge cap-{{ t.mcap.tier.key }}">{{ t.mcap.tier.name|replace(' cap', '') }}</span>{% else %}<span class="text-muted" title="Aún sin acciones en circulación: se descargan en segundo plano">–</span>{% endif %}
                             </td>
-                            <td class="text-center align-middle fw-bold num-font" data-sort-value="{{ t.market_data.price }}">
+                            <td class="text-end align-middle fw-bold num-font text-nowrap" data-sort-value="{{ t.market_data.price }}">
                                 {{ format_euro(t.market_data.price, 2) }} {{ t.currency_symbol }}
                             </td>
                             <td class="text-end align-middle num-font small var-abs-cell {% if t.market_data.change > 0 %}text-success{% elif t.market_data.change < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ t.market_data.change }}">{% if t.market_data.change > 0 %}+{% endif %}{{ format_euro(t.market_data.change, 2) }}</td>
@@ -498,9 +530,6 @@
                             <td class="text-center fw-bold align-middle num-font {% if v_score != '-' %}{% if v_score|float >= 8.0 %}text-success{% elif v_score|float <= 5.0 %}text-danger{% else %}text-warning{% endif %}{% else %}text-muted{% endif %}"
                                 title="{{ tooltip_title }}" style="cursor: help;" data-sort-value="{{ v_score }}">
                                 <span>{{ v_score }}</span>
-                                {% if v_score != '-' %}
-                                <i class="bi bi-info-circle text-muted ms-1" style="font-size: 0.75rem;"></i>
-                                {% endif %}
                             </td>
                             {# Calcular la nota media de calidad (Normas + Veredicto) #}
                             {% set has_v = (v_score != '-') %}
@@ -529,24 +558,13 @@
                             {% endif %}
                             <td class="text-center align-middle" data-sort-value="{{ t.valuation.ratio }}">
                                 <div class="d-flex justify-content-center" title="{{ 'PER: ' ~ format_euro(t.valuation.market|float, 1) ~ ' / justo ' ~ format_euro(t.valuation.fair|float, 1) if t.valuation.market != '-' else '' }}">
-                                    {% if t.valuation.status == 'Ganga' %}
-                                    <span class="badge bg-success bg-opacity-75" style="font-size: 0.7rem;">🔥 GANGA</span>
-                                    {% elif t.valuation.status == 'Barato' %}
-                                    <span class="badge bg-success" style="font-size: 0.7rem;">✅ BARATO</span>
-                                    {% elif t.valuation.status == 'Precio Justo' %}
-                                    <span class="badge bg-secondary" style="font-size: 0.7rem;">⚖️ PRECIO JUSTO</span>
-                                    {% elif t.valuation.status == 'Caro' %}
-                                    <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">⚠️ CARO</span>
-                                    {% elif t.valuation.status == 'Burbuja' %}
-                                    <span class="badge bg-danger" style="font-size: 0.7rem;">🚨 BURBUJA</span>
-                                    {% else %}
-                                    <span class="badge bg-light text-muted border" style="font-size: 0.7rem;">PENDIENTE</span>
-                                    {% endif %}
+                                    {% set vz = {'Ganga': ('ganga', 'Ganga'), 'Barato': ('barata', 'Barata'), 'Precio Justo': ('justo', 'Justo'), 'Caro': ('cara', 'Cara'), 'Burbuja': ('burbuja', 'Burbuja')}.get(t.valuation.status) %}
+                                    {% if vz %}<span class="val-tag val-{{ vz[0] }}">{{ vz[1] }}</span>{% else %}<span class="text-muted" title="Sin valoración">–</span>{% endif %}
                                 </div>
                             </td>
                             <td class="text-center align-middle role-cell" data-sort-value="{{ t.role if t.role in roles_by_key else '' }}" onclick="event.stopPropagation();">
                                     <span class="dropdown role-dd">
-                                        <button type="button" class="role-tag {{ 'role-empty' if t.role not in roles_by_key }}" data-bs-toggle="dropdown" aria-expanded="false" title="{{ roles_by_key[t.role].name if t.role in roles_by_key else 'Asignar rol en cartera' }}">{{ roles_by_key[t.role].emoji ~ ' ' ~ t.role if t.role in roles_by_key else '+ rol' }}</button>
+                                        <button type="button" class="role-tag {{ 'role-empty' if t.role not in roles_by_key }}" data-bs-toggle="dropdown" aria-expanded="false" title="{{ t.role ~ ' · ' ~ roles_by_key[t.role].name if t.role in roles_by_key else 'Asignar rol en cartera' }}">{{ roles_by_key[t.role].emoji if t.role in roles_by_key else '+' }}</button>
                                         <ul class="dropdown-menu dropdown-menu-sm dropdown-menu-end">
                                             {% for r in roles %}<li><a class="dropdown-item small" href="#" onclick="event.preventDefault(); updateTickerRole('{{ t.name }}', '{{ r.key }}', this)">{{ r.emoji }} {{ r.name }}</a></li>{% endfor %}
                                             <li><hr class="dropdown-divider"></li>
@@ -753,19 +771,72 @@
         return checked.length > 0 ? checked : ["ALL"];
     }
 
+    const TAB_FILTER = {'all-tab': 'ALL', 'fav-tab': 'FAVORITES', 'portfolio-tab': 'PORTFOLIO', 'accepted-tab': 'ACCEPTED',
+                        'pending-tab': 'PENDING', 'standby-tab': 'STANDBY', 'rejected-tab': 'REJECTED'};
+    const TAB_IDS = Object.keys(TAB_FILTER);
+    // Si una fila va en una pestaña: Favoritas y los estados no repiten lo que ya está en cartera; Todas no incluye descartadas
+    function inTab(row, tabFilter) {
+        const rowStatus = row.getAttribute("data-status");
+        const isFav = row.getAttribute("data-is-favorite") === "true";
+        const isPort = row.getAttribute("data-is-portfolio") === "true";
+        if (tabFilter === "FAVORITES") return isFav && !isPort;
+        if (tabFilter === "PORTFOLIO") return isPort;
+        if (tabFilter === "ALL") return rowStatus !== "REJECTED";
+        return rowStatus === tabFilter && !isPort;
+    }
+
+    // Etiquetas con los filtros del panel que están puestos (× quita ese valor) y su número en el botón «Filtros»
+    const FILTER_GROUPS = {status: 'Estado', valuation: 'Valoración', cap: 'Capitalización', region: 'Región', sector: 'Sector', subsector: 'Subsector', country: 'País'};
+    function renderActiveFilters() {
+        const box = document.getElementById('activeFilters');
+        if (!box) return;
+        const esc = t => String(t).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+        const chips = [];
+        Object.entries(FILTER_GROUPS).forEach(([g, label]) => {
+            const cont = document.getElementById(`dropdown-${g}`);
+            if (!cont) return;
+            cont.querySelectorAll('input:not([value="ALL"]):checked').forEach(cb => {
+                const lbl = cb.nextElementSibling;
+                chips.push(`<span class="filter-chip"><span class="text-muted">${label}:</span> ${esc((lbl.querySelector('span') || lbl).textContent.trim())}
+                    <button type="button" onclick="removeFilter('${g}', '${cb.id}')" aria-label="Quitar"><i class="bi bi-x"></i></button></span>`);
+            });
+        });
+        const score = document.getElementById('filter-score');
+        if (score && parseFloat(score.value) > 0)
+            chips.push(`<span class="filter-chip"><span class="text-muted">Nota ≥</span> ${esc(score.value)}
+                <button type="button" onclick="removeFilter('score')" aria-label="Quitar"><i class="bi bi-x"></i></button></span>`);
+        box.innerHTML = chips.join('') + (chips.length > 1 ? '<button type="button" class="btn btn-link btn-sm p-0 ms-1 filter-chip-clear" onclick="clearFilters()">Quitar todos</button>' : '');
+        box.classList.toggle('d-none', !chips.length);
+        const n = document.getElementById('filtersCount');
+        if (n) n.textContent = chips.length ? ` · ${chips.length}` : '';
+    }
+    function removeFilter(group, id) {
+        if (group === 'score') { document.getElementById('filter-score').value = ''; applyFilters(); return; }
+        const cb = document.getElementById(id);
+        if (cb) cb.checked = false;
+        handleItemSelect(group);
+    }
+    function clearFilters() {
+        Object.keys(FILTER_GROUPS).forEach(g => {
+            const cont = document.getElementById(`dropdown-${g}`);
+            if (!cont) return;
+            cont.querySelectorAll('input:not([value="ALL"])').forEach(cb => cb.checked = false);
+            const all = cont.querySelector('input[value="ALL"]');
+            if (all) all.checked = true;
+            updateDropdownLabel(g);
+        });
+        const score = document.getElementById('filter-score');
+        if (score) score.value = '';
+        applyFilters();
+    }
+
     function applyFilters(resetPage = true) {
         const search = document.getElementById("filter-search").value.toLowerCase();
         
         // Get active tab status
         const activeTab = document.querySelector('#dbTabs .nav-link.active').id;
         
-        let tabFilter = "ALL";
-        if (activeTab === 'fav-tab') tabFilter = "FAVORITES";
-        else if (activeTab === 'portfolio-tab') tabFilter = "PORTFOLIO";
-        else if (activeTab === 'accepted-tab') tabFilter = "ACCEPTED";
-        else if (activeTab === 'pending-tab') tabFilter = "PENDING";
-        else if (activeTab === 'standby-tab') tabFilter = "STANDBY";
-        else if (activeTab === 'rejected-tab') tabFilter = "REJECTED";
+        const tabFilter = TAB_FILTER[activeTab] || "ALL";
 
         // Mostrar u ocultar dinámicamente la columna de Acciones según la pestaña activa (solo visible en Pendientes)
         const actionsCols = document.querySelectorAll('.actions-column');
@@ -784,26 +855,15 @@
         const minScore = parseFloat(document.getElementById("filter-score").value) || 0;
 
         const rows = document.querySelectorAll("#dbBody tr.ticker-row");
+        const counts = {};
         rows.forEach(row => {
-            let match = true;
             const rowStatus = row.getAttribute("data-status");
-            const isFav = row.getAttribute("data-is-favorite") === "true";
-            
-            // 1. Tab Filtering (High priority)
-            const isPort = row.getAttribute("data-is-portfolio") === "true";
-            if (tabFilter === "FAVORITES") {
-                if (!isFav || isPort) match = false;
-            } else if (tabFilter === "PORTFOLIO") {
-                if (!isPort) match = false;
-            } else if (tabFilter === "ALL") {
-                if (rowStatus === "REJECTED") match = false; // Exclude rejected from 'All'
-            } else {
-                if (rowStatus !== tabFilter || isPort) match = false;
-            }
-            
-            // 2. Manual Filters
+
+            // 1. Filtros del panel y buscador (los mismos para todas las pestañas)
+            let match = true;
             if (match && !selectedStatuses.includes("ALL") && !selectedStatuses.includes(rowStatus)) match = false;
-            if (match && search && !row.cells[0].textContent.toLowerCase().includes(search) && !row.cells[1].textContent.toLowerCase().includes(search)) match = false;
+            if (match && search && !row.cells[0].textContent.toLowerCase().includes(search) && !row.cells[1].textContent.toLowerCase().includes(search)
+                && !(row.getAttribute("data-sector") || '').toLowerCase().includes(search)) match = false;
             if (match && !selectedValuations.includes("ALL") && !selectedValuations.includes(row.getAttribute("data-valuation"))) match = false;
             if (match && !selectedRegions.includes("ALL") && !selectedRegions.includes(row.getAttribute("data-region"))) match = false;
             if (match && !selectedSectors.includes("ALL") && !selectedSectors.includes(row.getAttribute("data-sector"))) match = false;
@@ -813,8 +873,12 @@
             
             if (match && parseFloat(row.getAttribute("data-score-general") || 0) < minScore) match = false;
 
-            row.setAttribute("data-filtered", match ? "true" : "false");
+            // 2. Pestaña; el número de cada pestaña cuenta las que pasan los filtros
+            if (match) TAB_IDS.forEach(id => { if (inTab(row, TAB_FILTER[id])) counts[id] = (counts[id] || 0) + 1; });
+            row.setAttribute("data-filtered", match && inTab(row, tabFilter) ? "true" : "false");
         });
+        document.querySelectorAll('[data-tab-count]').forEach(el => el.textContent = counts[el.dataset.tabCount] || 0);
+        renderActiveFilters();
 
         if (resetPage === true || resetPage instanceof Event) {
             currentPage = 1;
@@ -976,6 +1040,30 @@
         }
     }
 
+    // País: código ISO; al pulsarlo alterna con el nombre
+    function toggleCountry(td) {
+        td.textContent = td.textContent === td.dataset.iso ? td.dataset.name : td.dataset.iso;
+    }
+
+    // Exportar a CSV las filas que se ven con los filtros y la pestaña (todas las páginas), con los valores completos
+    function exportActiveTable() {
+        const ths = [...document.querySelectorAll('#dbTable thead th')].filter(th => !th.classList.contains('actions-column'));
+        const csvCell = v => /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+        const lines = [ths.map(th => csvCell((th.getAttribute('title') || th.textContent).trim())).join(';')];
+        document.querySelectorAll('#dbBody tr.ticker-row[data-filtered="true"]').forEach(tr => {
+            lines.push([...tr.cells].slice(0, ths.length).map(td => {
+                const v = td.dataset.sortValue;
+                return csvCell(String(v !== undefined && v !== '-' ? v : td.textContent.trim().replace(/\s+/g, ' ')));
+            }).join(';'));
+        });
+        const tab = document.querySelector('#dbTabs .nav-link.active')?.id.replace('-tab', '') || 'todas';
+        const a = Object.assign(document.createElement('a'), {
+            href: URL.createObjectURL(new Blob(['\ufeff' + lines.join('\n')], {type: 'text/csv;charset=utf-8'})),
+            download: `empresas_${tab}_${new Date().toISOString().slice(0, 10)}.csv`});
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
     // Rol en el Portfolio ideal (CORE, GROWTH…): desplegable en la columna «Rol»
     const ROLES = {{ portfolio_roles()|tojson }};
     function setRowRole(row, role) {
@@ -983,8 +1071,8 @@
         row.dataset.role = role || '';
         const tag = row.querySelector('.role-tag');
         if (!tag) return;
-        tag.textContent = r ? `${r.emoji} ${r.key}` : '+ rol';
-        tag.title = r ? r.name : 'Asignar rol en cartera';
+        tag.textContent = r ? r.emoji : '+';
+        tag.title = r ? `${r.key} · ${r.name}` : 'Asignar rol en cartera';
         tag.classList.toggle('role-empty', !r);
         const cell = row.querySelector('.role-cell');
         if (cell) cell.dataset.sortValue = r ? r.key : '';
@@ -1049,6 +1137,11 @@
             tab.addEventListener('shown.bs.tab', applyFilters);
         });
         document.querySelectorAll(".filter-input").forEach(el => el.addEventListener("input", applyFilters));
+        // Textos cortados (nombre, país, sector, subsector): al pasar el ratón se ve entero
+        document.getElementById('dbBody').addEventListener('mouseover', e => {
+            const el = e.target.closest('.company-name, td.text-truncate');
+            if (el && !el.title && el.scrollWidth > el.clientWidth) el.title = el.textContent.trim();
+        });
         applyFilters();
         
         // Ordenar inicialmente por nota media de forma descendente (de mayor a menor)

@@ -670,7 +670,7 @@ class PortfolioService:
         return all_dividends[:limit]
 
     def get_dividend_kpis(self, fx_rates: dict = None) -> Dict[str, Any]:
-        """KPIs de dividendos: YTD, año anterior, media mensual."""
+        """KPIs de dividendos: YTD, año anterior, media mensual y lo cobrado desde el primero."""
         from datetime import date, timedelta
         today = date.today()
         current_year = str(today.year)
@@ -678,10 +678,14 @@ class PortfolioService:
 
         total_ytd = 0.0
         total_last_year = 0.0
+        total_all = 0.0
+        first_year = None
         monthly_totals: Dict[str, float] = {}
 
         for d in self.dividends_eur(fx_rates):
             year = d['date'][:4]
+            total_all += d['eur']
+            first_year = year if first_year is None else min(first_year, year)
             if year == current_year:
                 total_ytd += d['eur']
             elif year == last_year:
@@ -704,6 +708,8 @@ class PortfolioService:
             "total_last_year": total_last_year,
             "yoy_change": yoy_change,
             "avg_monthly": avg_monthly,
+            "total_all": total_all,
+            "first_year": first_year,
             "current_year": today.year,
         }
 

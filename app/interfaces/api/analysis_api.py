@@ -113,10 +113,30 @@ def get_enriched_audit_context(db_data: dict) -> str:
     return audit_text
 
 
+# Tareas que este proceso está ejecutando ahora mismo. Una tarea «processing» en BBDD que no está aquí se quedó
+# a medias (el servidor se reinició mientras se generaba) y no va a terminar nunca.
+RUNNING_TASKS: set[str] = set()
+
+
+def running_tasks(db: Session, ticker: str) -> dict:
+    """Informes en curso de un ticker, {report_type: task_id}, para que la ficha siga esperándolos al recargar.
+    Los que se quedaron a medias por un reinicio se marcan como error, para que se puedan volver a lanzar."""
+    out = {}
+    for task in db.query(DBTask).filter(DBTask.ticker == ticker.upper(), DBTask.status == "processing").order_by(DBTask.created_at):
+        if task.task_id in RUNNING_TASKS:
+            out[task.report_type] = task.task_id
+        else:
+            update_task_db(db, task.task_id, "error", error="Se interrumpió: el servidor se reinició mientras se generaba.")
+    return out
+
+
 def run_agent_task(task_id: str, ticker: str, report_type: str, company_name: str, db_data: dict, feedback: str):
     # Contabilizar tokens y coste de toda la ejecución del agente (incluidas sus herramientas)
-    with track_usage(f"{ticker}/{report_type}", background=True) as tracker:
-        _run_agent_task(task_id, ticker, report_type, company_name, db_data, feedback, tracker)
+    try:
+        with track_usage(f"{ticker}/{report_type}", background=True) as tracker:
+            _run_agent_task(task_id, ticker, report_type, company_name, db_data, feedback, tracker)
+    finally:
+        RUNNING_TASKS.discard(task_id)
 
 def _run_agent_task(task_id: str, ticker: str, report_type: str, company_name: str, db_data: dict, feedback: str, tracker):
     db_session = SessionLocal()
@@ -591,6 +611,7 @@ def generate_report(
     )
     db_session.add(db_task)
     db_session.commit()
+    RUNNING_TASKS.add(task_id)
     
     background_tasks.add_task(run_agent_task, task_id, ticker, report_type, company_name, db_data, feedback)
     

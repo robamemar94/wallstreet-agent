@@ -75,6 +75,44 @@ def get_region_for_asset(ticker, country):
             
     return "Otros"
 
+_MARKET_COUNTRIES = {
+    "nordicos": ("sweden", "norway", "denmark", "finland", "iceland"),
+    "uk": ("united kingdom", "jersey", "guernsey", "isle of man"),
+    "europa": ("germany", "france", "italy", "spain", "netherlands", "switzerland", "poland", "belgium",
+               "austria", "ireland", "portugal", "greece", "czech republic", "hungary", "luxembourg", "cyprus", "malta",
+               "monaco", "liechtenstein"),
+    "america": ("canada", "mexico", "brazil", "argentina", "chile", "colombia", "peru", "uruguay", "panama",
+                "bermuda", "cayman islands", "puerto rico", "bahamas"),
+    "oceania": ("australia", "new zealand"),
+    "asia": ("japan", "china", "hong kong", "taiwan", "singapore", "south korea", "korea", "india", "indonesia",
+             "thailand", "malaysia", "philippines", "vietnam", "israel", "macau"),
+}
+_MARKET_SUFFIXES = {
+    "nordicos": (".ST", ".OL", ".CO", ".HE", ".IC"),
+    "uk": (".L", ".IL"),
+    "europa": (".MC", ".PA", ".AS", ".MI", ".WA", ".DE", ".F", ".SW", ".AT", ".BR", ".LS", ".VI", ".IR", ".PR"),
+    "america": (".TO", ".V", ".CN", ".NE", ".MX", ".SA", ".BA", ".SN"),
+    "oceania": (".AX", ".NZ"),
+    "asia": (".T", ".HK", ".SS", ".SZ", ".TW", ".TWO", ".SI", ".KS", ".KQ", ".NS", ".BO", ".JK", ".BK", ".KL", ".TA"),
+}
+
+def get_market_group(ticker, country):
+    """Grupo de países del filtro «Actividad del día»: usa, europa, uk, nordicos, america, oceania, asia u otros.
+    Manda el país de la empresa (TSM → Asia aunque cotice en EE.UU.); si falta, el sufijo del ticker."""
+    c = (country or "").strip().lower()
+    if c in ("united states", "usa", "us"):
+        return "usa"
+    for group, countries in _MARKET_COUNTRIES.items():
+        if c in countries:
+            return group
+    t = (ticker or "").upper()
+    for group, suffixes in _MARKET_SUFFIXES.items():
+        if t.endswith(suffixes):
+            return group
+    if c in ("", "-") and "." not in t:
+        return "usa"
+    return "otros"
+
 def ensure_prices_cached(tickers: list, asset_repo, wait: bool = False) -> None:
     """Asegura que los tickers provistos tengan su precio y variación en INDEX_CACHE.
     Si faltan, se descargan (y se espera); si solo están viejos, se muestran y se actualizan en segundo plano.
@@ -428,7 +466,8 @@ def index(
             p_price = d["price"]
             p_prev = d["prev"]
             p_last_date = d.get("last_date")
-            if is_weekday and p_last_date and p_last_date != today:
+            not_open = bool(is_weekday and p_last_date and p_last_date != today)
+            if not_open:
                 p_prev = p_price
             change = p_price - p_prev
             pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
@@ -438,6 +477,7 @@ def index(
                 "pct": pct, "price": p_price, "change_abs": change,
                 "symbol": get_currency_symbol(db_d.get("currency", "USD"), t),
                 "region": get_region_for_asset(t, db_d.get("country", "-")),
+                "market": get_market_group(t, db_d.get("country", "-")), "not_open": not_open,
                 "status": db_d.get("status") or "NONE"
             }
 
@@ -499,7 +539,8 @@ def index(
                     p_price = d["price"]
                     p_prev = d["prev"]
                     p_last_date = d.get("last_date")
-                    if is_weekday and p_last_date and p_last_date != today:
+                    not_open = bool(is_weekday and p_last_date and p_last_date != today)
+                    if not_open:
                         p_prev = p_price
                     change = p_price - p_prev
                     pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
@@ -512,6 +553,7 @@ def index(
                         "pct": pct, "price": p_price, "change_abs": change,
                         "symbol": get_currency_symbol(db_d.get("currency", "USD"), asset.ticker),
                         "region": get_region_for_asset(asset.ticker, db_d.get("country", "-")),
+                        "market": get_market_group(asset.ticker, db_d.get("country", "-")), "not_open": not_open,
                         "status": db_d.get("status") or "NONE",
                         "is_favorite": asset.is_favorite
                     }

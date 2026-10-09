@@ -266,19 +266,16 @@
 <!-- 2. Row: Movers (Ganadores, Perdedores, Mi Cartera) -->
 <div class="d-flex justify-content-start align-items-center mb-3 mt-4 flex-wrap gap-3">
     <h4 class="fw-bold mb-0 text-white" id="activityTitle" style="font-size: 1.12rem;">Actividad del Día</h4>
+    <span class="badge rounded-pill text-white-50 d-none" id="activityNotOpen" style="font-size: 0.68rem; background: rgba(255,255,255,0.08); font-weight: 500;" title="Cotizan hoy pero su bolsa aún no ha abierto: se ocultan para no llenar la lista de 0,00 %"></span>
     <div class="btn-group btn-group-sm" id="activityFilterGroup" role="group" aria-label="Filtro de Región">
-        <button type="button" class="btn btn-outline-secondary active py-1 px-2.5" data-filter="all" onclick="setActivityRegionFilter('all')" style="font-size: 0.72rem; line-height: 1;">
-            🌍 Todos
-        </button>
-        <button type="button" class="btn btn-outline-secondary py-1 px-2.5" data-filter="usa" onclick="setActivityRegionFilter('usa')" style="font-size: 0.72rem; line-height: 1;">
-            🇺🇸 EE.UU.
-        </button>
-        <button type="button" class="btn btn-outline-secondary py-1 px-2.5" data-filter="europa" onclick="setActivityRegionFilter('europa')" style="font-size: 0.72rem; line-height: 1;">
-            🇪🇺 Europa
-        </button>
-        <button type="button" class="btn btn-outline-secondary py-1 px-2.5" data-filter="resto" onclick="setActivityRegionFilter('resto')" style="font-size: 0.72rem; line-height: 1;">
-            🌎 Resto del Mundo
-        </button>
+        <button type="button" class="btn btn-outline-secondary active py-1 px-2" data-filter="all" onclick="setActivityRegionFilter('all')" title="Todos los países" style="font-size: 0.72rem; line-height: 1;">Todos</button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="usa" onclick="setActivityRegionFilter('usa')" title="EE.UU." style="font-size: 0.72rem; line-height: 1;">🇺🇸 EEUU</button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="europa" onclick="setActivityRegionFilter('europa')" title="Europa continental (sin nórdicos ni Reino Unido)" style="font-size: 0.72rem; line-height: 1;">🇪🇺 EU</button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="uk" onclick="setActivityRegionFilter('uk')" title="Reino Unido" style="font-size: 0.72rem; line-height: 1;">🇬🇧 UK</button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="nordicos" onclick="setActivityRegionFilter('nordicos')" title="Nórdicos: Suecia, Noruega, Dinamarca, Finlandia" style="font-size: 0.72rem; line-height: 1;">🇳🇴 NÓRD</button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="america" onclick="setActivityRegionFilter('america')" title="América sin EE.UU.: Canadá, México, Latinoamérica" style="font-size: 0.72rem; line-height: 1;">🌎 AMÉR</button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="oceania" onclick="setActivityRegionFilter('oceania')" title="Australia y Nueva Zelanda" style="font-size: 0.72rem; line-height: 1;">🇦🇺 AUS</button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="asia" onclick="setActivityRegionFilter('asia')" title="Asia: Japón, Taiwán, China, Singapur…" style="font-size: 0.72rem; line-height: 1;">🇯🇵 ASIA</button>
     </div>
 
     <!-- Filtro de Estados Multi-selección (Alineado junto a las regiones) -->
@@ -353,7 +350,7 @@
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <tbody id="gainerListMarket">
                             {% for t in top_gainers %}
-                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="gainer-item-market" data-region="{{ t.region }}" data-status="{{ t.status }}">
+                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="gainer-item-market" data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }} data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
@@ -394,7 +391,7 @@
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <tbody id="loserListMarket">
                             {% for t in top_losers %}
-                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="loser-item-market" data-region="{{ t.region }}" data-status="{{ t.status }}">
+                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="loser-item-market" data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }} data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
@@ -472,7 +469,7 @@
                                 data-ticker="{{ clean_ticker(t.name) }}"
                                 data-price="{{ t.price or 0 }}"
                                 data-pct="{{ t.pct or 0 }}"
-                                data-region="{{ t.region }}"
+                                data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }}
                                 data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
@@ -506,7 +503,7 @@
                                 data-price="{{ t.price or 0 }}"
                                 data-pct="{{ t.pct or 0 }}"
                                 data-drop="{{ t.drop_pct }}"{{ ' data-held=1' if t.held }}
-                                data-region="{{ t.region }}"
+                                data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }}
                                 data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
@@ -541,7 +538,7 @@
                                 data-ticker="{{ clean_ticker(t.name) }}"
                                 data-price="{{ t.price or 0 }}"
                                 data-pct="{{ t.pct or 0 }}"
-                                data-region="{{ t.region }}"
+                                data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }}
                                 data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
@@ -596,7 +593,7 @@
                                 data-ticker="{{ clean_ticker(t.name) }}"
                                 data-price="{{ t.price or 0 }}"
                                 data-pct="{{ t.pct or 0 }}"
-                                data-region="{{ t.region }}" data-status="{{ t.status }}">
+                                data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }} data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
@@ -648,15 +645,18 @@
     let activityRegionFilter = 'all';
     let selectedActivityStatuses = ['ACCEPTED', 'STANDBY'];
 
+    // Grupo de países (data-market, de get_market_group); cada botón solo su grupo (Europa sin nórdicos ni R. Unido)
+    const passActivityRegion = el => {
+        if (activityRegionFilter === 'all') return true;
+        const m = el.dataset.market || 'otros';
+        return m === activityRegionFilter;
+    };
+
     window.activityFilterFn = el => {
+        // 0. Los que hoy aún no han abierto (saldrían con 0,00 %) no se muestran; se cuentan en #activityNotOpen
+        if (el.dataset.notOpen) return false;
         // 1. Filtrar por región
-        let passRegion = true;
-        if (activityRegionFilter !== 'all') {
-            const r = el.getAttribute('data-region') || '';
-            if (activityRegionFilter === 'usa') passRegion = (r === 'USA' || r === 'US');
-            else if (activityRegionFilter === 'europa') passRegion = (r === 'Europa');
-            else if (activityRegionFilter === 'resto') passRegion = (r !== 'Europa' && r !== 'USA' && r !== 'US');
-        }
+        const passRegion = passActivityRegion(el);
 
         // 2. Filtrar por estado
         let passStatus = true;
@@ -668,6 +668,16 @@
         return passRegion && passStatus;
     };
 
+    function updateActivityNotOpen() {
+        const badge = document.getElementById('activityNotOpen');
+        if (!badge) return;
+        const n = [...document.querySelectorAll('.gainer-item-market[data-not-open], .loser-item-market[data-not-open]')]
+            .filter(el => passActivityRegion(el)
+                && (selectedActivityStatuses.includes('ALL') || selectedActivityStatuses.includes(el.dataset.status || 'NONE'))).length;
+        badge.textContent = `🕒 ${n} sin abrir`;
+        badge.classList.toggle('d-none', n === 0);
+    }
+
     function setActivityRegionFilter(filter) {
         activityRegionFilter = filter;
         document.querySelectorAll('#activityFilterGroup .btn').forEach(btn => {
@@ -675,8 +685,10 @@
         });
         window.paginationStates?.['gainerListMarket']?.refresh();
         window.paginationStates?.['loserListMarket']?.refresh();
-        window.paginationStates?.['favList']?.refresh();
+        window.paginationStates?.['list-body-' + (window.currentDashboardListId || 'fav')]?.refresh();
         window.paginationStates?.['portListMarket']?.refresh();
+        if (typeof paintBuyZoneEmpty === 'function') paintBuyZoneEmpty();
+        updateActivityNotOpen();
     }
 
     function toggleActivityStatus(statusVal) {
@@ -732,6 +744,7 @@
         window.paginationStates?.[activeListId]?.refresh();
         window.paginationStates?.['portListMarket']?.refresh();
         if (typeof paintBuyZoneEmpty === 'function') paintBuyZoneEmpty();
+        updateActivityNotOpen();
     }
 
     function setupSimplePagination(listId, itemClass, paginationId, itemsPerPage, filterFn) {

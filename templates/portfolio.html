@@ -91,6 +91,14 @@
     .sum-seg { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0; padding: .3rem .6rem;
                border: 0; border-right: 1px solid var(--bs-border-color); background: transparent; color: inherit; text-align: left; }
     .sum-seg:last-child { border-right: 0; }
+    /* Valor actual: el tramo principal, con el cambio de hoy debajo; raya, fondo tenue y cambio en verde o rojo según el día */
+    .sum-seg-key { --key: var(--bs-secondary-color); box-shadow: inset 3px 0 0 var(--key); }
+    .sum-seg-key.key-up { --key: var(--fin-green); background: rgba(34, 197, 94, .06); }
+    .sum-seg-key.key-down { --key: var(--fin-red); background: rgba(239, 68, 68, .06); }
+    .sum-seg-key .key-chg { color: var(--key); white-space: nowrap; }
+    .sum-seg-key .sum-val { font-size: 1.05rem; }
+    .sum-seg-key .key-chg { font-size: .86rem; font-weight: 700; line-height: 1.2; }
+    .sum-seg-key .key-pct { font-size: .74rem; font-weight: 600; }
     button.sum-seg:hover { background: rgba(127, 127, 127, .08); }
     .var-band.picking .sum-seg.active { box-shadow: inset 0 -2px 0 var(--bs-primary); background: rgba(127, 127, 127, .06); }
     .sum-label { font-size: .65rem; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--bs-secondary-color); white-space: nowrap; }
@@ -250,13 +258,16 @@
     <div class="summary-strip mb-2">
     <div class="card border-0 sum-group" style="background-color: var(--fin-card-bg);">
         <div class="sum-row">
+            {% set d_abs = total_daily_abs %}{% set d_pct = total_daily_pct %}
+            <div class="sum-seg sum-seg-key {{ 'key-up' if d_abs > 0 else ('key-down' if d_abs < 0 else '') }}">
+                <span class="sum-label">Valor actual</span>
+                <span class="sum-val num-font">{{ num(total_current_value, 2) }} €</span>
+                <span class="sum-sub num-font key-chg" title="Hoy: desde el cierre anterior, con los precios en directo (incluye el cambio de la divisa)">{{ '+' if d_abs > 0 }}{{ num(d_abs, 2) }} €</span>
+                <span class="sum-sub num-font key-chg key-pct" title="Hoy, en porcentaje">{{ '+' if d_pct > 0 }}{{ num(d_pct, 2) }}%</span>
+            </div>
             <div class="sum-seg">
                 <span class="sum-label">Invertido <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" title="✂️ Comisiones Totales: {{ num(total_fees, 2) }} €"></i></span>
                 <span class="sum-val num-font">{{ num(total_invested, 2) }} €</span>
-            </div>
-            <div class="sum-seg">
-                <span class="sum-label">Valor actual</span>
-                <span class="sum-val num-font">{{ num(total_current_value, 2) }} €</span>
             </div>
             <div class="sum-seg">
                 <span class="sum-label">Rent. latente <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" data-bs-html="true" title="📈 Efecto Acción: {% if global_unrealized_price_pnl >= 0 %}+{% endif %}{{ num(global_unrealized_price_pnl, 0) }} €<br>💵 Efecto Divisa: {% if global_unrealized_fx_pnl >= 0 %}+{% endif %}{{ num(global_unrealized_fx_pnl, 0) }} €"></i></span>
@@ -887,6 +898,11 @@
             <div class="d-flex align-items-baseline gap-2">
               <span class="fw-bold" style="font-size:1.05rem;">Resumen</span>
             </div>
+          </div>
+          <div class="col border-end pe-4 me-4">
+            <div class="text-muted" style="font-size:0.72rem;" title="Todo lo cobrado en dividendos, en bruto y en euros con el cambio de hoy">COBRADO TOTAL</div>
+            <div class="fw-bold text-success num-font" style="font-size:1.25rem;">{{ num(div_kpis.total_all, 2) }} €</div>
+            {% if div_kpis.first_year %}<small class="text-muted" style="font-size:0.78rem;">desde {{ div_kpis.first_year }}</small>{% endif %}
           </div>
           <div class="col border-end pe-4 me-4">
             <div class="text-muted" style="font-size:0.72rem;">COBRADO {{ div_kpis.current_year }}</div>

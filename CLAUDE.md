@@ -54,7 +54,7 @@ uv run pytest -q -m network             # los que llaman a yfinance de verdad (s
 
 ## Conceptos que se repiten
 - **Avisos y señales:** `notice_service.track()` les da una clave estable y guarda leído/descartado en BBDD
-  (`/api/notices/seen`, `/api/notices/dismiss`). El recuento de no leídos **solo cuenta la cartera** (`data-held`).
+  (`/api/notices/seen`, `/api/notices/dismiss`). El recuento de no leídos **solo cuenta la cartera** (`data-held`); si no hay ninguna de la cartera pero sí otras (de fuera de cartera, o cambios de valoración que no van hacia zona de compra), la campana muestra solo un punto naranja, sin número (`quiet` en `/api/notifications/count`).
   Ese recuento aparece en varios sitios (lista, pestaña del Centro, Resumen, globo del menú, `/api/centro/pulso`):
   si se cambia uno, hay que revisar los demás.
 - **Tesis:** `config/theses/<ticker>.yaml` (datos y reglas) + `.md` (texto). Los documentos fuente están en `data/theses/`.

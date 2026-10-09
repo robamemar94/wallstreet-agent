@@ -603,6 +603,8 @@
             display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--bs-body-bg);
         }
         .notif-bell .notif-bell-badge.d-none { display: none !important; }
+        /* Sin nada de la cartera pero con algo de fuera (watchlist…): un punto discreto, sin número */
+        .notif-bell .notif-bell-badge.dot { min-width: 9px; width: 9px; height: 9px; padding: 0; top: 2px; right: 0; background: #f0ad4e; }
         .notif-filters .btn { font-size: .72rem; }
         .notif-item { display: flex; gap: .6rem; padding: .6rem 1rem; border-bottom: 1px solid var(--bs-border-color); font-size: .8rem; }
         .notif-item:hover { background: var(--bs-tertiary-bg); }
@@ -1041,7 +1043,17 @@
         // Globos de la campana y de «Alertas» en el menú: del mismo recuento que el panel de notificaciones
         const setBadge = (el, n) => { if (!el) return; el.textContent = n > 99 ? '99+' : n; el.classList.toggle('d-none', !n); };
         window.refreshNotificationBadges = () => fetch('/api/notifications/count').then(r => r.json()).then(c => {
-            document.querySelectorAll('.notif-bell-badge').forEach(b => setBadge(b, c.total));
+            // Campana: número = sin leer de la cartera; si no hay ninguna pero sí otras (de fuera de cartera, o cambios
+            // de valoración que no van hacia zona de compra), solo un punto
+            const outside = c.quiet || 0;
+            document.querySelectorAll('.notif-bell-badge').forEach(b => {
+                setBadge(b, c.total);
+                const dot = !c.total && outside > 0;
+                b.classList.toggle('dot', dot);
+                if (dot) { b.textContent = ''; b.classList.remove('d-none'); }
+                b.closest('.notif-bell')?.setAttribute('title', c.total ? `Notificaciones: ${c.total} sin leer de tu cartera`
+                    : dot ? `Notificaciones: ${outside} sin leer que no son urgentes (fuera de cartera o cambios de valoración)` : 'Notificaciones');
+            });
             setBadge(document.getElementById('sidebarAlertBadge'), c.alertas_all);   // Alertas: todas las empresas vigiladas
             if (window.thesisBadgeState) {
                 window.thesisBadgeState.news = c.noticias;

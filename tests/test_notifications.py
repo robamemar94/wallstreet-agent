@@ -39,11 +39,11 @@ def test_panel_collects_alerts_news_and_notices_and_marks_them_read():
     assert {i["group"] for i in items} == {"alertas", "noticias", "avisos", "monitor"}
     assert all(i["ticker"] != "BBB" for i in items)                      # las heredadas silenciosas no salen
     # nada en cartera: se ven las 3, pero no cuentan en el globo
-    assert notification_service.unread_counts(items) == {"total": 0, "alertas": 0, "noticias": 0, "avisos": 0, "monitor": 0, "all": 4, "alertas_all": 1}
+    assert notification_service.unread_counts(items) == {"total": 0, "alertas": 0, "noticias": 0, "avisos": 0, "monitor": 0, "all": 4, "alertas_all": 1, "quiet": 4}
     from app.infrastructure.db.models import DBAsset, DBPortfolioItem
     db.add(DBAsset(ticker="AAA", data={})); db.add(DBPortfolioItem(ticker="AAA", shares=10)); db.commit()
     items = notification_service.collect(db, theses, notices)
-    assert notification_service.unread_counts(items) == {"total": 3, "alertas": 1, "noticias": 1, "avisos": 0, "monitor": 1, "all": 4, "alertas_all": 1}
+    assert notification_service.unread_counts(items) == {"total": 3, "alertas": 1, "noticias": 1, "avisos": 0, "monitor": 1, "all": 4, "alertas_all": 1, "quiet": 1}
     notification_service.mark_read(db, theses, notices, [i["key"] for i in items])
     assert notification_service.unread_counts(notification_service.collect(db, theses, notices))["all"] == 0
     alert_key = next(i["key"] for i in items if i["group"] == "alertas")
@@ -62,6 +62,11 @@ def test_valuation_changes_light_badges_only_when_moving_into_buy_zone():
     assert {i["ticker"] for i in items} == {"A1", "A2", "A3", "A4", "A5"}       # todas siguen en la lista
     assert {i["ticker"] for i in items if i["counts"]} == {"A1", "A2"}
     assert notification_service.unread_counts(items)["alertas_all"] == 2
+    # aunque estén en cartera, las que no cuentan no van en el número de la campana, solo en su punto («quiet»)
+    for i in items:
+        i["portfolio"] = True
+    c = notification_service.unread_counts(items)
+    assert (c["total"], c["quiet"]) == (2, 3)
 
 
 def test_reading_a_news_notice_reads_the_news():

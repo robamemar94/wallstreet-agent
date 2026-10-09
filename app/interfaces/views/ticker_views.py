@@ -448,9 +448,14 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
     except Exception as e:
         print(f"Error loading portfolio data for ticker view {ticker}: {e}")
 
+    # Informes que se están generando ahora: al recargar, la ficha los sigue esperando en vez de ofrecer «Generar ahora»
+    from app.interfaces.api.analysis_api import running_tasks
+    running = running_tasks(db_session, ticker)
+
     return templates.TemplateResponse("ticker.html", {
         "request": request, 
         "ticker": ticker, 
+        "running_tasks": running,
         "info": info, 
         "currency_symbol": get_currency_symbol(info.get('currency', 'USD'), ticker), 
         "custom_metrics": metrics, 
