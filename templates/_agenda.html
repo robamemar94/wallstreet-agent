@@ -113,16 +113,16 @@
 {% endmacro %}
 {% macro agenda_compact(agenda, other, theses_ids) %}
 <div class="card h-100" id="agendaCard" data-store="agendaCompact">
-    <div class="card-header bg-transparent fw-bold d-flex justify-content-between align-items-center gap-2">
-        <span><i class="bi bi-calendar-week me-1"></i>Agenda</span>
+    <div class="card-header bg-transparent fw-bold d-flex justify-content-between align-items-center gap-2 flex-nowrap">
+        <span class="text-nowrap"><i class="bi bi-calendar-week me-1"></i>Agenda</span>
         <div class="d-flex gap-1">
             <div class="btn-group btn-group-sm" role="group" aria-label="Empresas">
                 <button type="button" class="btn btn-outline-secondary active" data-agenda-view-btn="cartera" title="Tu cartera: resultados y dividendos"><i class="bi bi-briefcase"></i></button>
                 <button type="button" class="btn btn-outline-secondary" data-agenda-view-btn="resto" title="Las que sigues sin tenerlas: resultados"><i class="bi bi-binoculars"></i></button>
             </div>
             <div class="btn-group btn-group-sm" role="group" aria-label="Periodo">   {# 30 días de serie: en la columna cabe y se ve más #}
-                <button type="button" class="btn btn-outline-secondary" data-agenda="mes">30 días</button>
-                <button type="button" class="btn btn-outline-secondary" data-agenda="semana">7 días</button>
+                <button type="button" class="btn btn-outline-secondary" data-agenda="mes" title="30 días">30 d</button>
+                <button type="button" class="btn btn-outline-secondary" data-agenda="semana" title="7 días">7 d</button>
             </div>
         </div>
     </div>
@@ -214,7 +214,7 @@
 <div class="card-body small agenda-window d-none" data-agenda-window="{{ key }}">
 <div class="row g-2">
 <div class="col-12">
-    <div class="summary-section">
+    <div class="summary-section" style="flex-grow: 1.25;">
         {{ heading('CARTERA', '(desde el ' ~ p.start.strftime('%d/%m') ~ ')') }}
         {% if p.pct is not none %}
         <div class="d-flex align-items-baseline gap-2 flex-wrap">
@@ -226,28 +226,28 @@
             {% if p.incomplete %}<span class="text-warning" title="Yahoo no ha dado su precio de esa fecha: quedan fuera del cálculo"><i class="bi bi-exclamation-triangle"></i> sin {{ p.incomplete|join(', ') }}</span>{% endif %}</div>
         {% else %}<span class="text-muted">Sin datos de precios.</span>{% endif %}
     </div>
-    <div class="summary-section">
+    <div class="summary-section" style="flex-grow: 1.25;">
         {{ heading('LO QUE MÁS LA HA MOVIDO') }}
         {% if p.gainers or p.losers %}<div>
             {% for m in p.gainers %}<span class="badge bg-success bg-opacity-10 text-success fw-normal me-1 mb-1">{{ m.ticker }} {{ num(m.pnl_eur, 0, sign=True) }} €</span>{% endfor %}
             {% for m in p.losers %}<span class="badge bg-danger bg-opacity-10 text-danger fw-normal me-1 mb-1">{{ m.ticker }} {{ num(m.pnl_eur, 0, sign=True) }} €</span>{% endfor %}
         </div>{% else %}<span class="text-muted">Sin movimientos.</span>{% endif %}
     </div>
-    <div class="summary-section">
+    <div class="summary-section" style="flex-grow: 0.75;">
         {{ heading('DIVIDENDOS DEVENGADOS') }}
         {% if p.dividends %}<i class="bi bi-cash-coin text-success me-1"></i><span class="fw-bold text-success">+{{ num(p.dividends_eur, 2) }} €</span> <span class="text-muted">brutos ({{ p.dividends|map(attribute='ticker')|unique|join(', ') }})</span>
         {% else %}<span class="text-muted">Ninguno.</span>{% endif %}
     </div>
 </div>
 <div class="col-12">
-    <div class="summary-section">
+    <div class="summary-section" style="flex-grow: 1.7;">
         {{ heading('OPERACIONES') }}
-        {% if p.transactions %}<ul class="list-unstyled mb-0">{% for t in p.transactions %}<li class="mb-1"><i class="bi {{ 'bi-plus-circle text-success' if t.type == 'BUY' else 'bi-dash-circle text-danger' }} me-1"></i>{{ 'Compra' if t.type == 'BUY' else 'Venta' }} {{ num(t.shares, 0 if t.shares == t.shares|round else 2) }} <strong>{{ clean_ticker(t.ticker) }}</strong>
-            {% if t.avg_price %}a {{ num(t.avg_price, 2) }} {{ t.cur }}{% if t.count > 1 %} de media{% endif %}{% endif %}
-            <span class="text-muted">· {% if t.count > 1 %}{{ t.count }} veces, {{ t.first[8:10] }}/{{ t.first[5:7] }}–{{ t.last[8:10] }}/{{ t.last[5:7] }}{% else %}{{ t.last[8:10] }}/{{ t.last[5:7] }}{% endif %}</span></li>{% endfor %}</ul>
+        {# una línea por empresa (precio medio si fueron varias); fechas y número de órdenes en la ⓘ #}
+        {% if p.transactions %}<ul class="list-unstyled mb-0">{% for t in p.transactions %}<li class="text-nowrap" style="line-height: 1.55;"><i class="bi {{ 'bi-plus-circle text-success' if t.type == 'BUY' else 'bi-dash-circle text-danger' }} me-1"></i>{{ num(t.shares, 0 if t.shares == t.shares|round else 2) }} <strong>{{ clean_ticker(t.ticker) }}</strong>{% if t.avg_price %} · {{ num(t.avg_price, 2) }} {{ t.cur }}{% endif %}
+            <i class="bi bi-info-circle text-muted ms-1" title="{% if t.count > 1 %}{{ t.count }} {{ 'compras' if t.type == 'BUY' else 'ventas' }} entre el {{ t.first[8:10] }}/{{ t.first[5:7] }} y el {{ t.last[8:10] }}/{{ t.last[5:7] }}{% if t.avg_price %} · precio medio {{ num(t.avg_price, 2) }} {{ t.cur }}{% endif %}{% else %}{{ 'Compra' if t.type == 'BUY' else 'Venta' }} del {{ t.last[8:10] }}/{{ t.last[5:7] }}{% if t.avg_price %} a {{ num(t.avg_price, 2) }} {{ t.cur }}{% endif %}{% endif %} · {{ num(t.shares, 0 if t.shares == t.shares|round else 2) }} acciones"></i>{% if t.count > 1 %} <small class="text-muted">×{{ t.count }}</small>{% endif %}</li>{% endfor %}</ul>
         {% else %}<span class="text-muted">Ninguna.</span>{% endif %}
     </div>
-    <div class="summary-section">
+    <div class="summary-section" style="flex-grow: 0.85;">
         {{ heading('RESULTADOS PUBLICADOS') }}
         <ul class="list-unstyled mb-0">
         {% for r in p.reported %}<li class="d-flex gap-2 mb-1">
