@@ -35,17 +35,31 @@ def _save() -> None:
     os.replace(tmp, CACHE_FILE)
 
 
+NONE_RETRY_HOURS = 1   # un None (Yahoo falló o no tiene el dato) se vuelve a pedir antes que un valor bueno
+
+
 def cached(kind: str, ticker: str, fetch: Callable[[], Any], ttl_hours: float = 12, force: bool = False) -> Any:
-    """Valor guardado si es reciente; si no, lo pide con fetch() y lo guarda (también un None: no se reintenta hasta que caduque).
-    force=True lo vuelve a pedir aunque esté fresco."""
+    """Valor guardado si es reciente; si no, lo pide con fetch() y lo guarda. force=True lo vuelve a pedir aunque esté fresco.
+    Si fetch() devuelve None (p. ej. Yahoo falla en la apertura de EE. UU.), no se tira lo último bueno: se sigue usando y
+    se reintenta en NONE_RETRY_HOURS; un None sin nada anterior también se reintenta en NONE_RETRY_HOURS (no en ttl_hours),
+    para que un fallo puntual no deje sin un aviso o sin una valoración medio día."""
     with _lock:
         _ensure_loaded()
         hit = _data.get(kind, {}).get(ticker)
-    if hit and not force and time.time() - hit[0] < ttl_hours * 3600:
-        return hit[1]
+    if hit and not force:
+        age, life = time.time() - hit[0], ttl_hours * 3600
+        if hit[1] is None and len(hit) < 3:   # None de antes de este cambio: también caduca en NONE_RETRY_HOURS
+            life = min(life, NONE_RETRY_HOURS * 3600)
+        if age < (hit[2] if len(hit) > 2 else life):
+            return hit[1]
     value = fetch()
+    retry = min(ttl_hours, NONE_RETRY_HOURS) * 3600
     with _lock:
-        _data.setdefault(kind, {})[ticker] = [time.time(), value]
+        if value is None and hit and hit[1] is not None:
+            _data.setdefault(kind, {})[ticker] = [time.time(), hit[1], retry]   # lo último bueno, hasta reintentar
+            value = hit[1]
+        else:
+            _data.setdefault(kind, {})[ticker] = [time.time(), value] + ([retry] if value is None else [])
         _save()
     return value
 
