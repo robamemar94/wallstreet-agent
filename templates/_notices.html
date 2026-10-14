@@ -156,7 +156,7 @@ function refreshSummaryUnread() {
 // Leído / no leído, como en el correo: pulsar el aviso lo marca como leído; el ojo lo alterna (y lo deja otra vez sin leer)
 function paintSeen(item, seen) {
     item.classList.toggle('att-seen', seen);
-    const btn = item.querySelector('[onclick^="markSeen"]');
+    const btn = item.querySelector('[onclick*="markSeen"]');
     if (btn) {
         btn.querySelector('i').className = 'bi ' + (seen ? 'bi-eye-slash' : 'bi-eye');
         btn.title = btn.ariaLabel = seen ? 'Marcar como no leído' : 'Marcar como leído';
@@ -182,7 +182,7 @@ function markSeen(btn) {
     setItemSeen(btn.closest('.inbox-item'), !btn.closest('.inbox-item').classList.contains('att-seen'));
 }
 document.addEventListener('click', e => {
-    const item = e.target.closest('.inbox-item:not(.att-seen):not(.ng-line)');   // un grupo, solo con su ojo
+    const item = e.target.closest('.inbox-item:not(.att-seen)');
     if (item && !e.target.closest('button')) setItemSeen(item, true);
 });
 // Descartar (borrado lógico): desaparece de todas las listas y no vuelve a salir mientras siga dándose
@@ -259,15 +259,14 @@ function refreshGroups(list) {
     list.querySelectorAll('.ng-group').forEach(g => {
         const items = [...g.querySelectorAll('.ng-detail .inbox-item')];
         if (!items.length) { g.remove(); return; }
-        const line = g.querySelector('.ng-line');
-        line.dataset.keys = items.map(i => i.dataset.key).join(',');
-        const unread = items.filter(i => !i.classList.contains('att-seen'));
-        line.classList.toggle('att-seen', !unread.length);
-        const eye = line.querySelector('[onclick^="markSeen"] i'); if (eye) eye.className = 'bi ' + (unread.length ? 'bi-eye' : 'bi-eye-slash');
         g.querySelectorAll('.ng-chip').forEach(c => {
             const mine = items.filter(i => i.dataset.ticker === c.dataset.ticker);
             if (!mine.length) { c.remove(); return; }
-            c.classList.toggle('unread', mine.some(i => !i.classList.contains('att-seen')));
+            c.dataset.keys = mine.map(i => i.dataset.key).join(',');
+            const unread = mine.some(i => !i.classList.contains('att-seen'));
+            c.classList.toggle('unread', unread); c.classList.toggle('att-seen', !unread);
+            const eye = c.querySelector('[onclick*="markSeen"]');
+            if (eye) { eye.querySelector('i').className = 'bi ' + (unread ? 'bi-eye' : 'bi-eye-slash'); eye.title = unread ? 'Marcar como leído' : 'Marcar como no leído'; }
         });
         const n = g.querySelector('.ng-n'); if (n) n.textContent = g.querySelectorAll('.ng-chip').length;
     });
@@ -308,11 +307,7 @@ function initNoticeLists(root) {
 {%- else -%}{{ s.text.split(', ')[0].split(' · ')[0]|replace('% en el día', ' % hoy')|replace('% en 5 sesiones', ' % 5 s') }}{%- endif -%}{% endmacro %}
 {% macro group_line(label, color, items, chips) %}
 <div class="ng-group">
-    <div class="ng-line inbox-item">
-        <span class="att-tag text-{{ color }} border-{{ color }}">{{ label }}</span>
-        <span class="flex-grow-1"></span>
-        <button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="Marcar el grupo como leído" aria-label="Marcar el grupo como leído" onclick="markSeen(this)"><i class="bi bi-eye"></i></button><button type="button" class="btn btn-link btn-sm p-0 text-muted att-dismiss" title="Descartar el grupo: no volverá a salir mientras siga dándose" aria-label="Descartar el grupo" onclick="dismissNotice(this)"><i class="bi bi-x-lg"></i></button>
-    </div>
+    <div class="ng-line"><span class="att-tag text-{{ color }} border-{{ color }}">{{ label }}</span></div>
     <div class="ng-rows">{{ chips }}</div>
     <div class="ng-detail d-none">{{ items }}</div>
 </div>
@@ -321,7 +316,7 @@ function initNoticeLists(root) {
 <div class="card-body small notice-list grouped" id="attList" data-collapse="999">
     <div class="ng-block">
     {% for type, items in attention|groupby('type')|sort(attribute='list.0.prio') %}{% set tag = NOTICE_TAG.get(type, (type|replace('_', ' '), 'secondary')) %}
-        {% set chips %}{% for t, its in items|groupby('ticker') %}{% set first = its[0] %}<button type="button" class="ng-chip" data-ticker="{{ t or first.label or '' }}" title="Pulsa para ver el detalle" onclick="toggleGroupChip(this)"><b>{{ clean_ticker(t or first.label or '') }}</b><span class="ng-text">{{ its|map(attribute='text')|join(' · ') }}</span></button>{% endfor %}{% endset %}
+        {% set chips %}{% for t, its in items|groupby('ticker') %}{% set first = its[0] %}<div class="ng-chip inbox-item" role="button" tabindex="0" data-ticker="{{ t or first.label or '' }}" title="Pulsa para ver el detalle" onclick="toggleGroupChip(this)"><b>{{ clean_ticker(t or first.label or '') }}</b><span class="ng-text">{{ its|map(attribute='text')|join(' · ') }}</span><span class="ng-acts"><button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="Marcar como leído" aria-label="Marcar como leído" onclick="event.stopPropagation(); markSeen(this)"><i class="bi bi-eye"></i></button><button type="button" class="btn btn-link btn-sm p-0 text-muted att-dismiss" title="Descartar: no volverá a salir mientras siga dándose" aria-label="Descartar" onclick="event.stopPropagation(); dismissNotice(this)"><i class="bi bi-x-lg"></i></button></span></div>{% endfor %}{% endset %}
         {% set details %}{% for a in items %}{{ attention_item(a, held) }}{% endfor %}{% endset %}
         {{ group_line(tag[0], tag[1], details, chips) }}
     {% endfor %}
@@ -332,7 +327,7 @@ function initNoticeLists(root) {
     <div class="ng-block"><div class="ng-block-h" title="Solo informan: caídas y subidas fuertes, movimientos propios y mínimos/máximos de 52 semanas">Movimientos de precio</div>
     {% for gkey, glabel, gcolor in SIGNAL_GROUPS %}{% set mine = [] %}{% for s in signals if signal_group_key(s)|trim == gkey %}{% set _ = mine.append(s) %}{% endfor %}
     {% if mine %}
-        {% set chips %}{% for t, its in mine|groupby('ticker') %}{% set last = its|map(attribute='date')|max %}<button type="button" class="ng-chip{{ ' held' if t in held }}" data-ticker="{{ t }}" data-date="{{ last }}" title="Pulsa para ver el detalle" onclick="toggleGroupChip(this)"><b>{{ clean_ticker(t) }}</b><span class="ng-text">{% for s in its|sort(attribute='kind') %}{% if s.kind == 'nivel' %}{{ 'nuevo mínimo' if s.tone == 'down' else 'nuevo máximo' }} · {% endif %}{{ signal_short(s) }}{{ ' · ' if not loop.last }}{% endfor %}</span><small class="ng-date">{{ last[8:10] }}/{{ last[5:7] }}</small></button>{% endfor %}{% endset %}
+        {% set chips %}{% for t, its in mine|groupby('ticker') %}{% set last = its|map(attribute='date')|max %}<div class="ng-chip inbox-item{{ ' held' if t in held }}" role="button" tabindex="0" data-ticker="{{ t }}" data-date="{{ last }}" title="Pulsa para ver el detalle" onclick="toggleGroupChip(this)"><b>{{ clean_ticker(t) }}</b><span class="ng-text">{% for s in its|sort(attribute='kind') %}{% if s.kind == 'nivel' %}{{ 'nuevo mínimo' if s.tone == 'down' else 'nuevo máximo' }} · {% endif %}{{ signal_short(s) }}{{ ' · ' if not loop.last }}{% endfor %}</span><small class="ng-date">{{ last[8:10] }}/{{ last[5:7] }}</small><span class="ng-acts"><button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="Marcar como leído" aria-label="Marcar como leído" onclick="event.stopPropagation(); markSeen(this)"><i class="bi bi-eye"></i></button><button type="button" class="btn btn-link btn-sm p-0 text-muted att-dismiss" title="Descartar: no volverá a salir mientras siga dándose" aria-label="Descartar" onclick="event.stopPropagation(); dismissNotice(this)"><i class="bi bi-x-lg"></i></button></span></div>{% endfor %}{% endset %}
         {% set details %}{% for s in mine %}{{ signal_item(s, theses_ids, held, full=True) }}{% endfor %}
             {% for t in mine|map(attribute='ticker')|unique %}<div class="ng-more small" data-ticker="{{ t }}">
                 <span class="text-muted">σ: cuánto se sale el movimiento de lo normal para esta empresa (más de 2σ es raro).</span>

@@ -71,11 +71,12 @@
     .ng-chip b { flex: 0 0 4.6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ng-chip .ng-text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--bs-secondary-color); }
     .ng-chip .ng-date { flex: 0 0 auto; color: var(--bs-secondary-color); font-family: var(--bs-font-monospace); font-size: .7rem; }
+    .ng-chip .ng-acts { flex: 0 0 auto; display: flex; gap: .45rem; margin-left: .2rem; opacity: .55; } .ng-chip:hover .ng-acts { opacity: 1; }
+    .ng-chip { cursor: pointer; }
     .ng-chip.unread::before { content: ""; position: absolute; left: .3rem; top: .62rem; width: 6px; height: 6px; border-radius: 50%; background: var(--bs-primary); }
     .ng-chip.unread .ng-text { color: var(--bs-body-color); }
     .ng-chip.held b { color: #58a6ff; }
     .ng-chip.old { opacity: .45; } .ng-chip.active { background: rgba(13, 110, 253, .15); }
-    .grouped .ng-line.att-seen .att-tag { opacity: .6; }
     .grouped .ng-detail { padding: .35rem .5rem .1rem 1rem; margin: .2rem 0 .3rem; border-left: 2px solid var(--bs-primary); background: var(--bs-tertiary-bg); border-radius: .25rem; }
     #slot-attention .inbox-h { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color);
                                padding: .45rem 1rem; border-bottom: 1px solid var(--bs-border-color-translucent); }
