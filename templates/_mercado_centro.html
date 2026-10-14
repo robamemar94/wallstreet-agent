@@ -1,27 +1,10 @@
 {# Pestaña «Centro de mando» de la portada (la pide a /mercado/centro y reparte cada [data-slot] en su hueco) #}
-{% from "_notices.html" import inbox_tabs, inbox_body %}
-{% from "_agenda.html" import agenda_card, summary_card %}
+{% from "_notices.html" import attention_item, signal_item, signal_history as signal_history_list %}
+{% from "_agenda.html" import agenda_compact, summary_card %}
 
 <div data-slot="notes">
     {% if error %}<div class="alert alert-warning small">No se pudieron descargar los precios: {{ error }}</div>{% endif %}
     {% if stale_note %}<div class="alert alert-light border small py-1"><i class="bi bi-clock-history me-1"></i>{{ stale_note }}</div>{% endif %}
-</div>
-
-{# «Avisos»: lo que requiere tu atención y las señales del monitor de precios en una sola lista; cada aviso conserva su
-   estilo (barra de color: pide acción; flecha: movimiento de precio, solo informa) #}
-<div data-slot="attention">
-<div class="card h-100">
-    <div class="card-header bg-transparent fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span><i class="bi bi-inbox me-1"></i>Avisos <span class="badge text-bg-primary" id="attCount" title="Sin leer de empresas en cartera">{{ (attention + signals)|selectattr('ticker', 'in', held)|rejectattr('seen')|list|length }}</span>
-            <i class="bi bi-info-circle fw-normal text-muted small ms-1" title="Con barra de color, lo que requiere tu atención (resultados por revisar, noticias, señales de tesis…), por prioridad. Con flecha, el monitor de precios: movimientos fuertes o anormales (≥2σ o ≥7% en 5 sesiones, ≥2,5σ o ≥5% en un día), propios frente al mercado y máximos/mínimos de 52 semanas; solo informa: pulsa la lupa para ver por qué se mueve."></i>
-            {% if changes.as_of %}<span class="small text-muted fw-normal">· precios al cierre del {{ changes.as_of[8:10] }}/{{ changes.as_of[5:7] }}</span>{% endif %}</span>
-        {{ inbox_tabs(attention, signals, signal_history, 'attList') }}
-    </div>
-    <div class="fixed-body">
-        {{ inbox_body(attention, signals, signal_history, 'attList', 'resumen', theses_ids, held) }}
-    </div>
-    <div id="whyResult" class="small why-result"></div>{# fuera de la zona que se desplaza: se ve aunque la lista sea larga #}
-</div>
 </div>
 
 {% macro centro_news_row(n) %}<li class="list-group-item" data-news="{{ n.id }}">
@@ -29,14 +12,35 @@
         <strong>{{ n.ticker }}</strong> · {{ n.date }} · {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener"{% if not n.seen %} onclick="centroNewsRead({{ n.id }})"{% endif %}>{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
         {% if not n.seen %}<span class="badge text-bg-primary badge-new">NUEVA</span>{% endif %}
     </li>{% endmacro %}
-{# Noticias: esta semana del radar y la anterior, separadas; de antes, solo las que siguen sin leer (el resto, en /noticias) #}
-<div data-slot="news">
+
+{# Bandeja: todo lo que se lee y se marca como visto, en una tarjeta con pestañas.
+   Pendiente: lo que pide atención (avisos de tesis, valoración, previsiones, resultados… y las noticias sin leer), por
+   prioridad. Noticias: las de la semana del radar (y la anterior), leídas o no. Monitor: movimientos de precio (solo
+   informa). Histórico: señales del monitor que ya pasaron. El número de la cabecera, como la campana: sin leer de tu
+   cartera (avisos + monitor). #}
+{% set pend_unread = attention|rejectattr('seen')|list|length %}
+{% set news_n = news_weeks|map(attribute='news')|map('length')|sum + news_old_unread|length %}
+<div data-slot="attention">
 <div class="card h-100">
-    <div class="card-header bg-transparent fw-bold"><i class="bi bi-broadcast me-1"></i>Noticias de las tesis
-        <a href="/noticias" class="small fw-normal ms-2">ver todas →</a></div>
-    <div class="fixed-body">
-    {% if news_headline %}<div class="small px-3 py-2 border-bottom"><i class="bi bi-journal-text me-1 text-muted"></i><a href="/noticias" class="text-decoration-none">{{ news_headline }}</a></div>{% endif %}
-    <ul class="list-group list-group-flush small">
+    <div class="card-header bg-transparent fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-inbox me-1"></i>Bandeja <span class="badge text-bg-primary" id="attCount" title="Sin leer de empresas en cartera (avisos y monitor)">{{ (attention + signals)|selectattr('ticker', 'in', held)|rejectattr('seen')|list|length }}</span>
+            {% if changes.as_of %}<span class="small text-muted fw-normal">· precios al cierre del {{ changes.as_of[8:10] }}/{{ changes.as_of[5:7] }}</span>{% endif %}</span>
+        <div class="mon-tabs d-flex gap-1 inbox-tabs" role="tablist">
+            <button type="button" class="btn btn-outline-secondary active" data-inbox="pend" title="Lo que pide tu atención, por prioridad (con las noticias sin leer)">Pendiente <span class="badge text-bg-warning" data-inbox-n="pend">{{ pend_unread or '' }}</span></button>
+            <button type="button" class="btn btn-outline-secondary" data-inbox="news" title="Noticias de las tesis: esta semana del radar y la anterior">Noticias <span class="badge text-bg-secondary">{{ news_n }}</span></button>
+            <button type="button" class="btn btn-outline-secondary" data-inbox="mon" title="Monitor de precios: movimientos fuertes o anormales, propios frente al mercado y máximos/mínimos de 52 semanas. Solo informa: la lupa busca por qué se mueve">Monitor <span class="badge text-bg-secondary">{{ signals|length }}</span></button>
+            <button type="button" class="btn btn-outline-secondary" data-inbox="hist" title="Señales del monitor que ya no están activas (no se borran)">Histórico</button>
+        </div>
+    </div>
+    <div class="fixed-body" data-inbox-pane="pend">
+        <div class="card-body small notice-list" id="attList" data-collapse="8">
+            {% for a in attention %}{{ attention_item(a, held) }}{% endfor %}
+            <div class="text-muted att-empty {{ 'd-none' if attention }}"><i class="bi bi-check2-circle st-green me-1"></i>Nada pendiente.</div>
+        </div>
+    </div>
+    <div class="fixed-body d-none" data-inbox-pane="news">
+    {% if news_headline %}<div class="small px-3 py-2 border-bottom"><i class="bi bi-journal-text me-1 text-muted"></i><a href="/noticias" class="text-decoration-none">{{ news_headline }}</a> <a href="/noticias" class="small ms-1">ver todas →</a></div>{% endif %}
+    <ul class="list-group list-group-flush small centro-news">
     {% if not news_has_current %}
         <li class="list-group-item news-sep">Última semana</li>
         <li class="list-group-item text-muted">Sin noticias muy relevantes en la última semana.</li>
@@ -52,11 +56,21 @@
     {% endif %}
     </ul>
     </div>
+    <div class="fixed-body d-none" data-inbox-pane="mon">
+        <div class="card-body small notice-list" id="attMonList" data-collapse="8">
+            {% for s in signals %}{{ signal_item(s, theses_ids, held) }}{% endfor %}
+            <div class="text-muted att-empty {{ 'd-none' if signals }}">Sin movimientos fuera de lo normal ni niveles relevantes.</div>
+        </div>
+    </div>
+    <div class="fixed-body d-none" data-inbox-pane="hist">
+        {{ signal_history_list(signal_history, 'attMonList', 'resumen') }}
+    </div>
+    <div id="whyResult" class="small why-result"></div>{# fuera de la zona que se desplaza: se ve aunque la lista sea larga #}
 </div>
 </div>
 
 <div data-slot="agenda">
-{{ agenda_card(agenda, other, theses_ids) }}
+{{ agenda_compact(agenda, other, theses_ids) }}
 </div>
 
 <div data-slot="summary">

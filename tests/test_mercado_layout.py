@@ -11,8 +11,9 @@ def test_home_has_market_and_command_center_tabs():
     assert 'data-bs-target="#home-mercado"' in html and 'data-bs-target="#home-centro"' in html
     for kept in ("heatmapTracked", "renderHeatmap", "centroPulse", "fetch('/api/centro/pulso')"):   # pestaña Mercado
         assert kept in html
-    for slot in ("slot-summary", "slot-news", "slot-attention", "slot-agenda"):   # pestaña Centro (atención y monitor juntos)
+    for slot in ("slot-summary", "slot-attention", "slot-agenda"):   # pestaña Centro: la bandeja (avisos, noticias, monitor) y la columna
         assert f'id="{slot}"' in html
+    assert 'id="slot-news"' not in html                              # las noticias son una pestaña de la bandeja
     assert "fetch('/mercado/centro' + " in html
     for gone in ("weeklyCalendarList", "earnList", "divList"):   # ahora en la agenda y en el calendario
         assert gone not in html

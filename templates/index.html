@@ -35,18 +35,21 @@
 {{ notice_scripts() }}
 <style>
     .slot-loading { min-height: 120px; }
-    /* Centro de mando: cuatro tarjetas en dos filas que llenan la ventana (no cambian al pasar de 7 a 30 días); lo que
-       no cabe se desplaza dentro de cada tarjeta */
-    /* --centro-top-h / --centro-bottom-h: los calcula sizeCentro() para que las dos filas quepan en la ventana sin desplazar
-       la página; la de arriba (Resumen y Noticias), más alta */
-    #home-centro [id^="slot-"] > .card { height: var(--centro-bottom-h, 380px) !important; display: flex; flex-direction: column; }   /* gana a h-100 */
-    #home-centro :is(#slot-summary, #slot-news) > .card { height: var(--centro-top-h, 380px) !important; }
+    /* Centro de mando: la bandeja (izquierda) y la columna de contexto (derecha) llenan la ventana: --centro-h lo calcula
+       sizeCentro(); lo que no cabe se desplaza dentro de cada tarjeta. En la columna, Hoy se lleva algo más que la agenda */
+    #home-centro .centro-main > .card { height: var(--centro-h, 640px) !important; display: flex; flex-direction: column; }
+    #home-centro .centro-side { display: flex; flex-direction: column; gap: 1rem; height: var(--centro-h, auto); }
+    #home-centro .centro-side > div { min-height: 0; } #home-centro #slot-summary { flex: 1.25 1 0; } #home-centro #slot-agenda { flex: 1 1 0; }
+    #home-centro .centro-side .card { height: 100% !important; display: flex; flex-direction: column; }
     #home-centro .fixed-body, #home-centro .agenda-window { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-    #slot-news .news-sep { font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); padding-top: .25rem; padding-bottom: .25rem; }
-    @media (min-width: 768px) { #slot-agenda .agenda-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 1rem; } }
+    #slot-attention .news-sep { font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); padding-top: .25rem; padding-bottom: .25rem; }
+    #slot-attention .inbox-tabs .btn { font-size: .75rem; padding: .15rem .55rem; }
+    #slot-agenda .ag-row { display: flex; gap: .6rem; padding: .25rem 0; border-bottom: 1px solid var(--bs-border-color-translucent); }
+    #slot-agenda .ag-row:last-child { border-bottom: 0; }
+    #slot-agenda .ag-day { flex: 0 0 5.6rem; color: var(--bs-secondary-color); }
+    #slot-agenda .ag-what { flex: 1 1 auto; min-width: 0; }
     .summary-section + .summary-section { margin-top: .6rem; padding-top: .5rem; border-top: 1px solid var(--bs-border-color); }
     .summary-section .text-muted.fw-bold.mb-2 { margin-bottom: .3rem !important; }
-    @media (min-width: 768px) { .summary-right { border-left: 1px solid var(--bs-border-color); } }
     #slot-attention .why-result:not(:empty) { flex: 0 0 auto; max-height: 45%; overflow-y: auto; padding: 0 1rem .5rem; }
     .home-tabs .nav-link { font-weight: 600; }
     /* «Actividad del día»: los valores cuyo mercado aún no ha abierto, con su sesión anterior, atenuados y con su etiqueta */
@@ -645,14 +648,13 @@
 
 <div class="tab-pane fade" id="home-centro">
 <div id="slot-notes"></div>
-<div class="row g-3 mb-3">
-    <div class="col-12 col-xl-6" id="slot-summary"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando el resumen…</div></div></div>
-    <div class="col-12 col-xl-6" id="slot-news"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando noticias…</div></div></div>
-</div>
-<div class="row g-3 mb-3">
-    <div class="col-12 col-xl-6" id="slot-attention"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando lo que requiere tu atención y el monitor…</div></div></div>
-    <div class="col-12 col-xl-6" id="slot-agenda"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la agenda…</div></div></div>
-</div>
+{# Bandeja a la izquierda (avisos, noticias, monitor) y, a la derecha, el contexto: Hoy (o 7 / 30 días) y la agenda #}
+<div class="row g-3 mb-3 centro-grid">
+    <div class="col-12 col-xl-8 centro-main" id="slot-attention"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la bandeja…</div></div></div>
+    <div class="col-12 col-xl-4 centro-side">
+        <div id="slot-summary"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando el resumen…</div></div></div>
+        <div id="slot-agenda"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la agenda…</div></div></div>
+    </div>
 </div>
 </div>
 
@@ -1237,11 +1239,11 @@ function markVisitNew() {
     document.querySelectorAll('#slot-attention .inbox-item[data-key]').forEach(el => {
         if (keys.has(el.dataset.key)) (el.querySelector('.flex-grow-1') || el).classList.add('visit-new');
     });
-    document.querySelectorAll('#slot-news [data-news]').forEach(el => { if (news.has(el.dataset.news)) el.classList.add('visit-new'); });
+    document.querySelectorAll('#slot-attention [data-news]').forEach(el => { if (news.has(el.dataset.news)) el.classList.add('visit-new'); });
 }
 // Pestaña Centro de mando: una sola petición (descarga históricos) y cada parte a su hueco
 (async function loadCentro() {
-    const slots = ['notes', 'summary', 'news', 'agenda', 'attention'];
+    const slots = ['notes', 'summary', 'agenda', 'attention'];
     try {
         const since = centroVisitSince();
         const r = await fetch('/mercado/centro' + (since ? '?since=' + encodeURIComponent(since) : ''));
@@ -1257,6 +1259,7 @@ function markVisitNew() {
         markVisitNew();
         initSwitchCard(document.getElementById('agendaCard'));
         initSwitchCard(document.getElementById('summaryCard'));
+        initInbox();
         sizeCentro();
         const att = document.getElementById('attCount'), tab = document.getElementById('centroTabCount');
         if (att && tab && +att.textContent) { tab.textContent = att.textContent; tab.classList.remove('d-none'); }
@@ -1268,6 +1271,21 @@ function markVisitNew() {
     }
 })();
 
+// Bandeja: Pendiente · Noticias · Monitor · Histórico (se recuerda la última)
+function initInbox() {
+    const card = document.querySelector('#slot-attention .card');
+    if (!card) return;
+    const show = k => {
+        card.querySelectorAll('[data-inbox]').forEach(b => b.classList.toggle('active', b.dataset.inbox === k));
+        card.querySelectorAll('[data-inbox-pane]').forEach(p => { p.classList.toggle('d-none', p.dataset.inboxPane !== k); p.scrollTop = 0; });
+        document.getElementById('attMonListHistory')?.classList.toggle('d-none', k !== 'hist');
+        try { localStorage.setItem('centroInbox', k); } catch (e) {}
+    };
+    card.querySelectorAll('[data-inbox]').forEach(b => b.addEventListener('click', () => show(b.dataset.inbox)));
+    let last = 'pend';
+    try { last = localStorage.getItem('centroInbox') || 'pend'; } catch (e) {}
+    show(card.querySelector(`[data-inbox="${last}"]`) ? last : 'pend');
+}
 // Agenda (Cartera / Resto y 7 / 30 días) y Resumen (hoy / 7 / 30 días): se recuerda la última elección de cada tarjeta
 function initSwitchCard(card) {
     if (!card) return;
@@ -1288,33 +1306,25 @@ function initSwitchCard(card) {
     card.querySelectorAll('[data-agenda]').forEach(b => b.addEventListener('click', () => { state.window = b.dataset.agenda; paint(); save('Window', state.window); }));
     paint();
 }
-// Alto de las tarjetas del Centro de mando: las dos filas llenan la ventana (en pantallas anchas; en estrechas van una
-// debajo de otra con 380 px). La de arriba (Resumen y Noticias) se lleva CENTRO_TOP_SHARE del alto.
-const CENTRO_MIN = 240, CENTRO_TOP_SHARE = 0.5;   // mitad y mitad: Resumen/Noticias arriba, Avisos/Agenda abajo
+// Alto del Centro de mando: la bandeja y la columna de contexto llenan la ventana (en pantallas anchas; en estrechas,
+// una debajo de otra)
+const CENTRO_MIN = 240;
 function sizeCentro() {
-    const pane = document.getElementById('home-centro'), first = document.getElementById('slot-summary'),
-          last = document.getElementById('slot-attention');
-    if (!pane || !pane.offsetParent || !first.querySelector('.card')) return;
-    const set = (top, bottom) => { pane.style.setProperty('--centro-top-h', top + 'px'); pane.style.setProperty('--centro-bottom-h', bottom + 'px'); };
-    if (innerWidth < 1200) { ['--centro-top-h', '--centro-bottom-h'].forEach(v => pane.style.removeProperty(v)); return; }
-    const y = el => el.getBoundingClientRect().top + scrollY;
-    const top = y(first), gap = y(last) - top - first.querySelector('.card').offsetHeight;
+    const pane = document.getElementById('home-centro'), main = document.getElementById('slot-attention');
+    if (!pane || !pane.offsetParent || !main || !main.querySelector('.card')) return;
+    if (innerWidth < 1200) { pane.style.removeProperty('--centro-h'); return; }
     const container = pane.closest('.container-fluid');
-    const below = parseFloat(getComputedStyle(last.parentElement).marginBottom) + parseFloat(getComputedStyle(container).paddingBottom);
-    const split = total => {
-        const t = Math.max(CENTRO_MIN, Math.floor(total * CENTRO_TOP_SHARE));
-        return [t, Math.max(CENTRO_MIN, total - t)];
-    };
-    const total = innerHeight - top - gap - below;
-    set(...split(total));
-    // márgenes que no se ven en el cálculo: si aún sobra página, se quita de las dos filas
+    const below = parseFloat(getComputedStyle(main.parentElement).marginBottom) + parseFloat(getComputedStyle(container).paddingBottom);
+    const total = Math.max(2 * CENTRO_MIN, innerHeight - (main.getBoundingClientRect().top + scrollY) - below);
+    pane.style.setProperty('--centro-h', total + 'px');
+    // márgenes que no se ven en el cálculo: si aún sobra página, se quita
     const extra = document.documentElement.scrollHeight - innerHeight;
-    if (extra > 0 && total > 2 * CENTRO_MIN) set(...split(Math.max(2 * CENTRO_MIN, total - extra)));
+    if (extra > 0) pane.style.setProperty('--centro-h', Math.max(2 * CENTRO_MIN, total - extra) + 'px');
 }
 let fitTimer;
 addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(sizeCentro, 150); });
 document.addEventListener('click', e => {   // activos / histórico: cada uno empieza arriba
-    if (e.target.closest('#slot-attention .mon-tabs')) document.querySelector('#slot-attention .fixed-body').scrollTop = 0;
+    if (e.target.closest('#slot-attention .mon-tabs')) document.querySelectorAll('#slot-attention .fixed-body').forEach(b => b.scrollTop = 0);
 });
 
 // Pestañas de la portada: #centro abre el Centro de mando (también desde los enlaces del resumen de «Mi Cartera»)

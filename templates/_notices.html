@@ -113,6 +113,16 @@ function refreshNoticeList(el) {
     const all = [...el.children].filter(c => c.matches('.att-item, .sig-item'));
     const unread = all.filter(a => a.dataset.held && !a.classList.contains('att-seen')).length;   // solo cartera
     const empty = el.querySelector(':scope > .att-empty'); if (empty) empty.classList.toggle('d-none', all.length > 0);
+    if (el.id === 'attList' || el.id === 'attMonList') {   // Centro: la bandeja cuenta avisos + monitor de la cartera
+        const both = ['attList', 'attMonList'].flatMap(id => [...(document.getElementById(id)?.children || [])]).filter(c => c.matches('.att-item, .sig-item'));
+        const n = both.filter(a => a.dataset.held && !a.classList.contains('att-seen')).length;
+        const cnt = document.getElementById('attCount'); if (cnt) cnt.textContent = n;
+        const tab = document.getElementById('centroTabCount'); if (tab) { tab.textContent = n; tab.classList.toggle('d-none', !n); }
+        const pend = document.querySelector('[data-inbox-n="pend"]');
+        if (pend && el.id === 'attList') pend.textContent = all.filter(a => !a.classList.contains('att-seen')).length || '';
+        collapseList(el);
+        return;
+    }
     const badge = el.id === 'attList' ? document.getElementById('attCount')
         : (el.classList.contains('card-body') && el.previousElementSibling?.classList.contains('mon-tabs') ? el.previousElementSibling.querySelector('.mon-unread')
         : el.closest('.card')?.querySelector('.att-count'));
