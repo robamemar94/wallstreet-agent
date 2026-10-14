@@ -1290,7 +1290,7 @@ function initSwitchCard(card) {
 }
 // Alto de las tarjetas del Centro de mando: las dos filas llenan la ventana (en pantallas anchas; en estrechas van una
 // debajo de otra con 380 px). La de arriba (Resumen y Noticias) se lleva CENTRO_TOP_SHARE del alto.
-const CENTRO_MIN = 240, CENTRO_TOP_SHARE = 0.6;
+const CENTRO_MIN = 240, CENTRO_TOP_SHARE = 0.5;   // mitad y mitad: Resumen/Noticias arriba, Avisos/Agenda abajo
 function sizeCentro() {
     const pane = document.getElementById('home-centro'), first = document.getElementById('slot-summary'),
           last = document.getElementById('slot-attention');

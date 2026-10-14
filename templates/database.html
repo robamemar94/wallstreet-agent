@@ -4,6 +4,8 @@
 <style>
     /* filas más bajas para que entren más por página (el estilo común pone 10 px arriba y abajo) */
     #dbTable tbody td { padding-top: .3rem; padding-bottom: .3rem; }
+    /* variación de la sesión anterior de los que hoy aún no han abierto: a la vista pero apagada (no cuenta al ordenar) */
+    .db-stale { opacity: .5; font-size: .75rem; white-space: nowrap; }
     #dbTable thead th { padding-top: .45rem; padding-bottom: .45rem; }
     /* Pestañas como las de Cartera: texto gris, la activa en verde con raya; el número, discreto */
     .db-tabs { border-bottom: 1px solid var(--bs-border-color); }
@@ -543,8 +545,9 @@
                                 <div class="var-abs {% if t.market_data.change > 0 %}text-success{% elif t.market_data.change < 0 %}text-danger{% else %}text-muted{% endif %}">{% if t.market_data.change > 0 %}+{% endif %}{{ format_euro(t.market_data.change, 2) }}</div>
                             </td>
                             {% if t.market_data.not_open %}
-                            <td class="text-end align-middle var-cell text-muted small" data-sort-value="-9999" data-abs-1d="" data-pct-1d="" data-price="{{ t.market_data.price }}" data-not-open="1"
-                                title="Su mercado no ha abierto hoy · última sesión {{ t.market_data.last_date }}: {{ num(t.market_data.last_pct, 2, sign=True) }} %"><i class="bi bi-moon opacity-50"></i> –</td>
+                            <td class="text-end align-middle var-cell text-muted small" data-sort-value="" data-abs-1d="" data-pct-1d="" data-price="{{ t.market_data.price }}" data-not-open="1"
+                                data-last="{{ num(t.market_data.last_pct, 2, sign=True) }} %"
+                                title="Su mercado no ha abierto hoy: es la última sesión ({{ t.market_data.last_date }}). Al ordenar va al final"><span class="db-stale"><i class="bi bi-moon"></i> {{ num(t.market_data.last_pct, 2, sign=True) }} %</span></td>
                             {% else %}
                             <td class="text-end align-middle var-cell" data-sort-value="{{ t.market_data.pct }}" data-abs-1d="{{ t.market_data.change }}" data-pct-1d="{{ t.market_data.pct }}" data-price="{{ t.market_data.price }}">{{ chg_pill(t.market_data.pct) }}</td>
                             {% endif %}
@@ -644,13 +647,14 @@
 
     async function onPeriodChange(period) {
         currentPeriod = period;
+        dbSaveUrl();
         document.querySelectorAll('.var-header-period').forEach(el => el.textContent = periodLabels[period] || '');
 
         if (period === '1d') {
             document.querySelectorAll('#dbBody td.var-cell').forEach(cell => {
                 if (cell.dataset.notOpen) {   // su mercado no ha abierto hoy: «🌙 –», al final al ordenar
-                    cell.setAttribute('data-sort-value', '-9999');
-                    cell.innerHTML = '<i class="bi bi-moon opacity-50"></i> –';
+                    cell.setAttribute('data-sort-value', '');   // vacío: al final, se ordene como se ordene
+                    cell.innerHTML = `<span class="db-stale"><i class="bi bi-moon"></i> ${cell.dataset.last || '–'}</span>`;
                     return;
                 }
                 const pct = parseFloat(cell.getAttribute('data-pct-1d'));
@@ -866,7 +870,44 @@
         applyFilters();
     }
 
+    // Filtros en la dirección (?pestana=&q=&periodo=&estado=…&orden=10-asc): siguen al recargar o al volver atrás.
+    // De serie (Seguimiento, sin filtros, 1D, por media) la dirección queda limpia.
+    const DB_URL_GROUPS = ['status', 'valuation', 'cap', 'region', 'sector', 'subsector', 'country'];
+    let dbRestoring = false;
+    const DB_URL0 = new URLSearchParams(location.search);   // tal como llegó: el arranque guarda su estado y lo pisaría
+    function dbSaveUrl() {
+        if (dbRestoring || !window.urlState) return;
+        const tab = document.querySelector('#dbTabs .nav-link.active')?.id;
+        const st = {pestana: tab && tab !== 'follow-tab' ? tab.replace('-tab', '') : '',
+                    q: document.getElementById('filter-search').value.trim(),
+                    nota: document.getElementById('filter-score')?.value || '',
+                    periodo: typeof currentPeriod !== 'undefined' && currentPeriod !== '1d' ? currentPeriod : '',
+                    orden: currentSort.col !== null && !(currentSort.col === 10 && !currentSort.asc) ? `${currentSort.col}-${currentSort.asc ? 'asc' : 'desc'}` : ''};
+        DB_URL_GROUPS.forEach(g => { const v = getSelectedValues(g); st[g] = v.includes('ALL') ? '' : v.join('|'); });
+        urlState.set(st);
+    }
+    function dbRestoreUrl() {
+        if (!window.urlState) return;
+        dbRestoring = true;
+        const tab = DB_URL0.get('pestana');
+        if (tab && document.getElementById(tab + '-tab')) {
+            document.querySelectorAll('#dbTabs .nav-link').forEach(b => b.classList.toggle('active', b.id === tab + '-tab'));
+        }
+        const q = DB_URL0.get('q'); if (q) document.getElementById('filter-search').value = q;
+        const nota = DB_URL0.get('nota'); if (nota && document.getElementById('filter-score')) document.getElementById('filter-score').value = nota;
+        DB_URL_GROUPS.forEach(g => {
+            const v = DB_URL0.get(g), cont = document.getElementById(`dropdown-${g}`);
+            if (!v || !cont) return;
+            const want = v.split('|');
+            cont.querySelectorAll('input:not([value="ALL"])').forEach(cb => cb.checked = want.includes(cb.value));
+            const all = cont.querySelector('input[value="ALL"]'); if (all) all.checked = false;
+            updateDropdownLabel(g);
+        });
+        dbRestoring = false;
+    }
+
     function applyFilters(resetPage = true) {
+        dbSaveUrl();
         const search = document.getElementById("filter-search").value.toLowerCase();
         
         // Get active tab status
@@ -981,6 +1022,7 @@
             if (currentSort.col === col) currentSort.asc = !currentSort.asc;
             else { currentSort.col = col; currentSort.asc = true; }
         }
+        dbSaveUrl();
 
         // Remove existing arrows and highlight from all headers
         headers.forEach(th => {
@@ -1178,11 +1220,21 @@
             const el = e.target.closest('.company-name, td.text-truncate');
             if (el && !el.title && el.scrollWidth > el.clientWidth) el.title = el.textContent.trim();
         });
+        dbRestoreUrl();
+        dbRestoring = true;   // el primer filtrado y el orden inicial no guardan: aún falta poner el orden de la dirección
         applyFilters();
         
-        // Ordenar inicialmente por nota media de forma descendente (de mayor a menor)
-        currentSort = { col: 10, asc: true };
-        sortRows(10);
+        // Ordenar inicialmente por nota media de forma descendente (de mayor a menor), o como estaba en la dirección
+        const ord = (DB_URL0.get('orden') || '').match(/^(\d+)-(asc|desc)$/);
+        if (ord) { currentSort = { col: parseInt(ord[1]), asc: ord[2] === 'asc' }; sortRows(currentSort.col, false); }
+        else { currentSort = { col: 10, asc: true }; sortRows(10); }
+        dbRestoring = false;
+        dbSaveUrl();
+        const per = DB_URL0.get('periodo');
+        if (per && document.querySelector(`#period-select option[value="${per}"]`)) {
+            document.getElementById('period-select').value = per;
+            onPeriodChange(per);
+        }
     });
 </script>
 <div class="db-pick-bar shadow d-none" id="dbPickBar">

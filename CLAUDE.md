@@ -11,8 +11,9 @@ tesis de inversión con radar semanal de noticias, Centro de mando (avisos, agen
   Comprobarlo con `google-chrome --headless=new --window-size=1440,900 --virtual-time-budget=25000 --screenshot=... URL`.
 - **Filtros que no se pierden:** los filtros de una pantalla van en la dirección (`?nivel=tier1&region=usa…`) con
   `urlState.get/set` (en `base.html`), para que sigan al recargar, al volver atrás o al guardar el enlace; las pestañas, con
-  `#…`. Las preferencias fijas de cada usuario (p. ej. una vista elegida), en `localStorage`. Hecho en Watchlist y en la
-  «Actividad del día» de Mercado.
+  `#…`. Las preferencias fijas de cada usuario (p. ej. una vista elegida), en `localStorage`. Hecho en Watchlist, en la
+  «Actividad del día» de Mercado y en la Base de datos (pestaña, búsqueda, filtros, nota, orden y periodo). Ojo: leer la
+  dirección al cargar ANTES del primer filtrado (el arranque guarda su estado y la pisaría).
 - **Números en formato español** (1.234,56): `num()` en plantillas, `fmtNum()` en JS (definido en `base.html`),
   `utils/number_format.es()` en Python. Los `value=`, `data-*` y los scripts siguen usando punto decimal.
 - **Nada de llamadas automáticas a la IA (Gemini):** solo cuando el usuario pulsa un botón. Nada que gaste tokens por sí solo.
