@@ -7,9 +7,9 @@
     {% if stale_note %}<div class="alert alert-light border small py-1"><i class="bi bi-clock-history me-1"></i>{{ stale_note }}</div>{% endif %}
 </div>
 
-{% macro centro_news_row(n) %}<li class="list-group-item" data-news="{{ n.id }}">
+{% macro centro_news_row(n) %}<li class="list-group-item" data-news="{{ n.id }}" title="{{ n.ticker }} · {{ n.date }} · {{ n.title }}">
         <span class="{{ 'st-red' if n.materiality >= 5 else 'st-amber' }} fw-bold">{{ n.materiality }}/5</span>
-        <strong>{{ n.ticker }}</strong> · {{ n.date }} · {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener"{% if not n.seen %} onclick="centroNewsRead({{ n.id }})"{% endif %}>{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
+        <strong>{{ n.ticker|replace('.PA', '')|replace('.ST', '') }}</strong> <span class="text-muted">{{ n.date[8:10] }}/{{ n.date[5:7] }}</span> {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener"{% if not n.seen %} onclick="centroNewsRead({{ n.id }})"{% endif %}>{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
         {% if not n.seen %}<span class="badge text-bg-primary badge-new">NUEVA</span>{% endif %}
     </li>{% endmacro %}
 

@@ -394,9 +394,9 @@ def price_signals(ticker: str, st: Dict[str, Any], thesis: Optional[Dict[str, An
         if base:
             e15 = base["entry_prices"].get(15)
             if intact and e15 and st["price"] <= e15:
-                add("oportunidad", "up", f"Por debajo del precio de entrada al 15% del escenario Base ({es(e15, 0)}) con la tesis {thesis['verdict']}")
+                add("oportunidad", "up", f"Bajo su precio de entrada al 15% ({es(e15, 0)}) · tesis {thesis['verdict'].lower()}")
             if base["cagr"] < MIN_CAGR_PCT:
-                add("cara", "down", f"CAGR implícito del escenario Base {es(base['cagr'], 1)}% (<{es(MIN_CAGR_PCT, 0)}%): poco retorno al precio actual")
+                add("cara", "down", f"Poco retorno a este precio: CAGR implícito {es(base['cagr'], 1)}% (<{es(MIN_CAGR_PCT, 0)}%)")
     if weight is not None and weight > MAX_WEIGHT_PCT:
         add("concentración", "neutral", f"Pesa el {es(weight, 1)}% de la cartera (>{es(MAX_WEIGHT_PCT, 0)}%)")
     return out

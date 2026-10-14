@@ -18,10 +18,18 @@
 {% endmacro %}
 
 {# Un aviso de «Requiere tu atención» (barra de color por prioridad) #}
+{% set NOTICE_TAG = {'zona': ('zona de compra', 'success'), 'cerca': ('cerca de compra', 'warning'), 'oportunidad': ('entrada', 'success'),
+                     'cara': ('cara', 'danger'), 'concentración': ('concentración', 'warning'), 'estimate_cut': ('previsiones', 'danger'),
+                     'upcoming_results': ('resultados', 'info'), 'new_results': ('resultados', 'info'), 'review_ready': ('revisión', 'info'),
+                     'decision_missing': ('decisión', 'warning'), 'decision_review': ('decisión', 'warning'), 'insider_buy': ('directivos', 'success'),
+                     'news': ('noticia', 'secondary'), 'split': ('split', 'secondary'), 'split_manual': ('split', 'secondary'),
+                     'anchor_expired': ('valoración', 'warning'), 'portfolio_risk': ('riesgo', 'danger'), 'cash_deposit': ('liquidez', 'primary')} %}
 {% macro attention_item(a, held=[]) %}
         <div class="att-item inbox-item p{{ [a.prio, 3]|min }} {{ 'att-seen' if a.seen }}" data-key="{{ a.key }}"{{ ' data-held=1' if a.ticker in held }}>
         <div class="d-flex gap-2 align-items-start">
-            <div class="flex-grow-1"><span class="unread-dot"></span>{% if a.href %}<a href="{{ a.href }}" class="text-decoration-none"><strong>{{ a.label or a.ticker }}</strong></a>{% else %}<strong>{{ a.label or a.ticker }}</strong>{% endif %} · {{ a.text }}</div>
+            {% set tag = NOTICE_TAG.get(a.type) %}
+            <div class="flex-grow-1 att-text" title="{{ a.text }}"><span class="unread-dot"></span>{% if a.href %}<a href="{{ a.href }}" class="text-decoration-none"><strong>{{ a.label or a.ticker }}</strong></a>{% else %}<strong>{{ a.label or a.ticker }}</strong>{% endif %}
+                {% if tag %}<span class="att-tag text-{{ tag[1] }} border-{{ tag[1] }}">{{ tag[0] }}</span>{% else %}·{% endif %} {{ a.text }}</div>
             <button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="{{ 'Marcar como no leído' if a.seen else 'Marcar como leído' }}" aria-label="{{ 'Marcar como no leído' if a.seen else 'Marcar como leído' }}" onclick="markSeen(this)"><i class="bi {{ 'bi-eye-slash' if a.seen else 'bi-eye' }}"></i></button><button type="button" class="btn btn-link btn-sm p-0 text-muted att-dismiss" title="Descartar: no volverá a salir mientras siga dándose" aria-label="Descartar" onclick="dismissNotice(this)"><i class="bi bi-x-lg"></i></button>
         </div>
     </div>
@@ -32,7 +40,8 @@
         <div class="d-flex gap-2 mb-1 align-items-start sig-item inbox-item {{ 'att-seen' if s.seen }}" data-key="{{ s.key }}"{{ ' data-held=1' if s.ticker in held }}>
         <i class="bi {{ 'bi-arrow-down-right' if s.tone == 'down' else ('bi-arrow-up-right' if s.tone == 'up' else 'bi-dot') }} sig-{{ s.tone }}"></i>
         <span class="text-muted font-monospace-data text-nowrap" style="min-width: 5.2rem;" title="{{ 'Del ' ~ s.since ~ ' al ' ~ s.date if s.since else s.date }}">{% if s.since %}{{ s.since[8:10] }}/{{ s.since[5:7] }}–{% endif %}{{ (s.date or '')[8:10] }}/{{ (s.date or '')[5:7] }}</span>
-        <span class="flex-grow-1"><span class="unread-dot"></span><a href="/ticker/{{ s.ticker }}" class="text-decoration-none"><strong>{{ s.ticker }}</strong></a> <span class="badge bg-light text-dark border">{{ s.kind }}</span> {{ s.text }}</span>
+        {% set short = s.text.split(', ')[0].split(' · ')[0].split(': ')[-1] if s.kind in ('anormal', 'propio') else s.text %}
+        <span class="flex-grow-1" title="{{ s.text }}"><span class="unread-dot"></span><a href="/ticker/{{ s.ticker }}" class="text-decoration-none"><strong>{{ s.ticker }}</strong></a> <span class="badge bg-light text-dark border">{{ s.kind }}</span> {{ short }}</span>
         {% if theses_ids.get(s.ticker) %}<button class="btn btn-link btn-sm p-0 text-info" title="¿Por qué se mueve? Busca noticias de {{ s.ticker }} (radar de la tesis)" aria-label="¿Por qué se mueve {{ s.ticker }}?" onclick="whyMoves({{ theses_ids[s.ticker] }}, '{{ s.ticker }}', this)"><i class="bi bi-search"></i></button>{% endif %}
         <button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="{{ 'Marcar como no leída' if s.seen else 'Marcar como leída' }}" aria-label="{{ 'Marcar como no leída' if s.seen else 'Marcar como leída' }}" onclick="markSeen(this)"><i class="bi {{ 'bi-eye-slash' if s.seen else 'bi-eye' }}"></i></button><button type="button" class="btn btn-link btn-sm p-0 text-muted att-dismiss" title="Descartar: no volverá a salir mientras siga dándose" aria-label="Descartar" onclick="dismissNotice(this)"><i class="bi bi-x-lg"></i></button>
     </div>

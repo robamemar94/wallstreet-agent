@@ -85,9 +85,8 @@ def signal_notices(tickers: List[str], prio: int = 2) -> List[Dict[str, Any]]:
         if not sig:
             continue
         n = rev.get("down_30")
-        votes = (f" ({n} analista{'s la han' if n > 1 else ' la ha'} bajado en 30 días)") if n else ""
+        votes = (f" · {n} analista{'s la bajan' if n > 1 else ' la baja'}") if n else ""
         out.append({"prio": prio, "type": "estimate_cut", "ticker": t,   # clave por empresa: sigue abierto mientras dure
-                    "text": f"Los analistas recortan su previsión de beneficio por acción para {PERIOD_LABEL[sig['period']]}: "
-                            f"{es(sig['chg'], 1, sign=True)}% en 90 días{votes}",
+                    "text": f"Recortan la previsión de BPA ({PERIOD_LABEL[sig['period']]}): {es(sig['chg'], 1, sign=True)}% en 90 días{votes}",
                     "href": f"/ticker/{t}#directivos"})
     return out
