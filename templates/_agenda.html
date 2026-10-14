@@ -188,12 +188,8 @@
             {% if r.surprise_pct is not none %} · BPA <span class="{{ 'text-success' if r.surprise_pct >= 0 else 'text-danger' }}">{{ num(r.surprise_pct, 1, sign=True) }}%</span> vs consenso{% endif %}</li>{% endfor %}
         {% if not p.transactions and not p.dividends and not p.reported %}<li class="text-muted">Sin operaciones, cobros ni resultados.</li>{% endif %}
         </ul>
-    </div>
-</div>
-<div class="col-12">
-    <div class="summary-section">
         {% set v = t.visit %}
-        <div class="text-muted" id="visitLine" data-keys="{{ (v.notices if v else [])|tojson|forceescape }}" data-news="{{ (v.news if v else [])|tojson|forceescape }}">
+        <div class="text-muted mt-1 small" id="visitLine" data-keys="{{ (v.notices if v else [])|tojson|forceescape }}" data-news="{{ (v.news if v else [])|tojson|forceescape }}">
             <i class="bi bi-clock-history me-1"></i>{% if not v %}A partir de ahora se marcará lo nuevo desde tu última visita.
             {% else %}Desde tu última visita ({{ v.since[8:10] }}/{{ v.since[5:7] }} {{ v.since[11:16] }}):
                 {% if v.notices or v.news or v.reported %}
@@ -204,6 +200,8 @@
             {% endif %}
         </div>
     </div>
+</div>
+<div class="col-12">
     {{ watch_today(t.watch) }}
 </div>
 </div>

@@ -38,9 +38,18 @@
     /* Centro de mando: la bandeja (izquierda) y la columna de contexto (derecha) llenan la ventana: --centro-h lo calcula
        sizeCentro(); lo que no cabe se desplaza dentro de cada tarjeta. En la columna, Hoy se lleva algo más que la agenda */
     #home-centro .centro-main > .card { height: var(--centro-h, 640px) !important; display: flex; flex-direction: column; }
-    #home-centro .centro-side { display: flex; flex-direction: column; gap: 1rem; height: var(--centro-h, auto); }
-    #home-centro .centro-side > div { min-height: 0; } #home-centro #slot-summary { flex: 1.25 1 0; } #home-centro #slot-agenda { flex: 1 1 0; }
-    #home-centro .centro-side .card { height: 100% !important; display: flex; flex-direction: column; }
+    /* fila de arriba: Resumen y Agenda con el mismo alto fijo; la agenda se desplaza por dentro */
+    #home-centro .centro-top > div > .card { height: var(--centro-top-h, 12.5rem) !important; display: flex; flex-direction: column; }
+    #home-centro .centro-top .agenda-window { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+    /* Resumen en franja: cada apartado es un bloque en horizontal (con su propio scroll si crece en 7 / 30 días) */
+    #slot-summary .card-header { padding-top: .35rem; padding-bottom: .35rem; }
+    #slot-summary .agenda-window { padding-top: .5rem; padding-bottom: .5rem; }
+    #slot-summary .agenda-window > .row { display: flex; flex-wrap: nowrap; margin: 0; }
+    #slot-summary .agenda-window > .row > [class*="col-"] { display: contents; }
+    #slot-summary .summary-section { flex: 1 1 0; min-width: 0; max-height: 100%; overflow-y: auto; padding: 0 1rem;
+                                     margin: 0 !important; border-top: 0 !important; border-left: 1px solid var(--bs-border-color); }
+    #slot-summary .summary-section:first-child { border-left: 0; padding-left: 0; flex-grow: 1.4; }
+    @media (max-width: 1199.98px) { #slot-summary .agenda-window > .row { flex-wrap: wrap; } #slot-summary .summary-section { flex-basis: 45%; border-left: 0; margin-bottom: .5rem !important; } }
     #home-centro .fixed-body, #home-centro .agenda-window { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
     #slot-attention .news-sep { font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); padding-top: .25rem; padding-bottom: .25rem; }
     /* bandeja: Pendiente arriba y Monitor abajo a la izquierda; Noticias a la derecha, a toda la altura.
@@ -52,7 +61,7 @@
     #slot-attention .centro-news .list-group-item a { text-decoration: none; color: var(--bs-body-color); }
     #slot-attention .centro-news .list-group-item a:hover { text-decoration: underline; color: var(--bs-link-hover-color); }
     #slot-attention .centro-news .news-sep { white-space: normal; }
-    #slot-attention .inbox-grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+    #slot-attention .inbox-grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
     #slot-attention .inbox-sec { display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--bs-border-color); }
     #slot-attention .inbox-pend { grid-column: 1; grid-row: 1; border-top: 0; }
     #slot-attention .inbox-news { grid-column: 2; grid-row: 1; border-top: 0; border-left: 1px solid var(--bs-border-color); }
@@ -687,14 +696,14 @@
 
 <div class="tab-pane fade" id="home-centro">
 <div id="slot-notes"></div>
-{# A la izquierda el contexto: Hoy (o 7 / 30 días) y la agenda; a la derecha la bandeja, con todo a la vista
-   (pendiente, monitor y noticias) #}
+{# Arriba el Resumen (franja: Hoy / 7 / 30 días, un bloque por tema) y la Agenda; debajo, casi todo el alto para la
+   bandeja: Pendiente (la más ancha) y Noticias de las tesis #}
+<div class="row g-3 mb-3 centro-top">
+    <div class="col-12 col-xl-9" id="slot-summary"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando el resumen…</div></div></div>
+    <div class="col-12 col-xl-3 centro-agenda" id="slot-agenda"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la agenda…</div></div></div>
+</div>
 <div class="row g-3 mb-3 centro-grid">
-    <div class="col-12 col-xl-4 centro-side">
-        <div id="slot-summary"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando el resumen…</div></div></div>
-        <div id="slot-agenda"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la agenda…</div></div></div>
-    </div>
-    <div class="col-12 col-xl-8 centro-main" id="slot-attention"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la bandeja…</div></div></div>
+    <div class="col-12 centro-main" id="slot-attention"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la bandeja…</div></div></div>
 </div>
 </div>
 
