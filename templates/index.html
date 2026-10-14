@@ -43,7 +43,17 @@
     #home-centro .centro-side .card { height: 100% !important; display: flex; flex-direction: column; }
     #home-centro .fixed-body, #home-centro .agenda-window { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
     #slot-attention .news-sep { font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); padding-top: .25rem; padding-bottom: .25rem; }
-    #slot-attention .inbox-tabs .btn { font-size: .75rem; padding: .15rem .55rem; }
+    /* bandeja: Pendiente arriba y Monitor abajo a la izquierda; Noticias a la derecha, a toda la altura */
+    #slot-attention .inbox-grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1.2fr 1fr; }
+    #slot-attention .inbox-sec { display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--bs-border-color); }
+    #slot-attention .inbox-pend { grid-column: 1; grid-row: 1; border-top: 0; }
+    #slot-attention .inbox-mon { grid-column: 1; grid-row: 2; }
+    #slot-attention .inbox-news { grid-column: 2; grid-row: 1 / span 2; border-top: 0; border-left: 1px solid var(--bs-border-color); }
+    #slot-attention .inbox-h { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color);
+                               padding: .45rem 1rem; border-bottom: 1px solid var(--bs-border-color-translucent); }
+    #slot-attention .inbox-h .btn { font-size: .68rem; padding: .05rem .45rem; text-transform: none; letter-spacing: 0; }
+    @media (max-width: 1199.98px) { #slot-attention .inbox-grid { grid-template-columns: 1fr; grid-template-rows: auto; }
+        #slot-attention .inbox-sec { grid-column: 1 !important; grid-row: auto !important; border-left: 0 !important; max-height: 420px; } }
     #slot-agenda .ag-row { display: flex; gap: .6rem; padding: .25rem 0; border-bottom: 1px solid var(--bs-border-color-translucent); }
     #slot-agenda .ag-row:last-child { border-bottom: 0; }
     #slot-agenda .ag-day { flex: 0 0 5.6rem; color: var(--bs-secondary-color); }
@@ -648,13 +658,14 @@
 
 <div class="tab-pane fade" id="home-centro">
 <div id="slot-notes"></div>
-{# Bandeja a la izquierda (avisos, noticias, monitor) y, a la derecha, el contexto: Hoy (o 7 / 30 días) y la agenda #}
+{# A la izquierda el contexto: Hoy (o 7 / 30 días) y la agenda; a la derecha la bandeja, con todo a la vista
+   (pendiente, monitor y noticias) #}
 <div class="row g-3 mb-3 centro-grid">
-    <div class="col-12 col-xl-8 centro-main" id="slot-attention"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la bandeja…</div></div></div>
     <div class="col-12 col-xl-4 centro-side">
         <div id="slot-summary"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando el resumen…</div></div></div>
         <div id="slot-agenda"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la agenda…</div></div></div>
     </div>
+    <div class="col-12 col-xl-8 centro-main" id="slot-attention"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la bandeja…</div></div></div>
 </div>
 </div>
 
@@ -1259,7 +1270,6 @@ function markVisitNew() {
         markVisitNew();
         initSwitchCard(document.getElementById('agendaCard'));
         initSwitchCard(document.getElementById('summaryCard'));
-        initInbox();
         sizeCentro();
         const att = document.getElementById('attCount'), tab = document.getElementById('centroTabCount');
         if (att && tab && +att.textContent) { tab.textContent = att.textContent; tab.classList.remove('d-none'); }
@@ -1271,21 +1281,6 @@ function markVisitNew() {
     }
 })();
 
-// Bandeja: Pendiente · Noticias · Monitor · Histórico (se recuerda la última)
-function initInbox() {
-    const card = document.querySelector('#slot-attention .card');
-    if (!card) return;
-    const show = k => {
-        card.querySelectorAll('[data-inbox]').forEach(b => b.classList.toggle('active', b.dataset.inbox === k));
-        card.querySelectorAll('[data-inbox-pane]').forEach(p => { p.classList.toggle('d-none', p.dataset.inboxPane !== k); p.scrollTop = 0; });
-        document.getElementById('attMonListHistory')?.classList.toggle('d-none', k !== 'hist');
-        try { localStorage.setItem('centroInbox', k); } catch (e) {}
-    };
-    card.querySelectorAll('[data-inbox]').forEach(b => b.addEventListener('click', () => show(b.dataset.inbox)));
-    let last = 'pend';
-    try { last = localStorage.getItem('centroInbox') || 'pend'; } catch (e) {}
-    show(card.querySelector(`[data-inbox="${last}"]`) ? last : 'pend');
-}
 // Agenda (Cartera / Resto y 7 / 30 días) y Resumen (hoy / 7 / 30 días): se recuerda la última elección de cada tarjeta
 function initSwitchCard(card) {
     if (!card) return;
