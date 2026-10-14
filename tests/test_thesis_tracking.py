@@ -607,7 +607,7 @@ def test_price_signals_abnormal_own_move_and_thesis_links():
     live = {"scenarios": [{"name": "Base", "cagr": 4.0, "entry_prices": {10: st["price"] * 1.5, 15: st["price"] * 1.2}}]}
     sig = price_signals("X", st, {"verdict": "INTACTA"}, live, weight=18)
     texts = " ".join(s["text"] for s in sig)
-    assert "entrada al 15%" in texts and "CAGR implícito" in texts and "18,0%" in texts and "10%" not in texts
+    assert "entrada (" in texts and "al 15%)" in texts and "CAGR implícito" in texts and "18,0%" in texts and "10%" not in texts
     assert not {"mínimo relativo", "media de 200"} & {w for w in ("mínimo relativo", "media de 200") if w in texts}
     assert not [s for s in price_signals("X", st, {"verdict": "DEBILITADA"}, live) if s["kind"] == "oportunidad"]
 
