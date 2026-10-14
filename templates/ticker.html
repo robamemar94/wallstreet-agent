@@ -119,11 +119,12 @@
     /* columna izquierda: Calidad y, debajo, seis fichas en dos columnas (cuatro indicadores, tesis y directivos) */
     .ind-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: .6rem; }
     /* el alto que sobra en la columna se reparte entre Calidad y los indicadores (no se queda vacío abajo) */
-    .dash-quality { flex: 0 1 auto; }
-    .ind-tile { align-content: center; padding: .7rem .9rem !important; }
-    .ind-tile .ind-val { font-size: 1.35rem; }
-    .ind-tile .ind-label { font-size: .7rem; }
-    .ind-tile .ind-sub { font-size: .76rem; }
+    /* Calidad algo más grande; indicadores compactos; tesis y directivos con el alto que queda (contenido repartido) */
+    .dash-quality { flex: 1 1 auto; }
+    .dash-quality .dash-why { font-size: .84rem !important; line-height: 1.4; }
+    .ind-tile { align-content: center; padding: .4rem .7rem !important; }
+    .ind-tile .ind-val { font-size: 1rem; }
+    .dash-bottom #insSummary > .card-body { display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
     .ind-tile { flex-direction: row !important; flex-wrap: wrap; align-items: baseline; column-gap: .6rem; row-gap: .05rem; }
     .ind-tile .ind-label { flex: 1 0 100%; }
     .ind-tile .ind-bar { flex: 1 1 4rem; align-self: center; }
@@ -865,7 +866,7 @@ function openStats() {
                 </div></div>
                 {# Indicadores: la respuesta a «¿y ahora qué hago con ella?» en cuatro casillas. Distancia a compra y técnico se
                    calculan en el navegador con los datos del gráfico (en directo, sin IA); tesis y previsiones, del servidor. #}
-                <div class="ind-grid mb-3 flex-grow-1">
+                <div class="ind-grid mb-3">
                     <a href="#valoracion" class="ind-tile" onclick="document.getElementById('nav-projection-tab').click(); return false;" title="Lo que tendría que caer el precio para llegar al de compra de tu valoración base">
                         <span class="ind-label"><i class="bi bi-bullseye me-1"></i>A compra</span>
                         <span class="ind-val" id="indDist">–</span>
@@ -891,7 +892,7 @@ function openStats() {
                         <a href="#" class="ind-sub text-decoration-none" onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-technical-top-tab')).show(); return false;">Informe técnico de IA →</a></div>
                 </div>
                 {# seguimiento de la tesis y directivos y acciones, lado a lado (estiran hasta el final de la ventana) #}
-                <div class="row g-3 mb-0">
+                <div class="row g-3 mb-0 flex-grow-1 dash-bottom">
                     <div class="col-md-6">
                     {# Seguimiento: la tesis (estado, salud, lo que está mal), las últimas noticias y los próximos resultados #}
                     <div class="card border-0 shadow-sm h-100 thesis-strip dash-card dash-teal">
@@ -924,7 +925,7 @@ function openStats() {
                             {% if th and th.news %}
                             {# las más relevantes (y, a igualdad, las más recientes): llenan el alto que quede #}
                             <div>
-                            {% for n in th.news[:2] %}
+                            {% for n in th.news[:4] %}
                             <div class="d-flex gap-2 py-1 border-top" title="{{ n.title }}">
                                 <span class="fw-bold text-nowrap {{ 'text-danger' if n.materiality and n.materiality >= 5 else 'text-warning' }}">{{ n.materiality }}/5</span>
                                 <span class="text-muted text-nowrap">{{ (n.date or '')[8:10] }}/{{ (n.date or '')[5:7] }}</span>
