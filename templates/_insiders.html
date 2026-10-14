@@ -6,11 +6,11 @@
 {% macro money(v) %}{% if v is none %}–{% elif v|abs >= 1e6 %}{{ num(v / 1e6, 1) }} M{% elif v|abs >= 1e3 %}{{ num(v / 1e3, 0) }} mil{% else %}{{ num(v, 0) }}{% endif %}{% endmacro %}
 {% set total = buys.value + sells.value %}
 <div class="card-body py-2 px-3 d-flex flex-column" style="font-size: .76rem;">
-    <div class="dash-label d-flex align-items-center"><i class="bi bi-person-badge me-1"></i>Directivos y acciones
+    <div class="dash-label d-flex align-items-center text-nowrap"><i class="bi bi-person-badge me-1"></i>Directivos y acciones
         <i class="bi bi-info-circle ms-1 fw-normal" title="Datos de mercado (no del análisis de IA). Directivos: solo compras y ventas en bolsa de los últimos 12 meses; las acciones que la empresa da como sueldo, los regalos y el ejercicio de opciones no cuentan. Las compras son la señal: el directivo pone su dinero; las ventas suelen ser planificadas o para pagar impuestos. Importes en la moneda del registro (USD o CAD); Yahoo solo da directivos de EE. UU. y Canadá. Acciones en circulación ajustadas por splits."></i>
         {% if trades %}
         <a href="#" class="ms-auto text-decoration-none fw-bold" style="text-transform: none; letter-spacing: 0;" data-bs-toggle="modal" data-bs-target="#insModal">
-            {{ trades|length }} operaciones <i class="bi bi-box-arrow-up-right"></i></a>
+            {{ trades|length }} ops. <i class="bi bi-box-arrow-up-right"></i></a>
         {% endif %}
     </div>
 
@@ -60,7 +60,7 @@
              style="{{ '' if up or down else 'background: var(--bs-secondary-bg);' }}"
              title="{{ ('Acciones (diluidas) en ' ~ n ~ (' año' if n == 1 else ' años') ~ ': ' ~ num(w.total, 1, sign=True) ~ ' % en total (' ~ num(w.annual, 1, sign=True) ~ ' % al año). ' ~ ('Diluye' if up else 'Recompra' if down else 'Estable') ~ '. Fuente: ' ~ shares_source) if w else 'El historial no llega a ' ~ n ~ ' años' }}">
             <div style="font-size: .64rem; opacity: .8;">{{ n }} año{{ 's' if n > 1 }}</div>
-            <div class="fw-bold num-font" style="font-size: .95rem;">{% if w %}{{ '▲' if up else '▼' if down else '=' }} {{ num(w.total, 1, sign=True) }} %{% else %}–{% endif %}</div>
+            <div class="fw-bold num-font text-nowrap" style="font-size: .82rem;">{% if w %}{{ '▲' if up else '▼' if down else '=' }} {{ num(w.total, 1, sign=True) }} %{% else %}–{% endif %}</div>
         </div>
         {% endfor %}
     </div>
