@@ -879,7 +879,7 @@ function openStats() {
                         <span class="ind-sub" id="indTechSub">calculando…</span>
                         <a href="#" class="ind-sub text-decoration-none" onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-technical-top-tab')).show(); return false;">Informe técnico de IA →</a></div>
                 </div>
-                {# seguimiento de la tesis y directivos y acciones, lado a lado (estiran hasta el final de la ventana) #}
+                {# seguimiento de la tesis y directivos y acciones, lado a lado #}
                 <div class="row g-3 mb-0 flex-grow-1">
                     <div class="col-md-6">
                     {# Seguimiento: la tesis (estado, salud, lo que está mal), las últimas noticias y los próximos resultados #}
@@ -932,6 +932,22 @@ function openStats() {
                         </div>
                     </div>
                 </div>
+            {# Cifras clave (fundamentales): aparte del precio, en su recuadro #}
+            <div class="card border-0 shadow-sm mt-3 mb-0 dash-card dash-slate flex-shrink-0">
+                <div class="card-body py-2 px-3">
+                    <div class="dash-label d-flex align-items-center"><i class="bi bi-calculator me-1"></i>Cifras clave</div>
+                {# cifras clave, debajo del gráfico (el detalle completo, en Finanzas y gráficos › Estadísticas) #}
+                {% set short = {'PER adelantado': 'PER adel.', 'Margen operativo': 'Margen op.', 'Crec. ventas esperado': 'Crec. ventas', 'Deuda neta / EBITDA': 'Deuda/EBITDA', 'Rent. dividendo': 'Dividendo', 'ROE (TTM)': 'ROE', 'ROIC (TTM)': 'ROIC'} %}
+                <div class="key-figs-grid pv-figs">
+                    {% for label, value, tip in key_figs %}
+                    <div class="key-fig" title="{{ label }}: {{ tip }}"><span class="key-fig-label">{{ short.get(label, label) }}</span>
+                        <span class="key-fig-val num-font {{ 'text-muted' if value is none }}">{{ value if value is not none else '–' }}</span></div>
+                    {% endfor %}
+                    <a class="key-fig key-fig-more text-decoration-none" href="#" onclick="openStats(); return false;" title="Todas las estadísticas de la empresa">
+                        <span class="key-fig-label">Más</span><span class="key-fig-val"><i class="bi bi-arrow-right"></i></span></a>
+                </div>
+                </div>
+            </div>
             </div>
             {# derecha: toda para precio y valoración, con el gráfico tan alto como la columna #}
             <div class="col-lg-5 col-xxl-6 d-flex flex-column">
@@ -962,22 +978,6 @@ function openStats() {
                     </div>
                     <div class="mt-1 position-relative" id="pvChartBox" style="flex: 1 1 0; min-height: 140px;"><div id="pvChart" class="position-absolute top-0 start-0 w-100 h-100"></div></div>
                 </div>
-            {# Cifras clave (fundamentales): aparte del precio, en su recuadro #}
-            <div class="card border-0 shadow-sm mt-3 mb-0 dash-card dash-slate">
-                <div class="card-body py-2 px-3">
-                    <div class="dash-label d-flex align-items-center"><i class="bi bi-calculator me-1"></i>Cifras clave</div>
-                {# cifras clave, debajo del gráfico (el detalle completo, en Finanzas y gráficos › Estadísticas) #}
-                {% set short = {'PER adelantado': 'PER adel.', 'Margen operativo': 'Margen op.', 'Crec. ventas esperado': 'Crec. ventas', 'Deuda neta / EBITDA': 'Deuda/EBITDA', 'Rent. dividendo': 'Dividendo', 'ROE (TTM)': 'ROE', 'ROIC (TTM)': 'ROIC'} %}
-                <div class="key-figs-grid pv-figs">
-                    {% for label, value, tip in key_figs %}
-                    <div class="key-fig" title="{{ label }}: {{ tip }}"><span class="key-fig-label">{{ short.get(label, label) }}</span>
-                        <span class="key-fig-val num-font {{ 'text-muted' if value is none }}">{{ value if value is not none else '–' }}</span></div>
-                    {% endfor %}
-                    <a class="key-fig key-fig-more text-decoration-none" href="#" onclick="openStats(); return false;" title="Todas las estadísticas de la empresa">
-                        <span class="key-fig-label">Más</span><span class="key-fig-val"><i class="bi bi-arrow-right"></i></span></a>
-                </div>
-                </div>
-            </div>
             </div>
             </div>
         </div>
