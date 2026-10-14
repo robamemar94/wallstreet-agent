@@ -250,6 +250,12 @@
         [data-bs-theme="light"] body { background-color: #f8f9fa; }
         
         .navbar { margin-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .home-nav { position: absolute; left: .5rem; top: .6rem; width: auto; padding: 0; z-index: 5; }
+        .home-nav .btn { font-size: .76rem; font-weight: 600; display: inline-flex; align-items: center; padding: .2rem .5rem; }
+        .home-nav .hn-badge { margin-left: .35rem; min-width: 1.1rem; padding: 0 .3rem; border-radius: 999px; font-size: .65rem;
+                              line-height: 1.1rem; background: var(--bs-danger); color: #fff; text-align: center; }
+        .home-nav .hn-badge:empty { display: none; }
+        @media (max-width: 1399.98px) { .home-nav .hn-txt { display: none; } }
         .card { margin-bottom: 1rem; box-shadow: none !important; border: 1px solid rgba(0,0,0,0.08) !important; transition: transform 0.2s; border-radius: 4px; }
         
         [data-bs-theme="dark"] .card { 
@@ -290,27 +296,43 @@
         [data-bs-theme="dark"] .text-dark { color: #e9ecef !important; }
         [data-bs-theme="dark"] .text-primary { color: #58a6ff !important; }
         
-        .report-content { background: inherit; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; }
-        [data-bs-theme="dark"] .report-content { border-color: var(--fin-border); background-color: rgba(255,255,255,0.02); }
-        
-        /* Estilos mejorados para las tablas generadas por Markdown */
-        .report-content table { 
-            width: 100%; 
-            margin-bottom: 1.5rem; 
-            color: inherit; 
-            border-collapse: collapse; 
-            border: 1px solid #dee2e6;
-            font-size: 0.95rem;
+        /* Informes de la IA (Markdown → HTML): estilo sobrio de nota de análisis. Títulos sin mayúsculas forzadas,
+           texto alineado a la izquierda, tablas con solo líneas horizontales y cifras alineadas. */
+        .report-content {
+            font-size: .88rem; line-height: 1.68; color: var(--bs-body-color);
+            max-width: 860px; margin: 0 auto; padding: .25rem .5rem;
+            font-variant-numeric: tabular-nums;
         }
-        [data-bs-theme="dark"] .report-content table { border-color: #495057; }
-        .report-content table th, 
-        .report-content table td { 
-            padding: 0.75rem; 
-            vertical-align: middle; 
-            border: 1px solid #dee2e6; 
+        .report-content > :first-child { margin-top: 0 !important; }
+        .report-content h1, .report-content h2, .report-content h3, .report-content h4 {
+            color: var(--bs-emphasis-color); text-transform: none; letter-spacing: 0; line-height: 1.3;
         }
-        [data-bs-theme="dark"] .report-content table th, 
-        [data-bs-theme="dark"] .report-content table td { border-color: #495057; }
+        .report-content h1 { font-size: 1.15rem; font-weight: 700; margin: 1.6rem 0 .8rem; padding-bottom: .45rem;
+                             border-bottom: 1px solid var(--bs-border-color); }
+        .report-content h2 { font-size: .98rem; font-weight: 650; margin: 1.5rem 0 .55rem; padding-left: .6rem;
+                             border-left: 3px solid rgba(var(--bs-primary-rgb), .55); }
+        .report-content h3 { font-size: .88rem; font-weight: 650; margin: 1.15rem 0 .4rem; }
+        .report-content h4 { font-size: .82rem; font-weight: 600; margin: 1rem 0 .35rem; color: var(--bs-secondary-color); }
+        .report-content p { margin: 0 0 .85rem; text-align: left; }
+        .report-content strong { color: var(--bs-emphasis-color); font-weight: 600; }
+        .report-content ul, .report-content ol { margin: 0 0 .85rem; padding-left: 1.25rem; }
+        .report-content li { margin-bottom: .3rem; }
+        .report-content li::marker { color: var(--bs-secondary-color); }
+        .report-content hr { margin: 1.4rem 0; border-color: var(--bs-border-color); opacity: 1; }
+        .report-content code { font-size: .8em; color: inherit; background: var(--bs-tertiary-bg); padding: .05rem .3rem; border-radius: 3px; }
+        .report-content table { width: 100%; margin: .4rem 0 1.1rem; border-collapse: collapse; font-size: .78rem; color: inherit; }
+        .report-content table th {
+            font-weight: 600; font-size: .7rem; letter-spacing: .02em; color: var(--bs-secondary-color); text-align: left;
+            background: transparent; border: 0; border-bottom: 1px solid var(--bs-border-color); padding: .4rem .6rem;
+        }
+        .report-content table td { border: 0; border-bottom: 1px solid var(--bs-border-color-translucent); padding: .38rem .6rem; vertical-align: top; }
+        .report-content table tr:last-child td { border-bottom: 0; }
+        .report-content table tbody tr:hover td { background: var(--bs-tertiary-bg); }
+        .report-content blockquote {
+            margin: 1rem 0; padding: .55rem .9rem; font-style: normal; color: var(--bs-body-color);
+            background: var(--bs-tertiary-bg); border-left: 3px solid rgba(var(--bs-primary-rgb), .6); border-radius: 0 6px 6px 0;
+        }
+        .report-content blockquote p:last-child { margin-bottom: 0; }
 
         /* Estilo Minimalista y Denso (Finanzas) */
         body { font-size: 0.9rem; }
@@ -347,60 +369,6 @@
             border-color: #58a6ff;
         }
 
-        /* Typography and Report Polish - Institutional Style */
-        .report-content { 
-            font-size: 0.85rem; 
-            line-height: 1.5; 
-            color: #333;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-        [data-bs-theme="dark"] .report-content { color: #d1d5db; }
-
-        .report-content h1 { font-size: 1.4rem; font-weight: 800; border-bottom: 2px solid #000; padding-bottom: 0.5rem; margin-top: 2rem; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: -0.02em; }
-        .report-content h2 { font-size: 1.1rem; font-weight: 700; color: #0d6efd; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 0.3rem; margin-top: 1.8rem; margin-bottom: 1rem; text-transform: uppercase; }
-        .report-content h3 { font-size: 0.95rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.75rem; color: inherit; }
-        
-        [data-bs-theme="dark"] .report-content h1 { border-bottom-color: #58a6ff; }
-        [data-bs-theme="dark"] .report-content h2 { border-bottom-color: rgba(255,255,255,0.1); color: #58a6ff; }
-
-        .report-content p { margin-bottom: 1rem; text-align: justify; }
-        .report-content ul, .report-content ol { margin-bottom: 1.2rem; padding-left: 1.5rem; }
-        .report-content li { margin-bottom: 0.4rem; }
-
-        /* Tables inside reports */
-        .report-content table { 
-            width: 100%; 
-            margin-bottom: 1.5rem; 
-            border-collapse: collapse; 
-            font-size: 0.8rem;
-        }
-        .report-content table th { 
-            background-color: #f8f9fa; 
-            font-weight: 700; 
-            text-transform: uppercase; 
-            font-size: 0.7rem; 
-            color: #666;
-            border: 1px solid #dee2e6;
-            padding: 8px;
-        }
-        .report-content table td { 
-            border: 1px solid #dee2e6; 
-            padding: 6px 10px;
-        }
-        [data-bs-theme="dark"] .report-content table th { background-color: #21262d; border-color: #30363d; color: #8b949e; }
-        [data-bs-theme="dark"] .report-content table td { border-color: #30363d; }
-
-        /* Blockquotes for key insights */
-        .report-content blockquote {
-            border-left: 4px solid #0d6efd;
-            padding: 1rem 1.5rem;
-            background-color: #f0f7ff;
-            margin: 1.5rem 0;
-            font-style: italic;
-            border-radius: 0 4px 4px 0;
-        }
-        [data-bs-theme="dark"] .report-content blockquote { background-color: rgba(13, 110, 253, 0.1); }
 
         /* Tooltip refinement */
         .tooltip-inner { font-size: 0.75rem; max-width: 200px; }
@@ -603,6 +571,14 @@
             display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--bs-body-bg);
         }
         .notif-bell .notif-bell-badge.d-none { display: none !important; }
+        /* La cifra del día de la cartera, junto al calendario y la campana (todas las páginas) */
+        .day-pill { display: inline-flex; align-items: baseline; gap: .35rem; padding: .15rem .55rem; border-radius: 999px; white-space: nowrap;
+                    font-size: .82rem; font-weight: 600; text-decoration: none; background: var(--bs-secondary-bg); color: var(--bs-body-color); }
+        .day-pill.d-none { display: none !important; }
+        .day-pill.up { color: var(--bs-success); } .day-pill.down { color: var(--bs-danger); }
+        .day-pill .dp-eur { font-weight: 400; font-size: .76rem; opacity: .85; }
+        .day-pill:hover { filter: brightness(1.15); }
+        @media (max-width: 1299px) { .day-pill .dp-eur { display: none; } }   /* sin sitio: solo el % (el € en el título) */
         /* Sin nada de la cartera pero con algo de fuera (watchlist…): un punto discreto, sin número */
         .notif-bell .notif-bell-badge.dot { min-width: 9px; width: 9px; height: 9px; padding: 0; top: 2px; right: 0; background: #f0ad4e; }
         .notif-filters .btn { font-size: .72rem; }
@@ -800,13 +776,26 @@
         }
 
     </style>
+    <script>
+        // Filtros en la dirección de la página (?nivel=tier1&lista=…): al recargar, volver atrás o guardar el enlace siguen
+        // puestos. set() quita los vacíos y respeta el #pestaña.
+        window.urlState = {
+            get: k => new URLSearchParams(location.search).get(k),
+            set: obj => {
+                const p = new URLSearchParams(location.search);
+                Object.entries(obj).forEach(([k, v]) => (v === '' || v == null || v === false) ? p.delete(k) : p.set(k, v === true ? '1' : v));
+                const q = p.toString();
+                history.replaceState(history.state, '', location.pathname + (q ? '?' + q : '') + location.hash);
+            },
+        };
+    </script>
 </head>
 <body>
 
     <!-- Mobile Topbar -->
     <div class="mobile-topbar">
         <a class="text-decoration-none text-body fw-bold fs-5" href="/">📈</a>
-        <div class="ms-auto me-2 d-flex gap-1"><button type="button" class="btn btn-link text-body p-1 cal-btn" data-bs-toggle="modal" data-bs-target="#calModal" title="Calendario de resultados y dividendos" aria-label="Calendario"><i class="bi bi-calendar3 fs-5"></i></button><button type="button" class="btn btn-link text-body position-relative p-1 notif-bell" data-bs-toggle="offcanvas" data-bs-target="#notifPanel" aria-controls="notifPanel" title="Notificaciones" aria-label="Notificaciones">
+        <div class="ms-auto me-2 d-flex gap-1 align-items-center"><a href="/portfolio" class="day-pill d-none" title="Cómo va hoy tu cartera (en €, con la divisa). Pulsa para abrir la Cartera"><span class="dp-pct"></span><span class="dp-eur"></span></a><button type="button" class="btn btn-link text-body p-1 cal-btn" data-bs-toggle="modal" data-bs-target="#calModal" title="Calendario de resultados y dividendos" aria-label="Calendario"><i class="bi bi-calendar3 fs-5"></i></button><button type="button" class="btn btn-link text-body position-relative p-1 notif-bell" data-bs-toggle="offcanvas" data-bs-target="#notifPanel" aria-controls="notifPanel" title="Notificaciones" aria-label="Notificaciones">
                         <i class="bi bi-bell fs-5"></i><span class="notif-bell-badge d-none">0</span></button></div>
         <button class="btn btn-outline-secondary border-0" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
             <i class="bi bi-list fs-4"></i>
@@ -824,7 +813,7 @@
             <ul class="nav flex-column w-100 mb-2">
                 <li class="nav-group-title" aria-hidden="true">Seguimiento</li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/tesis') or _path.startswith('/noticias') %} active{% endif %}" href="/tesis" title="Tesis y noticias">
+                    <a id="sidebarThesisLink" class="nav-link {% if _path.startswith('/tesis') or _path.startswith('/noticias') %} active{% endif %}" href="/tesis" title="Tesis y noticias">
                         <span class="nav-icon-wrap position-relative d-inline-block">
                             <i class="bi bi-clipboard2-pulse"></i>
                             <span id="sidebarThesisBadge" class="sidebar-notif-badge d-none">0</span>
@@ -868,8 +857,8 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/lists') %} active{% endif %}" href="/lists" title="Mis listas">
-                        <i class="bi bi-list-stars"></i>
+                    <a class="nav-link {% if _path.startswith('/lists') %} active{% endif %}" href="/lists" title="Listas: grupos de empresas parecidas; tú eliges cuáles sigues en la watchlist">
+                        <i class="bi bi-collection"></i>
                         <span>Listas</span>
                     </a>
                 </li>
@@ -891,11 +880,17 @@
 
     <!-- Main Content -->
     <div class="main-content">
-        <div class="container-fluid pb-5">
+        <div class="container-fluid pb-2">   {# poco margen abajo: todo cabe en la ventana (sin scroll de página) #}
             <!-- Barra de búsqueda global en el contenido -->
-            <div class="row mb-4 pt-2 d-none d-lg-flex justify-content-center align-items-center">
+            <div class="row mb-4 pt-2 d-none d-lg-flex justify-content-center align-items-center position-relative">
+                {# accesos directos a Mercado y al Centro de mando (con los no leídos de la cartera), a la izquierda #}
+                {% set _home = _path.startswith('/mercado') or _path == '/' %}
+                <div class="home-nav btn-group btn-group-sm" role="group" aria-label="Ir a Mercado o al Centro de mando">
+                    <a href="/mercado#mercado" class="btn btn-outline-secondary {{ 'active' if _home }}" data-home-link="mercado" title="Mercado"><i class="bi bi-globe2"></i><span class="hn-txt ms-1">Mercado</span></a>
+                    <a href="/mercado#centro" class="btn btn-outline-secondary position-relative" data-home-link="centro" title="Centro de mando"><i class="bi bi-grid-1x2"></i><span class="hn-txt ms-1">Centro</span><span class="hn-badge" data-notif-count="total" title="Sin leer de tu cartera"></span></a>
+                </div>
                 <div class="col-10 col-xl-8 position-relative">
-                    <button class="sidebar-toggle position-absolute" style="left: -50px; top: 0;" onclick="toggleSidebar()" title="Mostrar/Ocultar menú">
+                    <button class="sidebar-toggle position-absolute" style="left: -42px; top: 0;" onclick="toggleSidebar()" title="Mostrar/Ocultar menú">
                         <i class="bi bi-layout-sidebar fs-5"></i>
                     </button>
                     <div class="suggestions-container">
@@ -908,7 +903,8 @@
                         </form>
                         <div id="nav-search-suggestions" class="search-suggestions w-100 mt-1 shadow border rounded-3 bg-body"></div>
                     </div>
-                    <div class="position-absolute d-flex gap-1" style="right: -92px; top: 2px;">
+                    <div class="position-absolute d-flex gap-1 align-items-center" style="left: calc(100% + 8px); top: 2px;">
+                        <a href="/portfolio" class="day-pill d-none" title="Cómo va hoy tu cartera (en €, con la divisa). Pulsa para abrir la Cartera"><span class="dp-pct"></span><span class="dp-eur"></span></a>
                         <button type="button" class="btn btn-link text-body p-1 cal-btn" data-bs-toggle="modal" data-bs-target="#calModal" title="Calendario de resultados y dividendos" aria-label="Calendario"><i class="bi bi-calendar3 fs-5"></i></button>
                         <button type="button" class="btn btn-link text-body position-relative p-1 notif-bell" data-bs-toggle="offcanvas" data-bs-target="#notifPanel" aria-controls="notifPanel" title="Notificaciones" aria-label="Notificaciones">
                         <i class="bi bi-bell fs-5"></i><span class="notif-bell-badge d-none">0</span></button>
@@ -1065,6 +1061,16 @@
         }).catch(() => {});
         window.refreshSidebarAlertBadge = () => window.refreshNotificationBadges();
 
+        // Accesos directos de arriba a la izquierda: marca Mercado o Centro según la página y la pestaña
+        window.syncHomeNav = () => {
+            const home = location.pathname === '/mercado' || location.pathname === '/';
+            const centro = home && location.hash === '#centro';
+            document.querySelectorAll('[data-home-link]').forEach(a => a.classList.toggle('active',
+                home && (a.dataset.homeLink === 'centro') === centro));
+        };
+        window.addEventListener('hashchange', window.syncHomeNav);
+        document.addEventListener('DOMContentLoaded', window.syncHomeNav);
+
         // Panel de notificaciones
         const NOTIF_ICON = {alertas: 'bi-bell', noticias: 'bi-broadcast', avisos: 'bi-inbox', monitor: 'bi-activity'};
         let notifItems = [], notifGroup = '', notifScope = '';
@@ -1193,6 +1199,12 @@
             b.textContent = n > 99 ? '99+' : n;
             b.classList.toggle('d-none', !n);
             b.title = [thesisBadge.noticesTitle, thesisBadge.newsTitle].filter(Boolean).join('\n');
+            // con noticias sin leer de la cartera, el icono lleva directo a /noticias; si no, a /tesis
+            const link = document.getElementById('sidebarThesisLink');
+            if (link) {
+                link.href = thesisBadge.news ? '/noticias' : '/tesis';
+                link.title = thesisBadge.news ? 'Tesis y noticias: ir a las noticias sin leer' : 'Tesis y noticias';
+            }
         };
         // Noticias nuevas del radar de tesis (solo materialidad >=4)
         // el globo del menú solo suma las noticias de empresas en cartera (viene de refreshNotificationBadges);
@@ -1201,7 +1213,35 @@
             window.refreshNotificationBadges && window.refreshNotificationBadges();
             const tab = document.getElementById('tabNewsBadge');
             if (tab) { tab.textContent = d.unread > 99 ? '99+' : d.unread; tab.classList.toggle('d-none', !d.unread); }
+            window.checkRadarDone(d);
         }).catch(() => {});
+        // Aviso «radar terminado»: mientras hay radar en curso se pregunta cada 20 s; al acabar (o al abrir cualquier
+        // página después, si no se había visto) sale un aviso con lo encontrado. Lo ya avisado se recuerda en el navegador.
+        let radarPoll = null;
+        window.checkRadarDone = d => {
+            clearTimeout(radarPoll);
+            if (d.radar_running) { radarPoll = setTimeout(window.refreshSidebarNewsBadge, 20000); return; }
+            const last = d.radar_last;
+            if (!last) return;
+            let seen = null;
+            try { seen = localStorage.getItem('radarDoneSeen'); localStorage.setItem('radarDoneSeen', last.finished_at); } catch (e) {}
+            if (seen === last.finished_at || Date.now() - new Date(last.finished_at) > 12 * 3600000) return;
+            const news = last.new_items === 1 ? '1 noticia nueva' : `${last.new_items} noticias nuevas`;
+            const fail = last.failed.length ? `<br><span class="text-warning">Falló: ${last.failed.join(', ')}</span>` : '';
+            const id = 'radar-toast-' + Date.now();
+            document.getElementById('toastContainer').insertAdjacentHTML('beforeend', `
+                <div id="${id}" class="toast text-white border-0 shadow" role="status" aria-live="polite" style="background-color: #343a40;">
+                  <div class="d-flex">
+                    <div class="toast-body"><strong><i class="bi bi-broadcast me-1 text-info"></i>Radar de noticias terminado</strong><br>
+                      ${last.ran} ${last.ran === 1 ? 'empresa' : 'empresas'} · ${news}${fail}<br>
+                      <a href="/noticias" class="link-light">Ver noticias →</a></div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+                  </div>
+                </div>`);
+            const el = document.getElementById(id);
+            new bootstrap.Toast(el, {delay: 15000}).show();
+            el.addEventListener('hidden.bs.toast', () => el.remove());
+        };
         window.refreshSidebarNewsBadge();
         // Resultados nuevos sin revisar / revisiones con IA listas
         fetch('/api/theses/notices').then(r => r.json()).then(d => {
@@ -1211,6 +1251,23 @@
         }).catch(() => {});
 
         window.refreshNotificationBadges();
+
+        // Cifra del día de la cartera en la barra de arriba: al cargar y cada 5 minutos (precios en caché; sin IA)
+        window.refreshDayPill = () => fetch('/api/portfolio/day').then(r => r.json()).then(d => {
+            document.querySelectorAll('.day-pill').forEach(el => {
+                if (!d.value) { el.classList.add('d-none'); return; }
+                const up = d.eur >= 0, sign = up ? '+' : '';
+                el.classList.remove('d-none');
+                el.classList.toggle('up', d.eur > 0); el.classList.toggle('down', d.eur < 0);
+                el.querySelector('.dp-pct').textContent = `${up ? '▲' : '▼'} ${sign}${fmtNum(d.pct, 2)} %`;
+                el.querySelector('.dp-eur').textContent = `${sign}${fmtNum(d.eur, 0)} €`;
+                el.title = `Hoy tu cartera: ${sign}${fmtNum(d.pct, 2)} % (${sign}${fmtNum(d.eur, 0)} €) · valor ${fmtNum(d.value, 0)} €`
+                    + (d.any_open ? '' : ' · mercados cerrados: es la variación de la última sesión')
+                    + (d.missing.length ? ` · sin precio: ${d.missing.join(', ')}` : '') + '. Pulsa para abrir la Cartera';
+            });
+        }).catch(() => {});
+        window.refreshDayPill();
+        setInterval(() => { if (!document.hidden) window.refreshDayPill(); }, 300000);
 
         document.addEventListener('DOMContentLoaded', () => window.applyAlertSeenState());
 

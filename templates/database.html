@@ -148,6 +148,11 @@
     /* rol en cartera junto al ticker: «+ rol» solo al pasar por la fila */
     .role-tag { white-space: nowrap; font-size: .65rem; border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: 0 .45rem; background: transparent; color: var(--bs-body-color); line-height: 1.4; }
     .role-cell .role-tag { padding: 0 .35rem; font-size: .75rem; }
+    .var-abs { font-size: .66rem; font-weight: 600; line-height: 1.1; }
+    /* Filtros: tantos por línea como quepan (los 8 en una en cuanto hay ~1000 px) */
+    .filters-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: .5rem; }
+    .filters-row > .col { min-width: 0; padding: 0; }
+    .filters-row .form-label { font-size: .7rem; margin-bottom: .15rem; white-space: nowrap; }
     .country-cell { font-size: .72rem; font-weight: 600; letter-spacing: .3px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     /* Zona de valoración: etiqueta pequeña, fondo tenue del color de la zona */
     .val-tag { font-size: .66rem; font-weight: 700; padding: .05rem .4rem; border-radius: .3rem; white-space: nowrap; }
@@ -155,6 +160,8 @@
     .val-barata { color: #22c55e; background: rgba(34, 197, 94, .10); }
     .val-justo { color: var(--bs-secondary-color); background: rgba(127, 127, 127, .12); }
     .val-cara { color: #d97706; background: rgba(245, 158, 11, .14); }
+    .val-none { color: var(--bs-secondary-color); border: 1px dashed var(--bs-border-color); text-decoration: none; opacity: .7; }
+    .val-none:hover { opacity: 1; color: var(--bs-primary); border-color: var(--bs-primary); }
     .val-burbuja { color: #dc2626; background: rgba(239, 68, 68, .14); }
     .role-tag.role-empty { color: var(--bs-secondary-color); border-style: dashed; opacity: .55; }
     .ticker-row:hover .role-tag.role-empty, .role-dd.show .role-tag { opacity: 1; }
@@ -165,10 +172,10 @@
         <!-- Filtros Colapsables -->
         <div class="collapse mb-4" id="filtersCollapse">
             <div class="card shadow-sm border-0">
-                <div class="card-body bg-light rounded">
-                    <div class="row g-3">
-                        <div class="col-md-2">
-                            <label class="form-label small fw-bold">Estado Manual</label>
+                <div class="card-body bg-light rounded py-2">
+                    <div class="filters-row">
+                        <div class="col">
+                            <label class="form-label small fw-bold">Estado</label>
                             <div class="dropdown filter-dropdown" id="dropdown-status">
                                 <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-status">
                                     Cualquiera
@@ -208,7 +215,7 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col">
                             <label class="form-label small fw-bold">Capitalización</label>
                             <div class="dropdown filter-dropdown" id="dropdown-cap">
                                 <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-cap">
@@ -239,7 +246,7 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col">
                             <label class="form-label small fw-bold">Valoración</label>
                             <div class="dropdown filter-dropdown" id="dropdown-valuation">
                                 <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-valuation">
@@ -255,38 +262,45 @@
                                     <li><hr class="dropdown-divider my-1"></li>
                                     <li>
                                         <div class="form-check dropdown-item py-1">
-                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="GANGA" id="valuation-GANGA" onchange="handleItemSelect('valuation')">
-                                            <label class="form-check-label w-100" for="valuation-GANGA">🔥 Ganga</label>
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="Ganga" id="valuation-GANGA" onchange="handleItemSelect('valuation')">
+                                            <label class="form-check-label w-100" for="valuation-GANGA">Ganga</label>
                                         </div>
                                     </li>
                                     <li>
                                         <div class="form-check dropdown-item py-1">
-                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="BARATA" id="valuation-BARATA" onchange="handleItemSelect('valuation')">
-                                            <label class="form-check-label w-100" for="valuation-BARATA">✅ Barata</label>
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="Barato" id="valuation-BARATA" onchange="handleItemSelect('valuation')">
+                                            <label class="form-check-label w-100" for="valuation-BARATA">Barata</label>
                                         </div>
                                     </li>
                                     <li>
                                         <div class="form-check dropdown-item py-1">
-                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="PRECIO JUSTO" id="valuation-JUSTO" onchange="handleItemSelect('valuation')">
-                                            <label class="form-check-label w-100" for="valuation-JUSTO">⚖️ Precio Justo</label>
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="Precio Justo" id="valuation-JUSTO" onchange="handleItemSelect('valuation')">
+                                            <label class="form-check-label w-100" for="valuation-JUSTO">Precio justo</label>
                                         </div>
                                     </li>
                                     <li>
                                         <div class="form-check dropdown-item py-1">
-                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="CARA" id="valuation-CARA" onchange="handleItemSelect('valuation')">
-                                            <label class="form-check-label w-100" for="valuation-CARA">⚠️ Cara</label>
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="Caro" id="valuation-CARA" onchange="handleItemSelect('valuation')">
+                                            <label class="form-check-label w-100" for="valuation-CARA">Cara</label>
                                         </div>
                                     </li>
                                     <li>
                                         <div class="form-check dropdown-item py-1">
-                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="BURBUJA" id="valuation-BURBUJA" onchange="handleItemSelect('valuation')">
-                                            <label class="form-check-label w-100" for="valuation-BURBUJA">🚨 Burbuja</label>
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="Burbuja" id="valuation-BURBUJA" onchange="handleItemSelect('valuation')">
+                                            <label class="form-check-label w-100" for="valuation-BURBUJA">Burbuja</label>
+                                        </div>
+                                    </li>
+                                    <li><hr class="dropdown-divider my-1"></li>
+                                    <li>
+                                        <div class="form-check dropdown-item py-1">
+                                            <input class="form-check-input filter-checkbox filter-input" type="checkbox" value="N/A" id="valuation-NA" onchange="handleItemSelect('valuation')">
+                                            <label class="form-check-label w-100" for="valuation-NA">Sin valoración</label>
                                         </div>
                                     </li>
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col">
                             <label class="form-label small fw-bold">Región</label>
                             <div class="dropdown filter-dropdown" id="dropdown-region">
                                 <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-region">
@@ -314,7 +328,7 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col">
                             <label class="form-label small fw-bold">Sector</label>
                             <div class="dropdown filter-dropdown" id="dropdown-sector">
                                 <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-sector">
@@ -342,7 +356,7 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col">
                             <label class="form-label small fw-bold">Subsector</label>
                             <div class="dropdown filter-dropdown" id="dropdown-subsector">
                                 <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-subsector">
@@ -370,7 +384,7 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col">
                             <label class="form-label small fw-bold">País</label>
                             <div class="dropdown filter-dropdown" id="dropdown-country">
                                 <button class="form-select form-select-sm text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="btn-filter-country">
@@ -398,8 +412,8 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-md-2">
-                            <label class="form-label small fw-bold">Nota Mínima (0-10)</label>
+                        <div class="col">
+                            <label class="form-label small fw-bold" title="Nota media mínima (0-10)">Nota mínima</label>
                             <input type="number" class="form-control form-control-sm filter-input" id="filter-score" placeholder="Ej: 7.5" min="0" max="10" step="0.5">
                         </div>
                     </div>
@@ -411,18 +425,24 @@
         <div class="d-flex justify-content-between align-items-end flex-wrap gap-2 mb-2 db-toolbar">
             <ul class="nav nav-tabs db-tabs" id="dbTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="all-tab" data-bs-toggle="tab" data-bs-target="#tab-all" type="button" role="tab">Todas <span class="tab-count" data-tab-count="all-tab"></span></button>
+                    <button class="nav-link" id="all-tab" data-bs-toggle="tab" data-bs-target="#tab-all" type="button" role="tab">Todas <span class="tab-count" data-tab-count="all-tab"></span></button>
                 </li>
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="fav-tab" data-bs-toggle="tab" data-bs-target="#tab-fav" type="button" role="tab"><i class="bi bi-star-fill tab-mark" style="--mark: #f0ad4e;"></i>Favoritas <span class="tab-count" data-tab-count="fav-tab"></span></button>
+                    <button class="nav-link active" id="follow-tab" data-bs-toggle="tab" data-bs-target="#tab-follow" type="button" role="tab" title="Seguimiento: todo lo que sigues (Tier 1 + Tier 2 + Tier 3), sin las de cartera"><span class="tab-dot" style="--mark: var(--fin-green);"></span>Seguimiento <span class="tab-count" data-tab-count="follow-tab"></span></button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="fav-tab" data-bs-toggle="tab" data-bs-target="#tab-fav" type="button" role="tab" title="Tier 1 · objetivo: las comprarías si llegan a precio (la estrella)"><i class="bi bi-star-fill tab-mark" style="--mark: #f0ad4e;"></i>Tier 1 <span class="tab-count" data-tab-count="fav-tab"></span></button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tier2-tab" data-bs-toggle="tab" data-bs-target="#tab-tier2" type="button" role="tab" title="Tier 2 · vigilancia: te gustan, sin prisa"><span class="tab-dot" style="--mark: #0dcaf0;"></span>Tier 2 <span class="tab-count" data-tab-count="tier2-tab"></span></button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="accepted-tab" data-bs-toggle="tab" data-bs-target="#tab-accepted" type="button" role="tab"><span class="tab-dot" style="--mark: #adb5bd;"></span>Tier 3 <span class="tab-count" data-tab-count="accepted-tab"></span></button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="portfolio-tab" data-bs-toggle="tab" data-bs-target="#tab-portfolio" type="button" role="tab"><i class="bi bi-briefcase-fill tab-mark" style="--mark: #58a6ff;"></i>En cartera <span class="tab-count" data-tab-count="portfolio-tab"></span></button>
                 </li>
                 <li class="nav-item db-tabs-sep" role="presentation" aria-hidden="true"></li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="accepted-tab" data-bs-toggle="tab" data-bs-target="#tab-accepted" type="button" role="tab"><span class="tab-dot" style="--mark: var(--fin-green);"></span>Seguimiento <span class="tab-count" data-tab-count="accepted-tab"></span></button>
-                </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#tab-pending" type="button" role="tab"><span class="tab-dot" style="--mark: #8b949e;"></span>Pendientes <span class="tab-count" data-tab-count="pending-tab"></span></button>
                 </li>
@@ -464,20 +484,19 @@
                 <table class="table table-modern align-middle mb-0" id="dbTable" style="table-layout: fixed; width: 100%;">
                     <thead>
                         <tr style="cursor: pointer;">
-                            <th class="ps-3" style="width: 7.5%;" onclick="sortRows(0)">Ticker</th>
-                            <th style="width: 19%;" onclick="sortRows(1)">Nombre</th>
+                            <th class="ps-3" style="width: 7.5%;" onclick="sortRows(0)"><input type="checkbox" class="form-check-input me-1" id="dbPickAll" title="Seleccionar las visibles" onclick="event.stopPropagation(); dbPickAll(this.checked)">Ticker</th>
+                            <th style="width: 22%;" onclick="sortRows(1)">Nombre</th>
                             <th class="text-center" style="width: 4%;" onclick="sortRows(2)">País</th>
-                            <th style="width: 10%;" onclick="sortRows(3)">Sector</th>
-                            <th style="width: 10%;" onclick="sortRows(4)">Subsector</th>
+                            <th style="width: 11.5%;" onclick="sortRows(3)">Sector</th>
+                            <th style="width: 11.5%;" onclick="sortRows(4)">Subsector</th>
                             <th class="text-end" style="width: 9%;" onclick="sortRows(5)" title="Capitalización en USD (acciones en circulación × último precio × tipo de cambio) y su categoría">Capitalización</th>
-                            <th class="text-end" style="width: 7%;" onclick="sortRows(6)">Precio</th>
-                            <th class="text-end" style="width: 6%;" onclick="sortRows(7)" id="var-header" title="Cuánto se ha movido el precio, en su moneda">Var. <span class="var-header-period"></span></th>
-                            <th class="text-end" style="width: 6.5%;" onclick="sortRows(8)" title="Variación en %">Var. % <span class="var-header-period"></span></th>
-                            <th class="text-center" style="width: 4.5%;" onclick="sortRows(9)" title="Nota de las Normas de Calidad (0-10)">Normas</th>
-                            <th class="text-center" style="width: 4.5%;" onclick="sortRows(10)" title="Nota del Veredicto Final (0-10)">Verd.</th>
-                            <th class="text-center" style="width: 4.5%;" onclick="sortRows(11)" title="Media de Normas y Veredicto">Media</th>
-                            <th class="text-center" style="width: 6%;" onclick="sortRows(12)" title="Zona de valoración">Valor.</th>
-                            <th class="text-center" style="width: 3.5%;" onclick="sortRows(13)" title="Rol en el Portfolio ideal">Rol</th>
+                            <th class="text-end" style="width: 7%;" onclick="sortRows(6)" title="Último precio y, debajo, cuánto se ha movido en su moneda en el periodo">Precio</th>
+                            <th class="text-end" style="width: 6.5%;" onclick="sortRows(7)" title="Variación en %">Var. % <span class="var-header-period"></span></th>
+                            <th class="text-center" style="width: 4.5%;" onclick="sortRows(8)" title="Nota de las Normas de Calidad (0-10)">Normas</th>
+                            <th class="text-center" style="width: 4.5%;" onclick="sortRows(9)" title="Nota del Veredicto Final (0-10)">Verd.</th>
+                            <th class="text-center" style="width: 4.5%;" onclick="sortRows(10)" title="Media de Normas y Veredicto">Media</th>
+                            <th class="text-center" style="width: 6%;" onclick="sortRows(11)" title="Zona de valoración">Valor.</th>
+                            <th class="text-center" style="width: 3.5%;" onclick="sortRows(12)" title="Rol en el Portfolio ideal">Rol</th>
                             <th class="text-center actions-column" style="width: 15%; display: none;">Acciones</th>
                         </tr>
                     </thead>
@@ -490,6 +509,7 @@
                             data-status="{{ t.status }}"
                             data-role="{{ t.role or '' }}"
                             data-is-favorite="{{ 'true' if t.is_favorite else 'false' }}"
+                            data-tier="{{ t.tier }}"
                             data-is-portfolio="{{ 'true' if t.is_portfolio else 'false' }}"
                             data-country="{{ t.country }}"
                             data-region="{{ t.region }}"
@@ -499,9 +519,10 @@
                             data-valuation="{{ t.valuation.status }}"
                             data-score-rules="{{ t.get('rules_score', '-') if t.get('rules_score', '-') != '-' else '0' }}"
                             data-score-general="{{ v_score if v_score != '-' else '0' }}"
-                            onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;">
+                            onclick="dbRowClick(event, '{{ t.name }}')" style="cursor: pointer;">
                             <td class="ps-3 text-nowrap" data-sort-value="{{ clean_ticker(t.name) }}">
                                 <div class="ticker-info">
+                                    <label class="db-pick-hit" onclick="event.stopPropagation()" title="Seleccionar"><input type="checkbox" class="form-check-input db-pick" value="{{ t.name }}" onchange="dbPickChanged()" aria-label="Seleccionar {{ t.name }}"></label>
                                     <span class="me-2 favorite-star" onclick="event.stopPropagation(); toggleFavorite('{{ t.name }}', this)">
                                         <i class="bi {{ 'bi-star-fill text-warning' if t.is_favorite else 'bi-star text-muted' }}"></i>
                                     </span>
@@ -519,9 +540,14 @@
                             </td>
                             <td class="text-end align-middle fw-bold num-font text-nowrap" data-sort-value="{{ t.market_data.price }}">
                                 {{ format_euro(t.market_data.price, 2) }} {{ t.currency_symbol }}
+                                <div class="var-abs {% if t.market_data.change > 0 %}text-success{% elif t.market_data.change < 0 %}text-danger{% else %}text-muted{% endif %}">{% if t.market_data.change > 0 %}+{% endif %}{{ format_euro(t.market_data.change, 2) }}</div>
                             </td>
-                            <td class="text-end align-middle num-font small var-abs-cell {% if t.market_data.change > 0 %}text-success{% elif t.market_data.change < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ t.market_data.change }}">{% if t.market_data.change > 0 %}+{% endif %}{{ format_euro(t.market_data.change, 2) }}</td>
+                            {% if t.market_data.not_open %}
+                            <td class="text-end align-middle var-cell text-muted small" data-sort-value="-9999" data-abs-1d="" data-pct-1d="" data-price="{{ t.market_data.price }}" data-not-open="1"
+                                title="Su mercado no ha abierto hoy · última sesión {{ t.market_data.last_date }}: {{ num(t.market_data.last_pct, 2, sign=True) }} %"><i class="bi bi-moon opacity-50"></i> –</td>
+                            {% else %}
                             <td class="text-end align-middle var-cell" data-sort-value="{{ t.market_data.pct }}" data-abs-1d="{{ t.market_data.change }}" data-pct-1d="{{ t.market_data.pct }}" data-price="{{ t.market_data.price }}">{{ chg_pill(t.market_data.pct) }}</td>
+                            {% endif %}
                             {% set r_score = t.get('rules_score', '-') %}
                             <td class="text-center fw-bold align-middle num-font {% if r_score != '-' %}{% if r_score|float >= 8.0 %}text-success{% elif r_score|float <= 5.0 %}text-danger{% else %}text-warning{% endif %}{% else %}text-muted{% endif %}" data-sort-value="{{ r_score }}">
                                 {{ r_score }}
@@ -556,10 +582,10 @@
                                 -
                             </td>
                             {% endif %}
-                            <td class="text-center align-middle" data-sort-value="{{ t.valuation.ratio }}">
+                            {% set vz = {'Ganga': ('ganga', 'Ganga'), 'Barato': ('barata', 'Barata'), 'Precio Justo': ('justo', 'Justo'), 'Caro': ('cara', 'Cara'), 'Burbuja': ('burbuja', 'Burbuja')}.get(t.valuation.status) %}
+                            <td class="text-center align-middle" data-sort-value="{{ t.valuation.ratio if vz else '-' }}">
                                 <div class="d-flex justify-content-center" title="{{ 'PER: ' ~ format_euro(t.valuation.market|float, 1) ~ ' / justo ' ~ format_euro(t.valuation.fair|float, 1) if t.valuation.market != '-' else '' }}">
-                                    {% set vz = {'Ganga': ('ganga', 'Ganga'), 'Barato': ('barata', 'Barata'), 'Precio Justo': ('justo', 'Justo'), 'Caro': ('cara', 'Cara'), 'Burbuja': ('burbuja', 'Burbuja')}.get(t.valuation.status) %}
-                                    {% if vz %}<span class="val-tag val-{{ vz[0] }}">{{ vz[1] }}</span>{% else %}<span class="text-muted" title="Sin valoración">–</span>{% endif %}
+                                    {% if vz %}<span class="val-tag val-{{ vz[0] }}">{{ vz[1] }}</span>{% else %}<a class="val-tag val-none" href="/ticker/{{ t.name }}#valoracion" onclick="event.stopPropagation();" title="Sin valoración: pulsa para hacerla en la ficha">Valorar</a>{% endif %}
                                 </div>
                             </td>
                             <td class="text-center align-middle role-cell" data-sort-value="{{ t.role if t.role in roles_by_key else '' }}" onclick="event.stopPropagation();">
@@ -575,7 +601,7 @@
                             <td class="text-center actions-column" style="display: none;" onclick="event.stopPropagation();">
                                 {% if t.status == 'PENDING' %}
                                 <div class="d-flex justify-content-center gap-1">
-                                    <button class="btn btn-xs btn-outline-success py-0 px-2 fw-semibold" style="font-size: 0.68rem;" onclick="updateTickerStatus('{{ t.name }}', 'ACCEPTED', this)" title="Mover a Seguimiento">✅ Aceptar</button>
+                                    <button class="btn btn-xs btn-outline-success py-0 px-2 fw-semibold" style="font-size: 0.68rem;" onclick="updateTickerStatus('{{ t.name }}', 'ACCEPTED', this)" title="Aceptar (Tier 3)">✅ Aceptar</button>
                                     <button class="btn btn-xs btn-outline-warning py-0 px-2 fw-semibold text-dark" style="font-size: 0.68rem;" onclick="updateTickerStatus('{{ t.name }}', 'STANDBY', this)" title="Mover a Dudas">🤔 Dudas</button>
                                     <button class="btn btn-xs btn-outline-danger py-0 px-2 fw-semibold" style="font-size: 0.68rem;" onclick="updateTickerStatus('{{ t.name }}', 'REJECTED', this)" title="Descartar">❌ Descartar</button>
                                 </div>
@@ -583,7 +609,7 @@
                                 <div class="d-flex justify-content-center gap-1">
                                     <select class="form-select form-select-sm py-0 px-1 text-muted border-0 bg-light" style="width: auto; font-size: 0.75rem; cursor: pointer;" onchange="updateTickerStatus('{{ t.name }}', this.value, this)">
                                         <option value="PENDING" {% if t.status == 'PENDING' %}selected{% endif %}>⏳ Pendiente</option>
-                                        <option value="ACCEPTED" {% if t.status == 'ACCEPTED' %}selected{% endif %}>✅ Seguimiento</option>
+                                        <option value="ACCEPTED" {% if t.status == 'ACCEPTED' %}selected{% endif %}>✅ Aceptada (Tier 3)</option>
                                         <option value="STANDBY" {% if t.status == 'STANDBY' %}selected{% endif %}>🤔 Dudas</option>
                                         <option value="REJECTED" {% if t.status == 'REJECTED' %}selected{% endif %}>❌ Descartada</option>
                                     </select>
@@ -622,12 +648,17 @@
 
         if (period === '1d') {
             document.querySelectorAll('#dbBody td.var-cell').forEach(cell => {
+                if (cell.dataset.notOpen) {   // su mercado no ha abierto hoy: «🌙 –», al final al ordenar
+                    cell.setAttribute('data-sort-value', '-9999');
+                    cell.innerHTML = '<i class="bi bi-moon opacity-50"></i> –';
+                    return;
+                }
                 const pct = parseFloat(cell.getAttribute('data-pct-1d'));
                 const abs = parseFloat(cell.getAttribute('data-abs-1d'));
                 cell.setAttribute('data-sort-value', cell.getAttribute('data-pct-1d'));
                 renderVarCell(cell, pct, abs);
             });
-            if (currentSort.col === 7 || currentSort.col === 8) sortRows(currentSort.col, false);
+            if (currentSort.col === 7) sortRows(currentSort.col, false);
             return;
         }
 
@@ -663,26 +694,26 @@
             if (pct === undefined || pct === null) {
                 cell.setAttribute('data-sort-value', '-');
                 cell.innerHTML = '<span class="small text-muted">-</span>';
-                const absCell = cell.previousElementSibling;
-                absCell.setAttribute('data-sort-value', '-'); absCell.className = 'text-end align-middle num-font small var-abs-cell text-muted'; absCell.textContent = '-';
+                const absEl = row.querySelector('.var-abs');
+                if (absEl) { absEl.className = 'var-abs text-muted'; absEl.textContent = '-'; }
                 return;
             }
             cell.setAttribute('data-sort-value', pct);
             renderVarCell(cell, pct, null);
         });
-        if (currentSort.col === 7 || currentSort.col === 8) sortRows(currentSort.col, false);
+        if (currentSort.col === 7) sortRows(currentSort.col, false);
     }
 
-    // Var. (en su moneda) y Var. % (píldora). Para otros periodos solo llega el %: lo movido se saca del precio de hoy
+    // Var. % (píldora) y, debajo del precio, lo movido en su moneda. Para otros periodos solo llega el %: lo movido se saca del precio de hoy
     function renderVarCell(cell, pct, abs) {
         const price = parseFloat(cell.dataset.price);
         if ((abs === null || abs === undefined || isNaN(abs)) && !isNaN(price) && pct !== null && !isNaN(pct)) abs = price - price / (1 + pct / 100);
         cell.innerHTML = chgPill(pct);
-        const absCell = cell.previousElementSibling;
+        const absEl = cell.closest('tr')?.querySelector('.var-abs');
+        if (!absEl) return;
         const ok = abs !== null && abs !== undefined && !isNaN(abs);
-        absCell.setAttribute('data-sort-value', ok ? abs : '-');
-        absCell.className = 'text-end align-middle num-font small var-abs-cell ' + (!ok ? 'text-muted' : abs > 0 ? 'text-success' : abs < 0 ? 'text-danger' : 'text-muted');
-        absCell.textContent = ok ? fmtNum(abs, 2, true) : '-';
+        absEl.className = 'var-abs ' + (!ok ? 'text-muted' : abs > 0 ? 'text-success' : abs < 0 ? 'text-danger' : 'text-muted');
+        absEl.textContent = ok ? fmtNum(abs, 2, true) : '-';
     }
 
     function filterDropdownItems(input) {
@@ -771,7 +802,7 @@
         return checked.length > 0 ? checked : ["ALL"];
     }
 
-    const TAB_FILTER = {'all-tab': 'ALL', 'fav-tab': 'FAVORITES', 'portfolio-tab': 'PORTFOLIO', 'accepted-tab': 'ACCEPTED',
+    const TAB_FILTER = {'all-tab': 'ALL', 'follow-tab': 'FOLLOW', 'fav-tab': 'FAVORITES', 'tier2-tab': 'TIER2', 'portfolio-tab': 'PORTFOLIO', 'accepted-tab': 'ACCEPTED',
                         'pending-tab': 'PENDING', 'standby-tab': 'STANDBY', 'rejected-tab': 'REJECTED'};
     const TAB_IDS = Object.keys(TAB_FILTER);
     // Si una fila va en una pestaña: Favoritas y los estados no repiten lo que ya está en cartera; Todas no incluye descartadas
@@ -779,7 +810,12 @@
         const rowStatus = row.getAttribute("data-status");
         const isFav = row.getAttribute("data-is-favorite") === "true";
         const isPort = row.getAttribute("data-is-portfolio") === "true";
+        // niveles: Tier 1 (la estrella), Tier 2 y Tier 3 (aceptadas sin más); «Seguimiento» = los tres; la cartera, aparte
+        const tier = row.getAttribute("data-tier");
         if (tabFilter === "FAVORITES") return isFav && !isPort;
+        if (tabFilter === "FOLLOW") return ["1", "2", "seg"].includes(tier) && !isPort;   // el grupo: T1 + T2 + T3
+        if (tabFilter === "TIER2") return tier === "2" && !isPort;
+        if (tabFilter === "ACCEPTED") return tier === "seg" && !isPort;
         if (tabFilter === "PORTFOLIO") return isPort;
         if (tabFilter === "ALL") return rowStatus !== "REJECTED";
         return rowStatus === tabFilter && !isPort;
@@ -1022,7 +1058,7 @@
                         <div class="d-flex justify-content-center gap-1">
                             <select class="form-select form-select-sm py-0 px-1 text-muted border-0 bg-light" style="width: auto; font-size: 0.75rem; cursor: pointer;" onchange="updateTickerStatus('${ticker}', this.value, this)">
                                 <option value="PENDING" ${status === 'PENDING' ? 'selected' : ''}>⏳ Pendiente</option>
-                                <option value="ACCEPTED" ${status === 'ACCEPTED' ? 'selected' : ''}>✅ Seguimiento</option>
+                                <option value="ACCEPTED" ${status === 'ACCEPTED' ? 'selected' : ''}>✅ Aceptada (Tier 3)</option>
                                 <option value="STANDBY" ${status === 'STANDBY' ? 'selected' : ''}>🤔 Dudas</option>
                                 <option value="REJECTED" ${status === 'REJECTED' ? 'selected' : ''}>❌ Descartada</option>
                             </select>
@@ -1145,8 +1181,81 @@
         applyFilters();
         
         // Ordenar inicialmente por nota media de forma descendente (de mayor a menor)
-        currentSort = { col: 11, asc: true };
-        sortRows(11);
+        currentSort = { col: 10, asc: true };
+        sortRows(10);
     });
+</script>
+<div class="db-pick-bar shadow d-none" id="dbPickBar">
+    <span class="fw-bold"><span id="dbPickN">0</span> seleccionadas</span>
+    <span class="text-muted">·</span>
+    <span>Añadir a lista</span>
+    <select class="form-select form-select-sm w-auto" id="dbPickTheme">
+        {% for th in themes %}<option value="{{ th.id }}">{{ th.name }}</option>{% endfor %}
+        <option value="new">+ Nueva lista…</option>
+    </select>
+    <input class="form-control form-control-sm d-none" id="dbPickNew" style="width: 11rem;" placeholder="Nombre de la lista" maxlength="40">
+    <button class="btn btn-sm btn-primary" onclick="dbAddToTheme()">Añadir</button>
+    <span class="text-muted">·</span>
+    <span>Nivel</span>
+    <div class="btn-group btn-group-sm">
+        <button class="btn btn-outline-success" onclick="dbSetTier('1')" title="Tier 1 · objetivo">T1</button>
+        <button class="btn btn-outline-info" onclick="dbSetTier('2')" title="Tier 2 · vigilancia">T2</button>
+        <button class="btn btn-outline-secondary" onclick="dbSetTier('seg')" title="Tier 3: sin avisos, solo agenda y resultados">T3</button>
+    </div>
+    <button class="btn btn-sm btn-link text-muted" onclick="dbPickAll(false)" title="Quitar la selección"><i class="bi bi-x-lg"></i></button>
+</div>
+<style>
+    .db-pick-bar { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 1050; display: flex; align-items: center;
+                   gap: .5rem; padding: .5rem .9rem; border-radius: 10px; background: var(--fin-card-bg, var(--bs-body-bg)); border: 1px solid var(--bs-border-color); font-size: .82rem; }
+    .db-pick-bar.d-none { display: none !important; }
+    /* la casilla, con zona amplia para pulsar; en modo selección, la fila marcada se resalta */
+    .db-pick-hit { display: inline-flex; align-items: center; justify-content: center; width: 1.9rem; height: 1.9rem; margin: -.4rem .15rem -.4rem -.55rem; cursor: pointer; border-radius: 6px; }
+    .db-pick-hit:hover { background: rgba(127, 127, 127, .15); }
+    .db-pick-hit .form-check-input { width: 1.1em; height: 1.1em; margin: 0; cursor: pointer; }
+    .ticker-row.db-picked > td { background: rgba(13, 110, 253, .12) !important; }
+</style>
+<script>
+// Selección múltiple: añadir a una lista (existente o nueva) o cambiar el nivel de varias empresas a la vez
+const dbPicked = () => [...document.querySelectorAll('.db-pick:checked')].map(c => c.value);
+// con alguna marcada, la tabla está en «modo selección»: pulsar una fila la marca o desmarca (no abre la ficha)
+function dbRowClick(ev, ticker) {
+    if (!dbPicked().length) { window.location = '/ticker/' + ticker; return; }
+    const c = ev.currentTarget.querySelector('.db-pick');
+    if (c) { c.checked = !c.checked; dbPickChanged(); }
+}
+function dbPickChanged() {
+    const n = dbPicked().length;
+    document.getElementById('dbTable')?.classList.toggle('db-picking', n > 0);
+    document.querySelectorAll('.ticker-row').forEach(tr => tr.classList.toggle('db-picked', !!tr.querySelector('.db-pick:checked')));
+    document.getElementById('dbPickN').textContent = n;
+    document.getElementById('dbPickBar').classList.toggle('d-none', !n);
+}
+function dbPickAll(on) {
+    document.querySelectorAll('.ticker-row').forEach(tr => {
+        const c = tr.querySelector('.db-pick');
+        if (c) c.checked = on && tr.style.display !== 'none' && tr.getAttribute('data-filtered') !== 'false';
+    });
+    document.getElementById('dbPickAll').checked = on;
+    dbPickChanged();
+}
+document.getElementById('dbPickTheme').addEventListener('change', e => document.getElementById('dbPickNew').classList.toggle('d-none', e.target.value !== 'new'));
+if (document.getElementById('dbPickTheme').value === 'new') document.getElementById('dbPickNew').classList.remove('d-none');
+async function dbAddToTheme() {
+    const sel = document.getElementById('dbPickTheme').value, tickers = dbPicked();
+    const body = sel === 'new' ? {tickers, new_name: document.getElementById('dbPickNew').value} : {tickers, list_id: parseInt(sel)};
+    const r = await fetch('/api/temas/anadir', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return alert(d.detail || 'No se pudo añadir');
+    const name = sel === 'new' ? body.new_name : document.getElementById('dbPickTheme').selectedOptions[0].text;
+    (typeof showToast === 'function' ? showToast('Lista', `${d.added.length} empresas añadidas a «${name}»`, 'success') : alert(`${d.added.length} añadidas a «${name}»`));
+    if (sel === 'new') location.reload(); else dbPickAll(false);
+}
+async function dbSetTier(tier) {
+    const tickers = dbPicked();
+    // directo, sin confirmaciones: se cambian todas y se recarga la tabla
+    await Promise.all(tickers.map(t => fetch(`/api/ticker/${encodeURIComponent(t)}/nivel`, {method: 'POST',
+        headers: {'Content-Type': 'application/json'}, body: JSON.stringify({tier})}).catch(() => null)));
+    location.reload();
+}
 </script>
 {% endblock %}

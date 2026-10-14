@@ -10,7 +10,7 @@ import json
 import os
 import time
 from collections import defaultdict
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -21,6 +21,21 @@ CACHE_FILE      = "data/performance_cache.json"
 CACHE_TTL       = 3600          # 1 hora
 BENCHMARKS      = [("URTH", "MSCI World"), ("SPY", "S&P 500")]
 INITIAL_NAV     = 10.0          # valor liquidativo inicial
+MIN_YEARS_ANNUALIZE = 1.0       # con menos de un año no se anualiza: 8 meses al +28 % saldrían como un +45 % anual
+
+
+def annualized(first: float, last: float, years: float) -> float:
+    """Rentabilidad anual (%) entre dos valores; con menos de MIN_YEARS_ANNUALIZE, la del periodo tal cual."""
+    if not first or first <= 0:
+        return 0.0
+    total = last / first
+    return (total ** (1 / years) - 1) * 100 if years >= MIN_YEARS_ANNUALIZE else (total - 1) * 100
+
+
+def reference_benchmark(ticker: Optional[str]) -> str:
+    """Nombre del índice de referencia (ajuste performance.benchmark_ticker) entre los de BENCHMARKS: con él se
+    calculan las alfas de Rendimiento y Fundamentales, igual que en la cabecera de Cartera, Decisiones e Informes."""
+    return dict(BENCHMARKS).get((ticker or "").upper(), "S&P 500")
 
 
 class PerformanceService:
@@ -235,16 +250,9 @@ class PerformanceService:
         total_ret    = (nav_arr[-1] / nav_arr[0] - 1) * 100
         years_total  = (pd.to_datetime(date_series[-1]) -
                         pd.to_datetime(date_series[0])).days / 365.25
-        ann_ret      = ((nav_arr[-1] / nav_arr[0]) ** (1 / years_total) - 1) * 100 \
-                       if years_total > 0.5 else total_ret
-
-        # Calcular rendimiento anualizado del benchmark MSCI World para el Alpha de Jensen
-        bench_ann_ret = 0.0
-        msci_series = bench_series.get("MSCI World", [])
-        if msci_series and len(msci_series) > 0 and msci_series[0] > 0:
-            bench_total_ret = (msci_series[-1] / msci_series[0] - 1) * 100
-            bench_ann_ret = ((msci_series[-1] / msci_series[0]) ** (1 / years_total) - 1) * 100 \
-                            if years_total > 0.5 else bench_total_ret
+        ann_ret      = annualized(nav_arr[0], nav_arr[-1], years_total)
+        bench_ann    = {name: round(annualized(ser[0], ser[-1], years_total), 2)
+                        for name, ser in bench_series.items() if ser}
 
         annual_returns = self._annual_returns(
             date_series, nav_arr, bench_series
@@ -260,7 +268,7 @@ class PerformanceService:
             "annual_returns":     annual_returns,
             "total_return":       round(total_ret, 2),
             "annualized_return":  round(ann_ret, 2),
-            "benchmark_annualized_return": round(bench_ann_ret, 2),
+            "benchmark_annualized_returns": bench_ann,
         }
 
     # ─────────────────────────────────────────────────────────────────────────

@@ -41,6 +41,32 @@
     .price-move { font-size: .72rem; line-height: 1.1; }
     #activeTable th:last-child { width: 48px; }
     .pos-toolbar .btn { font-size: .75rem; }
+    .pf-navbar { border-bottom: var(--bs-border-width) solid var(--bs-border-color); }
+    .pf-navbar .nav-tabs .nav-link { margin-bottom: -1px; }
+    .pf-subnav .btn { font-size: .75rem; }
+    .cash-chip { display: inline-flex; align-items: center; font-size: .78rem; padding: .25rem .7rem; border-radius: 999px;
+                 background: var(--fin-card-bg); border: 1px solid var(--bs-border-color); color: var(--bs-body-color); }
+    .cash-chip:hover { border-color: var(--bs-primary); }
+    #cashModal .cash-parts { display: grid; grid-template-columns: 1fr auto; gap: .15rem 1rem; font-size: .82rem; }
+    #cashModal .cash-recent { max-height: 220px; overflow-y: auto; font-size: .8rem; }
+    /* Resumen: dos filas de tarjetas y la franja de atención; el alto lo ajusta fitResumen() a la ventana */
+    .res-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: .6rem; }
+    .res-h a { text-transform: none; letter-spacing: 0; font-weight: 600; }
+    .res-grid .res-value { grid-column: span 2; } .res-grid .res-bench { grid-column: span 4; }
+    .res-grid > .res-card:nth-child(n+3) { grid-column: span 2; }
+    .res-card { background: var(--fin-card-bg); border-radius: .5rem; padding: .55rem .9rem; min-width: 0; display: flex; flex-direction: column; }
+    .res-h { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); margin-bottom: .3rem; }
+    .res-big { font-size: 1.45rem; font-weight: 700; }
+    .res-kv { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem; font-size: .82rem; }
+    .res-kv span { color: var(--bs-secondary-color); } .res-kv b { text-align: right; }
+    .res-row { display: flex; justify-content: space-between; gap: .5rem; font-size: .8rem; padding: .12rem 0; }
+    .res-table { font-size: .82rem; width: auto; --bs-table-bg: transparent; } .res-table td, .res-table th { padding: .3rem .5rem; }
+    #resChart { min-height: 130px; } .res-table th { font-size: .66rem; color: var(--bs-secondary-color); font-weight: 600; }
+    .res-att-items { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .res-attention { display: flex; align-items: center; flex-wrap: nowrap; margin-bottom: .6rem; padding: .4rem 1rem; border-radius: .5rem;
+                     background: var(--fin-card-bg); border-left: 3px solid var(--bs-warning); color: var(--bs-body-color); font-size: .85rem; }
+    .res-attention:hover { filter: brightness(1.15); }
+    @media (max-width: 992px) { .res-grid { grid-template-columns: 1fr; } .res-grid > .res-card { grid-column: auto !important; } }
     /* filas más bajas para que quepan más posiciones (el estilo común pone 10 px arriba y abajo) */
     #activeTable tbody td, .tbl-pt tbody td { padding-top: .25rem; padding-bottom: .25rem; }
     #activeTable thead th, .tbl-pt thead th { padding-top: .4rem; padding-bottom: .4rem; }
@@ -225,29 +251,45 @@
     </div>
 </div>
 
-<!-- Tabs de Portfolio -->
-<ul class="nav nav-tabs mb-4" id="portfolioTabs" role="tablist">
-  <li class="nav-item" role="presentation">
-    <button class="nav-link active fw-bold" id="active-tab" data-bs-toggle="tab" data-bs-target="#active-pane" type="button" role="tab" aria-controls="active-pane" aria-selected="true"><i class="bi bi-bar-chart-steps me-1"></i>Cartera</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-muted" id="dist-tab" data-bs-toggle="tab" data-bs-target="#dist-pane" type="button" role="tab" aria-controls="dist-pane" aria-selected="false"><i class="bi bi-pie-chart-fill me-1"></i>Distribución</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-muted" id="perf-tab" data-bs-toggle="tab" data-bs-target="#perf-pane" type="button" role="tab" aria-controls="perf-pane" aria-selected="false"><i class="bi bi-graph-up-arrow me-1"></i>Rendimiento</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-muted" id="fund-tab" data-bs-toggle="tab" data-bs-target="#fund-pane" type="button" role="tab" aria-controls="fund-pane" aria-selected="false"><i class="bi bi-cpu me-1"></i>Fundamentales</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-muted" id="div-tab" data-bs-toggle="tab" data-bs-target="#div-pane" type="button" role="tab" aria-controls="div-pane" aria-selected="false"><i class="bi bi-cash-coin me-1"></i>Dividendos</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-muted" id="closed-tab" data-bs-toggle="tab" data-bs-target="#closed-pane" type="button" role="tab" aria-controls="closed-pane" aria-selected="false"><i class="bi bi-archive me-1"></i>Historial</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-primary" type="button" data-bs-toggle="modal" data-bs-target="#addOpModal" title="Anotar una compra o una venta"><i class="bi bi-plus-lg me-1"></i>Operación</button>
-  </li>
+<!-- Tabs de Portfolio: seis grupos visibles (data-pf-group; Resumen el primero, pero se entra en Posiciones); las pestañas de Bootstrap de siempre siguen ocultas debajo
+     (cada pantalla escucha su shown.bs.tab). Posiciones = Contable · Seguimiento · Fundamentales; Rendimiento = Gráfica ·
+     Informes; Operaciones = Historial · Decisiones. Cada grupo recuerda su última vista. -->
+<div class="d-flex align-items-end justify-content-between flex-wrap gap-2 mb-3 pf-navbar">
+<ul class="nav nav-tabs border-0" role="tablist" id="pfGroups">
+  <li class="nav-item"><button type="button" class="nav-link fw-bold text-muted" data-pf-group="res" title="Cómo está tu cartera de un vistazo"><i class="bi bi-speedometer2 me-1"></i>Resumen</button></li>
+  <li class="nav-item"><button type="button" class="nav-link fw-bold active" data-pf-group="pos"><i class="bi bi-bar-chart-steps me-1"></i>Posiciones</button></li>
+  <li class="nav-item"><button type="button" class="nav-link fw-bold text-muted" data-pf-group="perf"><i class="bi bi-graph-up-arrow me-1"></i>Rendimiento</button></li>
+  <li class="nav-item"><button type="button" class="nav-link fw-bold text-muted" data-pf-group="dist"><i class="bi bi-pie-chart-fill me-1"></i>Distribución</button></li>
+  <li class="nav-item"><button type="button" class="nav-link fw-bold text-muted" data-pf-group="div"><i class="bi bi-cash-coin me-1"></i>Dividendos</button></li>
+  <li class="nav-item"><button type="button" class="nav-link fw-bold text-muted" data-pf-group="ops" title="Movimientos, posiciones cerradas, fiscalidad y el balance de tus decisiones"><i class="bi bi-archive me-1"></i>Operaciones</button></li>
+</ul>
+<div class="d-flex align-items-center gap-2 pb-1">
+  <div class="btn-group btn-group-sm pf-subnav" data-for="pos" role="group" aria-label="Vista de las posiciones">
+    <button type="button" class="btn btn-outline-primary active" data-pf-show="active-tab" data-pos-view="contable" title="Títulos, precio medio, valor y ganancia"><i class="bi bi-calculator me-1"></i>Contable</button>
+    <button type="button" class="btn btn-outline-primary" data-pf-show="active-tab" data-pos-view="seguimiento" title="Variación y contribución por periodo, distancia al máximo, CAGR estimado, previsiones y próximos resultados"><i class="bi bi-activity me-1"></i>Seguimiento</button>
+    <button type="button" class="btn btn-outline-primary" data-pf-show="fund-tab" title="Calidad, crecimiento, valoración y balance de cada posición"><i class="bi bi-cpu me-1"></i>Fundamentales</button>
+  </div>
+  <div class="btn-group btn-group-sm pf-subnav d-none" data-for="perf" role="group" aria-label="Rendimiento">
+    <button type="button" class="btn btn-outline-primary" data-pf-show="perf-tab"><i class="bi bi-graph-up me-1"></i>Gráfica</button>
+    <button type="button" class="btn btn-outline-primary" data-pf-show="rep-tab" title="Informes semanales, mensuales, trimestrales y anuales de tu cartera"><i class="bi bi-file-earmark-bar-graph me-1"></i>Informes</button>
+  </div>
+  <div class="btn-group btn-group-sm pf-subnav d-none" data-for="ops" role="group" aria-label="Operaciones">
+    <button type="button" class="btn btn-outline-primary" data-pf-show="closed-tab" title="Movimientos, posiciones cerradas y fiscalidad"><i class="bi bi-archive me-1"></i>Historial</button>
+    <button type="button" class="btn btn-outline-primary" data-pf-show="dec-tab" title="Balance de tus decisiones: cada compra y venta frente al S&P 500"><i class="bi bi-clipboard-data me-1"></i>Decisiones</button>
+  </div>
+  <button type="button" class="btn btn-sm btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#addOpModal" title="Anotar una compra o una venta"><i class="bi bi-plus-lg me-1"></i>Operación</button>
+</div>
+</div>
+<ul class="nav d-none" id="portfolioTabs" role="tablist">
+  <li><button class="nav-link active" id="active-tab" data-bs-toggle="tab" data-bs-target="#active-pane" type="button" role="tab" data-pf-member="pos">Contable</button></li>
+  <li><button class="nav-link" id="fund-tab" data-bs-toggle="tab" data-bs-target="#fund-pane" type="button" role="tab" data-pf-member="pos" data-pf-hash="#fundamentales">Fundamentales</button></li>
+  <li><button class="nav-link" id="perf-tab" data-bs-toggle="tab" data-bs-target="#perf-pane" type="button" role="tab" data-pf-member="perf" data-pf-hash="#rendimiento">Rendimiento</button></li>
+  <li><button class="nav-link" id="rep-tab" data-bs-toggle="tab" data-bs-target="#rep-pane" type="button" role="tab" data-pf-member="perf">Informes</button></li>
+  <li><button class="nav-link" id="dist-tab" data-bs-toggle="tab" data-bs-target="#dist-pane" type="button" role="tab" data-pf-member="dist">Distribución</button></li>
+  <li><button class="nav-link" id="div-tab" data-bs-toggle="tab" data-bs-target="#div-pane" type="button" role="tab" data-pf-member="div" data-pf-hash="#dividendos">Dividendos</button></li>
+  <li><button class="nav-link" id="closed-tab" data-bs-toggle="tab" data-bs-target="#closed-pane" type="button" role="tab" data-pf-member="ops" data-pf-hash="#historial">Historial</button></li>
+  <li><button class="nav-link" id="dec-tab" data-bs-toggle="tab" data-bs-target="#dec-pane" type="button" role="tab" data-pf-member="ops">Decisiones</button></li>
+  <li><button class="nav-link" id="res-tab" data-bs-toggle="tab" data-bs-target="#res-pane" type="button" role="tab" data-pf-member="res" data-pf-hash="#resumen">Resumen</button></li>
 </ul>
 
 <div class="tab-content" id="portfolioTabsContent">
@@ -307,6 +349,9 @@
                 {% if pc.get('benchmark_pct') is not none %}
                 <span class="sum-bench" title="Índice de referencia ({{ benchmark }}) en el mismo periodo{{ ', último cierre' if k == '1d' }}">{{ benchmark }} {{ '+' if pc.benchmark_pct > 0 }}{{ num(pc.benchmark_pct, 2) }}%</span>
                 {% endif %}
+                {% if k != '1d' and pc.get('fx_eur') is not none and v_abs is not none and pc.fx_eur|abs >= 1 %}
+                <span class="sum-bench" title="De ese resultado, lo que hicieron las empresas en su moneda ({{ '+' if (v_abs - pc.fx_eur) > 0 }}{{ num(v_abs - pc.fx_eur, 0) }} €) y lo que movió el cambio a euros">💵 divisa <span class="{{ 'text-success' if pc.fx_eur > 0 else 'text-danger' }}">{{ '+' if pc.fx_eur > 0 }}{{ num(pc.fx_eur, 0) }} €</span></span>
+                {% endif %}
             </button>
         {% endfor %}
         </div>
@@ -314,10 +359,16 @@
     </div>
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 pos-toolbar">
         <div class="d-flex flex-wrap align-items-center gap-2">
-        <div class="btn-group btn-group-sm" role="group" aria-label="Vista de las posiciones">
+        <div class="btn-group btn-group-sm d-none" role="group" aria-label="Vista de las posiciones (en la cabecera)">
             <button type="button" class="btn btn-outline-primary active" data-pos-view="contable" title="Títulos, precio medio, valor y ganancia"><i class="bi bi-calculator me-1"></i>Contable</button>
             <button type="button" class="btn btn-outline-primary" data-pos-view="seguimiento" title="Variación y contribución por periodo, distancia al máximo, CAGR estimado y próximos resultados"><i class="bi bi-activity me-1"></i>Seguimiento</button>
         </div>
+        {% set cash = (overview or {}).get('cash') or {} %}
+        <button type="button" class="cash-chip" data-bs-toggle="modal" data-bs-target="#cashModal" title="Efectivo en el bróker: es aparte, el valor y la rentabilidad de la cartera son solo de lo invertido. Pulsa para apuntar una aportación o ajustar el saldo">
+            <i class="bi bi-wallet2 me-1"></i><span class="text-muted">Liquidez</span>
+            <b class="num-font ms-1" data-cash-balance>{% if cash.configured %}{{ num(cash.balance, 2) }} €{% else %}apunta tu saldo{% endif %}</b>
+            {% if cash.configured and cash.month.deposited %}<span class="text-success small ms-2" data-cash-month>+{{ num(cash.month.deposited, 0) }} € en {{ cash.month.label }}</span>{% elif cash.configured %}<span class="small ms-2 text-warning" data-cash-month>sin aportación en {{ cash.month.label }}</span>{% endif %}
+        </button>
         <div class="btn-group btn-group-sm d-none" role="group" aria-label="Tabla o mapa" id="ptSubviews">
             <button type="button" class="btn btn-outline-secondary active" data-pt-sub="tabla"><i class="bi bi-table me-1"></i>Tabla</button>
             <button type="button" class="btn btn-outline-secondary" data-pt-sub="mapa"><i class="bi bi-grid-3x3-gap me-1"></i>Mapa</button>
@@ -451,7 +502,8 @@
             <span class="dist-chip" title="Lo que suman las 5 posiciones más grandes"><span class="text-muted">Top 5</span> <strong>{{ num(cz.top5_pct, 1) }}%</strong></span>
             <span class="dist-chip" title="Número efectivo de posiciones (1/Σ peso²): con N posiciones iguales sale N. Cuanto más lejos del número real, más concentrada está la cartera.">
                 <span class="text-muted">Equivale a</span> <strong>{{ num(cz.effective_n, 1) }}</strong> <span class="text-muted">posiciones iguales (de {{ cz.positions }})</span></span>
-            <span class="dist-chip" title="Divisa en la que está la mayor parte de la cartera: su cambio frente al euro te mueve el valor"><span class="text-muted">Divisa principal</span> <strong>{{ cz.main_currency }} {{ num(cz.main_currency_pct, 1) }}%</strong></span>
+            <span class="dist-chip" title="Divisa en la que está la mayor parte de tu dinero en el bróker{{ ' (con la liquidez, en euros)' if distribution.cash }}: su cambio frente al euro te mueve el valor"><span class="text-muted">Divisa principal</span> <strong>{{ cz.main_currency }} {{ num(cz.main_currency_pct, 1) }}%</strong></span>
+            {% if distribution.cash %}<span class="dist-chip" title="Efectivo en el bróker sobre el patrimonio (cartera + liquidez). Los pesos de las posiciones siguen siendo sobre lo invertido"><span class="text-muted">Liquidez</span> <strong>{{ num(distribution.cash.pct, 1) }}%</strong> <span class="text-muted">del patrimonio</span></span>{% endif %}
             <i class="bi bi-info-circle text-muted align-self-center" title="Lo que pesa menos del 1 % se agrupa en «Otros» (pasa el ratón para ver qué incluye). País: sede de la empresa, no dónde vende. Pasa el ratón por la leyenda para resaltar cada empresa."></i>
         </div>
         <div class="row g-3">
@@ -480,7 +532,7 @@
                     {% for key, title, icon in [('roles', 'Por rol', 'bi-bookmark-star'), ('currency', 'Por divisa', 'bi-currency-exchange'), ('sector', 'Por sector', 'bi-diagram-3'), ('country', 'Por país', 'bi-globe')] %}
                     <div>
                         <div class="card shadow-sm border-0 dist-small-card h-100"><div class="card-body pb-2 d-flex flex-column">
-                            <div class="fw-bold small mb-1"><i class="bi {{ icon }} me-1"></i>{{ title }}</div>
+                            <div class="fw-bold small mb-1"><i class="bi {{ icon }} me-1"></i>{{ title }}{% if key == 'currency' and distribution.cash %} <span class="text-muted fw-normal" title="Incluye la liquidez del bróker, en euros: es tu exposición real a cada moneda">· con liquidez</span>{% endif %}</div>
                             {% if key == 'roles' %}
                             {# barra por rol: relleno = peso actual; franja = rango objetivo #}
                             {% set scale = [60, (distribution.roles|map(attribute='pct')|max) + 5]|max %}
@@ -568,6 +620,7 @@
       <div class="perf-kpi"><span class="lbl" id="kpiTotalLabel">Rentabilidad total</span><span id="kpiTotal">—</span></div>
       <div class="perf-kpi"><span class="lbl" id="kpiCagrLabel">CAGR</span><span id="kpiCagr">—</span><span id="kpiBenchCagr" class="sub"></span></div>
       <div class="perf-kpi"><span class="lbl" id="kpiDDLabel">Máx. drawdown</span><span class="fw-bold text-danger" id="kpiDD">—</span></div>
+      <div class="perf-kpi d-none" id="kpiCashWrap" title="Lo que ha restado (o sumado) tener efectivo sin invertir: rentabilidad del patrimonio con la liquidez menos la de la cartera, en la ventana visible desde que llevas la liquidez"><span class="lbl">Coste de la liquidez</span><span class="fw-bold" id="kpiCash">—</span><span class="sub" id="kpiCashSub"></span></div>
       <div class="perf-kpi"><span class="lbl">Mejor mes</span><span id="kpiBestMonth" class="fw-bold text-success">—</span><span id="kpiBestMonthLabel" class="sub"></span></div>
       <div class="perf-kpi"><span class="lbl">Peor mes</span><span id="kpiWorstMonth" class="fw-bold text-danger">—</span><span id="kpiWorstMonthLabel" class="sub"></span></div>
       <div class="perf-kpi" title="Volatilidad anual: desviación de los retornos mensuales × √12"><span class="lbl">Volatilidad</span><span id="kpiVol" class="fw-bold">—</span></div>
@@ -622,13 +675,14 @@
                   {% for bench_name in perf_benchmarks.keys() %}
                   <th class="bench-col">{{ bench_name }}</th>
                   {% endfor %}
-                  <th class="pe-4 alfa-col">Alfa vs MSCI</th>
+                  <th class="pe-4 alfa-col">Alfa vs {{ perf_ref_bench }}</th>
                 </tr>
               </thead>
               <tbody id="annualTableBody">
                 {% for row in annual_returns %}
                 {% set msci_ret = row.get("MSCI World") %}
-                {% set alfa = (row.portfolio - msci_ret) if msci_ret is not none else none %}
+                {% set ref_ret = row.get(perf_ref_bench) %}
+                {% set alfa = (row.portfolio - ref_ret) if ref_ret is not none else none %}
                 <tr data-year="{{ row.year }}" data-port="{{ row.portfolio }}"
                     data-msci="{{ msci_ret if msci_ret is not none else '' }}"
                     data-sp="{{ row.get('S&P 500') if row.get('S&P 500') is not none else '' }}"
@@ -727,7 +781,7 @@
                   </div>
                   <!-- Alfa -->
                   <div class="col-4">
-                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Alfa de Jensen</div>
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;" title="Frente al {{ perf_ref_bench }} y con la beta de la cartera; {% if perf_alpha_annualized %}anual{% else %}del periodo (con menos de un año no se anualiza){% endif %}">Alfa de Jensen</div>
                     <span class="fw-bold fund-small {% if port_alpha >= 0 %}text-success{% else %}text-danger{% endif %} lh-1">
                       {% if port_alpha >= 0 %}+{% endif %}{{ (num(port_alpha, 2) ~ '%') }}
                     </span>
@@ -1062,6 +1116,126 @@
       </div>
     </div>
     </div>
+  </div>
+
+  <!-- Pestaña Resumen: la cartera de un vistazo, con lo que ya calcula esta página (sin pedir nada más). No repite el Centro
+       de mando: de lo que pide atención solo da el recuento y lleva allí. -->
+  <div class="tab-pane fade" id="res-pane" role="tabpanel" aria-labelledby="res-tab">
+    {% set ov = overview or {} %}
+    {% macro sgn(v, d=2) %}{{ '+' if v and v > 0 }}{{ num(v, d) }}{% endmacro %}
+    {% macro cls(v) %}{{ 'text-success' if v and v > 0 else ('text-danger' if v and v < 0 else 'text-muted') }}{% endmacro %}
+    <a href="/mercado#centro" class="res-attention text-decoration-none">
+      <i class="bi bi-bell me-1"></i><b class="text-nowrap">Requiere atención</b><span class="res-att-items" title="{{ (ov.cuts|length ~ ' recortes de previsiones: ' ~ ov.cuts|join(', ') ~ '. ') if ov.cuts }}{{ (ov.theses|length ~ ' tesis no intactas: ' ~ ov.theses|map(attribute='ticker')|join(', ') ~ '. ') if ov.theses }}{{ (ov.drops|length ~ ' caen más de un 30 % desde su máximo: ' ~ ov.drops|map(attribute='ticker')|join(', ') ~ '.') if ov.drops }}">
+      {% if ov.cuts %}<span class="ms-3"><span class="text-danger fw-bold">{{ ov.cuts|length }}</span> recorte{{ 's' if ov.cuts|length > 1 }} de previsiones ({% for t in ov.cuts %}{{ clean_ticker(t) }}{{ ', ' if not loop.last }}{% endfor %})</span>{% endif %}
+      {% for verdict, items in ov.theses|groupby('verdict') %}<span class="ms-3"><span class="{{ 'text-danger' if verdict in ('ROTA', 'DEBILITADA') else 'text-warning' }} fw-bold">{{ items|length }}</span> tesis {{ {'ROTA': 'rota', 'DEBILITADA': 'debilitada', 'VIGILANCIA': 'en vigilancia'}[verdict] }}{{ 's' if items|length > 1 and verdict != 'VIGILANCIA' }} ({% for t in items %}{{ clean_ticker(t.ticker) }}{{ ', ' if not loop.last }}{% endfor %})</span>{% endfor %}
+      {% if ov.drops %}<span class="ms-3"><span class="text-danger fw-bold">{{ ov.drops|length }}</span> cae{{ 'n' if ov.drops|length > 1 }} más de un {{ 30 }} % desde su máximo ({% for d in ov.drops %}{{ clean_ticker(d.ticker) }} {{ num(d.pct, 0) }} %{{ ', ' if not loop.last }}{% endfor %})</span>{% endif %}
+      {% if not ov.cuts and not ov.theses and not ov.drops %}<span class="ms-3 text-muted">Nada de tus posiciones</span>{% endif %}</span>
+      <span class="ms-auto small text-nowrap ps-3">Centro de mando →</span>
+    </a>
+    <div class="res-grid">
+      <div class="res-card res-value">
+        <div class="res-h"><i class="bi bi-wallet2 me-1"></i>Tu cartera</div>
+        <div class="d-flex align-items-baseline gap-3 flex-wrap">
+          <span class="res-big num-font">{{ num(total_current_value, 2) }} €</span>
+          <span class="num-font fw-bold {{ cls(total_daily_abs) }}" title="Hoy, desde el cierre anterior">hoy {{ sgn(total_daily_abs) }} € ({{ sgn(total_daily_pct) }} %)</span>
+        </div>
+        <div class="res-kv mt-2">
+          <span>Invertido</span><b class="num-font">{{ num(total_invested, 2) }} €</b>
+          <span>Rentabilidad latente</span><b class="num-font {{ cls(total_return_abs) }}">{{ sgn(total_return_abs) }} € <small>({{ sgn(total_return_pct) }} %)</small></b>
+          <span title="Todo lo ganado desde el principio: latente + realizado + dividendos − comisiones">Ganancia neta total</span><b class="num-font {{ cls(global_total_profits) }}">{{ sgn(global_total_profits) }} € <small>({{ sgn(100 * global_total_profits / total_invested if total_invested else 0) }} %)</small></b>
+          <span class="ps-2 small" title="Lo que ganaron las acciones en su moneda, lo que movió el cambio a euros y los dividendos cobrados (abiertas y vendidas; las comisiones ya van dentro)">acciones · divisa · dividendos</span><b class="num-font small fw-normal"><span class="{{ cls(global_total_price_pnl) }}">{{ sgn(global_total_price_pnl, 0) }}</span> · <span class="{{ cls(global_total_fx_pnl) }}">{{ sgn(global_total_fx_pnl, 0) }}</span> · <span class="text-success">+{{ num(global_total_dividends, 0) }}</span> €</b>
+          <span class="ps-2 small" title="Ventas cerradas y dividendos (lo ya cobrado)">de ello, realizado</span><b class="num-font small fw-normal {{ cls(total_realized_pnl) }}">{{ sgn(total_realized_pnl, 0) }} €</b>
+          <span>Dividendos previstos (12 m)</span><b class="num-font">{{ num((div_forecast or {}).get('total_gross') or 0, 0) }} €</b>
+          {% set cash = ov.cash or {} %}
+          {% if cash.configured %}<span title="Cartera + liquidez del bróker (la liquidez es aparte: no suma al valor ni a la rentabilidad)">Patrimonio · liquidez</span><b class="num-font">{{ num(total_current_value + cash.balance, 0) }} € · <a href="#liquidez" class="text-decoration-none" data-bs-toggle="modal" data-bs-target="#cashModal" title="Liquidez en el bróker ({{ num(100 * cash.balance / (total_current_value + cash.balance), 1) if (total_current_value + cash.balance) > 0 else 0 }} % del patrimonio). Pulsa para apuntar una aportación" data-cash-balance>{{ num(cash.balance, 2) }} €</a></b>
+          {% else %}<span>Liquidez en el bróker</span><b><a href="#liquidez" class="text-decoration-none" data-bs-toggle="modal" data-bs-target="#cashModal">apuntar</a></b>{% endif %}
+        </div>
+      </div>
+      <div class="res-card res-bench">
+        <div class="res-h d-flex"><span><i class="bi bi-graph-up-arrow me-1"></i>Frente al {{ perf_ref_bench }}</span>
+          <a href="#rendimiento" class="ms-auto text-decoration-none small" onclick="event.preventDefault(); document.querySelector('[data-pf-group=perf]').click();">Rendimiento →</a></div>
+        <div class="d-flex gap-3 h-100">
+          <table class="table table-sm mb-0 res-table align-middle">
+            <thead><tr><th></th><th class="text-end" title="Lo ganado o perdido en el periodo, sin contar lo que metiste o sacaste">Ganancia</th><th class="text-end">Cartera</th><th class="text-end">{{ perf_ref_bench }}</th><th class="text-end" title="Lo que movió el cambio a euros (ya está dentro de la rentabilidad de la cartera)">Divisa</th></tr></thead>
+            <tbody>
+            {% for k, label in [('1m', '1 mes'), ('ytd', 'Este año'), ('1y', '1 año')] %}{% set pc = period_changes.get(k) or {} %}
+              <tr><td class="text-muted">{{ label }}</td>
+                <td class="text-end num-font {{ cls(pc.get('abs_eur')) }}">{{ sgn(pc.get('abs_eur'), 0) ~ ' €' if pc.get('abs_eur') is not none else '–' }}</td>
+                <td class="text-end num-font fw-bold {{ cls(pc.get('pct')) }}">{{ sgn(pc.get('pct')) ~ ' %' if pc.get('pct') is not none else '–' }}</td>
+                <td class="text-end num-font">{{ sgn(pc.get('benchmark_pct')) ~ ' %' if pc.get('benchmark_pct') is not none else '–' }}</td>
+                <td class="text-end num-font {{ cls(pc.get('fx_eur')) }}">{{ sgn(pc.get('fx_eur'), 0) ~ ' €' if pc.get('fx_eur') is not none else '–' }}</td></tr>
+            {% endfor %}
+            {% set ss = ov.since_start or {} %}
+              <tr title="Desde el {{ ss.start[8:10] ~ '/' ~ ss.start[5:7] ~ '/' ~ ss.start[:4] if ss.start }} (inicio del Rendimiento), por índice (las aportaciones no cuentan como rentabilidad)"><td class="text-muted">Desde el inicio</td>
+                <td class="text-end text-muted">–</td>
+                <td class="text-end num-font fw-bold {{ cls(ss.pct) }}">{{ sgn(ss.pct) ~ ' %' if ss.pct is not none else '–' }}</td>
+                <td class="text-end num-font">{{ sgn(ss.bench) ~ ' %' if ss.bench is not none else '–' }}</td>
+                <td class="text-end text-muted">–</td></tr>
+            </tbody>
+          </table>
+          <div id="resChart" class="flex-grow-1" style="min-width: 0; min-height: 120px;"></div>
+        </div>
+      </div>
+      <div class="res-card">
+        <div class="res-h"><i class="bi bi-arrow-down-up me-1"></i>Qué ha movido el último mes</div>
+        {% for t, v in ov.up %}<div class="res-row"><a href="/portfolio/ticker/{{ t }}" class="fw-bold text-decoration-none">{{ clean_ticker(t) }}</a><span class="num-font text-success">{{ sgn(v, 0) }} €</span></div>{% endfor %}
+        {% if ov.up and ov.down %}<hr class="my-1 opacity-25">{% endif %}
+        {% for t, v in ov.down %}<div class="res-row"><a href="/portfolio/ticker/{{ t }}" class="fw-bold text-decoration-none">{{ clean_ticker(t) }}</a><span class="num-font text-danger">{{ sgn(v, 0) }} €</span></div>{% endfor %}
+        {% if not ov.up and not ov.down %}<div class="text-muted small">Sin datos del mes.</div>{% endif %}
+      </div>
+      <div class="res-card">
+        <div class="res-h"><i class="bi bi-shield-exclamation me-1"></i>Riesgo</div>
+        {% if distribution %}{% set cz = distribution.concentration %}
+        <div class="res-row"><span class="text-muted">Mayor posición</span><b>{{ clean_ticker(cz.max_ticker) }} {{ num(cz.max_pct, 1) }} %</b></div>
+        <div class="res-row"><span class="text-muted">Las 5 mayores</span><b>{{ num(cz.top5_pct, 1) }} %</b></div>
+        <div class="res-row" title="Equivale a tantas posiciones del mismo tamaño"><span class="text-muted">Diversificación real</span><b>{{ num(cz.effective_n, 1) }} de {{ cz.positions }}</b></div>
+        <div class="res-row"><span class="text-muted">Divisa principal</span><b>{{ cz.main_currency }} {{ num(cz.main_currency_pct, 1) }} %</b></div>
+        {% if ov.sector %}<div class="res-row"><span class="text-muted">Sector principal</span><b>{{ ov.sector.label }} {{ num(ov.sector.pct, 1) }} %</b></div>{% endif %}
+        <div class="res-row"><span class="text-muted">Caída máxima</span><b class="text-danger">{{ num(max_drawdown, 1) }} %</b></div>
+        {% endif %}
+      </div>
+      <div class="res-card">
+        <div class="res-h"><i class="bi bi-calendar-event me-1"></i>Lo que viene (30 días)</div>
+        {% for r in ov.results %}<div class="res-row"><span><i class="bi bi-clipboard-data text-warning me-1"></i><b>{{ clean_ticker(r.ticker) }}</b> presenta resultados</span><span class="num-font text-muted">{{ r.date[8:10] }}/{{ r.date[5:7] }} · {{ r.days }} d</span></div>{% endfor %}
+        {% for e in ov.payments %}<div class="res-row"><span><i class="bi bi-cash-coin text-success me-1"></i><b>{{ clean_ticker(e.ticker) }}</b> {{ 'paga' if not e.estimated else 'pagaría' }} ≈{{ num(e.gross_eur, 0) }} €</span><span class="num-font text-muted">{{ e.date.strftime('%d/%m') }}{{ ' · estimado' if e.estimated }}</span></div>{% endfor %}
+        {% if not ov.results and not ov.payments %}<div class="text-muted small">Nada en los próximos 30 días.</div>{% endif %}
+      </div>
+      <div class="res-card">
+        <div class="res-h d-flex"><span><i class="bi bi-cpu me-1"></i>Calidad y precio</span>
+          <a href="#fundamentales" class="ms-auto text-decoration-none" onclick="event.preventDefault(); document.querySelector('[data-pf-show=fund-tab]').click();">Fundamentales →</a></div>
+        <div class="res-row" title="Rentabilidad sobre el capital invertido (últimos 12 meses), media ponderada por peso"><span class="text-muted">ROIC</span><b>{{ num(port_roic, 1) }} %</b></div>
+        <div class="res-row" title="Crecimiento esperado de las ventas en los próximos 12 meses (analistas), ponderado"><span class="text-muted">Crecimiento (12 m)</span><b>{{ num(port_growth, 1) }} %</b></div>
+        <div class="res-row" title="PER con el beneficio de los próximos 12 meses, ponderado"><span class="text-muted">PER adelantado</span><b>{{ num(port_forward_pe, 1) }}x</b></div>
+        <div class="res-row" title="Flujo de caja libre / capitalización, ponderado"><span class="text-muted">Rentabilidad FCF</span><b>{{ num(port_fcf_yield, 2) }} %</b></div>
+      </div>
+      <div class="res-card" id="resDecisions">
+        <div class="res-h d-flex"><span><i class="bi bi-clipboard-data me-1"></i>Tus decisiones</span>
+          <a href="#decisiones" class="ms-auto text-decoration-none" onclick="event.preventDefault(); document.querySelector('[data-pf-show=dec-tab]').click();">Decisiones →</a></div>
+        <div class="small text-muted" data-res-dec><span class="spinner-border spinner-border-sm me-1"></span>Calculando…</div>
+      </div>
+      <div class="res-card">
+        <div class="res-h d-flex"><span><i class="bi bi-file-earmark-bar-graph me-1"></i>Últimos informes</span>
+          <a href="#informes" class="ms-auto text-decoration-none" onclick="event.preventDefault(); document.querySelector('[data-pf-show=rep-tab]').click();">Informes →</a></div>
+        {% for kind in ('W', 'M') %}{% set r = (ov.reports or {}).get(kind) %}{% if r %}
+        {% set vs = (r.pct - r.bench_pct) if r.pct is not none and r.bench_pct is not none else none %}
+        <a href="/portfolio#informes-{{ r.key }}" class="res-row text-decoration-none" style="color: inherit;" onclick="if (location.pathname === '/portfolio') { event.preventDefault(); history.replaceState(null, '', '#informes-{{ r.key }}'); document.querySelector('[data-pf-show=rep-tab]').click(); }">
+          <span><span class="text-muted">{{ 'Semana' if kind == 'W' else 'Mes' }}</span> {{ r.label|replace('Semana del ', '') }}</span>
+          <span class="num-font text-nowrap"><b class="{{ cls(r.pct) }}">{{ sgn(r.pct) ~ ' %' if r.pct is not none else '–' }}</b>{% if vs is not none %} <small class="{{ cls(vs) }}">{{ sgn(vs, 1) }} pp</small>{% endif %}{% if r.has_ai %} <i class="bi bi-stars text-info" title="Con comentario de IA"></i>{% endif %}</span></a>
+        {% endif %}{% endfor %}
+        {% if not (ov.reports or {}).get('W') and not (ov.reports or {}).get('M') %}<div class="text-muted small">Aún no hay informes.</div>{% endif %}
+        <div class="small text-muted mt-auto">pp: frente al {{ perf_ref_bench }} en el mismo periodo</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pestaña Decisiones: se carga aparte (/portfolio/decisiones) al abrirla -->
+  <div class="tab-pane fade" id="dec-pane" role="tabpanel" aria-labelledby="dec-tab">
+    <div id="decBody"><div class="p-3 small text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Calculando el balance de tus operaciones…</div></div>
+  </div>
+
+  <!-- Pestaña Informes: se carga aparte (/portfolio/informes) al abrirla -->
+  <div class="tab-pane fade" id="rep-pane" role="tabpanel" aria-labelledby="rep-tab">
+    <div id="repBody"><div class="p-3 small text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Cargando los informes…</div></div>
   </div>
 
   <!-- Pestaña Histórico Cerrado -->
@@ -1447,6 +1621,42 @@
 </div>
 
 <!-- Nueva operación (compra o venta): ventana emergente desde el botón «+ Operación» de la cabecera -->
+<!-- Liquidez del bróker: saldo, desglose desde el saldo de partida, apuntar aportación/retirada o ajustar el saldo -->
+<div class="modal fade" id="cashModal" tabindex="-1" aria-labelledby="cashModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-bold" id="cashModalLabel"><i class="bi bi-wallet2 me-1"></i>Liquidez en el bróker</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="cashSummary" class="mb-3 small text-muted">Cargando…</div>
+        <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Qué apuntar">
+          <input type="radio" class="btn-check" name="cashKind" id="cashKindDeposit" value="deposit" checked>
+          <label class="btn btn-outline-success" for="cashKindDeposit"><i class="bi bi-plus-circle me-1"></i>Aportación</label>
+          <input type="radio" class="btn-check" name="cashKind" id="cashKindWithdrawal" value="withdrawal">
+          <label class="btn btn-outline-danger" for="cashKindWithdrawal"><i class="bi bi-dash-circle me-1"></i>Retirada</label>
+          <input type="radio" class="btn-check" name="cashKind" id="cashKindBalance" value="balance">
+          <label class="btn btn-outline-secondary" for="cashKindBalance" title="Escribe el saldo que te dice el bróker: desde ese día se lleva solo"><i class="bi bi-sliders me-1"></i>Ajustar saldo</label>
+        </div>
+        <div class="row g-2 align-items-end">
+          <div class="col-5"><label class="form-label small mb-1" for="cashAmount" id="cashAmountLabel">Importe (€)</label>
+            <input type="number" step="0.01" min="0" class="form-control form-control-sm" id="cashAmount" placeholder="0,00"></div>
+          <div class="col-4"><label class="form-label small mb-1" for="cashDate">Fecha</label>
+            <input type="date" class="form-control form-control-sm" id="cashDate"></div>
+          <div class="col-3"><button type="button" class="btn btn-sm btn-primary w-100" id="cashSave">Guardar</button></div>
+        </div>
+        <input type="text" class="form-control form-control-sm mt-2" id="cashNote" placeholder="Nota (opcional): nómina, extra…">
+        <div class="small text-danger mt-1 d-none" id="cashError"></div>
+        <div class="small text-muted mt-2" id="cashHint"></div>
+        <hr class="my-2">
+        <div class="small fw-bold text-muted mb-1">Últimos movimientos</div>
+        <div class="cash-recent" id="cashRecent"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="addOpModal" tabindex="-1" aria-labelledby="addOpModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content">
@@ -1516,7 +1726,7 @@
                     <div class="form-text text-muted" id="fx-rate-hint">Se obtiene automáticamente</div>
                 </div>
                 <div class="col-12">
-                    <label class="form-label small fw-bold" for="add-comment">Comentario <span class="text-muted fw-normal">(opcional)</span></label>
+                    <label class="form-label small fw-bold" for="add-comment">Por qué <span class="text-muted fw-normal">(opcional; sale en la pestaña Decisiones)</span></label>
                     <textarea class="form-control" id="add-comment" rows="2" maxlength="1000"
                               placeholder="Por qué compras o vendes: tesis, precio, señal… Si la empresa tiene tesis, se anota también en su diario de decisiones."></textarea>
                 </div>
@@ -1773,8 +1983,8 @@ window.plotHover = () => {
     window.addEventListener('resize', () => { if (document.getElementById('div-pane')?.classList.contains('active')) fitDividends(); });
     document.getElementById('dist-tab')?.addEventListener('shown.bs.tab', () => { distRender(); history.replaceState(null, '', '#distribucion'); });
     window.addEventListener('resize', () => { if (document.getElementById('dist-pane')?.classList.contains('active')) distRender(); });
-    document.querySelectorAll('#portfolioTabs [data-bs-toggle="tab"]:not(#dist-tab)').forEach(b => b.addEventListener('shown.bs.tab', () => {
-        if (location.hash === '#distribucion') history.replaceState(null, '', location.pathname + location.search);
+    document.querySelectorAll('#portfolioTabs [data-bs-toggle="tab"]:not(#dist-tab):not(#dec-tab):not(#rep-tab)').forEach(b => b.addEventListener('shown.bs.tab', () => {
+        if (location.hash === '#distribucion' || location.hash === '#decisiones' || location.hash.startsWith('#informes')) history.replaceState(null, '', location.pathname + location.search);
     }));
     function showView(view) {
         document.querySelectorAll('[data-pos-view]').forEach(b => b.classList.toggle('active', b.dataset.posView === view));
@@ -1797,17 +2007,324 @@ window.plotHover = () => {
     document.querySelectorAll('[data-pt-sub]').forEach(b => b.addEventListener('click', () => showSub(b.dataset.ptSub)));
     if (location.hash === '#seguimiento') showView('seguimiento');
     if (location.hash === '#mapa') { showView('seguimiento'); showSub('mapa'); }
+    // --- Decisiones: balance de cada operación frente al índice (se carga al abrir la pestaña) ---
+    // sin scroll de página: las filas por página son las que caben en la ventana (se recalcula al cambiar el tamaño).
+    // Dos vistas: decisiones (#decTable) y entradas por tramos (#decEntries); mismo filtro, orden y paginado.
+    let decLoading = null, decSort = null, decFilter = '', decPage = 0, decPerPage = 12, decView = 'ops';
+    const decTable = () => document.getElementById(decView === 'ops' ? 'decTable' : 'decEntries');
+    function decRender() {
+        const body = document.getElementById('decBody'), table = decTable();
+        if (!table) return;
+        body.querySelector('#decTable').classList.toggle('d-none', decView !== 'ops');
+        body.querySelector('#decEntries').classList.toggle('d-none', decView === 'ops');
+        const rows = [...table.tBodies[0].rows];
+        const shown = rows.filter(tr => decFilter === 'nonote' ? tr.dataset.note !== '1' : !decFilter || tr.dataset.type === decFilter);
+        const paint = () => {
+            const pages = Math.max(1, Math.ceil(shown.length / decPerPage));
+            decPage = Math.min(Math.max(decPage, 0), pages - 1);
+            const from = decPage * decPerPage, page = new Set(shown.slice(from, from + decPerPage));
+            rows.forEach(tr => tr.classList.toggle('d-none', !page.has(tr)));
+            return {pages, from};
+        };
+        if (table.offsetParent) {
+            // la columna de al lado, si no cabe, con su propio scroll (nunca el de la página)
+            if (window.matchMedia('(min-width: 1200px)').matches) fitScroll(body.querySelector('.dec-side'), 200);
+            rows.forEach(tr => tr.classList.remove('d-none'));
+            decPerPage = rowsPerPage(table, decPerPage, 5);
+            paint();
+            const over = pageOverflowRows(table);
+            if (over) decPerPage = Math.max(5, decPerPage - over);
+        }
+        const {pages, from} = paint();
+        const what = decView === 'ops' ? 'decisiones' : 'entradas';
+        const info = body.querySelector('#decPagerInfo');
+        if (info) info.textContent = shown.length ? `${from + 1}–${Math.min(from + decPerPage, shown.length)} de ${shown.length} ${what}` : `Ninguna`;
+        body.querySelectorAll('[data-dec-page]').forEach(b => b.disabled = +b.dataset.decPage < 0 ? decPage === 0 : decPage >= pages - 1);
+    }
+    function decLoad() {
+        if (decLoading) return decLoading;
+        const body = document.getElementById('decBody');
+        decLoading = fetch('/portfolio/decisiones').then(r => { if (!r.ok) throw new Error(r.statusText); return r.text(); })
+            .then(html => {
+                body.innerHTML = html;
+                decSort = null; decFilter = ''; decPage = 0; decView = 'ops';
+                body.querySelectorAll('#decTable th.sortable, #decEntries th.sortable').forEach(th => th.addEventListener('click', () => {
+                    const col = [...th.parentNode.children].indexOf(th), table = th.closest('table');
+                    // primer clic: texto de la A a la Z (la fecha, de la más reciente); números de mayor a menor
+                    const first = th.dataset.type === 'text' && col !== 0 ? 1 : -1;
+                    decSort = {col, table: table.id, dir: decSort && decSort.col === col && decSort.table === table.id ? -decSort.dir : first};
+                    const tbody = table.tBodies[0];
+                    const key = tr => tr.children[col].dataset.sort ?? '';
+                    const isNum = th.dataset.type !== 'text';
+                    [...tbody.rows].sort((a, b) => {
+                        const x = key(a), y = key(b);
+                        if (x === '' || y === '') return x === y ? 0 : x === '' ? 1 : -1;   // sin dato, al final
+                        return decSort.dir * (isNum ? parseFloat(x) - parseFloat(y) : x.localeCompare(y));
+                    }).forEach(tr => tbody.appendChild(tr));
+                    decPage = 0; decRender();
+                }));
+                body.querySelectorAll('[data-dec-type]').forEach(b => b.addEventListener('click', () => {
+                    body.querySelectorAll('[data-dec-type]').forEach(x => x.classList.toggle('active', x === b));
+                    decFilter = b.dataset.decType; decPage = 0; decRender();
+                }));
+                // «Por tramos» solo tiene compras: fuera los filtros Compras / Ventas
+                body.querySelectorAll('[data-dec-view]').forEach(b => b.addEventListener('click', () => {
+                    decView = b.dataset.decView;
+                    body.querySelectorAll('[data-dec-view]').forEach(x => x.classList.toggle('active', x === b));
+                    body.querySelectorAll('[data-dec-type="BUY"], [data-dec-type="SELL"]').forEach(x => x.classList.toggle('d-none', decView !== 'ops'));
+                    if (decView !== 'ops' && (decFilter === 'BUY' || decFilter === 'SELL')) body.querySelector('[data-dec-type=""]').click();
+                    decPage = 0; decRender();
+                }));
+                body.querySelectorAll('[data-dec-page]').forEach(b => b.addEventListener('click', () => { decPage += +b.dataset.decPage; decRender(); }));
+                decRender();
+            })
+            .catch(e => { body.innerHTML = `<div class="p-3 small text-danger">No se pudo calcular el balance: ${e.message}</div>`; decLoading = null; });
+        return decLoading;
+    }
+    // el porqué de una operación: se edita en la misma celda (Intro guarda, Escape cancela)
+    document.getElementById('decBody').addEventListener('click', e => {
+        const btn = e.target.closest('.dec-note-edit');
+        if (!btn) return;
+        const cell = btn.closest('.dec-note'), text = cell.querySelector('.dec-note-text');
+        if (cell.querySelector('textarea')) return;
+        const box = document.createElement('textarea');
+        box.className = 'form-control form-control-sm';
+        box.rows = 2; box.maxLength = 1000; box.value = text.textContent.trim();
+        box.placeholder = 'Por qué compraste o vendiste: tesis, precio, señal…';
+        text.classList.add('d-none'); btn.classList.add('d-none');
+        cell.prepend(box); box.focus();
+        const done = () => { box.remove(); text.classList.remove('d-none'); btn.classList.remove('d-none'); };
+        let saving = false;
+        const save = async () => {
+            if (saving) return;
+            const note = box.value.trim();
+            if (note === text.textContent.trim()) return done();
+            saving = true; box.disabled = true;
+            try {
+                const r = await fetch('/api/portfolio/transaction/note', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ticker: cell.dataset.ticker, refs: JSON.parse(cell.dataset.refs), note})});
+                if (!r.ok) throw new Error(r.statusText);
+                text.textContent = note;
+                cell.closest('tr').dataset.note = note ? '1' : '';
+                btn.title = (note ? 'Editar' : 'Anotar') + ' el porqué';
+                done();
+            } catch (err) { saving = false; box.disabled = false; alert('No se pudo guardar: ' + err.message); }
+        };
+        box.addEventListener('keydown', ev => {
+            if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); save(); }
+            if (ev.key === 'Escape') done();
+        });
+        box.addEventListener('blur', save);
+    });
+    // --- Informes: el archivo a la izquierda y el informe a la derecha; el comentario de IA, solo al pulsar ---
+    let repLoading = null;
+    const repShow = (key, tab) => fetch('/portfolio/informes/' + encodeURIComponent(key)).then(r => r.text()).then(html => {
+        document.getElementById('repPanel').innerHTML = html;
+        const t = tab && document.getElementById(tab);
+        if (t) bootstrap.Tab.getOrCreateInstance(t).show();
+        document.querySelectorAll('#repList [data-rep-key]').forEach(a => a.classList.toggle('active', a.dataset.repKey === key));
+        history.replaceState(null, '', '#informes-' + key);
+        window.fitAll && fitAll();
+    });
+    function repLoad(key) {
+        if (repLoading && !key) return repLoading;
+        const body = document.getElementById('repBody');
+        repLoading = fetch('/portfolio/informes' + (key ? '?key=' + encodeURIComponent(key) : '')).then(r => r.text()).then(html => {
+            body.innerHTML = html;
+            body.querySelectorAll('[data-rep-kind]').forEach(b => b.addEventListener('click', () => {
+                body.querySelectorAll('[data-rep-kind]').forEach(x => x.classList.toggle('active', x === b));
+                const items = [...body.querySelectorAll('#repList [data-rep-key]')];
+                items.forEach(a => a.classList.toggle('d-none', a.dataset.kind !== b.dataset.repKind));
+                const first = items.find(a => a.dataset.kind === b.dataset.repKind);
+                if (first) repShow(first.dataset.repKey);
+                else document.getElementById('repPanel').innerHTML = `<div class="p-4 small text-muted">Aún no hay informes de este tipo: se generan solos al cerrarse el periodo${b.dataset.repKind === 'Y' ? ' (el del año, el 1 de enero)' : ''}.</div>`;
+            }));
+            body.querySelectorAll('#repList [data-rep-key]').forEach(a => a.addEventListener('click', () => repShow(a.dataset.repKey)));
+            window.fitAll && fitAll();
+        }).catch(e => { body.innerHTML = `<div class="p-3 small text-danger">No se pudieron cargar los informes: ${e.message}</div>`; repLoading = null; });
+        return repLoading;
+    }
+    // el botón «Comentar con IA» (una llamada a Gemini, sin búsqueda)
+    document.getElementById('repBody').addEventListener('click', async e => {
+        const btn = e.target.closest('[data-report-ai]');
+        if (!btn) return;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Comentando…';
+        try {
+            const r = await fetch(`/api/portfolio/informes/${encodeURIComponent(btn.dataset.reportAi)}/comentario`, {method: 'POST'});
+            if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+            await repShow(btn.dataset.reportAi, 'rep-ai-tab');   // en el trimestral y el anual, su subpestaña
+        } catch (err) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-stars me-1"></i>Comentar con IA'; alert(err.message); }
+    });
+    // tus objetivos para el año siguiente (informe anual)
+    document.getElementById('repBody').addEventListener('click', async e => {
+        const btn = e.target.closest('[data-report-goals]');
+        if (!btn) return;
+        btn.disabled = true;
+        const r = await fetch(`/api/portfolio/informes/${encodeURIComponent(btn.dataset.reportGoals)}/objetivos`, {method: 'POST',
+            headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text: document.getElementById('repGoals').value})}).catch(() => null);
+        btn.disabled = false;
+        btn.textContent = r && r.ok ? 'Guardado ✓' : 'No se pudo guardar';
+        setTimeout(() => { btn.textContent = 'Guardar objetivos'; }, 2000);
+    });
+    document.getElementById('rep-tab')?.addEventListener('shown.bs.tab', () => {
+        const m = location.hash.match(/^#informes-(.+)$/);
+        repLoad(m ? decodeURIComponent(m[1]) : null);
+        if (!m) history.replaceState(null, '', '#informes');
+    });
+    document.getElementById('dec-tab')?.addEventListener('shown.bs.tab', () => {
+        const tramos = location.hash === '#tramos';   // #tramos: abre Decisiones en «Por tramos»
+        decLoad().then(() => tramos ? document.querySelector('[data-dec-view="entries"]')?.click() : decRender());
+        if (!tramos) history.replaceState(null, '', '#decisiones');
+    });
+    window.addEventListener('resize', () => { if (document.getElementById('dec-pane')?.classList.contains('active')) decRender(); });
+    // --- Menú agrupado: los seis grupos visibles abren la última pestaña (oculta) de su grupo; el selector de la derecha,
+    // las del grupo. Contable/Seguimiento son la misma pestaña con dos vistas (showView).
+    const pfLast = {pos: 'active-tab', perf: 'perf-tab', dist: 'dist-tab', div: 'div-tab', ops: 'closed-tab', res: 'res-tab'};
+    const pfShow = id => bootstrap.Tab.getOrCreateInstance(document.getElementById(id)).show();
+    document.querySelectorAll('[data-pf-group]').forEach(b => b.addEventListener('click', () => pfShow(pfLast[b.dataset.pfGroup])));
+    document.querySelectorAll('[data-pf-show]').forEach(b => b.addEventListener('click', () => {
+        if (!document.getElementById(b.dataset.pfShow).classList.contains('active')) pfShow(b.dataset.pfShow);
+    }));
+    document.querySelectorAll('#portfolioTabs [data-bs-toggle="tab"]').forEach(t => t.addEventListener('shown.bs.tab', () => {
+        const g = t.dataset.pfMember;
+        pfLast[g] = t.id;
+        document.querySelectorAll('[data-pf-group]').forEach(b => {
+            b.classList.toggle('active', b.dataset.pfGroup === g);
+            b.classList.toggle('text-muted', b.dataset.pfGroup !== g);
+        });
+        document.querySelectorAll('.pf-subnav').forEach(n => n.classList.toggle('d-none', n.dataset.for !== g));
+        const seg = !document.getElementById('viewSeguimiento').classList.contains('d-none');
+        document.querySelectorAll('.pf-subnav [data-pf-show]').forEach(b => b.classList.toggle('active', b.dataset.pfShow === t.id
+            && (!b.dataset.posView || b.dataset.posView === (seg ? 'seguimiento' : 'contable'))));
+        if (t.dataset.pfHash) history.replaceState(null, '', t.dataset.pfHash);
+        else if (t.id === 'active-tab' && !seg && location.hash) history.replaceState(null, '', location.pathname + location.search);
+    }));
+    // --- Liquidez del bróker (/api/portfolio/liquidez): la ventana, el recuadro de Posiciones y la línea del Resumen ---
+    const cashEur = v => fmtNum(v, 2) + ' €';
+    const CASH_LABEL = {deposit: 'Aportación', withdrawal: 'Retirada', buy: 'Compra', sell: 'Venta', dividend: 'Dividendo'};
+    function cashKind() { return document.querySelector('input[name=cashKind]:checked').value; }
+    function cashHint(st) {
+        const k = cashKind();
+        document.getElementById('cashAmountLabel').textContent = k === 'balance' ? 'Saldo del bróker (€)' : 'Importe (€)';
+        document.getElementById('cashHint').textContent = k === 'balance'
+            ? 'El saldo que te dice el bróker al cierre de esa fecha. Desde ahí, las compras, ventas y dividendos se aplican solos.'
+            : (st && !st.configured ? 'Primero apunta tu saldo actual con «Ajustar saldo».' : '');
+    }
+    function cashRender(st) {
+        const sum = document.getElementById('cashSummary');
+        document.querySelectorAll('[data-cash-balance]').forEach(el => el.textContent = st.configured ? cashEur(st.balance) : 'apunta tu saldo');
+        document.querySelectorAll('[data-cash-month]').forEach(el => {
+            el.textContent = st.month.deposited ? `+${fmtNum(st.month.deposited, 0)} € en ${st.month.label}` : `sin aportación en ${st.month.label}`;
+            el.className = 'small ms-2 ' + (st.month.deposited ? 'text-success' : 'text-warning');
+        });
+        if (!st.configured) {
+            sum.innerHTML = 'Aún no llevas la liquidez. Apunta el saldo que tienes hoy en el bróker con <b>Ajustar saldo</b> y, desde ahí, se lleva sola.';
+            document.getElementById('cashKindBalance').checked = true;
+            cashHint(st);
+            document.getElementById('cashRecent').innerHTML = '';
+            return;
+        }
+        const p = st.since, a = st.anchor, sg = v => (v > 0 ? '+' : '') + fmtNum(v, 2) + ' €';
+        sum.className = 'mb-3';
+        const neg = st.balance < 0 ? `<div class="small text-warning mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Saldo negativo: ¿falta apuntar una aportación o ajustar el saldo?</div>` : '';
+        sum.innerHTML = `<div class="d-flex align-items-baseline gap-2 mb-2"><span class="fs-4 fw-bold num-font">${cashEur(st.balance)}</span>
+            <span class="small ${st.month.deposited ? 'text-success' : 'text-warning'}">${st.month.deposited ? 'aportado en ' + st.month.label + ': ' + cashEur(st.month.deposited) : 'sin aportación en ' + st.month.label}</span></div>
+            ${neg}<div class="cash-parts text-muted"><span>Saldo el ${a.date.slice(8, 10)}/${a.date.slice(5, 7)}/${a.date.slice(0, 4)}</span><span class="num-font">${cashEur(a.balance)}</span>
+            ${[['Aportaciones', p.deposit], ['Retiradas', p.withdrawal], ['Compras', p.buy], ['Ventas', p.sell], ['Dividendos (netos de retención)', p.dividend]]
+                .filter(([, v]) => v).map(([l, v]) => `<span>${l}</span><span class="num-font ${v > 0 ? 'text-success' : 'text-danger'}">${sg(v)}</span>`).join('')}</div>`;
+        document.getElementById('cashRecent').innerHTML = st.recent.length ? st.recent.map(m => `<div class="d-flex justify-content-between align-items-center py-1 border-bottom border-secondary-subtle">
+            <span><span class="text-muted">${m.date.slice(8, 10)}/${m.date.slice(5, 7)}</span> ${CASH_LABEL[m.type]}${m.ticker ? ' <b>' + m.ticker.replace(/\.(ST|PA|MC|OL)$/, '') + '</b>' : ''}${m.note ? ' <span class="text-muted">· ' + m.note.replace(/</g, '&lt;') + '</span>' : ''}</span>
+            <span class="text-nowrap"><span class="num-font ${m.amount > 0 ? 'text-success' : 'text-danger'}">${sg(m.amount)}</span>
+            ${m.manual ? `<button type="button" class="btn btn-link btn-sm p-0 ms-2 text-muted" data-cash-del="${m.id}" title="Borrar"><i class="bi bi-trash"></i></button>` : ''}</span></div>`).join('')
+            : '<div class="text-muted">Sin movimientos desde el saldo de partida.</div>';
+        cashHint(st);
+    }
+    async function cashCall(url, opts) {
+        const r = await fetch(url, opts).catch(() => null);
+        const err = document.getElementById('cashError');
+        if (!r || !r.ok) {
+            const d = r ? await r.json().catch(() => ({})) : {};
+            err.textContent = d.detail || 'No se pudo guardar';
+            err.classList.remove('d-none');
+            return null;
+        }
+        err.classList.add('d-none');
+        const st = await r.json();
+        cashRender(st);
+        return st;
+    }
+    const cashModal = document.getElementById('cashModal');
+    cashModal?.addEventListener('show.bs.modal', () => {
+        document.getElementById('cashDate').value = new Date().toISOString().slice(0, 10);
+        cashCall('/api/portfolio/liquidez');
+    });
+    cashModal?.addEventListener('shown.bs.modal', () => document.getElementById('cashAmount').focus());
+    cashModal?.addEventListener('hidden.bs.modal', () => { if (location.hash === '#liquidez') history.replaceState(null, '', location.pathname); });
+    document.querySelectorAll('input[name=cashKind]').forEach(r => r.addEventListener('change', () => cashHint()));
+    document.getElementById('cashSave')?.addEventListener('click', async () => {
+        const amount = parseFloat(document.getElementById('cashAmount').value), date = document.getElementById('cashDate').value || null;
+        const kind = cashKind(), note = document.getElementById('cashNote').value;
+        if (isNaN(amount)) { document.getElementById('cashAmount').focus(); return; }
+        const body = kind === 'balance' ? {amount, date} : {type: kind, amount, date, note};
+        const st = await cashCall(kind === 'balance' ? '/api/portfolio/liquidez/saldo' : '/api/portfolio/liquidez/movimiento',
+                                  {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+        if (st) {
+            document.getElementById('cashAmount').value = '';
+            document.getElementById('cashNote').value = '';
+            if (kind === 'balance') document.getElementById('cashKindDeposit').checked = true;
+            cashHint(st);
+        }
+    });
+    document.getElementById('cashAmount')?.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('cashSave').click(); });
+    document.getElementById('cashRecent')?.addEventListener('click', e => {
+        const b = e.target.closest('[data-cash-del]');
+        if (b && confirm('¿Borrar este movimiento?')) cashCall('/api/portfolio/liquidez/movimiento/' + b.dataset.cashDel, {method: 'DELETE'});
+    });
+    document.addEventListener('DOMContentLoaded', () => {
+        if (location.hash === '#liquidez') bootstrap.Modal.getOrCreateInstance(cashModal).show();
+    });
+    // Resumen: curva pequeña de la cartera frente al índice de referencia (las mismas series que Rendimiento)
+    let resDecLoaded = false;
+    document.getElementById('res-tab')?.addEventListener('shown.bs.tab', async () => {
+        if (resDecLoaded) return;
+        resDecLoaded = true;
+        const box = document.querySelector('[data-res-dec]');
+        const d = await fetch('/api/portfolio/decisiones/resumen').then(r => r.ok ? r.json() : null).catch(() => null);
+        if (!d || !d.buys || !d.buys.n) { box.textContent = 'Sin decisiones que medir todavía.'; resDecLoaded = false; return; }
+        const pp = v => (v > 0 ? '+' : '') + fmtNum(v, 1) + ' pp', cl = v => v > 0 ? 'text-success' : 'text-danger';
+        const ex = (o, lbl) => o ? `<div class="res-row"><span class="text-muted">${lbl}</span><span><b>${o.ticker.replace(/\.(ST|PA|MC|OL)$/, '')}</b> ${o.date.slice(8, 10)}/${o.date.slice(5, 7)} <span class="${cl(o.excess)}">${pp(o.excess)}</span></span></div>` : '';
+        box.className = '';
+        box.innerHTML = `<div class="res-row"><span class="text-muted">Compras por delante del ${PERF_REF_BENCH}</span><b>${d.buys.beat} de ${d.buys.n}</b></div>`
+            + `<div class="res-row"><span class="text-muted">De media</span><b class="${cl(d.buys.avg)}">${pp(d.buys.avg)}</b></div>`
+            + ex(d.best[0], 'Mejor') + ex(d.worst[0], 'Peor')
+            + `<div class="res-row"><span class="text-muted">Con su porqué</span><b>${d.with_reason} de ${d.n_ops}</b></div>`;
+    });
+    document.getElementById('res-tab')?.addEventListener('shown.bs.tab', () => {
+        const el = document.getElementById('resChart');
+        if (!el || !window.Plotly || !perfDates.length) return;
+        const ref = perfBenchmarks[PERF_REF_BENCH] || [];
+        const traces = [{x: perfDates, y: perfPortfolio, mode: 'lines', name: 'Cartera', line: {color: '#3b82f6', width: 2}}];
+        if (ref.length) traces.push({x: perfDates, y: ref, mode: 'lines', name: PERF_REF_BENCH, line: {color: '#fd7e14', width: 1.5, dash: 'dot'}});
+        Plotly.react(el, traces, {margin: {l: 30, r: 8, t: 4, b: 22}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+            font: {size: 10, color: getComputedStyle(document.body).color}, showlegend: true, legend: {orientation: 'h', x: 0, y: 1.12},
+            xaxis: {showgrid: false}, yaxis: {gridcolor: 'rgba(128,128,128,.15)'}}, {displayModeBar: false, responsive: true});
+    });
     // bootstrap.bundle se carga después del contenido: las pestañas, cuando ya está disponible
     document.addEventListener('DOMContentLoaded', () => {
-        const tab = {'#distribucion': 'dist-tab', '#dividendos': 'div-tab'}[location.hash];
-        if (tab) bootstrap.Tab.getOrCreateInstance(document.getElementById(tab)).show();
+        const tab = location.hash.startsWith('#informes') ? 'rep-tab' : {'#distribucion': 'dist-tab', '#dividendos': 'div-tab', '#decisiones': 'dec-tab', '#tramos': 'dec-tab',
+                     '#fundamentales': 'fund-tab', '#rendimiento': 'perf-tab', '#historial': 'closed-tab', '#resumen': 'res-tab'}[location.hash];
+        if (tab) setTimeout(() => pfShow(tab));   // después de que cada pestaña prepare su arranque (también en DOMContentLoaded)
     });
 })();
 
     const perfDates      = {{ perf_dates | tojson | safe }};
     const perfPortfolio  = {{ perf_portfolio | tojson | safe }};
     const perfValuesEur  = {{ perf_values_eur | tojson | safe }};
+    const perfPatrimony  = {{ perf_patrimony | tojson | safe }};   // con la liquidez (null antes del saldo de partida)
+    const PAT = 'Con liquidez', hasPat = (perfPatrimony.uv || []).some(v => v !== null);
     const perfBenchmarks = {{ perf_benchmarks | tojson | safe }};
+    const PERF_REF_BENCH = {{ perf_ref_bench | tojson }};   // índice de referencia (Ajustes): el de todas las alfas
 
     document.addEventListener("DOMContentLoaded", function() {
         // Inicializar tooltips de Bootstrap
@@ -1875,6 +2392,7 @@ window.plotHover = () => {
             if (!legendContainer) return;
             
             let items = ['Mi Cartera'];
+            if (hasPat) items.push(PAT);
             if (currentMode !== 'real') {
                 Object.keys(perfBenchmarks).forEach(name => {
                     items.push(name);
@@ -1884,7 +2402,7 @@ window.plotHover = () => {
             let html = '';
             items.forEach(name => {
                 const isVisible = seriesVisibility[name] !== false;
-                const color = name === 'Mi Cartera' ? '#0d6efd' : (benchColors[name] || '#adb5bd');
+                const color = name === 'Mi Cartera' ? '#0d6efd' : name === PAT ? '#20c997' : (benchColors[name] || '#adb5bd');
                 const eyeIcon = isVisible ? 'bi-eye-fill text-primary' : 'bi-eye-slash text-muted';
                 const borderClass = isVisible 
                     ? (isDark ? 'border-primary-subtle bg-dark text-light' : 'border-primary-subtle bg-light text-dark') 
@@ -1918,6 +2436,29 @@ window.plotHover = () => {
         function perfWindow() {
             return perfRangeIdx || [getStartIndex(currentPeriod), perfDates.length - 1];
         }
+        // Coste de la liquidez en la ventana visible (desde que se lleva): patrimonio con efectivo menos cartera, en pp
+        function renderCashCost(si, ei) {
+            const wrap = document.getElementById('kpiCashWrap');
+            if (!wrap) return;
+            const uv = perfPatrimony.uv || [];
+            let k = si;
+            while (k <= ei && uv[k] === null) k++;
+            wrap.classList.toggle('d-none', !hasPat);
+            if (!hasPat) return;
+            if (k >= ei) {
+                document.getElementById('kpiCash').textContent = '—';
+                document.getElementById('kpiCash').className = 'fw-bold text-muted';
+                document.getElementById('kpiCashSub').textContent = k <= ei ? 'desde el ' + perfDates[k].slice(8, 10) + '/' + perfDates[k].slice(5, 7) + ': aún sin historia' : 'fuera de la ventana';
+                return;
+            }
+            const pp = 100 * ((uv[ei] / uv[k]) - (perfPortfolio[ei] / perfPortfolio[k]));
+            const pcts = perfPatrimony.cash_pct.slice(k, ei + 1).filter(v => v !== null);
+            const avg = pcts.reduce((a, b) => a + b, 0) / (pcts.length || 1);
+            const el = document.getElementById('kpiCash');
+            el.textContent = (pp > 0 ? '+' : '') + fmtNum(pp, 2) + ' pp';
+            el.className = 'fw-bold ' + (pp >= 0 ? 'text-success' : 'text-danger');
+            document.getElementById('kpiCashSub').textContent = 'efectivo medio ' + fmtNum(avg, 1) + ' %';
+        }
         function renderPerfChart() {
             const [si, ei] = perfWindow();
             const dates = perfDates;
@@ -1933,6 +2474,10 @@ window.plotHover = () => {
                         line: { color: '#0d6efd', width: 3 },
                         fill: 'tozeroy', fillcolor: 'rgba(13,110,253,0.08)'
                     });
+                }
+                if (hasPat && seriesVisibility[PAT] !== false) {
+                    traces.push({ x: dates, y: perfPatrimony.eur, mode: 'lines', name: 'Con liquidez (€)', connectgaps: false,
+                                  line: { color: '#20c997', width: 2, dash: 'dash' } });
                 }
                 const layout = {
                     xaxis,
@@ -1952,6 +2497,12 @@ window.plotHover = () => {
                 const port = perfPortfolio.map(v => Math.round(v / base * 1000) / 100);
                 if (seriesVisibility['Mi Cartera'] !== false) {
                     traces.push({ x: dates, y: port, mode: 'lines', name: 'Mi Cartera', line: { color: '#0d6efd', width: 3 } });
+                }
+                if (hasPat && seriesVisibility[PAT] !== false) {
+                    // rebasado como la cartera: si la ventana empieza con liquidez, a 10 ese día; si no, junto a la cartera
+                    const pb = perfPatrimony.uv[si];
+                    traces.push({ x: dates, y: perfPatrimony.uv.map(v => v === null ? null : Math.round(v / (pb || base) * 1000) / 100),
+                                  mode: 'lines', name: PAT, line: { color: '#20c997', width: 2, dash: 'dash' } });
                 }
                 Object.entries(perfBenchmarks).forEach(([name, vals]) => {
                     if (seriesVisibility[name] !== false) {
@@ -1975,6 +2526,8 @@ window.plotHover = () => {
                 renderDrawdown(port.slice(si, ei + 1), dates.slice(si, ei + 1));
                 updateKPIs(port.slice(si, ei + 1), dates.slice(si, ei + 1));
             }
+
+            renderCashCost(si, ei);
 
             // al arrastrar o estirar el navegador (o hacer zoom): nueva ventana, sin periodo marcado
             const el = document.getElementById('perf-chart');
@@ -2062,9 +2615,8 @@ window.plotHover = () => {
             const totalRet = (last / base - 1) * 100;
             const days     = (new Date(dates[dates.length-1]) - new Date(dates[0])) / 86400000;
             const years    = days / 365.25;
-            const cagr     = years > 0.1
-                ? (Math.pow(last / base, 1 / years) - 1) * 100
-                : totalRet;
+            const annual   = years >= 1;   // con menos de un año no se anualiza (8 meses al +28 % saldrían como un +45 % anual)
+            const cagr     = annual ? (Math.pow(last / base, 1 / years) - 1) * 100 : totalRet;
             const maxDD    = Math.min(...calcDrawdown(portSlice));
 
             const labelMap = {
@@ -2102,20 +2654,19 @@ window.plotHover = () => {
 
             // CAGR (Badge superior)
             const elCagr = document.getElementById('kpiCagr');
-            elCagr.textContent = fmt(cagr);
-            elCagr.className   = 'fw-bold fs-4 ' + colorClass(cagr);
+            elCagr.textContent = annual ? fmt(cagr) : '—';
+            elCagr.className   = 'fw-bold fs-4 ' + (annual ? colorClass(cagr) : 'text-muted');
+            elCagr.title       = annual ? '' : 'Con menos de un año no se anualiza: la comparación de al lado es la del periodo';
             document.getElementById('kpiCagrLabel').innerHTML =
-                `CAGR <span class="opacity-50">(${periodLabel})</span>`;
+                `CAGR <span class="opacity-50">(${annual ? periodLabel : 'menos de 1 año'})</span>`;
 
             // Benchmark CAGRs (Badge superior)
             const si = getStartIndex(currentPeriod);
             let benchHtml = '';
             Object.entries(perfBenchmarks).forEach(([name, vals]) => {
-                if (!vals.length) return;
-                const bBase = vals[si] || vals[0];
-                const bLast = vals[vals.length - 1];
+                if (!vals.length || name !== PERF_REF_BENCH) return;   // una sola alfa: frente al índice de referencia
                 const bSlice = vals.slice(si);
-                const bCagr  = years > 0.1
+                const bCagr  = annual
                     ? (Math.pow(bSlice[bSlice.length-1] / bSlice[0], 1/years) - 1) * 100
                     : (bSlice[bSlice.length-1] / bSlice[0] - 1) * 100;
                 const alfa   = cagr - bCagr;
@@ -2175,7 +2726,7 @@ window.plotHover = () => {
                         </div>
                     `;
                 } else {
-                    let html = '<div class="small text-muted fw-bold mb-1" style="font-size:0.75rem;">COMPARTIVA VS BENCHMARKS:</div>';
+                    let html = `<div class="small text-muted fw-bold mb-1" style="font-size:0.75rem;">FRENTE AL ${PERF_REF_BENCH.toUpperCase()}:</div>`;
                     
                     // Calculo de retorno de cartera en periodo
                     const baseVal = portSlice[0] || 100;
@@ -2183,7 +2734,7 @@ window.plotHover = () => {
                     const portPct = baseVal > 0 ? ((lastVal / baseVal) - 1) * 100 : 0;
                     
                     Object.entries(perfBenchmarks).forEach(([name, bVals]) => {
-                        if (!bVals.length) return;
+                        if (!bVals.length || name !== PERF_REF_BENCH) return;
                         const bSlice = bVals.slice(si);
                         const bBase = bSlice[0] || 10;
                         const bLast = bSlice[bSlice.length - 1] || 10;

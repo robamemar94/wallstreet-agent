@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.application.services import agenda_service, base_valuation_service, cache_warmer, price_scheduler, dividend_forecast, news_summary_service, notice_service, split_service, thesis_news_runner, thesis_review_service
-from app.application.services.thesis_ai_service import NEWS_MIN_MATERIALITY, news_due, next_radar, radar_week_start
+from app.application.services.thesis_ai_service import NEWS_MIN_MATERIALITY, business_week, news_due, next_radar, radar_week_start
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.thesis_service import (
     compute_exposure, decision_outcome, evaluate_thesis, fetch_ttm_fcf_per_share, implied_cagr, live_valuation,
@@ -49,8 +49,10 @@ def _thesis_startup() -> None:
             logger.warning("%d revisiones de resultados interrumpidas por el reinicio marcadas como error", stale)
     finally:
         db.close()
-    # Radar semanal automático: los lunes desde las 7:00, comprobado al arrancar y cada hora
+    # Radar semanal automático: los sábados desde las 8:00, comprobado al arrancar y cada hora
     thesis_news_runner.start_scheduler()
+    from app.application.services import report_service
+    report_service.start_scheduler()   # informes semanales, mensuales, trimestrales y anuales (sin IA)
     # Datos de mercado lentos de cartera, tesis y watchlist: se descargan ya para que la primera visita no espere
     cache_warmer.warm_up_in_background()
     # Precios: en la apertura y el cierre de Europa y EE. UU., y cada 5 min durante la sesión
@@ -253,8 +255,8 @@ NEWS_PAGE_WEEKS = 12  # semanas que carga /noticias de cada vez («Cargar 12 sem
 
 
 def news_weeks(items: List[Dict[str, Any]], now: Optional[datetime.datetime] = None) -> List[Dict[str, Any]]:
-    """Agrupa las noticias por la semana del radar que las encontró (la del lunes de esa pasada, más las que se
-    fuercen a mitad de semana), de la más reciente a la más antigua."""
+    """Agrupa las noticias por la semana del radar que las encontró (la del sábado de esa pasada, más las que se
+    fuercen a mitad de semana), de la más reciente a la más antigua. Cada una se rotula con la semana hábil que repasa."""
     from app.application.services.news_summary_service import week_of
     current = radar_week_start(now).date()
     groups: Dict[str, List[Dict[str, Any]]] = {}
@@ -262,8 +264,8 @@ def news_weeks(items: List[Dict[str, Any]], now: Optional[datetime.datetime] = N
         groups.setdefault(week_of(n["found_at"]), []).append(n)
     out = []
     for i, (week, news) in enumerate(sorted(groups.items(), reverse=True)):
-        monday = datetime.date.fromisoformat(week)
-        out.append({"monday": monday, "current": monday == current, "folded": i >= NEWS_OPEN_WEEKS, "news": news,
+        start = datetime.date.fromisoformat(week)
+        out.append({"start": start, "days": business_week(start), "current": start == current, "folded": i >= NEWS_OPEN_WEEKS, "news": news,
                     "unread": sum(1 for n in news if not n.get("seen", True))})
     return out
 
@@ -301,6 +303,7 @@ def news_page(
         "selected": selected["ticker"] if selected else None,
         "radars": radars,
         "radar_running": thesis_news_runner.is_running(),
+        "radar_progress": thesis_news_runner.status()["radar_progress"],
         "min_materiality": NEWS_MIN_MATERIALITY,
         "summary": news_summary_service.load(db_session),
         "summary_running": news_summary_service.is_running(),
@@ -470,11 +473,14 @@ def portfolio_tracking_fragment(
     from app.application.services import price_monitor_service as pm
     pt = positions_tracking(repo, asset_repo, portfolio_service, db_session)
     rows = [r for r in pt["rows"] if r["ticker"] in pt["open_tickers"]]
-    with ThreadPoolExecutor(max_workers=8) as pool:   # toda la serie de cada valor: una vez al día (caché en disco)
+    from app.application.services import estimate_revisions_service as est
+    with ThreadPoolExecutor(max_workers=8) as pool:   # toda la serie de cada valor y las previsiones: una vez al día (caché en disco)
         aths = dict(zip([r["ticker"] for r in rows], pool.map(pm.all_time_high, [r["ticker"] for r in rows])))
+        revs = dict(zip([r["ticker"] for r in rows], pool.map(est.revisions, [r["ticker"] for r in rows])))
     for r in rows:
         price = (INDEX_CACHE["data"].get(r["ticker"]) or {}).get("price") or (r["stats"] or {}).get("price")
         r["ath"], r["from_ath"] = aths.get(r["ticker"]), pm.from_all_time_high(aths.get(r["ticker"]), price)
+        r["rev"], r["rev_cut"] = revs.get(r["ticker"]), est.signal(revs.get(r["ticker"]))
         th = pt["theses"].get(r["ticker"])
         r["thesis_verdict"] = th.get("verdict") if th else None
     chart = chart_rows(rows)
@@ -676,6 +682,10 @@ def centro_context(repo: SqlAlchemyThesisRepository, notice_repo: SqlAlchemyNoti
             th = theses.get(s["ticker"])
             attention.append({"prio": 2, "ticker": s["ticker"], "type": s["kind"], "text": s["text"],
                               "href": f"/tesis/{th['id']}#valoracion" if th else "/portfolio"})
+    from app.application.services.insider_service import signal_notices
+    attention += signal_notices(sorted(open_tickers))   # compras de directivos en bolsa (cartera)
+    from app.application.services import estimate_revisions_service
+    attention += estimate_revisions_service.signal_notices(sorted(open_tickers))   # los analistas recortan previsiones
     attention += agenda_service.upcoming_results_notices(
         [{"ticker": r["ticker"], "date": r["next"]["date"], "thesis_id": r["thesis_id"]} for r in rows if r["next"] and r["next"].get("date")],
         open_tickers, datetime.date.today())
@@ -711,7 +721,9 @@ def centro_news(repo: SqlAlchemyThesisRepository, db_session: Session) -> Dict[s
     weeks = news_weeks(repo.list_news(since=since, limit=None))
     return {"news_week": week.date(), "news_weeks": weeks, "news_has_current": any(w["current"] for w in weeks),
             "news_old_unread": repo.list_news(unread_only=True, before=since, limit=None),
-            "news_headline": summary.get("headline") if summary.get("week") == week.date().isoformat() else None}
+            # (los resúmenes anteriores al cambio guardan el lunes de la pasada: week_of los lleva a su sábado)
+            "news_headline": summary.get("headline") if summary.get("week") and
+            news_summary_service.week_of(summary["week"] + "T23:59:00") == week.date().isoformat() else None}
 
 
 @router.get("/mercado/centro", response_class=HTMLResponse)

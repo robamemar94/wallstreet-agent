@@ -16,9 +16,20 @@
 {% endmacro %}
 <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 pb-2 border-bottom gap-2">
     <div class="d-flex align-items-center flex-wrap gap-2">
-        <span class="favorite-star cursor-pointer fs-5 me-1" onclick="toggleFavorite('{{ ticker }}', this)" title="Marcar como favorito">
+        <span class="favorite-star cursor-pointer fs-5 me-1" onclick="toggleFavorite('{{ ticker }}', this)" title="Tier 1 · objetivo: la comprarías si llega a precio (atajo del selector de nivel)">
             <i class="bi {{ 'bi-star-fill text-warning' if is_favorite else 'bi-star text-muted' }}"></i>
         </span>
+        {# nivel de interés: Tier 1 (la estrella), Tier 2, Tier 3 o ninguno; «seguimiento» = los tres #}
+        <select class="form-select form-select-sm w-auto me-1" id="tierSelect" style="font-size: .75rem;" aria-label="Nivel"
+                title="Tier 1: la comprarías si llega a precio (todos los avisos). Tier 2: te gusta, sin prisa (aviso al entrar en zona). Tier 3: solo agenda y resultados. Las tres forman tu «seguimiento».">
+            <option value="" {{ 'selected' if not tier.value }}>Sin nivel</option>
+            <option value="1" {{ 'selected' if tier.value == '1' }}>Tier 1 · objetivo</option>
+            <option value="2" {{ 'selected' if tier.value == '2' }}>Tier 2 · vigilancia</option>
+            <option value="seg" {{ 'selected' if tier.value == 'seg' }}>Tier 3</option>
+        </select>
+        <button type="button" class="btn btn-sm {{ 'btn-warning' if muted else 'btn-outline-secondary' }} py-0 me-1" id="muteBtn" data-muted="{{ 'true' if muted else 'false' }}"
+                title="{{ 'Silenciada: no genera avisos. Pulsa para volver a activarlos' if muted else 'Silenciar todos los avisos de esta empresa' }}" aria-label="Silenciar avisos">
+            <i class="bi {{ 'bi-bell-slash-fill' if muted else 'bi-bell' }}"></i></button>
         
         <!-- Dropdown para Añadir a Listas Personalizadas -->
         <div class="dropdown me-2">
@@ -31,10 +42,23 @@
             </ul>
         </div>
 
-        <h2 class="fw-bold mb-0 me-2" style="font-size: 1.3rem; letter-spacing: -0.02em;">
+        <h2 class="fw-bold mb-0 me-2" style="font-size: 1.3rem; letter-spacing: -0.02em;" title="{{ info.get('sector', 'Sector Desconocido') }} · {{ info.get('industry', 'Industria Desconocida') }} · {{ info.get('country', 'País Desconocido') }}">
             {{ info.get('longName', ticker) }} <span class="text-muted fw-normal">({{ clean_ticker(ticker) }})</span>
         </h2>
-        
+        {# la cotización, junto al nombre (como Google o TIKR) #}
+        {% if custom_metrics.currentPrice %}
+        <span class="d-inline-flex align-items-baseline gap-2 me-2">
+            <span class="fw-bold num-font" style="font-size: 1.3rem; line-height: 1;">{{ num(custom_metrics.currentPrice, 2) }} {{ currency_symbol }}</span>
+            {% if custom_metrics.priceChangePct is not none %}
+            <span class="fw-bold num-font small {{ 'text-success' if custom_metrics.priceChangePct >= 0 else 'text-danger' }}">
+                {{ "+" if custom_metrics.priceChangePct >= 0 else "" }}{{ num(custom_metrics.priceChange|abs, 2) }} {{ currency_symbol }}
+                ({{ "+" if custom_metrics.priceChangePct >= 0 else "" }}{{ num(custom_metrics.priceChangePct, 2) }} %)</span>
+            {% endif %}
+        </span>
+        {% endif %}
+        {% if mcap %}<span class="small me-2" title="Capitalización en USD: acciones en circulación × precio × tipo de cambio. {{ mcap.tier.name }}: {{ mcap.tier.range }}">
+            <span class="text-muted">Cap.</span> <b class="num-font">{{ mcap.label }}</b><span class="cap-badge cap-{{ mcap.tier.key }}" style="vertical-align: 1px;">{{ mcap.tier.name }}</span></span>{% endif %}
+
         <div id="status-badge-container">
             {% if db.get('status') == 'ACCEPTED' %}
                 <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i>Aceptada</span>
@@ -95,33 +119,36 @@
     </div>
 </div>
 
-{# Precio y datos de mercado: una sola franja #}
-<div class="card shadow-sm border mb-2 ticker-quote">
-    <div class="card-body px-3 py-2 d-flex align-items-center flex-wrap gap-3">
-        {% if custom_metrics.currentPrice %}
-        <div class="d-flex align-items-baseline gap-2">
-            <span class="fw-bold num-font" style="font-size: 1.25rem;">{{ num(custom_metrics.currentPrice, 2) }} {{ currency_symbol }}</span>
-            {% if custom_metrics.priceChangePct is not none %}
-                <span class="fw-bold num-font {{ 'text-success' if custom_metrics.priceChangePct >= 0 else 'text-danger' }}">
-                    {{ "+" if custom_metrics.priceChangePct >= 0 else "" }}{{ num(custom_metrics.priceChange|abs, 2) }} {{ currency_symbol }}
-                    ({{ "+" if custom_metrics.priceChangePct >= 0 else "" }}{{ (num(custom_metrics.priceChangePct, 2) ~ '%') }})
-                </span>
-            {% endif %}
-        </div>
-        {% endif %}
-        <span class="text-muted small border-start ps-3">{{ info.get('sector', 'Sector Desconocido') }} · {{ info.get('industry', 'Industria Desconocida') }} · {{ info.get('country', 'País Desconocido') }}</span>
-        <div class="d-flex align-items-center gap-3 font-monospace-data ms-auto" style="font-size: 0.8rem;">
-            <div title="{{ (mcap.tier.name ~ ' · ' ~ mcap.tier.range) if mcap else 'Sin dato' }}"><span class="text-muted">Mkt Cap:</span> <strong>{{ mcap.label if mcap else 'N/A' }}</strong>{% if mcap %}<span class="cap-badge cap-{{ mcap.tier.key }}">{{ mcap.tier.name|replace(' cap', '') }}</span>{% endif %}</div>
-            <div><span class="text-muted">P/E (Fwd):</span> <strong>{{ num(info.get('forwardPE', 0), 1) if info.get('forwardPE') else 'N/A' }}x</strong></div>
-            <div><span class="text-muted">Div Yield:</span> <strong>{{ "{:.2%}".format(info.get('dividendYield') / 100 if info.get('dividendYield') > 0.20 else info.get('dividendYield')) if info.get('dividendYield') else '0.00%' }}</strong></div>
-            {% if info.get('fiftyTwoWeekLow') and info.get('fiftyTwoWeekHigh') %}
-            <div><span class="text-muted">52W Range:</span> <strong>{{ num(info.get('fiftyTwoWeekLow'), 2) }} - {{ num(info.get('fiftyTwoWeekHigh'), 2) }}</strong></div>
-            {% endif %}
-        </div>
-    </div>
-</div>
+{# Cifras clave (el detalle completo, en Finanzas y gráficos › Estadísticas) #}
+        {% set dy = info.get('dividendYield') %}{% set dy = (dy / 100 if dy and dy > 0.20 else dy) %}
+        {% set nd = ((info.get('totalDebt') - info.get('totalCash')) / info.get('ebitda')) if info.get('totalDebt') is not none and info.get('totalCash') is not none and info.get('ebitda') else none %}
+        {% set fcfy = db.get('fcf_yield') if db.get('fcf_yield') is not none else ((info.get('freeCashflow') / info.get('marketCap')) if info.get('freeCashflow') and info.get('marketCap') else none) %}
+        {# Yahoo casi nunca da el ROIC: entonces el ROE #}
+        {% set roic = ext_stats.returns.get('ROIC (TTM)') %}{% set roe = ext_stats.returns.get('ROE (TTM)') %}
+        {% set ret = (('ROIC (TTM)', roic, 'Retorno sobre el capital invertido, últimos 12 meses') if roic is number
+                     else ('ROE (TTM)', roe if roe is number else none, 'Retorno sobre fondos propios, últimos 12 meses (Yahoo no da el ROIC). Ojo: las recompras lo inflan')) %}
+        {% set growth = db.get('expected_growth') if db.get('expected_growth') is not none else info.get('revenueGrowth') %}
+        {% set key_figs = [
+            ('PER adelantado', (num(info.get('forwardPE'), 1) ~ 'x' if info.get('forwardPE') else none), 'Precio / BPA estimado de los próximos 12 meses (Yahoo)'),
+            ('FCF yield', (num(fcfy * 100, 1) ~ '%' if fcfy is not none else none), 'Flujo de caja libre / capitalización'),
+            (ret[0], (num(ret[1] * 100, 1) ~ '%' if ret[1] is not none else none), ret[2]),
+            ('Margen operativo', (num(info.get('operatingMargins') * 100, 1) ~ '%' if info.get('operatingMargins') is not none else none), 'Beneficio operativo / ingresos'),
+            ('Crec. ventas esperado', (num(growth * 100, 1) ~ '%' if growth is not none and growth != 'N/A' else none), 'Crecimiento de ingresos previsto por los analistas para el próximo año (si no lo hay, el último interanual)'),
+            ('Deuda neta / EBITDA', (num(nd, 2) ~ 'x' if nd is not none else none), 'Negativo: más caja que deuda'),
+            ('Rent. dividendo', (num(dy * 100, 2) ~ '%' if dy else none), 'Dividendo anual / precio'),
+        ] %}
 
 <style>
+    /* pestañas de la ficha en una sola fila (con 7 se partían en dos y quitaban sitio al resumen) */
+    #mainTickerTabs { flex-wrap: nowrap; }
+    #mainTickerTabs .nav-link { white-space: nowrap; font-size: .76rem; padding-left: .4rem; padding-right: .4rem; }
+    /* pestañas discretas (como TIKR o Fiscal.ai): texto en gris y la activa subrayada, sin botones rellenos */
+    .ticker-tabs { background: var(--bs-body-bg); border-bottom: 1px solid var(--bs-border-color); padding: 0; flex-wrap: nowrap; }
+    .ticker-tabs .nav-link { background: transparent !important; color: var(--bs-secondary-color) !important; border-radius: 0;
+                             border-bottom: 2px solid transparent; font-weight: 600 !important; padding-top: .3rem !important; padding-bottom: .3rem !important; }
+    .ticker-tabs .nav-link:hover { color: var(--bs-body-color) !important; }
+    .ticker-tabs .nav-link.active { color: var(--bs-primary) !important; border-bottom-color: var(--bs-primary); }
+    .ticker-tabs .nav-link .badge { font-size: .6rem !important; }
     .finviz-table { font-size: 0.9rem; border-color: #dee2e6; margin-bottom: 0; }
     .finviz-table th { background-color: #f8f9fa; font-weight: 600; color: #495057; border-right: 1px solid #dee2e6; padding: 8px 12px; }
     .finviz-table td { font-weight: bold; color: #212529; text-align: right; padding: 8px 12px; }
@@ -347,6 +374,36 @@
 
     /* Resumen ejecutivo: franja de la tesis y cifras clave (mismo estilo que el resumen de Cartera) */
     .key-figs { overflow-x: auto; }
+    .quote-fig { font-size: .78rem; white-space: nowrap; }
+    .key-figs-grid.pv-figs { grid-template-columns: repeat(4, minmax(0, 1fr)); height: auto; flex: none; }
+    .pv-figs .key-fig { padding: .3rem .5rem; }
+    .pv-figs .key-fig:nth-child(5n) { border-right: 1px solid var(--bs-border-color-translucent); }
+    .pv-figs .key-fig:nth-child(4n) { border-right: 0; }
+    .pv-figs .key-fig:nth-child(n+5) { border-bottom: 0; }
+    .pv-figs .key-fig-val { font-size: .88rem; }
+    .pv-periods .btn { font-size: .7rem; padding: .1rem .45rem; }
+    /* Resumen de la ficha: cifras clave en dos filas, etiquetas de bloque y notas de calidad */
+    .key-figs-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); height: 100%; }
+    .key-figs-grid .key-fig { border-bottom: 1px solid var(--bs-border-color-translucent); justify-content: center; }
+    .key-figs-grid .key-fig:nth-child(5n) { border-right: 0; }
+    .key-figs-grid .key-fig:nth-child(n+6) { border-bottom: 0; }
+    .key-figs-grid.key-figs-line { grid-template-columns: repeat(7, minmax(0, 1fr)) auto; }
+    .key-figs-line .key-fig { padding-left: .5rem; padding-right: .5rem; }
+    .key-figs-line .key-fig { border-bottom: 0; border-right: 1px solid var(--bs-border-color-translucent); }
+    .key-figs-line .key-fig:nth-child(5n) { border-right: 1px solid var(--bs-border-color-translucent); }
+    .key-figs-line .key-fig:last-child { border-right: 0; }
+    /* bloques del Resumen: una franja de color a la izquierda para distinguirlos de un vistazo */
+    .dash-card { border-left: 3px solid var(--dash-accent, var(--bs-border-color)) !important; }
+    .dash-green { --dash-accent: #22c55e; } .dash-slate { --dash-accent: #64748b; } .dash-blue { --dash-accent: #3b82f6; } .dash-purple { --dash-accent: #8b5cf6; } .dash-teal { --dash-accent: #14b8a6; } .dash-amber { --dash-accent: #f59e0b; }
+    .dash-label .bi { color: var(--dash-accent); }
+    /* la tesis acaba a la altura de la columna izquierda: no aporta alto a la fila y, si no cabe, scroll propio */
+    .dash-fill { min-height: 0; }
+    .dash-fill-body { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+    @media (max-width: 991px) { .dash-fill-body { flex: none; overflow: visible; } }
+    .dash-label { font-size: .68rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--bs-secondary-color); margin-bottom: .35rem; }
+    .dash-why { font-size: .72rem; }
+    .dash-scores { display: grid; grid-template-columns: repeat(4, auto); gap: .25rem; font-size: .76rem; }
+    .text-orange { color: #fd7e14 !important; }
     .key-figs-row { min-width: 640px; }
     .key-fig { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: .1rem; padding: .45rem .7rem;
                border-right: 1px solid var(--bs-border-color); }
@@ -370,25 +427,49 @@
     .rules-syn .syn-head { font-weight: 600; }
     .rules-syn .syn-detail { font-size: .74rem; color: var(--bs-secondary-color); }
     .rules-syn .syn-detail span + span::before { content: " · "; }
-    /* Informes de calidad: una pantalla con nota, fortalezas y debilidades; el informe completo, plegado debajo */
+    /* Informes de calidad: nota, fortalezas y debilidades arriba; el informe completo debajo, con su comienzo a la vista */
     #reportTabsContent > .tab-pane.active { display: flex; flex-direction: column; min-height: 100%; }
     #reportTabsContent > .tab-pane > .card,
     #reportTabsContent > .tab-pane > .card > .card-body { flex: 1 1 auto; display: flex; flex-direction: column; }
-    .qa-fill { flex: 1 1 auto; display: flex; flex-direction: column; }
-    .qa-fill > .qa-meta:not(.d-none) { flex: 1 1 0; min-height: 160px; display: flex; flex-direction: column; }
-    .qa-fill > .qa-meta > .qa-row { flex: 1 1 0; min-height: 0; }
-    .qa-fill .qa-box { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
-    .qa-fill.report-open .qa-box { flex: none; }
+    .qa-fill { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    /* con un informe de calidad el panel tiene alto fijo: así el arranque del informe encoge si no cabe todo */
+    #reportTabsContent > .tab-pane.active:has(.qa-fill) { height: 100%; }
+    #reportTabsContent > .tab-pane:has(.qa-fill) > .card, #reportTabsContent > .tab-pane:has(.qa-fill) > .card > .card-body { min-height: 0; }
+    /* fortalezas y debilidades: dos columnas enteras (sin scroll); el informe ocupa el resto con su comienzo a la vista */
+    .qa-fill > .qa-meta:not(.d-none) { flex: 1 0 auto; display: flex; flex-direction: column; }
+    .qa-fill > .qa-meta > .qa-row { flex: 1 0 auto; }
+    .qa-fill.report-open > .qa-meta { flex: none; }
+    .qa-fill .qa-row { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+    @media (max-width: 991px) { .qa-fill .qa-row { grid-template-columns: 1fr; } }
+    .qa-fill .qa-box { display: flex; flex-direction: column; min-height: 0; }
+    .qa-fill .qa-list { font-size: .76rem; }
+    .qa-fill .qa-list li { line-height: 1.32; margin-bottom: .2rem !important; display: flex; gap: .35rem; }
+    .qa-fill .qa-list li > i { flex: none; margin: 0 !important; }
+    .qa-fill.report-open > .qa-meta .qa-row { display: none; }
+    .qa-report { --qa-bg: #fff; background: var(--qa-bg); }
+    [data-bs-theme="dark"] .qa-report { --qa-bg: var(--fin-card-bg); }
+    /* del informe se ve solo el arranque (unas líneas); fortalezas y debilidades se quedan el resto del alto */
+    .qa-fill > .qa-report:not(.d-none) { flex: 2 1 0; max-height: 23rem; min-height: 100px; display: flex; flex-direction: column; }
+    .qa-fill .qa-report > .qa-preview { flex: 1 1 0; min-height: 46px; container-type: size; position: relative; overflow: hidden; }
+    .qa-fill.report-open > .qa-report:not(.d-none) { flex: 1 1 auto; max-height: none; }
+    @container (max-height: 80px) { .qa-preview-fade > .btn { display: none; } }
+    @media (min-height: 860px) { .qa-fill .qa-list { font-size: .82rem; } .qa-fill .qa-list li { line-height: 1.45; margin-bottom: .35rem !important; } }
+    .qa-fill .qa-report > .qa-preview > .card-body { height: 100%; overflow: hidden; }
+    .qa-fill.report-open .qa-report > .qa-preview > .card-body { overflow-y: auto; }
+    .qa-preview-fade { position: absolute; left: 0; right: 0; bottom: 0; height: min(5.5rem, 75%); display: flex; align-items: flex-end;
+                       justify-content: center; padding-bottom: .7rem; cursor: pointer;
+                       background: linear-gradient(to bottom, transparent, var(--qa-bg) 70%); }
+    .qa-fill.report-open .qa-preview-fade { display: none; }
+    .qa-report-title { font-size: .8rem; font-weight: 600; color: var(--bs-emphasis-color); }
+    .qa-fill .report-header-toolbar { padding-bottom: .45rem; margin-bottom: .5rem !important; }
+    .qa-report-date { font-size: .72rem; font-weight: 400; color: var(--bs-secondary-color); }
+    .qa-report .report-content { max-width: 800px; padding: .35rem .5rem; }
     /* la nota, en una píldora (el JS de los gauges le vuelve a poner score-badge-circle) */
     .qa-scoreline .score-badge-circle { width: auto; height: auto; min-width: 3.2rem; border-radius: 999px; padding: .05rem .6rem; font-size: 1rem; box-shadow: none; border-width: 1px; }
     .qa-scorehead .score-badge-circle { font-size: 1.6rem; min-width: 4.6rem; padding: .1rem .8rem; border-width: 2px; }
     .qa-scorehead .qa-scorebar { flex: 0 0 140px; height: 7px; }
     .qa-scorebar { height: 5px; border-radius: 3px; background: var(--bs-secondary-bg); overflow: hidden; max-width: 260px; }
     .qa-scorebar > span { display: block; height: 100%; border-radius: 3px; }
-    .qa-fill .qa-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; font-size: .76rem; }
-    .qa-fill .qa-list li { line-height: 1.4; }
-    .qa-fill.report-open > .qa-meta, .qa-fill.report-open > .qa-meta > .qa-row { flex: none; }
-    .qa-fill.report-open .qa-list { max-height: 220px; }
     .qa-fill .score-display-card { min-height: 0; }
     /* los 5 pilares se reparten todo el alto del panel; al abrir un informe, ese pilar crece y el panel hace scroll */
     #reportTabsContent > #rules.active { display: flex; flex-direction: column; min-height: 100%; }
@@ -412,18 +493,195 @@ function openStats() {
     bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-financials-tab')).show();
     bootstrap.Tab.getOrCreateInstance(document.getElementById('sub-stats-tab')).show();
 }
+// Precio y valoración (columna derecha del Resumen): los números, el gráfico con periodos como Google (1D, 5D, 1M, 6M,
+// YTD, 1A, 5A, MÁX; 1D y 5D, intradía) y, debajo, las cifras clave. Se mueve arrastrando y hace zoom con la rueda.
+// Líneas: el precio de compra de la valoración base (verde) y tu precio medio (ámbar); tus compras y ventas, marcadas.
+(() => {
+    const T = {{ ticker|tojson }};
+    let data = null;
+    const intraday = {};   // '1d' / '5d' → {x, y}, pedidos una vez
+    const PERIODS = [['1D', '1d'], ['5D', '5d'], ['1M', 'm1'], ['6M', 'm6'], ['YTD', 'ytd'], ['1A', 'y1'], ['5A', 'y5'], ['MÁX', 'max']];
+    const period = {pvChart: 'y1', pvModalChart: 'y1'};
+    const ZONES = {ganga: ['Ganga', 'success'], barata: ['Barata', 'success'], justo: ['Precio justo', 'secondary'], cara: ['Cara', 'warning'], burbuja: ['Burbuja', 'danger']};
+    const summary = d => {
+        const v = d.valuation, cur = d.currency;
+        let html = '';
+        if (v) {
+            const [zl, zc] = ZONES[v.zone] || [v.zone || '', 'secondary'];
+            const gap = 100 * (v.buy_price / d.price - 1);
+            html += `<span title="Precio de compra: al que la valoración base da un ${fmtNum(v.target, 0)} % anual">Compra <b class="num-font text-success">${fmtNum(v.buy_price, 2)} ${cur}</b></span>`
+                + `<span>${gap >= 0 ? '<b class="text-success">en zona de compra</b>' : `falta caer <b class="num-font">${fmtNum(-gap, 1)} %</b>`}</span>`
+                + `<span title="Rentabilidad anual estimada comprando hoy (valoración base, ${v.years} años, ${v.metric === 'fcf' ? 'FCF' : 'BPA'})">CAGR est. <b class="num-font">${v.cagr != null ? fmtNum(v.cagr, 1) + ' %' : '–'}</b></span>`;
+            document.getElementById('pvZone').innerHTML = zl ? `<span class="badge text-bg-${zc}" style="text-transform: none; letter-spacing: 0;">${zl}</span>` : '';
+        } else {
+            html += '<span class="text-muted">Sin valoración base</span><a href="#valoracion" onclick="document.getElementById(\'nav-projection-tab\').click(); return false;">Valorar →</a>';
+        }
+        if (d.avg_cost) html += `<span title="Tu precio medio de compra">Tu precio medio <b class="num-font" style="color: #f59e0b;">${fmtNum(d.avg_cost, 2)} ${cur}</b></span>`;
+        document.getElementById('pvSummary').innerHTML = html;
+    };
+    const startOf = (key, last) => {
+        const d = new Date(last);
+        if (key === 'm1') d.setMonth(d.getMonth() - 1);
+        else if (key === 'm6') d.setMonth(d.getMonth() - 6);
+        else if (key === 'ytd') return `${last.slice(0, 4)}-01-01`;
+        else if (key === 'y1') d.setFullYear(d.getFullYear() - 1);
+        else if (key === 'y5') d.setFullYear(d.getFullYear() - 5);
+        else return null;   // max
+        return d.toISOString().slice(0, 10);
+    };
+    const levels = () => [data.valuation && data.valuation.buy_price, data.avg_cost].filter(Boolean);
+    const yRange = (y, i, j) => { const r = yRangeFor([y], i, j, 0.08); if (r) levels().forEach(v => { r[0] = Math.min(r[0], v * 0.97); r[1] = Math.max(r[1], v * 1.03); }); return r; };
+    const showChange = (id, y, i, j) => {
+        const el = document.getElementById(id + 'Change');
+        if (!el || i == null || j == null || !y[i]) return;
+        const pct = 100 * (y[j] / y[i] - 1);
+        el.className = 'ms-auto num-font fw-bold ' + (pct >= 0 ? 'text-success' : 'text-danger');
+        el.textContent = `${pct >= 0 ? '+' : ''}${fmtNum(pct, 2)} %`;
+    };
+    const draw = async (el, height) => {
+        const key = period[el.id], d = data, dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const text = dark ? '#adb5bd' : '#495057', grid = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+        let x, y, intra = key === '1d' || key === '5d';
+        if (intra) {
+            if (!intraday[key]) {
+                const r = await fetch(`/api/history/${encodeURIComponent(T)}?period=${key}`).then(r => r.json()).catch(() => null);
+                intraday[key] = r && r.status === 'success' ? {x: r.dates, y: r.prices} : {x: [], y: []};
+            }
+            ({x, y} = intraday[key]);
+        } else {
+            x = d.history.map(p => p[0]); y = d.history.map(p => p[1]);
+        }
+        if (!x.length) return;
+        const last = x[x.length - 1], from = intra ? x[0] : (startOf(key, last) || x[0]);
+        const [i, j] = rangeIndices(x, from, last);
+        const up = y[j] >= y[i], color = up ? '#16a34a' : '#dc2626';
+        const traces = [{x, y, type: 'scatter', mode: 'lines', name: 'Precio', line: {color, width: 1.6},
+                         hovertemplate: (intra ? '%{x|%d/%m %H:%M}' : '%{x|%d/%m/%Y}') + ': %{y:,.2f} ' + d.currency + '<extra></extra>'}];
+        if (!intra) {   // tus compras y ventas
+            const mark = (list, sym, c, label) => list.length && traces.push({x: list.map(t => t.date), y: list.map(t => t.price), type: 'scatter', mode: 'markers', name: label,
+                marker: {symbol: sym, size: 10, color: c, line: {width: 1, color: dark ? '#000' : '#fff'}},
+                text: list.map(t => `${label}: ${fmtNum(t.shares, 0)} acc. a ${fmtNum(t.price, 2)} ${d.currency}`), hovertemplate: '%{x|%d/%m/%Y} · %{text}<extra></extra>'});
+            mark(d.trades.filter(t => t.type === 'BUY'), 'triangle-up', '#22c55e', 'Compra');
+            mark(d.trades.filter(t => t.type === 'SELL'), 'triangle-down', '#ef4444', 'Venta');
+        }
+        // líneas sobre el gráfico (sin sombrear el fondo): precio de compra de la valoración y tu precio medio
+        const shapes = [], annotations = [], small = el.id === 'pvChart';
+        const line = (v, c, dash, label, right) => {
+            shapes.push({type: 'line', xref: 'paper', x0: 0, x1: 1, y0: v, y1: v, line: {color: c, width: 1.4, dash}});
+            annotations.push({xref: 'paper', x: right ? 0.995 : 0.005, y: v, xanchor: right ? 'right' : 'left', yanchor: 'bottom', showarrow: false,
+                              text: `${label} ${fmtNum(v, 2)}`, font: {size: small ? 9 : 11, color: c}});
+        };
+        if (d.valuation) line(d.valuation.buy_price, '#22c55e', 'dash', 'Precio de compra', false);
+        if (d.avg_cost) line(d.avg_cost, '#f59e0b', 'dot', 'Tu precio medio', true);
+        const layout = {height, margin: small ? {l: 34, r: 4, t: 4, b: 20} : {l: 45, r: 10, t: 8, b: 28}, showlegend: false, dragmode: 'pan', hovermode: 'x unified',
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', shapes, annotations,
+            xaxis: {type: intra ? 'category' : 'date', range: intra ? undefined : [from, last], gridcolor: grid, tickfont: {color: text, size: small ? 9 : 10}, nticks: 6,
+                    showticklabels: true},
+            yaxis: {gridcolor: grid, tickfont: {color: text, size: small ? 9 : 10}, range: yRange(y, i, j), fixedrange: false}};
+        await Plotly.react(el, traces, layout, {responsive: true, displayModeBar: false, scrollZoom: true, locale: 'es'});
+        showChange(el.id, y, i, j);
+        if (!el._pvHooked) {   // el eje Y y el cambio se ajustan a lo que se ve al moverse
+            el._pvHooked = true;
+            el.on('plotly_relayout', ev => {
+                const r = relayoutXRange(ev);
+                if (!r || ev['yaxis.range[0]'] !== undefined) return;
+                const xs = el.data[0].x, ys = el.data[0].y;
+                const [a, b] = r === 'all' ? [xs[0], xs[xs.length - 1]] : r;
+                const [i2, j2] = el.layout.xaxis.type === 'category' ? [Math.max(0, Math.round(a)), Math.min(xs.length - 1, Math.round(b))] : rangeIndices(xs, a, b);
+                const yr2 = yRange(ys, i2, j2);
+                if (yr2) Plotly.relayout(el, {'yaxis.range': yr2});
+                showChange(el.id, ys, i2, j2);
+            });
+        }
+    };
+    const buttons = () => document.querySelectorAll('.pv-periods').forEach(g => {
+        g.innerHTML = PERIODS.map(([label, key]) => `<button type="button" class="btn btn-outline-secondary ${period[g.dataset.chart] === key ? 'active' : ''}" data-period="${key}">${label}</button>`).join('');
+        g.querySelectorAll('[data-period]').forEach(b => b.addEventListener('click', () => {
+            period[g.dataset.chart] = b.dataset.period;
+            g.querySelectorAll('[data-period]').forEach(x => x.classList.toggle('active', x === b));
+            const el = document.getElementById(g.dataset.chart);
+            draw(el, el.clientHeight || el.parentElement.clientHeight);
+        }));
+    });
+    // el panel ocupa el alto que queda en la ventana: en pantallas altas la tesis llega hasta abajo (sin hueco)
+    const fitRow = () => {
+        const row = document.querySelector('#nav-dashboard > .row');
+        if (!row || !row.offsetParent) return;
+        row.style.minHeight = '';
+        // sin altura forzada: manda la columna izquierda (la tesis, como mucho hasta el borde de la ventana) y el
+        // gráfico de la derecha se estira hasta igualarla
+    };
+    // el gráfico: el alto que le deje su caja (llena el recuadro entre los números y las cifras clave)
+    // Si el hueco aún no tiene tamaño (pestaña oculta, página sin colocar), se espera: dibujado con ancho 0 se quedaba en
+    // blanco hasta pulsar un periodo. Y si el hueco cambia de tamaño después, el gráfico se reajusta solo.
+    let pvTries = 0;
+    const fitPv = () => {
+        fitRow();
+        const el = document.getElementById('pvChart'), box = document.getElementById('pvChartBox');
+        if (!data || !data.history.length) return;
+        if (!document.getElementById('nav-dashboard')?.classList.contains('active') || box.clientWidth < 50) {
+            if (pvTries++ < 40) setTimeout(fitPv, 150);
+            return;
+        }
+        pvTries = 0;
+        const h = Math.max(140, box.clientHeight);
+        if (!el.data) draw(el, h); else Plotly.relayout(el, {height: h, width: box.clientWidth});
+    };
+    if (window.ResizeObserver) {
+        let pvRt = null;
+        new ResizeObserver(() => { clearTimeout(pvRt); pvRt = setTimeout(() => { if (data) fitPv(); }, 120); })
+            .observe(document.getElementById('pvChartBox') || document.body);
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        buttons();
+        fetch(`/api/ticker/${encodeURIComponent(T)}/precio-valoracion`).then(r => r.json()).then(d => {
+            data = d; summary(d);
+            if (!d.history.length) { document.getElementById('pvChartBox').classList.add('d-none'); return; }
+            fitPv();
+            document.getElementById('pvModal').addEventListener('shown.bs.modal', () => draw(document.getElementById('pvModalChart'), document.getElementById('pvModalChart').clientHeight));
+        }).catch(() => { document.getElementById('pvSummary').innerHTML = '<span class="text-muted">No se pudo cargar</span>'; });
+        let rt = null;
+        window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(fitPv, 200); });
+        window.fitPv = fitPv;   // también al cargar los directivos (cambia la altura de la columna izquierda)
+        document.getElementById('pvOpen').addEventListener('click', e => { e.preventDefault(); bootstrap.Modal.getOrCreateInstance(document.getElementById('pvModal')).show(); });
+        // pintado con la pestaña oculta, Plotly no sabe el ancho: al volver al Resumen, se reajusta
+        document.getElementById('nav-dashboard-tab')?.addEventListener('shown.bs.tab', () => { const el = document.getElementById('pvChart'); if (el.data) Plotly.Plots.resize(el); });
+    });
+})();
+// Directivos y acciones (franja bajo las cifras clave, aparte del análisis de la IA): se pide aparte
+// porque Yahoo puede tardar. La lista completa va en un desplegable con su propio scroll.
+(() => {
+    const T = {{ ticker|tojson }};
+    const load = () => {
+        const box = document.getElementById('insSummary');
+        if (!box) return;
+        fetch(`/ticker/${encodeURIComponent(T)}/directivos`).then(r => r.text()).then(html => {
+            box.innerHTML = html;
+            window.fitAll && fitAll();   // el recuadro cambia la altura de su fila: la tesis se reajusta
+            window.fitPv && fitPv();
+            // la lista de operaciones: una ventana centrada (como el calendario), fuera de la tarjeta para que quede por encima
+            const modal = box.querySelector('#insModal');
+            if (modal) {
+                document.querySelectorAll('body > #insModal').forEach(m => m.remove());
+                document.body.appendChild(modal);
+                if (location.hash === '#directivos') bootstrap.Modal.getOrCreateInstance(modal).show();   // enlace del aviso
+            }
+        }).catch(() => { box.innerHTML = '<div class="small text-muted">No se pudieron cargar los directivos.</div>'; });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load); else load();
+})();
 </script>
 <!-- NAVEGACIÓN PRINCIPAL DE NIVEL SUPERIOR -->
-<ul class="nav nav-pills mb-2 bg-white p-1 rounded shadow-sm border sticky-top" id="mainTickerTabs" role="tablist" style="top: 10px; z-index: 1020;">
+<ul class="nav nav-pills mb-2 sticky-top ticker-tabs" id="mainTickerTabs" role="tablist" style="top: 10px; z-index: 1020;">
     <li class="nav-item flex-grow-1 text-center" role="presentation">
         <button class="nav-link active fw-bold py-1" id="nav-dashboard-tab" data-bs-toggle="pill" data-bs-target="#nav-dashboard" type="button" role="tab">
-            <i class="bi bi-speedometer2 me-1"></i> RESUMEN EJECUTIVO
+            <i class="bi bi-speedometer2 me-1"></i> Resumen
         </button>
     </li>
     {% if portfolio_item %}
     <li class="nav-item flex-grow-1 text-center" role="presentation">
         <button class="nav-link fw-bold py-1" id="nav-portfolio-tab" data-bs-toggle="pill" data-bs-target="#nav-portfolio" type="button" role="tab">
-            <i class="bi bi-briefcase me-1"></i> MI CARTERA
+            <i class="bi bi-briefcase me-1"></i> Mi cartera
             {% if portfolio_is_active %}
                 <span class="badge bg-success ms-1" style="font-size: 0.65rem; vertical-align: middle;">{{ num(portfolio_item.shares, 0 if portfolio_item.shares == portfolio_item.shares|int else 2) }} accs</span>
             {% endif %}
@@ -434,7 +692,7 @@ function openStats() {
     {% set vd_bg = {'REFORZADA': 'success', 'INTACTA': 'primary', 'VIGILANCIA': 'warning', 'DEBILITADA': 'danger', 'ROTA': 'dark'} %}
     <li class="nav-item flex-grow-1 text-center" role="presentation">
         <a class="nav-link fw-bold py-1" href="/tesis/{{ thesis_link.id }}" title="Abrir su tesis de inversión: cuadro de mando, KPIs, noticias y documento">
-            <i class="bi bi-journal-text me-1"></i> TESIS
+            <i class="bi bi-journal-text me-1"></i> Tesis
             {% if thesis_link.verdict %}<span class="badge bg-{{ vd_bg.get(thesis_link.verdict, 'secondary') }} ms-1" style="font-size: 0.65rem; vertical-align: middle;">{{ thesis_link.verdict }}</span>{% endif %}
             <i class="bi bi-box-arrow-up-right ms-1" style="font-size: 0.7rem;"></i>
         </a>
@@ -442,22 +700,22 @@ function openStats() {
     {% endif %}
     <li class="nav-item flex-grow-1 text-center" role="presentation">
         <button class="nav-link fw-bold py-1" id="nav-financials-tab" data-bs-toggle="pill" data-bs-target="#nav-financials" type="button" role="tab">
-            <i class="bi bi-bar-chart-line me-1"></i> FINANZAS Y GRÁFICOS
+            <i class="bi bi-bar-chart-line me-1"></i> Finanzas
         </button>
     </li>
     <li class="nav-item flex-grow-1 text-center" role="presentation">
         <button class="nav-link fw-bold py-1" id="nav-analysis-tab" data-bs-toggle="pill" data-bs-target="#nav-analysis" type="button" role="tab">
-            <i class="bi bi-robot me-1"></i> ANÁLISIS DE AGENTES
+            <i class="bi bi-robot me-1"></i> Agentes IA
         </button>
     </li>
     <li class="nav-item flex-grow-1 text-center" role="presentation">
         <button class="nav-link fw-bold py-1" id="nav-projection-tab" data-bs-toggle="pill" data-bs-target="#nav-projection" type="button" role="tab">
-            <i class="bi bi-graph-up-arrow me-1"></i> VALORACIÓN
+            <i class="bi bi-graph-up-arrow me-1"></i> Valoración
         </button>
     </li>
     <li class="nav-item flex-grow-1 text-center" role="presentation">
         <button class="nav-link fw-bold py-1" id="nav-technical-top-tab" data-bs-toggle="pill" data-bs-target="#nav-technical-top-pane" type="button" role="tab">
-            <i class="bi bi-graph-down me-1"></i> ANÁLISIS TÉCNICO
+            <i class="bi bi-graph-down me-1"></i> Técnico
         </button>
     </li>
 </ul>
@@ -466,192 +724,17 @@ function openStats() {
     <!-- SECCIÓN 1: DASHBOARD (STATS + CHARTS) -->
     <div class="tab-pane fade show active" id="nav-dashboard" role="tabpanel">
         {% set th = thesis_link %}
-        {% if th %}
-        {# Tesis: estado, salud y cobertura; solo lo que está mal (KPIs en rojo, kill switches) y las noticias recientes #}
         {% set vd_bg = {'REFORZADA': 'success', 'INTACTA': 'primary', 'VIGILANCIA': 'warning', 'DEBILITADA': 'danger', 'ROTA': 'dark'} %}
-        <div class="card border-0 shadow-sm mb-2 thesis-strip">
-            <div class="card-body py-2 px-3 d-flex flex-wrap align-items-center gap-3 small">
-                <span class="fw-bold text-uppercase" style="font-size: .7rem; letter-spacing: .5px;"><i class="bi bi-journal-text me-1"></i>Tesis</span>
-                <span><span class="badge bg-{{ vd_bg.get(th.verdict, 'secondary') }}">{{ th.verdict }}</span>
-                    {% if th.health is not none %}<span class="ms-1" title="Salud: media ponderada de los KPIs medidos">salud <strong class="st-{{ th.health_status }}">{{ th.health }}</strong></span>{% endif %}
-                    <span class="text-muted ms-1" title="KPIs con dato">· cobertura {{ th.coverage }}%</span></span>
-                {% if th.killed %}<span class="text-danger fw-bold" title="Kill switches activados: revisa la tesis"><i class="bi bi-exclamation-octagon-fill me-1"></i>Ruptura: {{ th.killed|join(', ') }}</span>{% endif %}
-                {% if th.reds %}<span class="text-danger" title="KPIs en rojo"><i class="bi bi-exclamation-triangle me-1"></i>{{ th.reds|length }} KPI{{ 's' if th.reds|length > 1 }} en rojo: {{ th.reds[:3]|join(', ') }}{% if th.reds|length > 3 %}…{% endif %}</span>{% endif %}
-                {% if th.news %}{% set n = th.news[0] %}
-                <span class="text-truncate" style="max-width: 46ch;" title="{{ n.title }}"><i class="bi bi-broadcast me-1"></i>{% if th.unread %}<span class="badge text-bg-primary me-1">{{ th.unread }} sin leer</span>{% endif %}<span class="{{ 'st-red' if (n.materiality or 0) >= 5 else 'st-amber' }} fw-bold">{{ n.materiality }}/5</span>
-                    {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</span>
-                {% endif %}
-                <a href="/tesis/{{ th.id }}" class="ms-auto fw-bold text-decoration-none">Ver tesis <i class="bi bi-arrow-right"></i></a>
-            </div>
-        </div>
-        {% endif %}
 
-        {# Cifras clave (el detalle completo, en Finanzas y gráficos › Estadísticas) #}
-        {% set dy = info.get('dividendYield') %}{% set dy = (dy / 100 if dy and dy > 0.20 else dy) %}
-        {% set nd = ((info.get('totalDebt') - info.get('totalCash')) / info.get('ebitda')) if info.get('totalDebt') is not none and info.get('totalCash') is not none and info.get('ebitda') else none %}
-        {% set fcfy = db.get('fcf_yield') if db.get('fcf_yield') is not none else ((info.get('freeCashflow') / info.get('marketCap')) if info.get('freeCashflow') and info.get('marketCap') else none) %}
-        {# Yahoo casi nunca da el ROIC: entonces el ROE #}
-        {% set roic = ext_stats.returns.get('ROIC (TTM)') %}{% set roe = ext_stats.returns.get('ROE (TTM)') %}
-        {% set ret = (('ROIC (TTM)', roic, 'Retorno sobre el capital invertido, últimos 12 meses') if roic is number
-                     else ('ROE (TTM)', roe if roe is number else none, 'Retorno sobre fondos propios, últimos 12 meses (Yahoo no da el ROIC). Ojo: las recompras lo inflan')) %}
-        {% set growth = db.get('expected_growth') if db.get('expected_growth') is not none else info.get('revenueGrowth') %}
-        {% set key_figs = [
-            ('PER adelantado', (num(info.get('forwardPE'), 1) ~ 'x' if info.get('forwardPE') else none), 'Precio / BPA estimado de los próximos 12 meses (Yahoo)'),
-            ('FCF yield', (num(fcfy * 100, 1) ~ '%' if fcfy is not none else none), 'Flujo de caja libre / capitalización'),
-            (ret[0], (num(ret[1] * 100, 1) ~ '%' if ret[1] is not none else none), ret[2]),
-            ('Margen operativo', (num(info.get('operatingMargins') * 100, 1) ~ '%' if info.get('operatingMargins') is not none else none), 'Beneficio operativo / ingresos'),
-            ('Crec. ventas esperado', (num(growth * 100, 1) ~ '%' if growth is not none and growth != 'N/A' else none), 'Crecimiento de ingresos previsto por los analistas para el próximo año (si no lo hay, el último interanual)'),
-            ('Deuda neta / EBITDA', (num(nd, 2) ~ 'x' if nd is not none else none), 'Negativo: más caja que deuda'),
-            ('Rent. dividendo', (num(dy * 100, 2) ~ '%' if dy else none), 'Dividendo anual / precio'),
-        ] %}
-        <div class="card border-0 shadow-sm mb-2 key-figs">
-            <div class="d-flex key-figs-row">
-                {# capitalización en USD y categoría (mega, large, mid, small, micro, nano) #}
-                <div class="key-fig" title="{{ ('Capitalización en USD: acciones en circulación × precio × tipo de cambio. ' ~ mcap.tier.name ~ ': ' ~ mcap.tier.range) if mcap else 'Sin dato de capitalización' }}">
-                    <span class="key-fig-label">Capitalización</span>
-                    <span class="key-fig-val num-font {{ 'text-muted' if not mcap }}">{% if mcap %}{{ mcap.label }}<span class="cap-badge cap-{{ mcap.tier.key }}" style="vertical-align: 2px;">{{ mcap.tier.name }}</span>{% else %}–{% endif %}</span>
-                </div>
-            {% for label, value, tip in key_figs %}
-                <div class="key-fig" title="{{ tip }}">
-                    <span class="key-fig-label">{{ label }}</span>
-                    <span class="key-fig-val num-font {{ 'text-muted' if value is none }}">{{ value if value is not none else '–' }}</span>
-                </div>
-            {% endfor %}
-                <a class="key-fig key-fig-more text-decoration-none" href="#" onclick="openStats(); return false;" title="Todas las estadísticas de la empresa">
-                    <span class="key-fig-label">Más</span><span class="key-fig-val"><i class="bi bi-arrow-right"></i></span>
-                </a>
-            </div>
-        </div>
-        <!-- SECCIÓN 1.5: RESUMEN EJECUTIVO DE INVERSIÓN (ARRIBA DE GRÁFICOS) -->
-        {% if db.get('verdict') or db.get('franchise') or db.get('audit') %}
-        <div class="row g-3 mb-2">
-            <div class="col-12">
-                <div class="card shadow-sm border-0 bg-white shadow-lg">
-                    <div class="card-header bg-dark text-white py-2 d-flex justify-content-between align-items-center">
-                        <span class="text-uppercase fw-bold" style="font-size: 0.75rem; letter-spacing: 0.5px;">
-                            <i class="bi bi-cpu-fill me-1 text-info"></i> Resumen Ejecutivo de Inversión
-                        </span>
-                        <span class="badge bg-info px-2 py-1" style="font-size: 0.65rem;">Análisis Consolidado</span>
-                    </div>
-                    <div class="card-body p-3">
-                        <div class="row g-3 align-items-stretch">
-                            
-                            <!-- Columna Izquierda: Veredicto & Arquetipo -->
-                            <div class="col-md-4 border-end pe-md-4 d-flex flex-column justify-content-center">
-                                <div class="mb-2 text-muted small text-uppercase fw-bold">Veredicto Global</div>
-                                
-                                <div class="d-flex align-items-center gap-2 mb-3">
-                                    {% set v_score_str = db.get('verdict_score', 'N/A') %}
-                                    {% set v_score_num = -1.0 %}
-                                    {% if v_score_str and v_score_str != 'N/A' %}
-                                        {% set v_score_num = v_score_str.split('/')[0]|trim|float(-1.0) %}
-                                    {% endif %}
-                                    <span class="fs-1 fw-bold text-primary font-monospace-data leading-none">
-                                        {{ v_score_str.split('/')[0]|trim if v_score_str else 'N/A' }}
-                                    </span>
-                                    <div>
-                                        <div class="badge px-2 py-1 mb-1 fw-bold text-white" 
-                                             style="font-size: 0.65rem; 
-                                             {% if v_score_num >= 8.5 %}background-color: #198754;
-                                             {% elif v_score_num >= 7.0 %}background-color: #ffc107; color: black !important;
-                                             {% elif v_score_num >= 5.0 %}background-color: #fd7e14;
-                                             {% else %}background-color: #dc3545;{% endif %}">
-                                            Score / 10
-                                        </div>
-                                        <div class="text-muted small">Nota ponderada de calidad</div>
-                                    </div>
-                                </div>
-
-                                <!-- Arquetipo Detectado -->
-                                <div class="p-2 bg-primary bg-opacity-10 rounded border border-primary-subtle text-center">
-                                    <div class="small fw-bold text-primary text-uppercase mb-1" style="font-size: 0.65rem;">Arquetipo de Inversión</div>
-                                    <span class="fw-bold text-primary" style="font-size: 0.9rem;">
-                                        {% if db.get('verdict') %}
-                                            {% set v_text = db.get('verdict') %}
-                                            {% if 'MONOPOLIO' in v_text %}🌟 MONOPOLIO INEXPUGNABLE
-                                            {% elif 'OUTSIDER' in v_text %}🧠 COMPOUNDER "OUTSIDER"
-                                            {% elif 'CLÁSICO' in v_text or 'CLASICO' in v_text %}💎 COMPOUNDER CLÁSICO
-                                            {% elif 'DORMIDO' in v_text %}🏰 CASTILLO DORMIDO
-                                            {% elif 'MALGESTIONADA' in v_text %}👑 FRANQUICIA MALGESTIONADA
-                                            {% elif 'LECHERA' in v_text %}🐄 VACA LECHERA
-                                            {% elif 'TURNAROUND' in v_text %}🏗️ TURNAROUND
-                                            {% elif 'TRAMPA' in v_text %}🪤 TRAMPA DE VALOR
-                                            {% elif 'DESTRUCTOR' in v_text %}🔥 DESTRUCTOR DE CAPITAL
-                                            {% else %}🔎 VEREDICTO COMPLETADO{% endif %}
-                                        {% else %}
-                                            🔎 PENDIENTE DE SÍNTESIS
-                                        {% endif %}
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <!-- Columna Central: Factores Críticos (Dinámicos y Profesionales) -->
-                            <div class="col-md-5 border-end px-md-4 d-flex flex-column justify-content-center">
-                                <div class="text-muted small text-uppercase fw-bold mb-2">Tesis de Inversión - Factores Clave</div>
-                                
-                                <!-- Alerta de Descarte / Línea Roja (Siempre visible arriba si existe) -->
-                                {% if db.get('verdict_rejection') or reports_meta.get('verdict', {}).get('rejection') %}
-                                <div class="alert alert-danger p-1.5 mb-2 border-0 bg-danger bg-opacity-10 text-danger-emphasis d-flex align-items-start gap-2" style="font-size: 0.72rem; line-height: 1.35; border-radius: 6px;">
-                                    <i class="bi bi-exclamation-octagon-fill fs-5 text-danger mt-0.5 flex-shrink-0"></i>
-                                    <div class="text-truncate-2" title="{{ db.get('verdict_rejection') or reports_meta.get('verdict').get('rejection') }}">
-                                        <strong>LÍNEA ROJA (Descarte):</strong> {{ db.get('verdict_rejection') or reports_meta.get('verdict').get('rejection') }}
-                                    </div>
-                                </div>
-                                {% endif %}
-
-                                {% set verdict_pros = reports_meta.get('verdict', {}).get('pros', []) %}
-                                {% set verdict_cons = reports_meta.get('verdict', {}).get('cons', []) %}
-                                
-                                {% if verdict_pros or verdict_cons %}
-                                    <div class="row g-2">
-                                        <!-- Pros (Éxitos) -->
-                                        {% if verdict_pros %}
-                                        <div class="col-md-6">
-                                            <div class="small fw-bold text-success text-uppercase mb-1" style="font-size: 0.65rem; letter-spacing: 0.3px;"><i class="bi bi-check-circle-fill me-1"></i> Éxitos (Pros)</div>
-                                            <ul class="list-unstyled mb-0 ps-0 text-muted" style="font-size: 0.72rem; line-height: 1.25;">
-                                                {% for pro in verdict_pros[:3] %}
-                                                    <li class="mb-1 d-flex align-items-start">
-                                                        <span class="text-success me-1.5 fw-bold flex-shrink-0">✓</span>
-                                                        <span class="text-dark" style="word-break: break-word;">{{ pro }}</span>
-                                                    </li>
-                                                {% endfor %}
-                                            </ul>
-                                        </div>
-                                        {% endif %}
-                                        
-                                        <!-- Cons (Riesgos) -->
-                                        {% if verdict_cons %}
-                                        <div class="col-md-6">
-                                            <div class="small fw-bold text-danger text-uppercase mb-1" style="font-size: 0.65rem; letter-spacing: 0.3px;"><i class="bi bi-exclamation-triangle-fill me-1"></i> Riesgos (Cons)</div>
-                                            <ul class="list-unstyled mb-0 ps-0 text-muted" style="font-size: 0.72rem; line-height: 1.25;">
-                                                {% for con in verdict_cons[:3] %}
-                                                    <li class="mb-1 d-flex align-items-start">
-                                                        <span class="text-danger me-1.5 fw-bold flex-shrink-0">✗</span>
-                                                        <span class="text-dark" style="word-break: break-word;">{{ con }}</span>
-                                                    </li>
-                                                {% endfor %}
-                                            </ul>
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                {% else %}
-                                    {# Fallback si hay informes pero aún no se ha sintetizado el veredicto #}
-                                    <div class="flex-grow-1 d-flex flex-column justify-content-center">
-                                        <div class="p-2 bg-light rounded text-center small text-muted border border-dashed border-secondary-subtle" style="font-size: 0.7rem;">
-                                            <i class="bi bi-hourglass-split d-block mb-1 fs-5 text-secondary"></i>
-                                            <strong>Tesis de Inversión Pendiente</strong><br>
-                                            El informe de Veredicto de Inversión aún no ha sido ejecutado.
-                                        </div>
-                                    </div>
-                                {% endif %}
-                            </div>
-                            
-                            <!-- Columna Derecha: Matriz de Notas de Calidad -->
-                            <div class="col-md-3 ps-md-4 d-flex flex-column justify-content-center">
-                                <div class="text-muted small text-uppercase fw-bold mb-2">Matriz de Calidad (0-10)</div>
-                                
-                                <div style="font-size: 0.72rem; line-height: 1.8;">
-                                    {# Pre-calcular puntuación de Normas de Calidad (rules) #}
+        {# Arriba: la calidad (análisis de IA), las cifras clave en dos filas y los directivos (datos de mercado).
+           Abajo, a todo el ancho, la tesis: factores clave. Todo cabe en la ventana (la tesis, con scroll propio si hace falta). #}
+        {% set has_ai = db.get('verdict') or db.get('franchise') or db.get('audit') %}
+        <div class="row g-3">
+            {# izquierda: la calidad; el seguimiento de la tesis y los directivos, lado a lado; y la tesis de inversión hasta abajo #}
+            <div class="col-lg-7 col-xxl-6 d-flex flex-column">
+                <div class="card border-0 shadow-sm mb-3 dash-card dash-blue"><div class="card-body py-2 px-3">
+                    {% if has_ai %}
+                    {# Pre-calcular puntuación de Normas de Calidad (rules) #}
                                     {% set rp1 = db.get("rules_pilar1_score") %}
                                     {% set rp2 = db.get("rules_pilar2_score") %}
                                     {% set rp3 = db.get("rules_pilar3_score") %}
@@ -672,76 +755,222 @@ function openStats() {
                                     {% else %}
                                         {% set rules_score_str = "N/A" %}
                                     {% endif %}
-
-                                    {% set score_items = [
-                                        ('franchise', 'Negocio y Moat', 'bi-shield-lock'),
-                                        ('audit', 'Auditoría Financiera', 'bi-shield-check'),
-                                        ('mgmt_alloc', 'Dirección y Capital', 'bi-person-badge'),
-                                        ('rules', 'Normas de Calidad', 'bi-list-check')
-                                    ] %}
-                                    
-                                    {% for key, label, icon in score_items %}
-                                    {% if key == 'rules' %}
-                                        {% set score = rules_score_str %}
-                                    {% else %}
-                                        {% set score_key = key + '_score' %}
-                                        {% set score = db.get(score_key, "N/A") %}
-                                    {% endif %}
-                                    
-                                    {% set s_num = -1.0 %}
-                                    {% if score and score != 'N/A' %}
-                                        {% set s_num = score.split('/')[0]|trim|float(-1.0) %}
-                                    {% endif %}
-                                    <div class="d-flex justify-content-between align-items-center mb-1">
-                                        <span class="text-muted"><i class="bi {{ icon }} me-1"></i> {{ label }}</span>
-                                        <span class="badge font-monospace-data py-1 px-2 fw-bold" {% if key == 'rules' %}id="matrix-rules-score"{% endif %}
-                                            style="font-size: 0.65rem; border-radius: 4px;
-                                            {% if score == 'N/A' %}background-color: #6c757d; color: white;
-                                            {% elif s_num >= 8.5 %}background-color: #198754; color: white;
-                                            {% elif s_num >= 7.0 %}background-color: #ffc107; color: black;
-                                            {% elif s_num >= 5.0 %}background-color: #fd7e14; color: white;
-                                            {% else %}background-color: #dc3545; color: white;{% endif %}">
-                                            {{ score.split('/')[0]|trim if (score and score != 'N/A') else 'N/A' }}
-                                        </span>
-                                    </div>
-                                    {% endfor %}
-                                </div>
+                    {# cabecera: el título y, a la derecha, las cuatro notas #}
+                    <div class="dash-label d-flex align-items-center gap-2"><span class="text-nowrap"><i class="bi bi-award me-1"></i>Calidad <span class="fw-normal text-lowercase">· análisis de IA</span></span>
+                    <div class="dash-scores ms-auto" style="text-transform: none; letter-spacing: 0; font-weight: 400;">
+                    {% for key, label, full in [('franchise', 'Moat', 'Negocio y moat'), ('audit', 'Auditoría', 'Auditoría financiera'), ('mgmt_alloc', 'Dirección', 'Dirección y capital'), ('rules', 'Normas', 'Normas de calidad')] %}
+                        {% set score = rules_score_str if key == 'rules' else db.get(key + '_score', 'N/A') %}
+                        {% set s_num = score.split('/')[0]|trim|float(-1.0) if (score and score != 'N/A') else -1.0 %}
+                        <div class="d-flex justify-content-center align-items-baseline gap-1 rounded px-1" style="background: var(--bs-secondary-bg);" title="{{ full }}">
+                            <span class="text-muted text-truncate" style="font-size: .68rem;">{{ label }}</span>
+                            <span {% if key == 'rules' %}id="matrix-rules-score"{% endif %} class="fw-bold num-font {{ 'text-muted' if s_num < 0 else 'text-success' if s_num >= 8.5 else 'text-warning' if s_num >= 7.0 else 'text-orange' if s_num >= 5.0 else 'text-danger' }}">{{ num(s_num, 1) if s_num >= 0 else '–' }}</span>
+                        </div>
+                    {% endfor %}
+                    </div>
+                    </div>
+                    {% set v_score_str = db.get('verdict_score') or 'N/A' %}
+                    {% set v_score_num = v_score_str.split('/')[0]|trim|float(-1.0) if v_score_str != 'N/A' else -1.0 %}
+                    {% set tone = 'text-success' if v_score_num >= 8.5 else 'text-warning' if v_score_num >= 7.0 else 'text-orange' if v_score_num >= 5.0 else 'text-danger' if v_score_num >= 0 else 'text-muted' %}
+                    {# la nota y el perfil en una línea; debajo, por qué (entero) #}
+                    <div class="d-flex align-items-baseline gap-2 flex-wrap" title="Nota ponderada de calidad del veredicto de inversión">
+                        <span class="fs-3 fw-bold num-font lh-1 {{ tone }}">{{ num(v_score_num, 1) if v_score_num >= 0 else 'N/A' }}</span><span class="text-muted small text-nowrap">/ 10</span>
+                        {% if profile %}<span class="fw-semibold ms-1" title="Perfil de inversión según el veredicto">{{ profile.name }}</span>{% endif %}
+                    </div>
+                    {% if profile and profile.why %}<div class="text-muted lh-sm mt-1 dash-why">{{ profile.why }}</div>{% endif %}
+                    {% else %}
+                    <div class="dash-label"><i class="bi bi-award me-1"></i>Calidad <span class="fw-normal text-lowercase">· análisis de IA</span></div>
+                    <div class="small text-muted mb-2">Aún no hay análisis de calidad de esta empresa.</div>
+                    <button class="btn btn-primary btn-sm fw-bold" onclick="document.getElementById('nav-analysis-tab').click();"><i class="bi bi-shield-check me-1"></i>Analizar con IA</button>
+                    {% endif %}
+                </div></div>
+                {# seguimiento de la tesis y directivos y acciones, lado a lado #}
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                    {# Seguimiento: la tesis (estado, salud, lo que está mal), las últimas noticias y los próximos resultados #}
+                    <div class="card border-0 shadow-sm h-100 thesis-strip dash-card dash-teal">
+                        <div class="card-body py-2 px-3" style="font-size: .76rem;">
+                            <div class="dash-label d-flex align-items-center"><i class="bi bi-binoculars me-1"></i>Tesis y seguimiento
+                                {% if th %}<a href="/tesis/{{ th.id }}" class="ms-auto text-decoration-none fw-bold" style="text-transform: none; letter-spacing: 0;">Ver tesis <i class="bi bi-arrow-right"></i></a>{% endif %}</div>
+                            {% if th %}
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                <span class="badge bg-{{ vd_bg.get(th.verdict, 'secondary') }}">{{ th.verdict }}</span>
+                                {% if th.health is not none %}<span title="Salud: media ponderada de los KPIs medidos">salud <strong class="st-{{ th.health_status }}">{{ th.health }}</strong></span>{% endif %}
+                                <span class="text-muted" title="KPIs con dato">· cobertura {{ th.coverage }}%</span>
+                                <span class="ms-auto d-inline-flex gap-1">{% for e in events %}
+                                    <span class="badge {{ 'text-bg-danger' if e.days <= 1 else 'text-bg-warning' if e.days <= 14 else 'text-bg-primary' }} px-2 py-1" style="font-size: .74rem;"
+                                          title="{{ e.detail }}: {{ e.date[8:10] }}/{{ e.date[5:7] }}/{{ e.date[:4] }}">
+                                        <i class="bi {{ 'bi-calendar-event' if e.label == 'Resultados' else 'bi-cash-coin' }} me-1"></i>{{ e.label }} {{ e.date[8:10] }}/{{ e.date[5:7] }}
+                                        · {{ 'hoy' if e.days == 0 else 'mañana' if e.days == 1 else 'en ' ~ e.days ~ ' días' }}</span>
+                                {% endfor %}</span>
                             </div>
-                            
+                            {% if th.killed %}<div class="text-danger fw-bold mb-1" title="Kill switches activados: revisa la tesis"><i class="bi bi-exclamation-octagon-fill me-1"></i>Ruptura: {{ th.killed|join(', ') }}</div>{% endif %}
+                            {% if th.reds %}<div class="text-danger mb-1 text-truncate" title="KPIs en rojo: {{ th.reds|join(', ') }}"><i class="bi bi-exclamation-triangle me-1"></i>{{ th.reds|length }} KPI{{ 's' if th.reds|length > 1 }} en rojo: {{ th.reds[:3]|join(', ') }}</div>{% endif %}
+                            {% else %}
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1"><span class="text-muted">Sin tesis para esta empresa.</span>
+                                <span class="ms-auto d-inline-flex gap-1">{% for e in events %}
+                                    <span class="badge {{ 'text-bg-danger' if e.days <= 1 else 'text-bg-warning' if e.days <= 14 else 'text-bg-primary' }} px-2 py-1" style="font-size: .74rem;"
+                                          title="{{ e.detail }}: {{ e.date[8:10] }}/{{ e.date[5:7] }}/{{ e.date[:4] }}">
+                                        <i class="bi {{ 'bi-calendar-event' if e.label == 'Resultados' else 'bi-cash-coin' }} me-1"></i>{{ e.label }} {{ e.date[8:10] }}/{{ e.date[5:7] }}
+                                        · {{ 'hoy' if e.days == 0 else 'mañana' if e.days == 1 else 'en ' ~ e.days ~ ' días' }}</span>
+                                {% endfor %}</span></div>
+                            {% endif %}
+                            {% if th and th.news %}
+                            {# las más relevantes (y, a igualdad, las más recientes): llenan el alto que quede #}
+                            <div>
+                            {% for n in th.news[:2] %}
+                            <div class="d-flex gap-2 py-1 border-top" title="{{ n.title }}">
+                                <span class="fw-bold text-nowrap {{ 'text-danger' if n.materiality and n.materiality >= 5 else 'text-warning' }}">{{ n.materiality }}/5</span>
+                                <span class="text-muted text-nowrap">{{ (n.date or '')[8:10] }}/{{ (n.date or '')[5:7] }}</span>
+                                <span class="text-truncate">{% if not n.seen %}<span class="badge text-bg-primary me-1">nueva</span>{% endif %}{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" class="text-decoration-none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</span>
+                            </div>
+                            {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    </div>
+                    <div class="col-md-6">
+                        {# Directivos y acciones (datos de mercado): se piden aparte (Yahoo puede tardar) #}
+                        <div class="card border-0 shadow-sm h-100 dash-card dash-amber" id="insSummary">
+                            <div class="card-body py-2 px-3 small text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Directivos y acciones…</div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-        {% else %}
-        <div class="row g-3 mb-2">
-            <div class="col-12">
-                <div class="card shadow-sm border-0 bg-light bg-opacity-50 text-center py-2 border border-dashed border-primary-subtle" style="border-style: dashed !important; border-width: 1px !important;">
-                    <div class="card-body">
-                        <div class="fs-3 text-primary mb-1"><i class="bi bi-robot"></i></div>
-                        <h5 class="fw-bold text-dark mb-1">¿Invertir o descartar? Pon a trabajar a tus agentes</h5>
-                        <p class="text-muted small mx-auto mb-3" style="max-width: 500px;">
-                            Esta empresa aún no cuenta con un análisis consolidado en tu base de datos. 
-                            Haz clic en el panel de análisis para iniciar las auditorías secuenciales de tus agentes de IA.
-                        </p>
-                        <button class="btn btn-primary btn-sm fw-bold shadow-sm" onclick="document.getElementById('nav-analysis-tab').click();">
-                            <i class="bi bi-shield-check me-1"></i> Abrir Panel de Análisis de IA
-                        </button>
+                {% if has_ai %}
+                <div class="card border-0 shadow-sm mb-0 dash-card dash-purple">
+                    <div class="card-header bg-transparent py-1 d-flex align-items-center">
+                        <span class="dash-label mb-0"><i class="bi bi-lightbulb me-1"></i>Tesis de inversión · factores clave</span>
+                        <span class="ms-auto small text-muted"><i class="bi bi-cpu me-1"></i>Análisis de IA</span>
+                    </div>
+                    <div class="card-body px-3 py-2 dash-tesis-body" data-fit="100">
+                                        <!-- Alerta de Descarte / Línea Roja (Siempre visible arriba si existe) -->
+                                        {% if db.get('verdict_rejection') or reports_meta.get('verdict', {}).get('rejection') %}
+                                        <div class="alert alert-danger p-1.5 mb-2 border-0 bg-danger bg-opacity-10 text-danger-emphasis d-flex align-items-start gap-2" style="font-size: 0.72rem; line-height: 1.35; border-radius: 6px;">
+                                            <i class="bi bi-exclamation-octagon-fill fs-5 text-danger mt-0.5 flex-shrink-0"></i>
+                                            <div class="text-truncate-2" title="{{ db.get('verdict_rejection') or reports_meta.get('verdict').get('rejection') }}">
+                                                <strong>LÍNEA ROJA (Descarte):</strong> {{ db.get('verdict_rejection') or reports_meta.get('verdict').get('rejection') }}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+
+                                        {% set verdict_pros = reports_meta.get('verdict', {}).get('pros', []) %}
+                                        {% set verdict_cons = reports_meta.get('verdict', {}).get('cons', []) %}
+                                
+                                        {% if verdict_pros or verdict_cons %}
+                                            <div class="row g-2">
+                                                <!-- Pros (Éxitos) -->
+                                                {% if verdict_pros %}
+                                                <div class="col-md-6">
+                                                    <div class="small fw-bold text-success text-uppercase mb-1" style="font-size: 0.65rem; letter-spacing: 0.3px;"><i class="bi bi-check-circle-fill me-1"></i> Éxitos (Pros)</div>
+                                                    <ul class="list-unstyled mb-0 ps-0 text-muted" style="font-size: 0.72rem; line-height: 1.25;">
+                                                        {% for pro in verdict_pros[:4] %}
+                                                            <li class="mb-1 d-flex align-items-start">
+                                                                <span class="text-success me-1.5 fw-bold flex-shrink-0">✓</span>
+                                                                <span class="text-dark" style="word-break: break-word;">{{ pro }}</span>
+                                                            </li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                </div>
+                                                {% endif %}
+                                        
+                                                <!-- Cons (Riesgos) -->
+                                                {% if verdict_cons %}
+                                                <div class="col-md-6">
+                                                    <div class="small fw-bold text-danger text-uppercase mb-1" style="font-size: 0.65rem; letter-spacing: 0.3px;"><i class="bi bi-exclamation-triangle-fill me-1"></i> Riesgos (Cons)</div>
+                                                    <ul class="list-unstyled mb-0 ps-0 text-muted" style="font-size: 0.72rem; line-height: 1.25;">
+                                                        {% for con in verdict_cons[:4] %}
+                                                            <li class="mb-1 d-flex align-items-start">
+                                                                <span class="text-danger me-1.5 fw-bold flex-shrink-0">✗</span>
+                                                                <span class="text-dark" style="word-break: break-word;">{{ con }}</span>
+                                                            </li>
+                                                        {% endfor %}
+                                                    </ul>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+                                        {% else %}
+                                            {# Fallback si hay informes pero aún no se ha sintetizado el veredicto #}
+                                            <div class="flex-grow-1 d-flex flex-column justify-content-center">
+                                                <div class="p-2 bg-light rounded text-center small text-muted border border-dashed border-secondary-subtle" style="font-size: 0.7rem;">
+                                                    <i class="bi bi-hourglass-split d-block mb-1 fs-5 text-secondary"></i>
+                                                    <strong>Tesis de Inversión Pendiente</strong><br>
+                                                    El informe de Veredicto de Inversión aún no ha sido ejecutado.
+                                                </div>
+                                            </div>
+                                        {% endif %}
                     </div>
                 </div>
+                {% else %}
+                <div class="card border-0 shadow-sm mb-2 border-dashed text-center">
+                    <div class="card-body py-3">
+                        <div class="fw-bold mb-1"><i class="bi bi-robot me-1 text-primary"></i>¿Invertir o descartar? Pon a trabajar a tus agentes</div>
+                        <div class="small text-muted mb-2">Esta empresa aún no tiene un análisis consolidado: la tesis (pros y riesgos) y la nota de calidad salen de él.</div>
+                        <button class="btn btn-primary btn-sm fw-bold" onclick="document.getElementById('nav-analysis-tab').click();"><i class="bi bi-shield-check me-1"></i>Abrir el panel de análisis de IA</button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {# derecha: toda para precio y valoración, con el gráfico tan alto como la columna #}
+            <div class="col-lg-5 col-xxl-6 d-flex flex-column">
+            {# Precio y valoración: los números y un gráfico pequeño (interactivo); «Ampliar» lo abre en grande en una ventana #}
+            <div class="card border-0 shadow-sm mb-0 dash-card dash-green flex-grow-1 dash-fill" id="pvCard">
+                <div class="card-body py-2 px-3 d-flex flex-column" style="font-size: .76rem; min-height: 0;">
+                    <div class="dash-label d-flex align-items-center gap-2"><span><i class="bi bi-graph-up me-1"></i>Precio y valoración</span>
+                        <span id="pvZone"></span>
+
+
+                        <a href="#" class="ms-auto text-decoration-none fw-bold" style="text-transform: none; letter-spacing: 0;" id="pvOpen">Ampliar <i class="bi bi-box-arrow-up-right"></i></a></div>
+{# el rango de 52 semanas, dibujado #}
+                    {% set lo, hi, px = info.get('fiftyTwoWeekLow'), info.get('fiftyTwoWeekHigh'), custom_metrics.currentPrice %}
+                    {% if lo and hi and px and hi > lo %}{% set pos = [[100 * (px - lo) / (hi - lo), 0]|max, 100]|min %}
+                    <span class="d-inline-flex align-items-center gap-1" title="Rango de 52 semanas: mínimo {{ num(lo, 2) }} · máximo {{ num(hi, 2) }}. El punto es el precio de hoy ({{ num(pos, 0) }} % del camino; a un {{ num(100 * (1 - px / hi), 1) }} % del máximo)">
+                    <span class="text-muted">52 sem.</span>
+                    <span class="num-font">{{ num(lo, 2) }}</span>
+                    <span class="position-relative d-inline-block rounded" style="width: 70px; height: 5px; background: var(--bs-secondary-bg);">
+                    <span class="position-absolute top-50 translate-middle rounded-circle bg-primary" style="left: {{ pos }}%; width: 9px; height: 9px;"></span></span>
+                    <span class="num-font">{{ num(hi, 2) }}</span>
+                    </span>
+                    {% endif %}
+                    <div class="d-flex flex-wrap align-items-center column-gap-3 row-gap-0 mt-1" id="pvSummary"><span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando…</span></div>
+                    {# periodos, como en Google; a la derecha, lo que ha cambiado el precio en el periodo elegido #}
+                    <div class="d-flex align-items-center gap-2 mt-2">
+                        <div class="btn-group btn-group-sm pv-periods" data-chart="pvChart"></div>
+                        <span class="ms-auto num-font fw-bold" id="pvChartChange"></span>
+                    </div>
+                    <div class="mt-1 position-relative" id="pvChartBox" style="flex: 1 1 0; min-height: 140px;"><div id="pvChart" class="position-absolute top-0 start-0 w-100 h-100"></div></div>
+                </div>
+            {# Cifras clave (fundamentales): aparte del precio, en su recuadro #}
+            <div class="card border-0 shadow-sm mt-3 mb-0 dash-card dash-slate">
+                <div class="card-body py-2 px-3">
+                    <div class="dash-label d-flex align-items-center"><i class="bi bi-calculator me-1"></i>Cifras clave</div>
+                {# cifras clave, debajo del gráfico (el detalle completo, en Finanzas y gráficos › Estadísticas) #}
+                {% set short = {'PER adelantado': 'PER adel.', 'Margen operativo': 'Margen op.', 'Crec. ventas esperado': 'Crec. ventas', 'Deuda neta / EBITDA': 'Deuda/EBITDA', 'Rent. dividendo': 'Dividendo', 'ROE (TTM)': 'ROE', 'ROIC (TTM)': 'ROIC'} %}
+                <div class="key-figs-grid pv-figs">
+                    {% for label, value, tip in key_figs %}
+                    <div class="key-fig" title="{{ label }}: {{ tip }}"><span class="key-fig-label">{{ short.get(label, label) }}</span>
+                        <span class="key-fig-val num-font {{ 'text-muted' if value is none }}">{{ value if value is not none else '–' }}</span></div>
+                    {% endfor %}
+                    <a class="key-fig key-fig-more text-decoration-none" href="#" onclick="openStats(); return false;" title="Todas las estadísticas de la empresa">
+                        <span class="key-fig-label">Más</span><span class="key-fig-val"><i class="bi bi-arrow-right"></i></span></a>
+                </div>
+                </div>
+            </div>
+            </div>
             </div>
         </div>
-        {% endif %}
 
-        <!-- Próximos Eventos (Debajo y Ancho Completo) -->
-        <div class="row g-4 mb-2">
-            <div class="col-lg-12">
-                <div class="card shadow-sm border-0 overflow-hidden h-100">
-                    <div class="card-header bg-dark text-white py-1 d-flex justify-content-between align-items-center">
-                        <span class="text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.5px;"><i class="bi bi-calendar-event me-1"></i>Próximos Eventos</span>
+
+        <div class="modal fade" id="pvModal" tabindex="-1" aria-labelledby="pvModalTitle" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header py-2">
+                        <h6 class="modal-title fw-bold" id="pvModalTitle"><i class="bi bi-graph-up me-1"></i>{{ clean_ticker(ticker) }} · precio y valoración</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                     </div>
-                    <div class="card-body p-0 table-responsive" data-fit="120">
-                        {{ events_table_html | safe }}
+                    <div class="modal-body p-2">
+                        <div class="d-flex align-items-center gap-2 mb-1"><div class="btn-group btn-group-sm pv-periods" data-chart="pvModalChart"></div>
+                            <span class="ms-auto num-font fw-bold" id="pvModalChartChange"></span></div>
+                        <div id="pvModalChart" style="height: 62vh;"></div>
                     </div>
                 </div>
             </div>
@@ -1505,7 +1734,7 @@ function openStats() {
                 <!-- Alerta de Carga de Datos Previa para pe_forensic -->
                 {% set has_financial_data = db.get('full_audit_structure') or db.get('financials_hist_manual') %}
                 {% if not has_financial_data %}
-                <div class="alert alert-warning border-warning bg-warning bg-opacity-10 text-dark mb-4 shadow-sm py-3 d-flex gap-3 align-items-center flex-wrap">
+                <div class="alert alert-warning border-warning bg-warning bg-opacity-10 text-dark mb-2 shadow-sm py-2 d-flex gap-3 align-items-center flex-wrap">
                     <div class="d-flex align-items-center gap-2">
                         <i class="bi bi-exclamation-triangle-fill text-warning fs-3"></i>
                         <div>
@@ -1519,15 +1748,7 @@ function openStats() {
                         </button>
                     </div>
                 </div>
-                {% else %}
-                <div class="alert alert-success border-success bg-success bg-opacity-10 text-dark mb-4 shadow-sm py-3 d-flex gap-3 align-items-center">
-                    <i class="bi bi-check-circle-fill text-success fs-3"></i>
-                    <div>
-                        <h6 class="fw-bold mb-1 text-success-emphasis">¡Estados Financieros Listos!</h6>
-                        <p class="small mb-0 text-muted">Los datos históricos de 10 años han sido cargados con éxito y están listos en el contexto para la deconstrucción de Private Equity.</p>
-                    </div>
-                </div>
-                {% endif %}
+{% endif %}
                 {% endif %}
 
                 <!-- Toolbar del Informe -->
@@ -1599,15 +1820,15 @@ function openStats() {
                 <!-- Meta Fields (Score, Pros/Cons) -->
                 <div id="meta-{{ key }}" class="qa-meta {% if not db.get(key) %}d-none{% endif %} mb-2">
                     {% if key != 'val' and key != 'technical' %}
-{# Nota en una línea; fortalezas arriba y debilidades abajo, a todo el ancho para leer líneas completas #}
-                    <div class="qa-row d-flex flex-column gap-2">
+{# Fortalezas y debilidades, una al lado de la otra y compactas: el informe queda a la vista debajo #}
+                    <div class="qa-row">
                         <div class="border rounded p-2 px-3 qa-box">
                             {% if key == 'rules' %}
                             <h6 class="text-success fw-bold text-uppercase mb-1" style="font-size: 0.72rem;"><i class="bi bi-check-circle-fill me-1"></i> Normas Aprobadas (Aprobados)</h6>
                             {% else %}
                             <h6 class="text-success fw-bold text-uppercase mb-1" style="font-size: 0.72rem;"><i class="bi bi-plus-circle me-1"></i> Fortalezas (Pros)</h6>
                             {% endif %}
-                            <ul class="list-unstyled mb-0 small font-monospace-data qa-list" id="pros-{{ key }}">
+                            <ul class="list-unstyled mb-0 small qa-list" id="pros-{{ key }}">
                                 {% if reports_meta and key in reports_meta and reports_meta[key].pros %}
                                     {% for pro in reports_meta[key].pros %}
                                     <li class="mb-1 text-muted"><i class="bi bi-check2 text-success me-1"></i> {{ pro }}</li>
@@ -1623,7 +1844,7 @@ function openStats() {
                             {% else %}
                             <h6 class="text-danger fw-bold text-uppercase mb-1" style="font-size: 0.72rem;"><i class="bi bi-dash-circle me-1"></i> Debilidades (Cons)</h6>
                             {% endif %}
-                            <ul class="list-unstyled mb-0 small font-monospace-data qa-list" id="cons-{{ key }}">
+                            <ul class="list-unstyled mb-0 small qa-list" id="cons-{{ key }}">
                                 {% if reports_meta and key in reports_meta and reports_meta[key].cons %}
                                     {% for con in reports_meta[key].cons %}
                                     <li class="mb-1 text-muted"><i class="bi bi-x-lg text-danger me-1"></i> {{ con }}</li>
@@ -1799,25 +2020,21 @@ function openStats() {
                 <!-- Alerta de Rechazo -->
                 <div id="rejection-{{ key }}" class="{% if not reports_meta or not reports_meta[key] or not reports_meta[key].rejection %}d-none{% endif %} mb-2">
                     <!-- 1. Alerta Activa (Rojo) -->
-                    <div id="rejection-card-active-{{ key }}" class="alert alert-danger border-start border-4 border-danger rounded-0 py-2 px-3 mb-0 shadow-sm">
-                        <div class="d-flex align-items-center">
-                            <i class="bi bi-exclamation-octagon-fill fs-4 text-danger me-3"></i>
-                            <div class="flex-grow-1">
-                                <h6 class="fw-bold mb-1 text-uppercase text-danger" style="font-size: 0.8rem; letter-spacing: 0.5px;">Línea Roja Identificada</h6>
-                                <p class="mb-0 small font-monospace-data" id="rejection-text-{{ key }}">
-                                    {{ reports_meta[key].rejection if reports_meta and key in reports_meta else '' }}
-                                </p>
-                            </div>
+                    {# compacta: una franja con el motivo y los botones al lado, para que el informe siga a la vista #}
+                    <div id="rejection-card-active-{{ key }}" class="alert alert-danger border-start border-3 border-danger rounded-1 py-1 px-2 mb-0 d-flex align-items-center gap-2" style="font-size: .76rem; line-height: 1.35;">
+                        <i class="bi bi-exclamation-octagon-fill text-danger" style="font-size: 1rem;"></i>
+                        <div class="flex-grow-1" style="min-width: 0;">
+                            <span class="fw-semibold text-danger me-1">Línea roja:</span><span id="rejection-text-{{ key }}">{{ reports_meta[key].rejection if reports_meta and key in reports_meta else '' }}</span>
                         </div>
-                        <div class="d-flex justify-content-end gap-2 flex-wrap mt-1">
-                            <button class="btn btn-xs btn-outline-danger px-2.5 py-1" id="btn-ignore-rejection-{{ key }}" onclick="dismissRejectionAlert('{{ key }}')">
-                                <i class="bi bi-eye-slash me-1"></i> Ignorar Alerta
+                        <div class="d-flex gap-1 flex-shrink-0">
+                            <button class="btn btn-xs btn-outline-danger px-2 py-0" style="font-size: .72rem;" id="btn-ignore-rejection-{{ key }}" onclick="dismissRejectionAlert('{{ key }}')">
+                                <i class="bi bi-eye-slash me-1"></i>Ignorar
                             </button>
-                            <button class="btn btn-xs btn-danger px-2.5 py-1" id="btn-accept-rejection-{{ key }}" onclick="updateStatus('{{ ticker }}', 'REJECTED')">
-                                <i class="bi bi-x-circle me-1"></i> Descartar Empresa
+                            <button class="btn btn-xs btn-danger px-2 py-0" style="font-size: .72rem;" id="btn-accept-rejection-{{ key }}" onclick="updateStatus('{{ ticker }}', 'REJECTED')">
+                                <i class="bi bi-x-circle me-1"></i>Descartar
                             </button>
-                            <button class="btn btn-xs btn-secondary d-none px-2.5 py-1" id="btn-undo-rejection-{{ key }}" onclick="restoreRejectionAlert('{{ key }}')">
-                                <i class="bi bi-arrow-counterclockwise me-1"></i> Deshacer Acción
+                            <button class="btn btn-xs btn-secondary d-none px-2 py-0" style="font-size: .72rem;" id="btn-undo-rejection-{{ key }}" onclick="restoreRejectionAlert('{{ key }}')">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>Deshacer
                             </button>
                         </div>
                     </div>
@@ -1870,22 +2087,24 @@ function openStats() {
                 </div>
 
                 <!-- Contenido del Informe -->
-                <div id="accordion-container-{{ key }}" class="card border shadow-xs qa-report {% if not db.get(key) and not (key == 'audit' and db.get('full_audit_structure')) %}d-none{% endif %} mt-0">
+                {% set qa_preview = key not in ['val', 'technical', 'rules'] %}
+                <div id="accordion-container-{{ key }}" class="card border qa-report {% if not db.get(key) and not (key == 'audit' and db.get('full_audit_structure')) %}d-none{% endif %} mt-0">
                     <!-- Cabecera de la tarjeta del informe, actúa como interruptor clicable -->
                     <div class="card-header bg-white py-1 d-flex justify-content-between align-items-center flex-wrap gap-2" 
                          style="cursor: pointer;" 
                          onclick="toggleReportCollapse('{{ key }}')">
-                        <span class="fw-bold text-dark small text-uppercase" style="font-size: .72rem;">
-                            <i class="bi bi-file-earmark-text-fill text-primary me-1"></i> Informe completo de la IA{% if key == 'audit' and db.get('full_audit_structure') %} · estados financieros extraídos{% endif %}
+                        <span class="qa-report-title">
+                            <i class="bi bi-file-earmark-text text-primary me-1"></i> Informe completo
+                            <span class="qa-report-date ms-2" id="report-date-{{ key }}"></span>
                         </span>
                         <span class="btn btn-xs btn-outline-secondary px-2 py-0" style="font-size: 0.7rem;" id="toggle-{{ key }}">
-                            <i class="bi bi-chevron-down me-1 qa-chevron"></i><span class="qa-toggle-txt">Abrir informe</span>
+                            <i class="bi {{ 'bi-arrows-angle-expand' if qa_preview else 'bi-chevron-down' }} me-1 qa-chevron"></i><span class="qa-toggle-txt">{{ 'Ampliar' if qa_preview else 'Abrir informe' }}</span>
                         </span>
                     </div>
 
-                    <!-- Div Colapsable -->
-                    <div class="collapse" id="collapse-{{ key }}">
-                        <div class="card-body p-3 bg-white">
+                    {# En los informes de calidad se ve el comienzo; «Ampliar» lo deja leer entero (con scroll propio) #}
+                    <div class="{{ 'qa-preview' if qa_preview else 'collapse' }}" id="collapse-{{ key }}">
+                        <div class="card-body px-3 py-2">
                     {% if key == 'audit' and db.get('full_audit_structure') %}
                     <!-- Visualización Detallada de Estados Financieros Extraídos -->
                     {% set full_data = db.get('full_audit_structure') %}
@@ -2249,6 +2468,13 @@ function openStats() {
                     </div>
                     {% endif %}
                         </div>
+                        {% if qa_preview %}
+                        <div class="qa-preview-fade" onclick="toggleReportCollapse('{{ key }}')">
+                            <span class="btn btn-sm btn-outline-primary rounded-pill px-3 py-0 shadow-sm" style="font-size: .76rem; background: var(--qa-bg);">
+                                <i class="bi bi-book me-1"></i> Leer el informe completo
+                            </span>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 
@@ -2952,9 +3178,38 @@ function openStats() {
 </div> <!-- Cierre de mainTickerTabsContent -->
 
 <script>
+    // «Análisis a fecha …» del comienzo del informe pasa a la cabecera, junto al título (deja sitio al texto)
+    const QA_MONTHS = {january: 'ene', february: 'feb', march: 'mar', april: 'abr', may: 'may', june: 'jun', july: 'jul',
+                       august: 'ago', september: 'sep', october: 'oct', november: 'nov', december: 'dic'};
+    function qaLiftDate(key) {
+        const content = document.getElementById(`content-${key}`), slot = document.getElementById(`report-date-${key}`);
+        if (!content || !slot) return;
+        const p = [...content.querySelectorAll('p')].slice(0, 4).find(el => /^\s*Análisis a fecha/i.test(el.textContent));
+        if (!p) return;
+        const raw = p.textContent.replace(/^\s*Análisis a fecha\s*/i, '').trim();
+        const m = raw.match(/(\d{1,2})\s+de\s+([A-Za-zÁ-ú]+)\s+de\s+(\d{4})/);
+        slot.textContent = '· ' + (m ? `${+m[1]} ${QA_MONTHS[m[2].toLowerCase()] || m[2].toLowerCase().slice(0, 3)} ${m[3]}` : raw);
+        const box = p.closest('blockquote');
+        (box && box.textContent.trim() === p.textContent.trim() ? box : p).remove();
+    }
+    document.querySelectorAll('.qa-preview').forEach(el => qaLiftDate(el.id.replace('collapse-', '')));
+
     function toggleReportCollapse(subKey) {
         const collapseDiv = document.getElementById(`collapse-${subKey}`);
         if (!collapseDiv) return;
+        // Informes de calidad: siempre a la vista; «Ampliar» oculta fortalezas y debilidades y deja leerlo entero
+        if (collapseDiv.classList.contains('qa-preview')) {
+            const root = collapseDiv.closest('.qa-fill');
+            const open = !root.classList.contains('report-open');
+            root.classList.toggle('report-open', open);
+            const head = collapseDiv.previousElementSibling;
+            head.querySelector('.qa-toggle-txt').textContent = open ? 'Reducir' : 'Ampliar';
+            const ic = head.querySelector('.qa-chevron');
+            ic.classList.toggle('bi-arrows-angle-expand', !open);
+            ic.classList.toggle('bi-arrows-angle-contract', open);
+            collapseDiv.firstElementChild.scrollTop = 0;
+            return;
+        }
         
         const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseDiv, { toggle: false });
         if (collapseDiv.classList.contains('show')) {
@@ -3252,6 +3507,8 @@ function openStats() {
                 if (lastVisitedTicker !== ticker) {
                     shouldRestore = false;
                 }
+                // con #valoracion en el enlace manda el enlace, no la última pestaña que se abrió
+                if (location.hash === '#valoracion' || location.hash === '#directivos') shouldRestore = false;
             }
 
             // Load saved tab
@@ -3283,20 +3540,6 @@ function openStats() {
 
         // Guardar el ticker actual como el último visitado
         sessionStorage.setItem('last_visited_ticker', ticker);
-
-        // Informes de calidad: el resumen (nota, fortalezas, debilidades) llena el panel; el informe completo se abre debajo
-        document.querySelectorAll('.qa-fill .qa-report > .collapse').forEach(c => {
-            const root = c.closest('.qa-fill'), head = c.previousElementSibling;
-            const mark = open => {
-                root.classList.toggle('report-open', open);
-                const txt = head && head.querySelector('.qa-toggle-txt');
-                if (txt) txt.textContent = open ? 'Cerrar informe' : 'Abrir informe';
-                head?.querySelector('.qa-chevron')?.classList.toggle('bi-chevron-up', open);
-            };
-            c.addEventListener('show.bs.collapse', e => { if (e.target === c) mark(true); });
-            c.addEventListener('shown.bs.collapse', e => { if (e.target === c) head.scrollIntoView({behavior: 'smooth', block: 'start'}); });
-            c.addEventListener('hide.bs.collapse', e => { if (e.target === c) mark(false); });
-        });
 
         // Normas de calidad: un solo pilar abierto a la vez (al abrir uno se cierran los demás)
         document.querySelector('.rules-list')?.addEventListener('show.bs.collapse', e => {
@@ -3358,8 +3601,7 @@ function openStats() {
             if (matrixEl && document.querySelector('#rules .pilar-score-val')) {
                 if (complete) {
                     matrixEl.textContent = fmtNum(total, 1);
-                    const [bg, fg] = total >= 8.5 ? ['#198754', 'white'] : total >= 7.0 ? ['#ffc107', 'black'] : total >= 5.0 ? ['#fd7e14', 'white'] : ['#dc3545', 'white'];
-                    matrixEl.style.backgroundColor = bg; matrixEl.style.color = fg;
+                    matrixEl.className = 'fw-bold num-font ' + (total >= 8.5 ? 'text-success' : total >= 7.0 ? 'text-warning' : total >= 5.0 ? 'text-orange' : 'text-danger');
                 }
             }
         }
@@ -3975,6 +4217,7 @@ function openStats() {
                             try {
                                 if (contentDiv) {
                                     contentDiv.innerHTML = statusData.result;
+                                    qaLiftDate(type);
                                 }
                                 
                                 // Lógica especial para sub-informes de Normas de Calidad (rules_step0...rules_pilar5)
@@ -4640,7 +4883,33 @@ function openStats() {
         updateLocalInteractiveChart('hist');
     }
 
+    // Nivel: la estrella es el atajo de Tier 1; el selector, todos los niveles
+    async function setTier(ticker, tier) {
+        const r = await fetch(`/api/ticker/${encodeURIComponent(ticker)}/nivel`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({tier})});
+        if (!r.ok) return null;
+        const d = await r.json();
+        const icon = document.querySelector('.favorite-star i');
+        icon.classList.toggle('bi-star-fill', tier === '1'); icon.classList.toggle('text-warning', tier === '1');
+        icon.classList.toggle('bi-star', tier !== '1'); icon.classList.toggle('text-muted', tier !== '1');
+        document.getElementById('tierSelect').value = tier;
+        if (d.warning && typeof showToast === 'function') showToast('Tier 1', d.warning, 'info');   // aviso que no bloquea
+        return d;
+    }
+    document.getElementById('tierSelect')?.addEventListener('change', e => setTier({{ ticker|tojson }}, e.target.value));
+    // silenciar (o no) todos los avisos de la empresa
+    document.getElementById('muteBtn')?.addEventListener('click', async e => {
+        const b = e.currentTarget, muted = b.dataset.muted !== 'true';
+        const r = await fetch(`/api/ticker/${encodeURIComponent({{ ticker|tojson }})}/silencio`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({muted})});
+        if (!r.ok) return;
+        b.dataset.muted = String(muted);
+        b.className = `btn btn-sm ${muted ? 'btn-warning' : 'btn-outline-secondary'} py-0 me-1`;
+        b.innerHTML = `<i class="bi ${muted ? 'bi-bell-slash-fill' : 'bi-bell'}"></i>`;
+        b.title = muted ? 'Silenciada: no genera avisos. Pulsa para volver a activarlos' : 'Silenciar todos los avisos de esta empresa';
+        window.refreshNotificationBadges && window.refreshNotificationBadges();
+    });
     async function toggleFavorite(ticker, element) {
+        const sel = document.getElementById('tierSelect');
+        if (sel) return setTier(ticker, sel.value === '1' ? 'seg' : '1');   // quitar la estrella la deja en Tier 3
         try {
             const res = await fetch(`/api/favorite/${ticker}/toggle`, { method: 'POST' });
             if (res.ok) {
@@ -5202,9 +5471,11 @@ function openStats() {
                 recalculateValuation();
             }
             // /ticker/X#valoracion abre directamente esta pestaña (enlace desde la watchlist)
+            // (al terminar de cargar, para que no se le adelante ninguna pestaña recordada ni su transición)
             if (location.hash === '#valoracion') {
                 const tab = document.getElementById('nav-projection-tab');
-                if (tab) bootstrap.Tab.getOrCreateInstance(tab).show();
+                const go = () => { if (tab) bootstrap.Tab.getOrCreateInstance(tab).show(); };
+                if (document.readyState === 'complete') setTimeout(go, 50); else window.addEventListener('load', () => setTimeout(go, 50));
             }
         });
         </script>

@@ -1,6 +1,33 @@
 {% extends "base.html" %}
 {% block title %}Alpha-Flow · Inicio{% endblock %}
 {% block content %}
+{% macro mover_row(t, cls) %}
+                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="{{ cls }}"
+                                data-ticker="{{ clean_ticker(t.name) }}"
+                                data-price="{{ t.price or 0 }}"
+                                data-pct="{{ t.pct or 0 }}"
+                                data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }}
+                                data-status="{{ t.status }}">
+                                <td class="ps-3 py-1">
+                                    <div class="ticker-info" style="gap: 6px;">
+                                        <div>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
+                                            <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-end pe-3 align-middle num-font">
+                                    <div class="d-flex align-items-center justify-content-end gap-2">
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+{% endmacro %}
+
 {% from "_thesis_macros.html" import thesis_styles %}
 {% from "_notices.html" import notice_styles, notice_scripts %}
 {{ thesis_styles() }}
@@ -22,6 +49,10 @@
     @media (min-width: 768px) { .summary-right { border-left: 1px solid var(--bs-border-color); } }
     #slot-attention .why-result:not(:empty) { flex: 0 0 auto; max-height: 45%; overflow-y: auto; padding: 0 1rem .5rem; }
     .home-tabs .nav-link { font-weight: 600; }
+    /* «Actividad del día»: los valores cuyo mercado aún no ha abierto, con su sesión anterior, atenuados y con su etiqueta */
+    tr[data-not-open] { opacity: .5; } tr[data-not-open]:hover { opacity: .85; }
+    .mv-stale-tag { font-size: .58rem; font-weight: 600; text-transform: none; padding: 0 .3rem; margin-left: .3rem; border-radius: .25rem;
+                    border: 1px dashed var(--bs-secondary-color); color: var(--bs-secondary-color); vertical-align: middle; }
 </style>
 <style>
     #centroPulse .pulse-line { display: block; line-height: 1.35; }
@@ -164,8 +195,9 @@
 
 {% include "_prices_banner.html" %}
 
-<!-- Portada en dos pestañas: Mercado y Centro de mando -->
-<ul class="nav nav-tabs home-tabs mb-3" role="tablist">
+<!-- Portada en dos pestañas: Mercado y Centro de mando. Se eligen con los accesos de arriba a la izquierda (base.html);
+     estas pestañas quedan ocultas, solo como interruptor (#mercado / #centro). -->
+<ul class="nav nav-tabs home-tabs d-none" role="tablist">
     <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#home-mercado" type="button" data-hash="mercado"><i class="bi bi-globe2 me-1"></i>Mercado</button></li>
     <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#home-centro" type="button" data-hash="centro"><i class="bi bi-grid-1x2 me-1"></i>Centro de mando
         <span class="badge text-bg-primary d-none" id="centroTabCount" title="Sin leer de empresas en cartera"></span></button></li>
@@ -281,7 +313,7 @@
     <!-- Filtro de Estados Multi-selección (Alineado junto a las regiones) -->
     <div class="dropdown" id="activityStatusDropdownContainer">
         <button class="btn btn-sm btn-outline-secondary dropdown-toggle py-1 px-2.5 d-flex align-items-center gap-1" type="button" id="activityStatusDropdownBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" style="font-size: 0.72rem; line-height: 1; border-color: rgba(255,255,255,0.15); color: rgba(255,255,255,0.75);">
-            <i class="bi bi-filter-circle-fill text-info" id="activityStatusIcon" style="font-size: 0.75rem;"></i> 🟢 Seguim., 🟡 Dudas
+            <i class="bi bi-filter-circle-fill text-info" id="activityStatusIcon" style="font-size: 0.75rem;"></i> ⭐ T1, 🔵 T2, 🟢 T3, 🟡 Dudas
         </button>
         <ul class="dropdown-menu dropdown-menu-dark p-2 shadow-lg" aria-labelledby="activityStatusDropdownBtn" style="font-size: 0.72rem; background-color: #1a1e29; border: 1px solid rgba(255,255,255,0.15); min-width: 170px;">
             <li class="px-1 py-0.5">
@@ -293,8 +325,20 @@
             <li><hr class="dropdown-divider my-1 bg-secondary opacity-25"></li>
             <li class="px-1 py-0.5">
                 <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="T1" id="actStatus_T1" checked onchange="toggleActivityStatus('T1')">
+                    <label class="form-check-label text-success fw-bold" for="actStatus_T1">⭐ Tier 1 · objetivo</label>
+                </div>
+            </li>
+            <li class="px-1 py-0.5">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="T2" id="actStatus_T2" checked onchange="toggleActivityStatus('T2')">
+                    <label class="form-check-label text-info fw-bold" for="actStatus_T2">🔵 Tier 2 · vigilancia</label>
+                </div>
+            </li>
+            <li class="px-1 py-0.5">
+                <div class="form-check">
                     <input class="form-check-input" type="checkbox" value="ACCEPTED" id="actStatus_ACCEPTED" checked onchange="toggleActivityStatus('ACCEPTED')">
-                    <label class="form-check-label text-success fw-bold" for="actStatus_ACCEPTED">🟢 En Seguimiento</label>
+                    <label class="form-check-label text-success fw-bold" for="actStatus_ACCEPTED">🟢 Tier 3</label>
                 </div>
             </li>
             <li class="px-1 py-0.5">
@@ -354,7 +398,7 @@
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
@@ -395,7 +439,7 @@
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
@@ -425,7 +469,7 @@
                 <!-- Pestañas: Favoritos · Compra (cerca de su precio de compra) y, aparte, las listas propias -->
                 <div class="d-flex align-items-center gap-1">
                     <div class="dash-tabs d-flex">
-                        <button type="button" class="dash-tab active" data-dash-tab="fav" onclick="switchDashboardList('fav')"><i class="bi bi-star-fill me-1"></i>Favoritos</button>
+                        <button type="button" class="dash-tab active" data-dash-tab="fav" onclick="switchDashboardList('fav')" title="Favoritas (Tier 1: las comprarías si llegan a precio)"><i class="bi bi-star-fill me-1"></i>Favoritos</button>
                         <button type="button" class="dash-tab" data-dash-tab="buyzone" onclick="switchDashboardList('buyzone')"
                                 title="Empresas de la Watchlist (añadidas a mano y favoritas) con valoración base, de la más cercana a la más lejana de su precio de compra (verde: en zona · azul: a menos de un 15 % · amarillo: hasta un 30 % · gris: más lejos)"><i class="bi bi-bullseye me-1"></i>Compra{% set near_n = buy_zone|rejectattr('held')|selectattr('group', 'in', ['zona', 'cerca'])|list|length %}{% if near_n %} <span class="badge text-bg-info ms-1" style="font-size: .6rem;" title="{{ near_n }} en zona o a menos de un 15 %">{{ near_n }}</span>{% endif %}</button>
                     </div>
@@ -464,37 +508,11 @@
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <!-- Cuerpo de Favoritos -->
                         <tbody id="list-body-fav" class="dashboard-list-body">
-                            {% for t in fav_movers %}
-                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="fav-item"
-                                data-ticker="{{ clean_ticker(t.name) }}"
-                                data-price="{{ t.price or 0 }}"
-                                data-pct="{{ t.pct or 0 }}"
-                                data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }}
-                                data-status="{{ t.status }}">
-                                <td class="ps-3 py-1">
-                                    <div class="ticker-info" style="gap: 6px;">
-                                        <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>
-                                            <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="text-end pe-3 align-middle num-font">
-                                    <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
-                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
-                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
-                                        </span>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
+                            {% for t in fav_movers %}{{ mover_row(t, 'fav-item') }}                            {% endfor %}
                             {% if not fav_movers %}
                             <tr><td colspan="4" class="text-center py-4 text-muted small">Sin favoritos con actividad hoy</td></tr>
                             {% endif %}
                         </tbody>
-
                         <!-- Cerca de compra: favoritas y cartera en zona o a ≤15 % del precio de compra -->
                         <tbody id="list-body-buyzone" class="dashboard-list-body" style="display: none;">
                             {% for t in buy_zone %}
@@ -508,7 +526,7 @@
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
                                             {% if t.held %}<i class="bi bi-briefcase-fill text-primary ms-1" style="font-size: .65rem;" title="En cartera"></i>{% endif %}
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 80px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
@@ -543,7 +561,7 @@
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
@@ -597,7 +615,7 @@
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
@@ -643,7 +661,7 @@
 
 <script>
     let activityRegionFilter = 'all';
-    let selectedActivityStatuses = ['ACCEPTED', 'STANDBY'];
+    let selectedActivityStatuses = ['T1', 'T2', 'ACCEPTED', 'STANDBY'];   // las mismas que antes (aceptadas y dudas)
 
     // Grupo de países (data-market, de get_market_group); cada botón solo su grupo (Europa sin nórdicos ni R. Unido)
     const passActivityRegion = el => {
@@ -653,8 +671,7 @@
     };
 
     window.activityFilterFn = el => {
-        // 0. Los que hoy aún no han abierto (saldrían con 0,00 %) no se muestran; se cuentan en #activityNotOpen
-        if (el.dataset.notOpen) return false;
+        // los que hoy aún no han abierto salen con su sesión anterior: atenuados (tr[data-not-open]) y debajo de los de hoy
         // 1. Filtrar por región
         const passRegion = passActivityRegion(el);
 
@@ -675,11 +692,26 @@
             .filter(el => passActivityRegion(el)
                 && (selectedActivityStatuses.includes('ALL') || selectedActivityStatuses.includes(el.dataset.status || 'NONE'))).length;
         badge.textContent = `🕒 ${n} sin abrir`;
+        badge.title = `${n} valores cuyo mercado aún no ha abierto hoy: salen atenuados, debajo, con su última sesión`;
         badge.classList.toggle('d-none', n === 0);
     }
 
+    // filtros de «Actividad del día» guardados en la dirección (?region=usa&niveles=T1,T2): se vuelven a poner al cargar
+    const ACTIVITY_URL = {niveles: window.urlState && urlState.get('niveles'), region: window.urlState && urlState.get('region')};   // antes de que el arranque los pise
+    window.addEventListener('load', () => {
+        if (!window.urlState) return;
+        const lv = ACTIVITY_URL.niveles;
+        if (lv) {
+            const want = lv.split(',');
+            document.querySelectorAll('#activityStatusDropdownContainer input[type="checkbox"]').forEach(cb => cb.checked = want.includes(cb.value));
+            toggleActivityStatus(want.includes('ALL') ? 'ALL' : want[0]);
+        }
+        const rg = ACTIVITY_URL.region;
+        if (rg) setActivityRegionFilter(rg);
+    });
     function setActivityRegionFilter(filter) {
         activityRegionFilter = filter;
+        window.urlState && urlState.set({region: filter === 'all' ? '' : filter});   // sigue al recargar
         document.querySelectorAll('#activityFilterGroup .btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.filter === filter);
         });
@@ -727,7 +759,9 @@
             btn.innerHTML = `<i class="bi bi-filter-circle"></i> Estados (Todos)`;
         } else {
             const labels = {
-                'ACCEPTED': '🟢 Seguim.',
+                'T1': '⭐ T1',
+                'T2': '🔵 T2',
+                'ACCEPTED': '🟢 T3',
                 'STANDBY': '🟡 Dudas',
                 'PENDING': '⚪ Pend.',
                 'REJECTED': '🔴 Descart.',
@@ -736,6 +770,10 @@
             const names = selectedActivityStatuses.map(s => labels[s] || s);
             btn.innerHTML = `<i class="bi bi-filter-circle-fill text-info"></i> ${names.join(', ')}`;
         }
+
+        // en la dirección (si no es la selección de siempre), para que siga al recargar
+        const DEFAULT_STATUSES = 'T1,T2,ACCEPTED';   // las casillas marcadas de serie
+        window.urlState && urlState.set({niveles: selectedActivityStatuses.join(',') === DEFAULT_STATUSES ? '' : selectedActivityStatuses.join(',')});
 
         // Actualizar la paginación y renderizado
         window.paginationStates?.['gainerListMarket']?.refresh();
@@ -848,6 +886,9 @@
         if (items.length === 0) return;
         
         items.sort((a, b) => {
+            // lo de los mercados que aún no han abierto (su sesión anterior), siempre debajo de lo de hoy
+            const stale = (a.dataset.notOpen ? 1 : 0) - (b.dataset.notOpen ? 1 : 0);
+            if (stale && criteria !== 'ticker') return stale;
             let valA, valB;
             if (criteria === 'ticker') {
                 valA = a.getAttribute('data-ticker').toLowerCase();
@@ -909,6 +950,9 @@
         if (items.length === 0) return;
 
         items.sort((a, b) => {
+            // lo de los mercados que aún no han abierto (su sesión anterior), siempre debajo de lo de hoy
+            const stale = (a.dataset.notOpen ? 1 : 0) - (b.dataset.notOpen ? 1 : 0);
+            if (stale && criteria !== 'ticker') return stale;
             let valA, valB;
             if (criteria === 'ticker') {
                 valA = a.getAttribute('data-ticker').toLowerCase();
@@ -1279,9 +1323,10 @@ function showHomeTab(hash) {
     if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
 }
 document.querySelectorAll('.home-tabs [data-hash]').forEach(btn => btn.addEventListener('shown.bs.tab', () => {
-    history.replaceState(null, '', btn.dataset.hash === 'mercado' ? location.pathname : '#' + btn.dataset.hash);
+    history.replaceState(null, '', location.pathname + location.search + (btn.dataset.hash === 'mercado' ? '' : '#' + btn.dataset.hash));
     if (btn.dataset.hash === 'mercado' && window.Plotly && document.getElementById('heatmapTracked')) Plotly.Plots.resize('heatmapTracked');
     if (btn.dataset.hash === 'centro') sizeCentro();   // oculta no se puede medir
+    window.syncHomeNav && window.syncHomeNav();        // los accesos directos de arriba
 }));
 window.addEventListener('hashchange', () => showHomeTab(location.hash.slice(1) || 'mercado'));
 // enlaces antiguos a la pestaña Watchlist del Centro de mando
@@ -1308,7 +1353,7 @@ else if (location.hash === '#centro') document.addEventListener('DOMContentLoade
                                 <td class="ps-3 py-2">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.8rem;">{{ clean_ticker(t.name) }}</span>
+                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.8rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 150px; font-size: 0.68rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>

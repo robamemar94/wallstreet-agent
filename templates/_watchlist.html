@@ -9,7 +9,7 @@
     .tbl-wl td, .tbl-wl th { font-size: .8rem; vertical-align: middle; white-space: nowrap; }
     .tbl-wl td.wrap { white-space: normal; min-width: 160px; }
     .tbl-wl td, .tbl-wl th { padding-top: .3rem; padding-bottom: .3rem; }
-    .wl-name { display: inline-block; max-width: 16rem; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; margin-left: .35rem; }
+    .wl-name { display: inline-block; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; margin-left: .35rem; }
     .zone { font-size: .7rem; font-weight: 700; text-transform: uppercase; border: 1px solid currentColor; border-radius: 1rem; padding: .05rem .5rem; }
     .tbl-wl th.sortable { cursor: pointer; user-select: none; }
     .tbl-wl th.sortable::after { content: "\2195"; opacity: .3; margin-left: .25rem; font-size: .75em; }
@@ -18,10 +18,18 @@
     .note-input { border: 1px solid transparent; background: transparent; font-size: .78rem; width: 100%; min-width: 160px; }
     .note-input:hover, .note-input:focus { border-color: var(--bs-border-color); }
     .wl-filters .btn { font-size: .75rem; }
-    .wl-side { display: flex; flex-direction: column; gap: 1rem; }
-    .wl-side.fit-scroll { overflow: hidden; }
-    .wl-side > .card { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-    .wl-side > .card > :not(.card-header) { overflow-y: auto; min-height: 0; }
+    /* grupos por cercanía a compra y barra de distancia (llena = en zona; vacía = a un 50 % o más) */
+    .tbl-wl tr.wl-grp td { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding-top: .6rem;
+                           background: transparent; border-bottom: 1px solid var(--bs-border-color); }
+    .tbl-wl.flat tr.wl-grp { display: none; }
+    .wl-dist { display: flex; align-items: center; gap: .5rem; min-width: 11rem; }
+    .wl-dist-track { flex: 0 0 6rem; height: 6px; border-radius: 3px; background: var(--bs-secondary-bg); overflow: hidden; }
+    .wl-dist-fill { height: 100%; border-radius: 3px; } .bg-orange { background-color: #f0883e !important; }
+    .wl-att-strip { display: flex; align-items: center; width: 100%; text-align: left; padding: .35rem .9rem; border-radius: .5rem;
+                    background: var(--fin-card-bg, var(--bs-tertiary-bg)); border: 0; border-left: 3px solid var(--bs-warning); color: var(--bs-body-color); font-size: .8rem; }
+    .wl-att-items { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wl-panel { --bs-offcanvas-width: 520px; }
+    .wl-filter-menu { min-width: 17rem; }
 </style>
 <div class="card">
     <div class="card-header bg-transparent">
@@ -30,6 +38,8 @@
                 <span class="fw-bold"><i class="bi bi-eye me-1"></i>Watchlist</span>
                 {% call wl_info() %}Empresas candidatas con su valoración base al precio de hoy. El precio de compra es el que te daría un {{ num(target, 0) }}% anual con dividendos. Entran solas las favoritas; las demás, añadiéndolas a mano.{% endcall %}
             </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap" data-bs-toggle="modal" data-bs-target="#wlLevelsModal" title="Repasa tu Tier 1 y Tier 2: pásalas de nivel con un clic">
+                <i class="bi bi-sliders me-1"></i>Repasar niveles</button>
             <form class="d-flex gap-2" id="wlAddForm">
                 <input class="form-control form-control-sm" style="width: 9rem;" id="wlAddTicker" placeholder="Ticker (p. ej. ASML.AS)" required>
                 <input class="form-control form-control-sm" style="width: 13rem;" id="wlAddNote" placeholder="Nota (opcional)">
@@ -39,21 +49,35 @@
         <div id="wlAddError" class="alert alert-warning small d-none mt-2 mb-0"></div>
     </div>
         <div class="d-flex flex-wrap gap-2 align-items-center wl-filters d-none" id="wlFilters">   {# se coloca encima de la tabla al cargar #}
-            <select class="form-select form-select-sm w-auto" id="wlRole" aria-label="Rol en cartera">
+            <div class="btn-group btn-group-sm" id="wlLevel" role="group" aria-label="Nivel">
+                {% for k, label, tip in [('', 'Todas', 'Toda la watchlist: Tier 1, las de las listas que sigues y las añadidas a mano'), ('tier1', 'Tier 1', 'Objetivo: las comprarías si llegan a precio'), ('lista', 'Listas', 'Las de las listas que sigues en la watchlist'), ('manual', 'Añadidas', 'Añadidas a mano')] %}
+                <button type="button" class="btn btn-outline-secondary {{ 'active' if not k }}" data-level="{{ k }}" title="{{ tip }}">{{ label }}</button>
+                {% endfor %}
+            </div>
+            <div class="dropdown">
+                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="wlFilterBtn">
+                    <i class="bi bi-funnel me-1"></i>Filtros <span class="badge text-bg-primary d-none" id="wlFilterN"></span></button>
+                <div class="dropdown-menu p-3 wl-filter-menu"><div class="d-grid gap-2">
+            <select class="form-select form-select-sm" id="wlTheme" aria-label="Lista" title="Filtrar por lista">
+                <option value="" data-label="Todas las listas">Todas las listas</option>
+            </select>
+            <select class="form-select form-select-sm" id="wlRole" aria-label="Rol en cartera">
                 <option value="" data-label="Todos los roles">Todos los roles</option>
                 {% for r in portfolio_roles() %}<option value="{{ r.key }}" data-label="{{ r.name }}">{{ r.name }}</option>{% endfor %}
                 <option value="none" data-label="Sin rol">Sin rol</option>
             </select>
-            <select class="form-select form-select-sm w-auto" id="wlGroup" aria-label="Cercanía al precio de compra">
-                {% for k, label in [('', 'Cualquier distancia'), ('zona', 'En zona de compra'), ('cerca', 'Cerca ≤15%'), ('seguimiento', 'Seguimiento ≤30%'), ('lejos', 'Lejos'), ('sin', 'Sin valoración')] %}
+            <select class="form-select form-select-sm" id="wlGroup" aria-label="Cercanía al precio de compra">
+                {% for k, label in [('', 'Cualquier distancia'), ('zona', 'En zona de compra'), ('cerca', 'Cerca ≤15%'), ('seguimiento', 'A ≤30%'), ('lejos', 'Lejos'), ('sin', 'Sin valoración')] %}
                 <option value="{{ k }}" data-label="{{ label }}">{{ label }}</option>
                 {% endfor %}
             </select>
             <button type="button" class="btn btn-sm btn-outline-danger" id="wlOnlyStale" aria-pressed="false" title="Solo las valoraciones anticuadas o antiguas sin revisar">
                 <i class="bi bi-clock-history me-1"></i>Por revisar <span class="wl-n"></span></button>
-            <div class="form-check form-switch small mb-0">
+            <div class="form-check form-switch small mb-0 mt-1">
                 <input class="form-check-input" type="checkbox" id="wlHideHeld" checked>
                 <label class="form-check-label" for="wlHideHeld">Ocultar las de cartera</label>
+            </div>
+                </div></div>
             </div>
             <span class="ms-auto small text-muted" id="wlShown"></span>
             {% call wl_info() %}<div class="mb-1">Color de la rentabilidad estimada = zona: <span class="cagr-green">ganga ≥{{ num(ZONE.ganga, 0) }}%</span> · <span class="cagr-amber">barata {{ num(ZONE.barata, 0) }}–{{ num(ZONE.ganga, 0) }}%</span> · <span class="cagr-orange">justo {{ num(ZONE.justo, 0) }}–{{ num(ZONE.barata, 0) }}%</span> · <span class="cagr-red">cara &lt;{{ num(ZONE.justo, 0) }}%</span>.</div>
@@ -62,9 +86,36 @@
         </div>
     <div id="wlBody"><div class="p-3 small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Calculando valoraciones…</div></div>
 </div>
+<div class="modal fade" id="wlLevelsModal" tabindex="-1" aria-labelledby="wlLevelsTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="wlLevelsTitle"><i class="bi bi-sliders me-1"></i>Repasar niveles</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+            <div class="modal-body" id="wlLevelsBody"><span class="spinner-border spinner-border-sm"></span></div>
+            <div class="modal-footer py-1 small text-muted justify-content-start">Tier 1: la comprarías si llega a precio (todos los avisos). Tier 2: te gusta, sin prisa (aviso al entrar en zona). Tier 3: solo agenda y resultados. Las tres forman tu seguimiento.</div>
+        </div>
+    </div>
+</div>
 
 <script>
-const wlFilter = {origin: '', group: '', role: '', stale: false}, WL_PER_PAGE = {{ per_page|int }};
+const wlFilter = {origin: '', group: '', role: '', stale: false, theme: ''}, WL_PER_PAGE = {{ per_page|int }};
+// los filtros van en la dirección (?nivel=&lista=&rol=&distancia=&revisar=1&cartera=1): siguen al recargar o volver atrás
+const WL_URL = {origin: 'nivel', theme: 'lista', role: 'rol', group: 'distancia', stale: 'revisar'};
+function wlSaveUrl() {
+    const st = Object.fromEntries(Object.entries(WL_URL).map(([k, p]) => [p, wlFilter[k]]));
+    st.cartera = !document.getElementById('wlHideHeld').checked;   // por defecto se ocultan: solo se apunta si se ven
+    window.urlState && urlState.set(st);
+}
+function wlRestoreUrl() {
+    if (!window.urlState) return;
+    Object.entries(WL_URL).forEach(([k, p]) => { const v = urlState.get(p); if (v) wlFilter[k] = k === 'stale' ? true : v; });
+    document.querySelectorAll('#wlLevel [data-level]').forEach(x => x.classList.toggle('active', x.dataset.level === wlFilter.origin));
+    document.getElementById('wlRole').value = wlFilter.role;
+    document.getElementById('wlGroup').value = wlFilter.group;
+    const st = document.getElementById('wlOnlyStale');
+    st.classList.toggle('active', wlFilter.stale); st.setAttribute('aria-pressed', wlFilter.stale);
+    if (urlState.get('cartera')) document.getElementById('wlHideHeld').checked = false;
+}
 let wlPage = 0;
 async function wlApi(url, method, body) {
     const r = await fetch(url, {method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
@@ -77,11 +128,12 @@ function wlApplyFilters() {
     const hideHeld = document.getElementById('wlHideHeld').checked;
     const base = wlRows().filter(tr => !(hideHeld && tr.dataset.held === 'true'));
     const byOrigin = tr => !wlFilter.origin || tr.dataset.origins.split(' ').includes(wlFilter.origin);
+    const byTheme = tr => !wlFilter.theme || (tr.dataset.themes || '').split('|').includes(wlFilter.theme);
     const byGroup = tr => !wlFilter.group || tr.dataset.group === wlFilter.group;
     const roleIs = (tr, k) => !k || (k === 'none' ? !tr.dataset.role : tr.dataset.role === k), byRole = tr => roleIs(tr, wlFilter.role);
     const isStale = tr => tr.dataset.stale === 'true', byStale = tr => !wlFilter.stale || isStale(tr);
     wlRows().forEach(tr => tr.classList.add('d-none'));
-    const shown = base.filter(tr => byOrigin(tr) && byGroup(tr) && byRole(tr) && byStale(tr));
+    const shown = base.filter(tr => byOrigin(tr) && byTheme(tr) && byGroup(tr) && byRole(tr) && byStale(tr));
     const pages = Math.max(1, Math.ceil(shown.length / WL_PER_PAGE));
     wlPage = Math.min(wlPage, pages - 1);
     shown.slice(wlPage * WL_PER_PAGE, (wlPage + 1) * WL_PER_PAGE).forEach(tr => tr.classList.remove('d-none'));
@@ -90,11 +142,22 @@ function wlApplyFilters() {
     if (empty) empty.classList.toggle('d-none', shown.length > 0);
     // cada opción dice cuántas quedarían con los otros filtros aplicados
     document.querySelectorAll('#wlGroup option').forEach(o => o.textContent = `${o.dataset.label} (${
-        base.filter(tr => byOrigin(tr) && byRole(tr) && byStale(tr) && (!o.value || tr.dataset.group === o.value)).length})`);
+        base.filter(tr => byOrigin(tr) && byTheme(tr) && byRole(tr) && byStale(tr) && (!o.value || tr.dataset.group === o.value)).length})`);
     document.querySelectorAll('#wlRole option').forEach(o => o.textContent = `${o.dataset.label} (${
-        base.filter(tr => byOrigin(tr) && byGroup(tr) && byStale(tr) && roleIs(tr, o.value)).length})`);
-    document.querySelector('#wlOnlyStale .wl-n').textContent = base.filter(tr => byOrigin(tr) && byGroup(tr) && byRole(tr) && isStale(tr)).length;
+        base.filter(tr => byOrigin(tr) && byTheme(tr) && byGroup(tr) && byStale(tr) && roleIs(tr, o.value)).length})`);
+    document.querySelectorAll('#wlTheme option').forEach(o => o.textContent = `${o.dataset.label} (${
+        base.filter(tr => byOrigin(tr) && byGroup(tr) && byRole(tr) && byStale(tr) && (!o.value || (tr.dataset.themes || '').split('|').includes(o.value))).length})`);
+    document.querySelector('#wlOnlyStale .wl-n').textContent = base.filter(tr => byOrigin(tr) && byTheme(tr) && byGroup(tr) && byRole(tr) && isStale(tr)).length;
     const shownEl = document.getElementById('wlShown'); if (shownEl) shownEl.textContent = `${shown.length} de ${base.length}`;
+    // encabezados de grupo: fuera si su grupo se queda vacío; con cuántas quedan
+    document.querySelectorAll('#wlBody tr.wl-grp').forEach(h => {
+        const n = shown.filter(tr => tr.dataset.group === h.dataset.grp && !tr.classList.contains('d-none')).length;
+        h.classList.toggle('d-none', !n);
+        const c = h.querySelector('.wl-grp-n'); if (c) c.textContent = n;
+    });
+    // el botón «Filtros» dice cuántos hay puestos
+    const nf = [wlFilter.theme, wlFilter.role, wlFilter.group, wlFilter.stale].filter(Boolean).length;
+    const fb = document.getElementById('wlFilterN'); if (fb) { fb.textContent = nf; fb.classList.toggle('d-none', !nf); }
     const n = document.getElementById('wlCount'); if (n) n.textContent = base.length;
 }
 function wlRenderPager(total, pages) {
@@ -113,18 +176,44 @@ function wlRenderPager(total, pages) {
         if (p >= 0 && p < pages) { wlPage = p; wlApplyFilters(); }
     }));
 }
-[['wlRole', 'role'], ['wlGroup', 'group']].forEach(([id, key]) => document.getElementById(id).addEventListener('change', e => {
-    wlPage = 0; wlFilter[key] = e.target.value; wlApplyFilters();
+[['wlRole', 'role'], ['wlGroup', 'group'], ['wlTheme', 'theme']].forEach(([id, key]) => document.getElementById(id).addEventListener('change', e => {
+    wlPage = 0; wlFilter[key] = e.target.value; wlApplyFilters(); wlSaveUrl();
 }));
 // desde el aviso de «Requiere tu atención»: abrir la watchlist filtrada por las que están en zona de compra
+document.querySelectorAll('#wlLevel [data-level]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('#wlLevel [data-level]').forEach(x => x.classList.toggle('active', x === b));
+    wlFilter.origin = b.dataset.level; wlPage = 0; wlApplyFilters(); wlSaveUrl();
+}));
+// Repasar niveles: Tier 1 y Tier 2 en una lista, cada una con sus botones (Tier 1 · Tier 2 · Tier 3 · Ninguno)
+const WL_LEVELS = [['1', 'T1', 'success', 'Tier 1 · objetivo'], ['2', 'T2', 'info', 'Tier 2 · vigilancia'], ['seg', 'T3', 'secondary', 'Tier 3: sin avisos, solo agenda y resultados'], ['', 'Quitar', 'danger', 'Sin nivel']];
+async function wlLevelsLoad() {
+    const box = document.getElementById('wlLevelsBody');
+    const d = await wlApi('/api/watchlist/niveles', 'GET');
+    const n1 = d.items.filter(i => i.tier === '1').length;
+    box.innerHTML = `<div class="small mb-2 ${n1 > d.tier1_max ? 'text-warning' : 'text-muted'}">Tier 1: <b>${n1}</b> empresas${n1 > d.tier1_max ? ` (recomendado: ${d.tier1_max} como mucho, las que de verdad comprarías si llegan a precio)` : ''}</div>`
+        + d.items.map(i => `<div class="d-flex align-items-center gap-2 py-1 border-top" data-lv-row="${i.ticker}">
+            <a href="/ticker/${i.ticker}" class="fw-bold text-decoration-none" style="min-width: 6rem;">${i.ticker}</a>
+            <span class="small text-muted text-truncate flex-grow-1">${i.name}</span>
+            <div class="btn-group btn-group-sm">${WL_LEVELS.map(([v, l, c, t]) => `<button type="button" class="btn btn-outline-${c} ${i.tier === v ? 'active' : ''}" title="${t}" data-lv="${v}">${l}</button>`).join('')}</div></div>`).join('');
+    box.querySelectorAll('[data-lv]').forEach(b => b.addEventListener('click', async () => {
+        const row = b.closest('[data-lv-row]');
+        const r = await wlApi(`/api/ticker/${encodeURIComponent(row.dataset.lvRow)}/nivel`, 'POST', {tier: b.dataset.lv});
+        row.querySelectorAll('[data-lv]').forEach(x => x.classList.toggle('active', x === b));
+        box.querySelector('div').innerHTML = `Tier 1: <b>${r.tier1_count}</b> empresas`;
+        document.getElementById('wlLevelsModal').dataset.changed = '1';
+    }));
+}
+document.getElementById('wlLevelsModal')?.addEventListener('show.bs.modal', wlLevelsLoad);
+// al cerrar, si algo cambió, la tabla se vuelve a calcular con los niveles nuevos
+document.getElementById('wlLevelsModal')?.addEventListener('hidden.bs.modal', e => { if (e.target.dataset.changed) location.reload(); });
 function wlShowGroup(g) { const s = document.getElementById('wlGroup'); s.value = g; s.dispatchEvent(new Event('change')); }
 document.getElementById('wlOnlyStale').addEventListener('click', e => {
     wlPage = 0; wlFilter.stale = !wlFilter.stale;
     e.currentTarget.classList.toggle('active', wlFilter.stale);
     e.currentTarget.setAttribute('aria-pressed', wlFilter.stale);
-    wlApplyFilters();
+    wlApplyFilters(); wlSaveUrl();
 });
-document.getElementById('wlHideHeld').addEventListener('change', () => { wlPage = 0; wlApplyFilters(); });
+document.getElementById('wlHideHeld').addEventListener('change', () => { wlPage = 0; wlApplyFilters(); wlSaveUrl(); });
 
 // «Requiere tu atención» del Resumen: las candidatas que ya cotizan por debajo de su precio de compra
 // (misma clave que en el panel de la watchlist: si lo marcas como visto en un sitio, lo está en los dos)
@@ -164,12 +253,24 @@ function wlAttention() {
     if (typeof refreshNoticeList === 'function') refreshNoticeList(list);
 }
 
-let wlSort = null;
+// Ordenar: al pulsar una columna, la tabla deja los grupos y ordena todo; el tercer clic en la misma vuelve a los grupos
+let wlSort = null, wlOrder = [];
 function wlBindSort() {
+    wlOrder = [...document.querySelectorAll('.tbl-wl tbody tr')];
     document.querySelectorAll('.tbl-wl th.sortable').forEach(th => th.addEventListener('click', () => {
         const col = [...th.parentNode.children].indexOf(th), text = th.dataset.type === 'text';
-        wlSort = {col, dir: wlSort && wlSort.col === col ? -wlSort.dir : (text ? 1 : -1)};
-        const tbody = document.querySelector('.tbl-wl tbody');
+        const table = document.querySelector('.tbl-wl'), tbody = table.querySelector('tbody');
+        const first = text ? 1 : -1;
+        if (wlSort && wlSort.col === col && wlSort.dir === -first) {   // tercer clic: otra vez por grupos
+            wlSort = null;
+            wlOrder.forEach(tr => tbody.appendChild(tr));
+            table.classList.remove('flat');
+            document.querySelectorAll('.tbl-wl th.sortable').forEach(h => h.dataset.dir = '');
+            wlPage = 0; wlApplyFilters();
+            return;
+        }
+        wlSort = {col, dir: wlSort && wlSort.col === col ? -wlSort.dir : first};
+        table.classList.add('flat');
         const val = tr => { const c = tr.children[col]; const v = c ? c.dataset.sort : ''; return v === '' || v === undefined ? null : (text ? v : parseFloat(v)); };
         wlRows().sort((a, b) => {
             const x = val(a), y = val(b);
@@ -191,6 +292,13 @@ async function wlLoad() {
         body.innerHTML = await r.text();
         body.querySelector('#wlFiltersSlot').replaceWith(filters);
         filters.classList.remove('d-none');
+        // las listas del filtro: las de las empresas de la tabla
+        const themes = [...new Set(wlRows().flatMap(tr => (tr.dataset.themes || '').split('|').filter(Boolean)))].sort((a, b) => a.localeCompare(b, 'es'));
+        const sel = document.getElementById('wlTheme');
+        sel.querySelectorAll('option:not([value=""])').forEach(o => o.remove());
+        themes.forEach(t => sel.insertAdjacentHTML('beforeend', `<option value="${t.replace(/"/g, '&quot;')}" data-label="${t.replace(/"/g, '&quot;')}">${t}</option>`));
+        sel.classList.toggle('d-none', !themes.length);
+        if (wlFilter.theme && themes.includes(wlFilter.theme)) sel.value = wlFilter.theme; else wlFilter.theme = '';
         wlBindSort(); wlApplyFilters(); wlAttention();
         initNoticeLists(body);
         window.fitAll && fitAll();
@@ -222,6 +330,7 @@ async function wlRemove(ticker) {
     try { await wlApi(`/api/watchlist/${encodeURIComponent(ticker)}`, 'DELETE'); await wlLoad(); }
     catch (x) { alert(x.message); }
 }
+wlRestoreUrl();
 wlLoad();
 </script>
 {% endmacro %}

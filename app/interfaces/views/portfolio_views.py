@@ -13,7 +13,7 @@ from app.infrastructure.db.database import get_db
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
 from app.application.services import market_cache, base_valuation_service as bv, distribution_service, dividend_forecast, portfolio_roles_service as roles_service
 from app.application.services.portfolio_service import PortfolioService
-from app.application.services.performance_service import PerformanceService
+from app.application.services.performance_service import PerformanceService, annualized, reference_benchmark
 from app.infrastructure.dependencies import (
     get_asset_repository,
     get_portfolio_service,
@@ -70,6 +70,49 @@ def day_change(shares: float, price: Optional[float], prev: Optional[float], las
     price = price or 0.0
     return {"closed": closed, "last_date": last_date, "rate": rate, "rate_prev": rate_prev, "prev": prev,
             "eur": shares * (price * rate - prev * rate_prev), "pct": ((price / prev) - 1) * 100 if prev else 0.0}
+
+DROP_FROM_HIGH_PCT = 30.0   # Resumen: posiciones que caen al menos esto desde su máximo de 52 semanas
+
+
+def falls_from_high(hist: pd.DataFrame, tickers: list) -> list:
+    """[{ticker, pct}] de las posiciones que caen DROP_FROM_HIGH_PCT % o más desde su máximo de 52 semanas (cierres)."""
+    out = []
+    for t in tickers:
+        if t not in hist.columns:
+            continue
+        s = hist[t].dropna().iloc[-252:]
+        if len(s) and s.max() > 0:
+            pct = 100 * (float(s.iloc[-1]) / float(s.max()) - 1)
+            if pct <= -DROP_FROM_HIGH_PCT:
+                out.append({"ticker": t, "pct": pct})
+    return sorted(out, key=lambda d: d["pct"])
+
+
+def portfolio_overview(positions: Dict[str, Any], div_forecast: Dict[str, Any], held: list, db_session: Session,
+                       today: Optional[datetime.date] = None) -> Dict[str, Any]:
+    """Pestaña Resumen de la Cartera: lo que más sumó y restó en el mes, lo que viene (resultados y cobros) y lo que pide
+    atención (recortes de previsiones y tesis que no están intactas). Solo con datos en caché: no frena la página."""
+    from app.application.services import market_cache, estimate_revisions_service
+    from app.infrastructure.db.models import DBThesis
+    today = today or datetime.date.today()
+    month = sorted(((t, p["pnl_eur"].get("1m")) for t, p in positions.items() if p["pnl_eur"].get("1m") is not None), key=lambda x: -x[1])
+    horizon = (today + datetime.timedelta(days=30)).isoformat()
+    results = []
+    for t in held:
+        nxt = (market_cache.peek("earnings_v2", t) or {}).get("next")
+        if nxt and today.isoformat() <= nxt[:10] <= horizon:
+            results.append({"ticker": t, "date": nxt[:10], "days": (datetime.date.fromisoformat(nxt[:10]) - today).days})
+    payments = sorted((e for e in div_forecast.get("events", []) if e["date"] >= today), key=lambda e: e["date"])
+    theses = [{"ticker": th.ticker, "id": th.id, "verdict": th.verdict} for th in db_session.query(DBThesis).filter(DBThesis.ticker.in_(held)).all()
+              if th.verdict in ("VIGILANCIA", "DEBILITADA", "ROTA")]
+    from app.application.services import report_service
+    reports = report_service.list_reports(db_session)
+    last = {k: next((r for r in reports if r["kind"] == k), None) for k in ("W", "M")}
+    return {"up": [m for m in month[:3] if m[1] > 0], "down": [m for m in month[::-1][:3] if m[1] < 0], "reports": last,
+            "results": sorted(results, key=lambda r: r["date"])[:4], "payments": payments[:max(2, 6 - len(results))],
+            "cuts": [n["ticker"] for n in estimate_revisions_service.signal_notices(held)],
+            "theses": sorted(theses, key=lambda t: ("ROTA", "DEBILITADA", "VIGILANCIA").index(t["verdict"]))}
+
 
 def _shares_held_at(ledger_entries, as_of_date):
     """Acciones en cartera a fecha `as_of_date`, reconstruidas a partir del ledger persistido (BUY/SELL/SPLIT)."""
@@ -641,7 +684,9 @@ def portfolio_page(
                 "currency": (asset_info.get("currency") or "USD").upper(), "role": asset_info.get(roles_service.ROLE_KEY),
                 "country": COUNTRY_TRANSLATIONS.get(country_raw, country_raw or "Desconocido"),
                 "sector": SECTOR_TRANSLATIONS.get(sector_raw, sector_raw or "Desconocido")})
-        distribution = distribution_service.build(positions, roles_service.load_roles())
+        from app.application.services import cash_service
+        _cash = cash_service.status(db_session)
+        distribution = distribution_service.build(positions, roles_service.load_roles(), _cash.get("balance", 0.0) if _cash.get("configured") else 0.0)
 
     # ── Calcular Métricas Ponderadas de la Cartera Activa ────────────────────
     weighted_beta = 0.0
@@ -816,24 +861,37 @@ def portfolio_page(
     port_net_debt_ebitda = weighted_net_debt_ebitda / weight_sum_net_debt_ebitda if weight_sum_net_debt_ebitda > 0 else 0.0
     port_current_ratio = weighted_current_ratio / weight_sum_current_ratio if weight_sum_current_ratio > 0 else 0.0
 
-    # Calcular Alpha de Jensen (CAPM)
-    portfolio_ann_return = perf_data.get("annualized_return", 0.0)
-    benchmark_ann_return = perf_data.get("benchmark_annualized_return", 0.0)
-    port_alpha = portfolio_ann_return - (port_beta * benchmark_ann_return)
-
     # Variación de 1 semana, 1 mes, YTD y 1 año (respetando las fechas de compra y venta) frente al índice de referencia
-    period_changes = {}
+    period_changes, period_positions, drops = {}, {}, []
     benchmark = (get_settings_from_db(db_session).get("performance") or {}).get("benchmark_ticker") or "URTH"
+
+    # Alfa de Jensen (CAPM) frente al índice de referencia, el mismo de las demás alfas; anualizada solo con un año o más
+    ref_bench = reference_benchmark(benchmark)
+    port_series, ref_series, perf_dates = perf_data.get("portfolio_uv") or [], (perf_data.get("benchmarks") or {}).get(ref_bench) or [], perf_data.get("dates") or []
+    perf_years = (datetime.date.fromisoformat(perf_dates[-1]) - datetime.date.fromisoformat(perf_dates[0])).days / 365.25 if len(perf_dates) > 1 else 0.0
+    portfolio_ann_return = annualized(port_series[0], port_series[-1], perf_years) if port_series else 0.0
+    benchmark_ann_return = annualized(ref_series[0], ref_series[-1], perf_years) if ref_series else 0.0
+    port_alpha = portfolio_ann_return - (port_beta * benchmark_ann_return)
     try:
         from app.application.services import price_monitor_service as pm
         txs, splits = pm.load_transactions(portfolio_service, db_session)   # respeta fechas de compra/venta y splits
         ccys = {("GBP" if t.get("currency") == "GBp" else t.get("currency") or "USD") for t in txs} - {"EUR"}
         hist = pm.download_history(sorted({t["ticker"] for t in txs}) + [f"{c}EUR=X" for c in ccys] + [benchmark])
-        period_changes = pm.portfolio_changes(hist, txs, splits, benchmark)["periods"]
+        _ch = pm.portfolio_changes(hist, txs, splits, benchmark)
+        period_changes, period_positions = _ch["periods"], _ch["positions"]
+        drops = falls_from_high(hist, list(period_positions))
     except Exception as e:
         logging.getLogger(__name__).warning("No se pudo calcular la variación por periodos: %s", e)
 
     div_forecast = dividend_forecast.portfolio_forecast(portfolio_service, asset_repo, INDEX_CACHE["data"], portfolio_raw)
+    overview = portfolio_overview(period_positions, div_forecast, [p["ticker"] for p in portfolio_data if p.get("shares", 0) > 0], db_session)
+    from app.application.services import cash_service
+    perf_patrimony = cash_service.patrimony(db_session, perf_data.get("dates") or [], perf_data.get("portfolio_values_eur") or [],
+                                            perf_data.get("portfolio_uv") or [])
+    overview.update(cash=cash_service.status(db_session), drops=drops, since_start={"pct": perf_data.get("total_return"),
+                                              "bench": 100 * (ref_series[-1] / ref_series[0] - 1) if ref_series and ref_series[0] else None,
+                                              "start": perf_dates[0] if perf_dates else None},
+                    sector=((distribution or {}).get("sector") or [None])[0])
     return templates.TemplateResponse("portfolio.html", {
         "request": request, "portfolio": portfolio_data, "closed_portfolio": closed_portfolio_data,
         **prices_banner_context(),
@@ -863,7 +921,9 @@ def portfolio_page(
         "max_drawdown":     perf_data.get("max_drawdown", 0.0),
         "annual_returns":   perf_data.get("annual_returns", []),
         "total_return_twr": perf_data.get("total_return", 0.0),
-        "annualized_return": perf_data.get("annualized_return", 0.0),
+        "annualized_return": portfolio_ann_return,
+        "perf_ref_bench":   ref_bench,
+        "perf_alpha_annualized": perf_years >= 1,
         # Métricas fundamentales agregadas del portafolio
         "port_beta":             round(port_beta, 2),
         "port_roic":             round(port_roic, 2),
@@ -893,7 +953,73 @@ def portfolio_page(
         "distribution": distribution,
         "settings": settings,
         "perf_start_date": perf_start_date,
+        "overview": overview,
+        "perf_patrimony": perf_patrimony,
     })
+
+@router.get("/portfolio/decisiones", response_class=HTMLResponse)
+def portfolio_decisions_fragment(
+    request: Request,
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
+    db_session: Session = Depends(get_db),
+):
+    """Pestaña «Decisiones» de la Cartera (se carga aparte: descarga el histórico de precios y del índice).
+    Cuenta desde la misma fecha de inicio que el Rendimiento (settings → performance.start_date): lo de antes eran pruebas."""
+    review, error, since = decisions_review(portfolio_service, db_session)
+    return templates.TemplateResponse("_decisions.html", {"request": request, **review, "error": error, "since": since})
+
+
+@router.get("/api/portfolio/decisiones/resumen")
+def portfolio_decisions_summary(portfolio_service: PortfolioService = Depends(get_portfolio_service), db_session: Session = Depends(get_db)):
+    """Lo esencial de Decisiones para el Resumen de la Cartera (se pide al abrirlo: descarga históricos)."""
+    review, error, _ = decisions_review(portfolio_service, db_session)
+    s = review["summary"]
+    ex = lambda o: {"ticker": o["ticker"], "type": o["type"], "date": o["date"][:10], "excess": o["review"]["excess"]}
+    return {"buys": s["buys"], "n_ops": s["n_buys"] + s["n_sells"], "with_reason": s["with_reason"],
+            "best": [ex(o) for o in s["best"][:1]], "worst": [ex(o) for o in s["worst"][:1]], "error": error}
+
+
+def decisions_review(portfolio_service: PortfolioService, db_session: Session):
+    """Balance de las operaciones (pestaña Decisiones): (review, error, since)."""
+    from app.application.services import decision_review_service as dr, price_monitor_service as pm
+    since = (get_settings_from_db(db_session).get("performance") or {}).get("start_date")
+    txs, splits = pm.load_transactions(portfolio_service, db_session)
+    if since:
+        # fuera también las empresas de antes que se vendieron después: limpieza de la cartera vieja, no decisiones
+        # de la nueva (las de antes que se siguen comprando, sí cuentan)
+        before = {t["ticker"] for t in txs if t["type"] == "BUY" and t["date"][:10] < since}
+        legacy = {t["ticker"] for t in txs if t["type"] == "SELL" and t["date"][:10] >= since and t["ticker"] in before}
+        txs = [t for t in txs if t["date"][:10] >= since and t["ticker"] not in legacy]
+    tickers = sorted({t["ticker"] for t in txs})
+    assets = {a.ticker: a.data or {} for a in db_session.query(DBAsset).filter(DBAsset.ticker.in_(tickers)).all()}
+    error, df = None, None
+    try:
+        df = dr.download(dr.symbols(txs), min(t["date"] for t in txs)) if txs else None
+    except Exception as e:
+        logger.exception("Decisiones: fallo al descargar precios")
+        error = str(e)
+    review = dr.build(df, txs, assets, {t: d.get("company_name") or t for t, d in assets.items()}, splits)
+    return review, error, since
+
+
+@router.get("/portfolio/informes", response_class=HTMLResponse)
+def portfolio_reports_fragment(request: Request, key: Optional[str] = None, db_session: Session = Depends(get_db)):
+    """Pestaña «Informes» de la Cartera: el archivo (semanal, mensual, trimestral, anual) y el informe elegido (o el último)."""
+    from app.application.services import report_service as rs
+    reports = rs.list_reports(db_session)
+    chosen = key or next((r["key"] for r in reports if r["kind"] == "M"), reports[0]["key"] if reports else None)
+    return templates.TemplateResponse("_reports.html", {"request": request, "reports": reports, "kinds": rs.KINDS,
+                                                        "report": rs.load(db_session, chosen) if chosen else None,
+                                                        "ai_kinds": rs.AI_KINDS, "pending": rs.due(db_session)})
+
+
+@router.get("/portfolio/informes/{key}", response_class=HTMLResponse)
+def portfolio_report_fragment(request: Request, key: str, db_session: Session = Depends(get_db)):
+    """Un informe (el panel de la derecha de la pestaña «Informes»)."""
+    from app.application.services import report_service as rs
+    return templates.TemplateResponse("_reports.html", {"request": request, "only_report": True, "kinds": rs.KINDS,
+                                                        "report": rs.load(db_session, key), "ai_kinds": rs.AI_KINDS})
+
 
 @router.get("/ideal-portfolio", response_class=HTMLResponse)
 def ideal_portfolio_page(

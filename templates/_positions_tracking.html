@@ -16,6 +16,7 @@
         {{ th('Máx. 52s', title='Caída desde el máximo de 52 semanas') }}
         {{ th('Máx. hist.', title='Caída desde el máximo histórico (cierre ajustado por splits y dividendos)') }}
         {{ th('CAGR est.', title='CAGR estimado: rentabilidad anual estimada comprando hoy según la valoración base de la ficha (con dividendos)') }}
+        {{ th('Prev. 90 d', title='Previsiones de los analistas: cuánto ha cambiado en 90 días el BPA que esperan para el año que viene (o este). Suele moverse antes que el precio; en rojo, un recorte del 5 % o más (avisa)') }}
         <th class="sortable" title="Próximos resultados (ordena por días que faltan)">Resultados {{ sort_icon|safe }}</th>
         <th class="sortable pe-4" data-type="text" title="Veredicto de la tesis: pulsa para abrirla">Tesis {{ sort_icon|safe }}</th>
     </tr></thead>
@@ -24,7 +25,7 @@
     <tr data-ticker="{{ r.ticker }}">
         <td class="ps-4 align-middle" data-sort="{{ r.ticker }}">
             <a href="/portfolio/ticker/{{ r.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(r.ticker) }}</a></td>
-        <td class="text-muted align-middle text-truncate" style="max-width: 150px;" data-sort="{{ r.name }}" title="{{ r.name }}">{{ r.name }}</td>
+        <td class="text-muted align-middle text-truncate" style="max-width: 130px;" data-sort="{{ r.name }}" title="{{ r.name }}">{{ r.name }}</td>
         <td class="text-end num-font align-middle cell-price" data-sort="{{ st.get('price') or '' }}">
             <div class="price-main">{{ num(st.get('price'), 2) ~ ' ' ~ r.cur if st.get('price') else '–' }}</div>
             <div class="price-move cell-move">–</div></td>
@@ -40,6 +41,9 @@
             <a href="/ticker/{{ r.ticker }}#valoracion" class="text-decoration-none fw-bold {{ 'cagr-' ~ band if band else 'text-muted' }}" aria-label="Valoración de {{ r.ticker }}">{{ num(r.cagr, 1) ~ '%' if band else '–' }}</a>
             {%- if r.cagr_anchor %} <i class="bi bi-pencil-fill text-primary" style="font-size: .6rem;" title="{{ r.cagr_anchor.year }} corregido a mano: {{ num(r.cagr_anchor.value, 2) }} (automático {{ num(r.cagr_anchor.auto, 2) }}){% if r.cagr_anchor.cagr_auto is not none %} · sin corrección: {{ num(r.cagr_anchor.cagr_auto, 1) }}%{% endif %}"></i>{% endif %}
             {%- if r.cagr_flag %} <i class="bi {{ 'bi-exclamation-triangle text-warning' if r.cagr_flag[0] == 'legacy' else 'bi-clock-history text-danger' }}" style="font-size: .65rem;" title="{{ r.cagr_flag[1] }}"></i>{% endif %}</td>
+        {% set c90 = ((r.rev or {}).get('chg') or {}).get('90d') %}
+        <td class="text-end num-font align-middle {{ 'text-danger fw-bold' if r.rev_cut else 'text-success' if c90 is not none and c90 >= 1 else 'text-muted' }}" data-sort="{{ c90 if c90 is not none else '' }}"
+            title="{% if r.rev %}BPA esperado ({{ {'+1y': 'año que viene', '0y': 'este año'}[r.rev.period] }}): {{ num(r.rev.current, 2) }} · 30 días {{ num(r.rev.chg.get('30d'), 1, sign=True) if r.rev.chg.get('30d') is not none else '–' }} %{% if r.rev.up_30 is not none %} · en 30 días lo suben {{ r.rev.up_30 }} y lo bajan {{ r.rev.down_30 or 0 }} analistas{% endif %}{% else %}Sin previsiones de analistas{% endif %}">{{ num(c90, 1, sign=True) ~ '%' if c90 is not none else '–' }}</td>
         <td class="num-font align-middle" data-sort="{{ r.next.days if r.next and r.next.days is not none and r.next.days >= 0 else '' }}">{% if r.next %}<span title="{{ r.next.event }}">{{ r.next.date[8:10] }}/{{ r.next.date[5:7] }}/{{ r.next.date[2:4] }}</span>{% if r.next.days is not none and r.next.days >= 0 %} <span class="{{ 'text-warning fw-bold' if r.next.days <= 7 else 'text-muted' }}" style="font-size: .72rem;">({{ r.next.days }} d)</span>{% endif %}{% else %}<span class="text-muted">–</span>{% endif %}</td>
         <td class="align-middle pe-4" data-sort="{{ r.thesis_verdict or '' }}">{% if r.thesis_id %}<a href="/tesis/{{ r.thesis_id }}" class="text-decoration-none pt-verdict pt-vd-{{ (r.thesis_verdict or 'INTACTA')|lower }}" title="Abrir la tesis de {{ clean_ticker(r.ticker) }}">{{ r.thesis_verdict or 'TESIS' }}</a>{% else %}<span class="text-muted">–</span>{% endif %}</td>
     </tr>

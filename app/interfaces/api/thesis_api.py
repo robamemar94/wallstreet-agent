@@ -272,7 +272,7 @@ class NewsSeen(BaseModel):
 
 @router.get("/theses/news/unread-count")
 def news_unread_count(repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository)):
-    return {**repo.unread_news_count(), "radar_running": thesis_news_runner.is_running()}
+    return {**repo.unread_news_count(), **thesis_news_runner.status()}
 
 
 @router.get("/theses/news/all")

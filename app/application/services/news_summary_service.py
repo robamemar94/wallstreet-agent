@@ -1,8 +1,8 @@
 """Resumen semanal conjunto de las noticias de todas las tesis.
 
 No vuelve a buscar en internet: resume lo que el radar de cada tesis ya encontró (noticias de la semana del radar,
-desde el lunes, y el resumen de cada radar). Una sola llamada a Gemini, sin búsqueda. Solo se genera al terminar la pasada semanal
-del radar de los lunes (y si el último es de una semana anterior: el radar de una tesis nueva a mitad de semana no lo lanza),
+desde el sábado, y el resumen de cada radar). Una sola llamada a Gemini, sin búsqueda. Solo se genera al terminar la pasada semanal
+del radar de los sábados (y si el último es de una semana anterior: el radar de una tesis nueva a mitad de semana no lo lanza),
 o a mano con «Regenerar».
 """
 import logging
@@ -42,7 +42,7 @@ def is_running() -> bool:
 
 def due_after_radar(summary: Optional[Dict[str, Any]], now: Optional[datetime] = None) -> bool:
     """¿Toca resumen al terminar una pasada del radar? Solo si no hay o el último es de una semana anterior
-    (la del radar, desde el lunes): el radar de una tesis nueva a mitad de semana no lo repite."""
+    (la del radar, desde el sábado): el radar de una tesis nueva a mitad de semana no lo repite."""
     from app.application.services.thesis_ai_service import radar_week_start
     if not summary or not summary.get("created_at"):
         return True
@@ -50,13 +50,13 @@ def due_after_radar(summary: Optional[Dict[str, Any]], now: Optional[datetime] =
 
 
 def week_of(found_at: str) -> str:
-    """Semana del radar a la que pertenece una noticia: la fecha (ISO) del lunes de la pasada que la encontró."""
+    """Semana del radar a la que pertenece una noticia: la fecha (ISO) del sábado de la pasada que la encontró."""
     from app.application.services.thesis_ai_service import radar_week_start
     return radar_week_start(datetime.fromisoformat(found_at)).date().isoformat()
 
 
 def _window_news(repo, now: datetime) -> List[Dict[str, Any]]:
-    """Noticias de esta semana del radar (desde el lunes): las de semanas anteriores ya salieron en su resumen."""
+    """Noticias de esta semana del radar (desde el sábado): las de semanas anteriores ya salieron en su resumen."""
     from app.application.services.thesis_ai_service import radar_week_start
     since = radar_week_start(now).isoformat(timespec="seconds")
     return [n for n in repo.list_news(limit=200) if (n.get("found_at") or "") >= since][:MAX_NEWS]
@@ -71,7 +71,7 @@ def build_prompt(news: List[Dict[str, Any]], radars: List[Dict[str, Any]], today
 Resume en español, de forma breve y útil para decidir, lo que ha pasado esta semana con las empresas de la cartera.
 Usa SOLO la información de abajo (no inventes ni busques nada más).
 
-NOTICIAS RELEVANTES ENCONTRADAS POR EL RADAR SEMANAL{' DEL LUNES ' + week if week else ''} (cubre la semana anterior):
+NOTICIAS RELEVANTES ENCONTRADAS POR EL RADAR SEMANAL{' DEL SÁBADO ' + week if week else ''} (cubre la semana hábil que acaba de cerrar):
 {news_lines}
 
 RESUMEN DEL ÚLTIMO RADAR DE CADA TESIS:

@@ -4,11 +4,11 @@ from app.application.services import news_summary_service as ns
 
 
 def test_summary_only_after_the_weekly_radar_not_for_new_news_or_theses():
-    now = datetime(2026, 10, 5, 8, 0)                                        # lunes, pasada semanal
+    now = datetime(2026, 10, 10, 9, 0)                                       # sábado, pasada semanal
     assert ns.due_after_radar(None, now)                                     # no hay ninguno
-    assert ns.due_after_radar({"created_at": "2026-09-29T16:00:00"}, now)     # el de la semana pasada
-    wed = datetime(2026, 10, 7, 12, 0)
-    assert not ns.due_after_radar({"created_at": "2026-10-05T08:10:00"}, wed)  # radar de una tesis nueva a mitad de semana
+    assert ns.due_after_radar({"created_at": "2026-10-05T16:00:00"}, now)     # el de la semana pasada
+    wed = datetime(2026, 10, 14, 12, 0)
+    assert not ns.due_after_radar({"created_at": "2026-10-10T08:10:00"}, wed)  # radar de una tesis nueva a mitad de semana
 
 
 def test_prompt_only_uses_what_the_radar_found():
@@ -20,15 +20,17 @@ def test_prompt_only_uses_what_the_radar_found():
 
 def test_news_grouped_by_radar_week():
     from app.interfaces.views.thesis_views import news_weeks
-    assert ns.week_of("2026-10-05T10:02:43") == "2026-10-05"     # pasada del lunes
-    assert ns.week_of("2026-10-03T11:00:00") == "2026-09-28"     # forzado el sábado: semana del radar anterior
-    assert ns.week_of("2026-10-05T06:30:00") == "2026-09-28"     # antes de las 7:00 del lunes
-    items = [{"found_at": "2026-10-05T10:02:43"}, {"found_at": "2026-10-02T15:06:20"}, {"found_at": "2026-09-28T12:35:06"},
-             {"found_at": "2026-08-24T10:00:00"}, {"found_at": "2026-08-31T10:00:00"}]
-    weeks = news_weeks(items, datetime(2026, 10, 5, 12, 0))
-    assert [w["monday"].isoformat() for w in weeks] == ["2026-10-05", "2026-09-28", "2026-08-31", "2026-08-24"]
+    assert ns.week_of("2026-10-10T10:02:43") == "2026-10-10"     # pasada del sábado
+    assert ns.week_of("2026-10-08T11:00:00") == "2026-10-03"     # forzado el jueves: semana del radar anterior
+    assert ns.week_of("2026-10-10T07:30:00") == "2026-10-03"     # antes de las 8:00 del sábado
+    assert ns.week_of("2026-10-13T07:00:00") == "2026-10-10"     # las pasadas de los lunes (antes del cambio): su sábado
+    items = [{"found_at": "2026-10-10T10:02:43"}, {"found_at": "2026-10-07T15:06:20"}, {"found_at": "2026-10-03T12:35:06"},
+             {"found_at": "2026-08-29T10:00:00"}, {"found_at": "2026-09-05T10:00:00"}]
+    weeks = news_weeks(items, datetime(2026, 10, 10, 12, 0))
+    assert [w["start"].isoformat() for w in weeks] == ["2026-10-10", "2026-10-03", "2026-09-05", "2026-08-29"]
     assert weeks[0]["current"] and not weeks[1]["current"] and len(weeks[1]["news"]) == 2
-    old = news_weeks(items + [{"found_at": "2026-08-17T10:00:00"}], datetime(2026, 10, 5, 12, 0))
+    assert [d.isoformat() for d in weeks[0]["days"]] == ["2026-10-05", "2026-10-09"]   # repasa de lunes a viernes
+    old = news_weeks(items + [{"found_at": "2026-08-22T10:00:00"}], datetime(2026, 10, 10, 12, 0))
     assert [w["folded"] for w in old] == [False, False, False, False, True]
 
 
@@ -49,18 +51,19 @@ def test_summary_waits_until_no_thesis_is_pending(monkeypatch):
     started = []
     monkeypatch.setattr(nsmod, "generate_in_background", lambda: started.append(1))
 
-    def run(repo, t):
+    def fetch(t):
         if t["ticker"] == "AAA":
-            pending.discard("AAA")
-            return {"new_items": 0}
+            return {}, {"new_items": 0}
         raise RuntimeError("cuota")                       # BBB falla: no bloquea el resumen
-    monkeypatch.setattr(runner, "run_news_for_thesis", run)
+    monkeypatch.setattr(runner, "fetch_digest", fetch)
+    monkeypatch.setattr(runner, "save_digest", lambda repo, t, ev, d: pending.discard(t["ticker"]) or d)
     runner._run_due()
     assert started == [1]
+    assert runner.status()["radar_last"]["ran"] == 1 and runner.status()["radar_last"]["failed"] == ["BBB"]
 
     # CCC sigue pendiente sin haber fallado aquí (la está haciendo otra pasada): el resumen espera
     pending.update({"AAA", "CCC"})
-    monkeypatch.setattr(runner, "run_news_for_thesis", lambda repo, t: pending.discard("AAA") or {"new_items": 0})
+    monkeypatch.setattr(runner, "fetch_digest", lambda t: ({}, {"new_items": 0}))
     theses[:] = [{"ticker": "AAA", "extra": {}}]
     monkeypatch.setattr(Repo, "list_theses", lambda self: theses if "AAA" in pending else theses + [{"ticker": "CCC", "extra": {}}])
     runner._run_due()

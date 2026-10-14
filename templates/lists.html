@@ -12,12 +12,13 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             <h4 class="fw-bold text-white mb-0">
-                <i class="bi bi-list-stars text-warning me-2"></i> Mis Listas Personalizadas
-                <i class="bi bi-info-circle text-muted fs-6 fw-normal" title="Organiza tus empresas bajo seguimiento en grupos, temas o tesis de inversión."></i>
+                <i class="bi bi-collection text-warning me-2"></i> Listas
+                <span class="small fw-normal text-muted ms-2">grupos de empresas parecidas · tú eliges cuáles sigues en la watchlist</span>
+                <i class="bi bi-info-circle text-muted fs-6 fw-normal" title="Organiza tus empresas en grupos. Una lista no mete nada en la watchlist hasta que pulsas «Seguir en la watchlist»; el objetivo (posiciones y peso) es opcional."></i>
             </h4>
         </div>
         <button class="btn btn-warning btn-sm fw-bold d-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#createListModal">
-            <i class="bi bi-folder-plus"></i> Nueva Lista
+            <i class="bi bi-folder-plus"></i> Nueva lista
         </button>
     </div>
 
@@ -84,6 +85,39 @@
                      role="tabpanel" 
                      aria-labelledby="tab-btn-{{ list.id }}">
                      
+                     {# Barra de la lista: seguirla en la watchlist (apagado de serie), silenciar sus avisos, objetivo opcional
+                        (oculto hasta que se pulsa «+ Objetivo» o si ya tiene uno) y la mejor candidata para entrar. #}
+                     {% set tg = list.target %}
+                     <div class="theme-goal d-flex flex-wrap align-items-center gap-2 mb-3 px-3 py-2 rounded" data-list="{{ list.id }}">
+                         <button type="button" class="btn btn-sm btn-link p-0 {{ 'text-success' if list.watch else 'text-muted' }}" onclick="watchTheme({{ list.id }}, {{ 'false' if list.watch else 'true' }})"
+                                 aria-label="{{ 'Dejar de seguir en la watchlist' if list.watch else 'Seguir en la watchlist' }}"
+                                 title="{{ 'En la watchlist: sus empresas están en ella (y en sus avisos). Pulsa para dejar de seguirla' if list.watch else 'No está en la watchlist. Pulsa para seguir sus empresas en ella' }}">
+                             <i class="bi {{ 'bi-eye-fill' if list.watch else 'bi-eye-slash' }}"></i></button>
+                         <button type="button" class="btn btn-sm btn-link p-0 {{ 'text-warning' if list.muted else 'text-muted' }}" onclick="muteTheme({{ list.id }}, {{ 'false' if list.muted else 'true' }})"
+                                 title="{{ 'Silenciada: sus empresas no generan avisos (salvo las Tier 1, de cartera, añadidas a mano o de otra lista sin silenciar). Pulsa para activarla' if list.muted else 'Silenciar los avisos de esta lista (p. ej. una cartera ajena que solo quieres mirar)' }}">
+                             <i class="bi {{ 'bi-bell-slash-fill' if list.muted else 'bi-bell' }}"></i></button>
+                         <span class="tg-form small align-items-center gap-1 {{ 'd-flex' if tg else 'd-none' }}">
+                             <i class="bi bi-bullseye text-muted ms-2"></i> quiero
+                             <input type="number" min="0" max="50" class="form-control form-control-sm d-inline-block tg-n" style="width: 4.2rem;" value="{{ tg.n or '' }}" placeholder="–" aria-label="Posiciones">
+                             posiciones, en torno al
+                             <input type="number" min="0" max="100" step="0.5" class="form-control form-control-sm d-inline-block tg-w" style="width: 4.6rem;" value="{{ tg.weight or '' }}" placeholder="–" aria-label="Peso %">
+                             % de la cartera
+                             <button type="button" class="btn btn-sm btn-outline-primary py-0 ms-1" onclick="saveThemeTarget({{ list.id }}, this)">Guardar</button>
+                         </span>
+                         {% if tg %}
+                         <span class="small">Llevas <b>{{ list.held_n }}{% if tg.n %} de {{ tg.n }}{% endif %}</b>{% if tg.weight %} · <b>{{ num(list.weight, 1) }} %</b> de {{ num(tg.weight, 1) }} %{% endif %}</span>
+                         {% if tg.n %}<div class="progress flex-grow-1" style="height: 6px; max-width: 160px;" title="Posiciones de la lista que tienes"><div class="progress-bar bg-success" style="width: {{ [100 * list.held_n / tg.n, 100]|min }}%"></div></div>{% endif %}
+                         {% else %}
+                         <button type="button" class="btn btn-sm btn-link text-muted text-decoration-none py-0 tg-add" onclick="this.classList.add('d-none'); const f = this.parentElement.querySelector('.tg-form'); f.classList.replace('d-none', 'd-flex'); f.querySelector('.tg-n').focus();"
+                                 title="Opcional: cuántas posiciones y qué peso quieres en esta lista, para ver tu progreso"><i class="bi bi-plus-lg me-1"></i>Objetivo</button>
+                         {% endif %}
+                         {% if list.best %}{% set b = list.best %}
+                         <span class="ms-auto small" title="De las que no tienes y tienen valoración: la más cerca (o dentro) de su precio de compra y, a igualdad, la de más CAGR estimado">
+                             <i class="bi bi-trophy-fill text-warning me-1"></i>Mejor para entrar: <a href="/ticker/{{ b.ticker }}" class="fw-bold text-decoration-none">{{ b.ticker }}</a>
+                             · {% if b.drop_pct <= 0 %}<b class="text-success">en zona de compra</b>{% else %}falta caer <b>{{ num(b.drop_pct, 1) }} %</b>{% endif %}
+                             {% if b.cagr is not none %}· CAGR {{ num(b.cagr, 1) }} %{% endif %}</span>
+                         {% endif %}
+                     </div>
                      <!-- TABLA DE LA LISTA -->
                      <div class="table-responsive" data-fit="200" style="border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
                          <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.8rem;">
@@ -107,6 +141,12 @@
                                      <th class="text-end py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'pct')" title="Variación de hoy en %" style="cursor: pointer;">
                                          Var. día % <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-pct" style="font-size: 0.68rem;"></i>
                                      </th>
+                                     <th class="text-end py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'cagr')" title="Rentabilidad anual estimada comprando hoy (valoración base de la ficha)" style="cursor: pointer;">
+                                         CAGR est. <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-cagr" style="font-size: 0.68rem;"></i>
+                                     </th>
+                                     <th class="text-end py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'drop')" title="Lo que tendría que caer el precio para llegar al de compra de la valoración base" style="cursor: pointer;">
+                                         Hasta compra <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-drop" style="font-size: 0.68rem;"></i>
+                                     </th>
                                      <th class="text-center py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'media')" title="Ordenar por Nota Media (Normas + Veredicto)" style="cursor: pointer;">
                                          Media <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-media" style="font-size: 0.68rem;"></i>
                                      </th>
@@ -123,13 +163,17 @@
                                      data-price="{{ asset.price }}"
                                      data-pct="{{ asset.pct }}"
                                      data-chg="{{ asset.change_abs }}"
-                                     data-media="{{ asset.media if asset.media is not none else -1 }}">
+                                     data-media="{{ asset.media if asset.media is not none else -1 }}"
+                                     data-cagr="{{ asset.cagr if asset.cagr is not none else -999 }}"
+                                     data-drop="{{ asset.drop_pct if asset.drop_pct is not none else 999 }}">
                                      <!-- Ticker -->
                                      <td class="ps-3 py-1" onclick="window.location='/ticker/{{ asset.ticker }}'" style="cursor: pointer;">
                                          <span class="fw-bold text-white" style="font-size: .85rem;">{{ asset.ticker }}</span>
-                                         {% if asset.is_favorite %}
-                                         <i class="bi bi-star-fill text-warning ms-1" style="font-size: 0.65rem;" title="Favorito"></i>
-                                         {% endif %}
+                                         {% if asset.tier == 'cartera' %}<span class="badge text-bg-secondary ms-1" title="En cartera{{ (' · ' ~ num(asset.weight, 1) ~ ' %') if asset.weight }}">cartera</span>
+                                         {% elif asset.tier == '1' %}<span class="badge text-bg-success ms-1" title="Tier 1 · objetivo">T1</span>
+                                         {% elif asset.tier == '2' %}<span class="badge text-bg-info ms-1" title="Tier 2 · vigilancia">T2</span>
+                                         {% elif asset.tier == 'seg' %}<span class="badge text-bg-light border ms-1" title="Tier 3">T3</span>{% endif %}
+                                         {% if list.best and list.best.ticker == asset.ticker %}<i class="bi bi-trophy-fill text-warning ms-1" style="font-size: .7rem;" title="Mejor para entrar"></i>{% endif %}
                                      </td>
                                      <!-- Empresa -->
                                      <td class="py-1" onclick="window.location='/ticker/{{ asset.ticker }}'" style="cursor: pointer;">
@@ -148,6 +192,9 @@
                                          {% if asset.change_abs > 0 %}+{% endif %}{{ num(asset.change_abs, 2) }}{{ asset.symbol }}
                                      </td>
                                      <td class="text-end py-1 align-middle">{{ chg_pill(asset.pct) }}</td>
+                                     <td class="text-end py-1 align-middle num-font fw-bold">{{ (num(asset.cagr, 1) ~ ' %') if asset.cagr is not none else '–' }}</td>
+                                     <td class="text-end py-1 align-middle num-font {{ 'text-success fw-bold' if asset.drop_pct is not none and asset.drop_pct <= 0 else ('text-warning' if asset.drop_pct is not none and asset.drop_pct <= 15 else 'text-muted') }}">
+                                         {% if asset.drop_pct is none %}–{% elif asset.drop_pct <= 0 %}en zona{% else %}−{{ num(asset.drop_pct, 1) }} %{% endif %}</td>
                                      <!-- Nota Media -->
                                      {% if asset.media is not none %}
                                      <td class="text-center py-1 align-middle fw-bold num-font {% if asset.media >= 8.0 %}text-success{% elif asset.media <= 5.0 %}text-danger{% else %}text-warning{% endif %}">
@@ -166,7 +213,7 @@
                                  {% endfor %}
                                  {% if not list.assets %}
                                  <tr>
-                                     <td colspan="8" class="text-center py-5 text-muted">
+                                     <td colspan="10" class="text-center py-5 text-muted">
                                          <i class="bi bi-folder-symlink fs-3 d-block mb-2 text-secondary"></i>
                                          Esta lista está vacía. Añade tickers usando el buscador de arriba.
                                      </td>
@@ -186,7 +233,7 @@
             <div class="card border-0 py-5" style="background-color: var(--fin-card-bg); border-radius: 12px;">
                 <div class="card-body">
                     <i class="bi bi-list-stars text-muted" style="font-size: 3.5rem;"></i>
-                    <h5 class="fw-bold text-white mt-3 mb-2">No tienes listas personalizadas</h5>
+                    <h5 class="fw-bold text-white mt-3 mb-2">Aún no tienes listas</h5>
                     <p class="text-muted small mb-4">Empieza creando una lista para clasificar tus acciones o sectores favoritos.</p>
                     <button class="btn btn-warning fw-bold px-4" data-bs-toggle="modal" data-bs-target="#createListModal">
                         <i class="bi bi-folder-plus me-1"></i> Crear mi Primera Lista
@@ -204,7 +251,7 @@
         <div class="modal-content border-0 text-white" style="background-color: var(--fin-card-bg); border-radius: 12px;">
             <div class="modal-header border-bottom border-secondary pb-2">
                 <h5 class="modal-title fw-bold" id="createListModalLabel">
-                    <i class="bi bi-folder-plus text-warning me-2"></i> Crear Nueva Lista
+                    <i class="bi bi-folder-plus text-warning me-2"></i> Crear nueva lista
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -277,6 +324,7 @@
     }
     
     /* Estilos personalizados para que las pestañas encajen perfectamente en el diseño global */
+    .theme-goal { background: var(--bs-secondary-bg); }
     .nav-tabs .nav-link {
         border: 1px solid transparent;
         color: rgba(255, 255, 255, 0.5) !important;
@@ -669,5 +717,25 @@ document.querySelectorAll('#customListsTabs [data-bs-toggle="tab"]').forEach(btn
     const id = btn.id.replace('tab-btn-', '');
     document.querySelectorAll('.list-actions').forEach(a => a.classList.toggle('d-none', a.dataset.list !== id));
 }));
+
+// Seguir (o no) una lista en la watchlist: sus empresas entran en ella y en sus avisos
+async function watchTheme(listId, watch) {
+    const r = await fetch(`/api/lists/${listId}/watchlist`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({watch})}).catch(() => null);
+    if (r && r.ok) location.reload(); else alert('No se pudo cambiar');
+}
+// Silenciar (o no) los avisos de una lista
+async function muteTheme(listId, muted) {
+    const r = await fetch(`/api/lists/${listId}/silencio`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({muted})}).catch(() => null);
+    if (r && r.ok) location.reload(); else alert('No se pudo cambiar el silencio de la lista');
+}
+// Objetivo (opcional) de una lista: cuántas posiciones y qué peso (vacío = sin objetivo)
+async function saveThemeTarget(listId, btn) {
+    const box = btn.closest('.theme-goal');
+    const n = box.querySelector('.tg-n').value, w = box.querySelector('.tg-w').value;
+    btn.disabled = true;
+    const r = await fetch(`/api/lists/${listId}/objetivo`, {method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({n: n ? parseInt(n) : null, weight: w ? parseFloat(w.replace(',', '.')) : null})}).catch(() => null);
+    if (r && r.ok) location.reload(); else { btn.disabled = false; alert('No se pudo guardar el objetivo'); }
+}
 </script>
 {% endblock %}

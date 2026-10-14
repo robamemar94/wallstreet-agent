@@ -13,6 +13,7 @@ from app.application.services import base_valuation_service
 logger = logging.getLogger(__name__)
 
 DROP_STEP = 10          # un episodio se abre al caer un 10 % desde el máximo de 52 semanas y avisa de nuevo cada 10 %
+TIER3_DROP_PCT = 20      # el Tier 3 (fuera de la watchlist): solo las caídas importantes, desde un 20 %
 RECOVERY_PCT = 5        # se cierra al volver a menos de un 5 % del máximo (no al primer rebote)
 HIGH_WINDOW_DAYS = 365
 AUTO_CLEAN_DAYS = 180   # las alertas se borran solas a los ~6 meses (las caídas abiertas nunca: siguen activas)
@@ -89,11 +90,12 @@ def save_alerts_data(db: Session, data: dict):
 
 
 def eligible_tickers(db: Session, asset_repo: SqlAlchemyAssetRepository) -> Set[str]:
-    """Empresas que se vigilan: la watchlist (a mano y favoritas) y la cartera."""
+    """Empresas que se vigilan: la cartera, la watchlist (a mano, Tier 1 y listas que sigues) y el resto del Tier 2 y 3."""
     from app.infrastructure.db.models import DBPortfolioItem, DBWatchlistItem
     held = {p.ticker for p in db.query(DBPortfolioItem).all() if (p.shares or 0) > 0}
     manual = {w.ticker for w in db.query(DBWatchlistItem).all()}
-    return held | manual | set(asset_repo.get_watch_candidates())
+    from app.application.services.tier_service import followed_outside_watchlist, muted_tickers
+    return (held | manual | set(asset_repo.get_watch_candidates()) | set(followed_outside_watchlist(db))) - muted_tickers(db)   # sin las silenciadas
 
 
 def _drop_entry(t: str, name: str, ep: Dict[str, Any]) -> Dict[str, Any]:
@@ -115,7 +117,10 @@ def run_alerts_scan(
     """
     from app.application.services import price_monitor_service as pm
 
-    eligible = eligible_tickers(db_session, asset_repo) | set(watch_tickers or ())
+    from app.application.services.tier_service import followed_outside_watchlist, muted_tickers
+    eligible = (eligible_tickers(db_session, asset_repo) | set(watch_tickers or ())) - muted_tickers(db_session)
+    # el Tier 3 que no está en la watchlist: caídas solo desde el 20 %
+    tier3 = {t for t, tier in followed_outside_watchlist(db_session).items() if tier == "seg" and t not in (watch_tickers or ())}
     prices = {t: float(p) for t, p in ticker_prices.items() if p and t in eligible}
     alerts_data = get_alerts_data(db_session)
     # last_statuses era la zona por PER justo; las zonas por valoración base van en last_zones
@@ -190,7 +195,7 @@ def run_alerts_scan(
             closed[t] = {**ep, "closed_date": today_str}
             del drops[t]
             continue   # la recuperación queda en el historial, pero no cuenta como alerta nueva
-        if not ep and drop < DROP_STEP:
+        if not ep and drop < (TIER3_DROP_PCT if t in tier3 else DROP_STEP):
             continue
 
         bench_pct = None

@@ -1,0 +1,297 @@
+{# Pestaña «Informes» de la Cartera (la pide portfolio.html a /portfolio/informes): a la izquierda el archivo (semanal,
+   mensual, trimestral, anual) y a la derecha el informe, en formato panel y sin scroll de página (los recuadros con
+   listas tienen el suyo). Con only_report, solo el panel (/portfolio/informes/{key}). Los informes son fotos fijas de
+   cada periodo, sin IA; el comentario de IA (mensual, trimestral y anual) solo al pulsar el botón. El JS está en
+   portfolio.html (los <script> de un fragmento cargado con innerHTML no se ejecutan). #}
+{% macro eur(v, sign=False) %}{% if v is none %}–{% else %}{{ num(v, 0, sign=sign) }} €{% endif %}{% endmacro %}
+{% macro pct(v) %}{% if v is none %}<span class="text-muted">–</span>{% else %}<span class="{{ 'text-success' if v >= 0 else 'text-danger' }}">{{ num(v, 2, sign=True) }} %</span>{% endif %}{% endmacro %}
+{% macro dmy(d) %}{{ d[8:10] }}/{{ d[5:7] }}{% endmacro %}
+
+{% macro ai_list(title, items, icon='bi-dot') %}{% if items %}<div class="rep-label mt-2"><i class="bi {{ icon }} me-1"></i>{{ title }}</div><ul class="mb-0 ps-3">{% for x in items %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}{% endmacro %}
+{% macro ai_big(r) %}{% set a = r.ai %}
+<div class="card border-0 shadow-sm rep-ai"><div class="card-body py-2 px-3 small" data-fit="160">
+    <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="fw-bold"><i class="bi bi-stars me-1 text-info"></i>{{ 'Revisión trimestral' if r.kind == 'Q' else 'Carta anual' }}</span>
+        {% if a %}<span class="text-muted">· {{ a.created_at[8:10] }}/{{ a.created_at[5:7] }}/{{ a.created_at[:4] }}{% if a.model %} · {{ a.model }}{% endif %}</span>{% endif %}
+        <button type="button" class="btn btn-sm {{ 'btn-outline-secondary' if a else 'btn-info' }} ms-auto py-0" data-report-ai="{{ r.key }}"
+                title="Una llamada a Gemini Pro, sin búsqueda, con los datos de la app: la cartera, tus tesis y sus revisiones de resultados y tus decisiones (unos céntimos; el coste sale en Ajustes › IA)">
+            <i class="bi bi-stars me-1"></i>{{ 'Volver a generar' if a else ('Generar la revisión' if r.kind == 'Q' else 'Escribir la carta') }}</button>
+    </div>
+    {% if not a %}
+    <div class="text-muted">{% if r.kind == 'Q' %}Una revisión de la cartera entera tras la temporada de resultados: qué explicó el trimestre, cómo quedan tus tesis (semáforo), la cartera frente a tus roles, tus decisiones y qué revisar el próximo trimestre.
+    {% else %}La carta del año a ti mismo: el balance, tus mejores y peores decisiones y por qué, las lecciones que salen de tus datos, cómo han evolucionado tus tesis y qué enfoque dar al año siguiente.{% endif %}
+    Con el modelo Pro: se escribe sola al cerrarse el periodo; en los informes reconstruidos hacia atrás, al pulsar.</div>
+    {% else %}
+    <div class="fw-semibold fs-6 mb-1">{{ a.headline }}</div>
+    {% if r.kind == 'Q' %}
+    <div class="row g-3">
+        <div class="col-md-6">
+            {{ ai_list('Qué explicó el trimestre', a.attribution, 'bi-bar-chart') }}
+            {{ ai_list('La cartera en conjunto', a.portfolio, 'bi-pie-chart') }}
+            {{ ai_list('Tus decisiones', a.decisions, 'bi-clipboard-data') }}
+        </div>
+        <div class="col-md-6">
+            {% if a.theses %}<div class="rep-label mt-2"><i class="bi bi-journal-text me-1"></i>Tus tesis tras los resultados</div>
+            {% for t in a.theses %}<div class="d-flex gap-2 mb-1"><span class="badge {{ {'verde': 'text-bg-success', 'ámbar': 'text-bg-warning', 'rojo': 'text-bg-danger'}.get(t.status, 'text-bg-secondary') }}" style="min-width: 3.2rem;">{{ t.ticker }}</span><span>{{ t.note }}</span></div>{% endfor %}{% endif %}
+            {{ ai_list('Qué revisar el próximo trimestre', a.review, 'bi-search') }}
+        </div>
+    </div>
+    {% else %}
+    {% if a.summary %}<p class="mb-2">{{ a.summary }}</p>{% endif %}
+    <div class="row g-3">
+        <div class="col-md-6">
+            {% if a.best %}<div class="rep-label"><i class="bi bi-hand-thumbs-up me-1 text-success"></i>Tus mejores decisiones</div>{% for x in a.best %}<div><b class="text-success">{{ x.ticker }}</b> {{ x.why }}</div>{% endfor %}{% endif %}
+            {% if a.worst %}<div class="rep-label mt-2"><i class="bi bi-hand-thumbs-down me-1 text-danger"></i>Tus peores decisiones</div>{% for x in a.worst %}<div><b class="text-danger">{{ x.ticker }}</b> {{ x.why }}</div>{% endfor %}{% endif %}
+            {{ ai_list('Lecciones', a.lessons, 'bi-mortarboard') }}
+        </div>
+        <div class="col-md-6">
+            {{ ai_list('Tus tesis durante el año', a.theses, 'bi-journal-text') }}
+            {{ ai_list('Tus objetivos del año, ¿se cumplieron?', a.goals_check, 'bi-flag') }}
+            {{ ai_list('Para el año que viene', a.next_year, 'bi-signpost') }}
+        </div>
+    </div>
+    {% endif %}
+    {% endif %}
+    {% if r.kind == 'Y' %}
+    <div class="rep-label mt-3"><i class="bi bi-flag me-1"></i>Tus objetivos para {{ (r.start[:4]|int) + 1 }}</div>
+    <div class="text-muted mb-1">Escríbelos aquí: la carta del año que viene los comparará con lo que pase.</div>
+    <textarea class="form-control form-control-sm" rows="3" maxlength="2000" id="repGoals" data-key="{{ r.key }}" placeholder="Ej.: no pasar del 10 % en ninguna empresa; anotar el porqué de cada compra; añadir dos empresas defensivas…">{{ r.goals or '' }}</textarea>
+    <button type="button" class="btn btn-sm btn-outline-primary mt-1" data-report-goals="{{ r.key }}">Guardar objetivos</button>
+    {% endif %}
+</div></div>
+{% endmacro %}
+
+{% macro panel(r) %}
+{% if not r %}
+<div class="p-4 text-muted small">Aún no hay informes. Se generan solos al cerrar cada semana, mes, trimestre y año (y, la primera vez, hacia atrás desde el inicio de tu cartera).</div>
+{% else %}
+{% set p = r.performance or {} %}{% set f = r.flows or {} %}{% set dv = r.dividends or {} %}
+<div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+    <h6 class="fw-bold mb-0">{{ r.label }}</h6>
+    <span class="badge text-bg-secondary">{{ kinds[r.kind] }}</span>
+    <span class="small text-muted">{{ dmy(r.start) }}/{{ r.start[:4] }} – {{ dmy(r.end) }}/{{ r.end[:4] }}</span>
+    {% if r.reconstructed %}<span class="badge bg-secondary bg-opacity-25 text-secondary-emphasis border" title="Generado después: la rentabilidad, las operaciones y los dividendos se han recalculado; lo que no se guardó en su día (p. ej. la agenda de entonces) no está">reconstruido</span>{% endif %}
+    {% if p.incomplete %}<span class="small text-warning" title="Sin precio al inicio del periodo: quedan fuera del cálculo">sin precio: {{ p.incomplete|join(', ') }}</span>{% endif %}
+</div>
+
+{% if r.kind in ('Q', 'Y') %}
+{# trimestral y anual: el informe y, en su subpestaña, la revisión o la carta de IA #}
+<ul class="nav nav-tabs rep-subtabs mb-2" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#rep-numbers" type="button" role="tab" id="rep-numbers-tab"><i class="bi bi-bar-chart me-1"></i>Informe</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rep-ai" type="button" role="tab" id="rep-ai-tab">
+        <i class="bi bi-stars me-1 text-info"></i>{{ 'Revisión trimestral' if r.kind == 'Q' else 'Carta anual' }}{% if not r.ai %} <span class="badge text-bg-info ms-1">IA</span>{% endif %}</button></li>
+</ul>
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="rep-numbers" role="tabpanel">
+{# 1) las cifras #}
+<div class="rep-tiles mb-3">
+    <div class="rep-tile {{ 'good' if (p.vs_bench or 0) > 0 else 'bad' if p.vs_bench is not none and p.vs_bench < 0 }}" title="Rentabilidad del periodo (Modified Dietz: las compras y ventas son aportaciones, no ganancias) frente al {{ r.benchmark }} en euros">
+        <div class="q">Rentabilidad</div><div class="a">{{ pct(p.pct) }}</div>
+        <div class="d">{{ r.benchmark }} {{ pct(p.bench_pct) }}{% if p.vs_bench is not none %} · <b>{{ num(p.vs_bench, 1, sign=True) }} pp</b>{% endif %}</div></div>
+    <div class="rep-tile"><div class="q">Resultado</div><div class="a {{ 'text-success' if (p.pnl_eur or 0) >= 0 else 'text-danger' }}">{{ eur(p.pnl_eur, True) }}</div>
+        <div class="d">{% if p.fx_eur is defined and p.fx_eur is not none and p.pnl_eur is not none %}<span title="Empresas: lo que hicieron en su moneda. Divisa: lo que movió el cambio a euros. Sin contar lo que metiste o sacaste">empresas {{ eur(p.pnl_eur - p.fx_eur, True) }} · divisa {{ eur(p.fx_eur, True) }}</span>{% else %}sin contar lo que metiste o sacaste{% endif %}</div></div>
+    <div class="rep-tile"><div class="q">Valor de la cartera</div><div class="a">{{ eur(p.value_end) }}</div>
+        <div class="d">al empezar {{ eur(p.value_start) }}</div></div>
+    <div class="rep-tile" title="Compras {{ eur(f.buys) }} · ventas {{ eur(f.sells) }}"><div class="q">Aportaciones netas</div><div class="a">{{ eur(f.net, True) }}</div>
+        <div class="d">compras {{ eur(f.buys) }}{% if f.sells %} · ventas {{ eur(f.sells) }}{% endif %}</div></div>
+    <div class="rep-tile"><div class="q">Dividendos</div><div class="a">{{ eur(dv.total) }}</div>
+        <div class="d">{{ dv['items']|length }} cobro{{ 's' if dv['items']|length != 1 }}</div></div>
+</div>
+
+{# 3) el detalle, en tres columnas #}
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small">
+            <div class="rep-label"><i class="bi bi-bar-chart me-1"></i>Lo que más sumó y restó</div>
+            <div data-fit="80">
+            {% for b in p.best or [] %}<div class="d-flex justify-content-between"><span><a href="/ticker/{{ b.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(b.ticker) }}</a></span><span class="text-success num-font">{{ eur(b.pnl_eur, True) }}</span></div>{% endfor %}
+            {% if p.best and p.worst %}<hr class="my-1">{% endif %}
+            {% for b in p.worst or [] %}<div class="d-flex justify-content-between"><span><a href="/ticker/{{ b.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(b.ticker) }}</a></span><span class="text-danger num-font">{{ eur(b.pnl_eur, True) }}</span></div>{% endfor %}
+            {% if r.months %}
+            <div class="rep-label mt-2">Mes a mes</div>
+            {% for m in r.months %}<div class="d-flex justify-content-between"><span>{{ m.label }}</span><span>{{ pct(m.pct) }} <span class="text-muted">· {{ r.benchmark }} {{ pct(m.bench_pct) }}</span></span></div>{% endfor %}
+            {% endif %}
+            {% if dv['items'] %}
+            <div class="rep-label mt-2">Dividendos cobrados</div>
+            {% for d in dv['items'] %}<div class="d-flex justify-content-between"><span>{{ clean_ticker(d.ticker) }} <span class="text-muted">{{ dmy(d.date) }}</span></span><span class="num-font">{{ num(d.eur, 2) }} €</span></div>{% endfor %}
+            {% endif %}
+            </div>
+        </div></div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small">
+            <div class="rep-label"><i class="bi bi-clipboard-data me-1"></i>Tus decisiones <span class="fw-normal text-lowercase">· {{ (r.decisions or [])|length }}</span></div>
+            <div data-fit="80">
+            {% for d in r.decisions or [] %}
+            <div class="py-1 {{ 'border-top' if not loop.first }}">
+                <span class="badge {{ 'text-bg-success' if d.type == 'BUY' else 'text-bg-danger' }} bg-opacity-75">{{ 'Compra' if d.type == 'BUY' else 'Venta' }}</span>
+                <a href="/ticker/{{ d.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(d.ticker) }}</a>
+                <span class="text-muted">{{ dmy(d.date) }} · {{ eur(d.amount_eur) }}{% if d.orders > 1 %} · {{ d.orders }} órdenes{% endif %}</span>
+                {% if d.note %}<div class="text-muted fst-italic">«{{ d.note }}»</div>{% endif %}
+            </div>
+            {% else %}<div class="text-muted">Sin compras ni ventas en el periodo.</div>{% endfor %}
+            </div>
+        </div></div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small">
+            <div data-fit="80">
+            <div class="rep-label"><i class="bi bi-journal-text me-1"></i>Tesis y noticias</div>
+            {% for e in r.theses or [] %}<div><span class="text-muted">{{ dmy(e.date) }}</span> <b>{{ clean_ticker(e.ticker) }}</b> {{ e.title }}</div>{% endfor %}
+            {% for n in r.news or [] %}<div class="text-truncate" title="{{ n.title }}"><span class="fw-bold {{ 'text-danger' if n.materiality >= 5 else 'text-warning' }}">{{ n.materiality }}/5</span>
+                <b>{{ clean_ticker(n.ticker) }}</b> {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" class="text-decoration-none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>{% endfor %}
+            {% if not r.theses and not r.news %}<div class="text-muted">Sin cambios en las tesis ni noticias muy relevantes.</div>{% endif %}
+            {% if r.watchlist or r.insiders %}
+            <div class="rep-label mt-2"><i class="bi bi-eye me-1"></i>Watchlist y directivos</div>
+            {% for w in r.watchlist %}<div><span class="badge text-bg-success">en zona</span> <a href="/ticker/{{ w.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(w.ticker) }}</a> <span class="text-muted">{{ dmy(w.date) }}</span></div>{% endfor %}
+            {% for i in r.insiders %}<div><i class="bi bi-person-badge text-success"></i> <b>{{ clean_ticker(i.ticker) }}</b>: compran {{ i.insiders }} directivo{{ 's' if i.insiders > 1 }} ({{ num(i.value / 1000, 0) }} mil)</div>{% endfor %}
+            {% endif %}
+            {% if r.agenda %}
+            <div class="rep-label mt-2"><i class="bi bi-calendar-event me-1"></i>Lo que viene</div>
+            {% for a in r.agenda %}<div><span class="text-muted">{{ dmy(a.date) }}</span> <b>{{ clean_ticker(a.ticker) }}</b> {{ a.what }}</div>{% endfor %}
+            {% endif %}
+            </div>
+        </div></div>
+    </div>
+</div>
+    </div>
+    <div class="tab-pane fade" id="rep-ai" role="tabpanel">{{ ai_big(r) }}</div>
+</div>
+{% else %}
+{# 1) las cifras #}
+<div class="rep-tiles mb-3">
+    <div class="rep-tile {{ 'good' if (p.vs_bench or 0) > 0 else 'bad' if p.vs_bench is not none and p.vs_bench < 0 }}" title="Rentabilidad del periodo (Modified Dietz: las compras y ventas son aportaciones, no ganancias) frente al {{ r.benchmark }} en euros">
+        <div class="q">Rentabilidad</div><div class="a">{{ pct(p.pct) }}</div>
+        <div class="d">{{ r.benchmark }} {{ pct(p.bench_pct) }}{% if p.vs_bench is not none %} · <b>{{ num(p.vs_bench, 1, sign=True) }} pp</b>{% endif %}</div></div>
+    <div class="rep-tile"><div class="q">Resultado</div><div class="a {{ 'text-success' if (p.pnl_eur or 0) >= 0 else 'text-danger' }}">{{ eur(p.pnl_eur, True) }}</div>
+        <div class="d">{% if p.fx_eur is defined and p.fx_eur is not none and p.pnl_eur is not none %}<span title="Empresas: lo que hicieron en su moneda. Divisa: lo que movió el cambio a euros. Sin contar lo que metiste o sacaste">empresas {{ eur(p.pnl_eur - p.fx_eur, True) }} · divisa {{ eur(p.fx_eur, True) }}</span>{% else %}sin contar lo que metiste o sacaste{% endif %}</div></div>
+    <div class="rep-tile"><div class="q">Valor de la cartera</div><div class="a">{{ eur(p.value_end) }}</div>
+        <div class="d">al empezar {{ eur(p.value_start) }}</div></div>
+    <div class="rep-tile" title="Compras {{ eur(f.buys) }} · ventas {{ eur(f.sells) }}"><div class="q">Aportaciones netas</div><div class="a">{{ eur(f.net, True) }}</div>
+        <div class="d">compras {{ eur(f.buys) }}{% if f.sells %} · ventas {{ eur(f.sells) }}{% endif %}</div></div>
+    <div class="rep-tile"><div class="q">Dividendos</div><div class="a">{{ eur(dv.total) }}</div>
+        <div class="d">{{ dv['items']|length }} cobro{{ 's' if dv['items']|length != 1 }}</div></div>
+</div>
+
+{# 2) el comentario de IA (mensual, trimestral y anual): destacado, y solo si se pide #}
+{% if r.kind == "M" %}
+<div class="card border-0 shadow-sm mb-3 rep-ai">
+    <div class="card-body py-2 px-3">
+        <div class="d-flex align-items-center gap-2">
+            <span class="fw-bold small"><i class="bi bi-stars me-1 text-info"></i>Comentario de IA</span>
+            {% if r.ai %}<span class="small text-muted">· {{ dmy(r.ai.created_at) }}/{{ r.ai.created_at[:4] }}</span>{% endif %}
+            <button type="button" class="btn btn-sm {{ 'btn-outline-secondary' if r.ai else 'btn-info' }} ms-auto py-0" data-report-ai="{{ r.key }}"
+                    title="Una llamada a Gemini, sin búsqueda, con las cifras de este informe (céntimos o menos; el coste sale en Ajustes › IA)">
+                <i class="bi bi-stars me-1"></i>{{ 'Volver a comentar' if r.ai else 'Comentar con IA' }}</button>
+        </div>
+        {% if r.ai %}
+        <div class="fw-semibold mt-1">{{ r.ai.headline }}</div>
+        <div class="row g-3 small mt-0">
+            <div class="col-md-7"><ul class="mb-0 ps-3">{% for x in r.ai.points %}<li>{{ x }}</li>{% endfor %}</ul></div>
+            {% if r.ai.watch %}<div class="col-md-5"><div class="text-muted fw-bold" style="font-size: .68rem; text-transform: uppercase;">A vigilar</div>
+                <ul class="mb-0 ps-3">{% for x in r.ai.watch %}<li>{{ x }}</li>{% endfor %}</ul></div>{% endif %}
+        </div>
+        {% else %}
+        <div class="small text-muted mt-1">Un balance escrito de lo que explicó el resultado, las decisiones a destacar y qué vigilar. Solo se pide al pulsar.</div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{# 3) el detalle, en tres columnas #}
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small">
+            <div class="rep-label"><i class="bi bi-bar-chart me-1"></i>Lo que más sumó y restó</div>
+            <div data-fit="80">
+            {% for b in p.best or [] %}<div class="d-flex justify-content-between"><span><a href="/ticker/{{ b.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(b.ticker) }}</a></span><span class="text-success num-font">{{ eur(b.pnl_eur, True) }}</span></div>{% endfor %}
+            {% if p.best and p.worst %}<hr class="my-1">{% endif %}
+            {% for b in p.worst or [] %}<div class="d-flex justify-content-between"><span><a href="/ticker/{{ b.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(b.ticker) }}</a></span><span class="text-danger num-font">{{ eur(b.pnl_eur, True) }}</span></div>{% endfor %}
+            {% if r.months %}
+            <div class="rep-label mt-2">Mes a mes</div>
+            {% for m in r.months %}<div class="d-flex justify-content-between"><span>{{ m.label }}</span><span>{{ pct(m.pct) }} <span class="text-muted">· {{ r.benchmark }} {{ pct(m.bench_pct) }}</span></span></div>{% endfor %}
+            {% endif %}
+            {% if dv['items'] %}
+            <div class="rep-label mt-2">Dividendos cobrados</div>
+            {% for d in dv['items'] %}<div class="d-flex justify-content-between"><span>{{ clean_ticker(d.ticker) }} <span class="text-muted">{{ dmy(d.date) }}</span></span><span class="num-font">{{ num(d.eur, 2) }} €</span></div>{% endfor %}
+            {% endif %}
+            </div>
+        </div></div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small">
+            <div class="rep-label"><i class="bi bi-clipboard-data me-1"></i>Tus decisiones <span class="fw-normal text-lowercase">· {{ (r.decisions or [])|length }}</span></div>
+            <div data-fit="80">
+            {% for d in r.decisions or [] %}
+            <div class="py-1 {{ 'border-top' if not loop.first }}">
+                <span class="badge {{ 'text-bg-success' if d.type == 'BUY' else 'text-bg-danger' }} bg-opacity-75">{{ 'Compra' if d.type == 'BUY' else 'Venta' }}</span>
+                <a href="/ticker/{{ d.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(d.ticker) }}</a>
+                <span class="text-muted">{{ dmy(d.date) }} · {{ eur(d.amount_eur) }}{% if d.orders > 1 %} · {{ d.orders }} órdenes{% endif %}</span>
+                {% if d.note %}<div class="text-muted fst-italic">«{{ d.note }}»</div>{% endif %}
+            </div>
+            {% else %}<div class="text-muted">Sin compras ni ventas en el periodo.</div>{% endfor %}
+            </div>
+        </div></div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small">
+            <div data-fit="80">
+            <div class="rep-label"><i class="bi bi-journal-text me-1"></i>Tesis y noticias</div>
+            {% for e in r.theses or [] %}<div><span class="text-muted">{{ dmy(e.date) }}</span> <b>{{ clean_ticker(e.ticker) }}</b> {{ e.title }}</div>{% endfor %}
+            {% for n in r.news or [] %}<div class="text-truncate" title="{{ n.title }}"><span class="fw-bold {{ 'text-danger' if n.materiality >= 5 else 'text-warning' }}">{{ n.materiality }}/5</span>
+                <b>{{ clean_ticker(n.ticker) }}</b> {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" class="text-decoration-none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>{% endfor %}
+            {% if not r.theses and not r.news %}<div class="text-muted">Sin cambios en las tesis ni noticias muy relevantes.</div>{% endif %}
+            {% if r.watchlist or r.insiders %}
+            <div class="rep-label mt-2"><i class="bi bi-eye me-1"></i>Watchlist y directivos</div>
+            {% for w in r.watchlist %}<div><span class="badge text-bg-success">en zona</span> <a href="/ticker/{{ w.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(w.ticker) }}</a> <span class="text-muted">{{ dmy(w.date) }}</span></div>{% endfor %}
+            {% for i in r.insiders %}<div><i class="bi bi-person-badge text-success"></i> <b>{{ clean_ticker(i.ticker) }}</b>: compran {{ i.insiders }} directivo{{ 's' if i.insiders > 1 }} ({{ num(i.value / 1000, 0) }} mil)</div>{% endfor %}
+            {% endif %}
+            {% if r.agenda %}
+            <div class="rep-label mt-2"><i class="bi bi-calendar-event me-1"></i>Lo que viene</div>
+            {% for a in r.agenda %}<div><span class="text-muted">{{ dmy(a.date) }}</span> <b>{{ clean_ticker(a.ticker) }}</b> {{ a.what }}</div>{% endfor %}
+            {% endif %}
+            </div>
+        </div></div>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+{% endmacro %}
+
+{% if only_report %}{{ panel(report) }}{% else %}
+<style>
+    .rep-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .5rem; }
+    @media (max-width: 991px) { .rep-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .rep-tile { border-radius: 8px; padding: .45rem .7rem; background: var(--bs-secondary-bg); border-left: 4px solid var(--bs-secondary-border-subtle); }
+    .rep-tile.good { border-left-color: var(--bs-success); } .rep-tile.bad { border-left-color: var(--bs-danger); }
+    .rep-tile .q { font-size: .66rem; text-transform: uppercase; letter-spacing: .03em; color: var(--bs-secondary-color); }
+    .rep-tile .a { font-size: 1.15rem; font-weight: 700; line-height: 1.25; }
+    .rep-tile .d { font-size: .72rem; color: var(--bs-secondary-color); }
+    .rep-ai { border-left: 4px solid #0dcaf0 !important; }
+    .rep-subtabs .nav-link { padding: .25rem .75rem; font-size: .8rem; }
+    .rep-label { font-size: .66rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--bs-secondary-color); margin-bottom: .25rem; }
+    .rep-list .list-group-item { font-size: .78rem; padding: .3rem .6rem; cursor: pointer; }
+    .rep-list .list-group-item.active { z-index: 0; }
+</style>
+<div class="row g-3">
+    {# archivo #}
+    <div class="col-lg-3">
+        <div class="btn-group btn-group-sm w-100 mb-2" id="repKinds">
+            {% for k, label in kinds.items() %}<button type="button" class="btn btn-outline-secondary {{ 'active' if report and report.kind == k }}" data-rep-kind="{{ k }}">{{ label }}</button>{% endfor %}
+        </div>
+        <div class="list-group rep-list" id="repList" data-fit="120">
+            {% for r in reports %}
+            <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {{ 'active' if report and r.key == report.key }} {{ 'd-none' if report and r.kind != report.kind }}"
+               data-rep-key="{{ r.key }}" data-kind="{{ r.kind }}">
+                <span>{{ r.label }}{% if r.reconstructed %} <i class="bi bi-arrow-counterclockwise small opacity-50" title="Reconstruido"></i>{% endif %}</span>
+                <span class="small">{{ pct(r.pct) }}</span>
+            </a>
+            {% else %}
+            <div class="small text-muted p-2">{% if pending %}Generando los informes de las semanas y meses anteriores… ({{ pending|length }} pendientes). Vuelve a abrir la pestaña en un momento.{% else %}Aún no hay informes.{% endif %}</div>
+            {% endfor %}
+        </div>
+    </div>
+    {# el informe #}
+    <div class="col-lg-9" id="repPanel">{{ panel(report) }}</div>
+</div>
+{% endif %}

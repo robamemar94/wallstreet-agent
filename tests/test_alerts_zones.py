@@ -90,11 +90,21 @@ def test_old_drop_alerts_are_replaced_by_silent_episodes(monkeypatch):
     assert a["episode"] and a["silent"] and a["escalon"] == 10 and "ath_refs" not in alerts_service.get_alerts_data(db)
 
 
-def test_only_watchlist_and_portfolio_are_scanned(monkeypatch):
+def test_tier3_only_warns_of_big_drops(monkeypatch):
     db, repo = _setup(monkeypatch)
-    repo.toggle_favorite("AAA")   # sin estrella (aunque siga aceptada) ya no está en la watchlist: no se vigila
-    alerts_service.run_alerts_scan({"AAA": 60.0}, repo, db, {})
+    repo.toggle_favorite("AAA")   # sin estrella pero aceptada: Tier 3 fuera de la watchlist, solo caídas desde un 20 %
+    alerts_service.run_alerts_scan({"AAA": 85.0}, repo, db, {})
     assert alerts_service.get_alerts_data(db).get("drops") == {}
+    alerts_service.run_alerts_scan({"AAA": 75.0}, repo, db, {})
+    assert alerts_service.get_alerts_data(db)["drops"]["AAA"]["escalon"] == 20
+
+
+def test_tier2_warns_like_the_watchlist(monkeypatch):
+    from app.application.services import tier_service
+    db, repo = _setup(monkeypatch)
+    tier_service.set_tier(db, "AAA", "2")   # Tier 2 fuera de la watchlist: avisa igual que ella (desde un 10 %)
+    alerts_service.run_alerts_scan({"AAA": 85.0}, repo, db, {})
+    assert alerts_service.get_alerts_data(db)["drops"]["AAA"]["escalon"] == 10
 
 
 def test_old_alerts_are_purged_but_open_drops_are_kept():

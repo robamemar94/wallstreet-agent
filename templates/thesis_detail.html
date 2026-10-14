@@ -99,7 +99,7 @@
                     {% if news.digest %}{{ news.digest.created_at[:10] }}{% if news.digest.window_days %} · últimos {{ news.digest.window_days }} días{% endif %}{% if news.digest.free_tier %} · gratis{% elif news.digest.usage %} · ${{ num(news.digest.usage.cost_usd, 3) }}{% endif %}{% else %}sin consultar{% endif %}
                     </span>
                     <button class="btn btn-sm {{ 'btn-outline-primary' if news.due else 'btn-outline-secondary' }} py-0" id="btnNews" data-force="{{ 'false' if news.due else 'true' }}"
-                    title="{{ 'Consultar noticias de los últimos 7 días' if news.due else 'Ya se consultó esta semana (próxima: lunes ' ~ news.next_run.strftime('%d/%m') ~ '). Pulsa para forzar.' }}">
+                    title="{{ 'Consultar noticias de los últimos 7 días' if news.due else 'Ya se consultó esta semana (próxima: sábado ' ~ news.next_run.strftime('%d/%m') ~ '). Pulsa para forzar.' }}">
                     <i class="bi bi-arrow-repeat"></i>{% if not news.due %} forzar{% endif %}
                     </button>
                 </div>
@@ -128,7 +128,7 @@
                 </div>{% endif %}
                 {% if not news.digest %}
                 <div class="small text-muted">{% if tracking %}En seguimiento (no la tienes en cartera): sin radar automático. Pulsa <i class="bi bi-arrow-repeat"></i> si quieres consultarlo: solo noticias muy relevantes (materialidad ≥4/5) de los últimos 7 días.
-                {% else %}Automático, una vez por semana: solo noticias muy relevantes (materialidad ≥4/5) desde el último radar (la primera vez, los últimos 7 días).{% endif %}</div>
+                {% else %}Automático, cada sábado (repasa la semana de lunes a viernes): solo noticias muy relevantes (materialidad ≥4/5) desde el último radar (la primera vez, los últimos 7 días).{% endif %}</div>
                 {% endif %}
                 <div id="newsInfo" class="small text-muted"></div>
             </div></div>

@@ -50,6 +50,14 @@ def cached(kind: str, ticker: str, fetch: Callable[[], Any], ttl_hours: float = 
     return value
 
 
+def peek(kind: str, ticker: str) -> Any:
+    """Lo guardado, sea de cuando sea, sin pedir nada (None si no hay)."""
+    with _lock:
+        _ensure_loaded()
+        hit = _data.get(kind, {}).get(ticker)
+    return hit[1] if hit else None
+
+
 def fetched_at(kind: str, ticker: str) -> float:
     with _lock:
         _ensure_loaded()

@@ -248,17 +248,17 @@ def test_parse_news_keeps_only_very_relevant_and_orders():
     assert out["items"][0]["step"] is None and out["items"][0]["impact"] == "neutral"
 
 
-def test_news_due_every_monday_for_all_theses():
-    monday = datetime.datetime(2026, 10, 5, 9, 0)
-    assert ai.news_due(None, monday)
-    assert ai.news_due({"created_at": "2026-10-03T11:00:00"}, monday)            # sábado pasado: también toca el lunes
-    assert not ai.news_due({"created_at": "2026-10-05T07:30:00"}, monday)        # ya hecho este lunes
-    early = datetime.datetime(2026, 10, 5, 6, 0)                                 # antes de las 7:00 aún no toca
-    assert not ai.news_due({"created_at": "2026-09-28T08:00:00"}, early)
-    friday = datetime.datetime(2026, 10, 9, 18, 0)                               # aplazado por resultados, hecho el jueves:
-    assert not ai.news_due({"created_at": "2026-10-08T10:00:00"}, friday)        # no se repite hasta el lunes
-    assert ai.next_radar({"created_at": "2026-10-08T10:00:00"}) == datetime.datetime(2026, 10, 12, 7, 0)
-    assert ai.next_radar({"created_at": "2026-10-05T06:00:00"}) == datetime.datetime(2026, 10, 5, 7, 0)
+def test_news_due_every_saturday_for_all_theses():
+    saturday = datetime.datetime(2026, 10, 10, 9, 0)
+    assert ai.news_due(None, saturday)
+    assert ai.news_due({"created_at": "2026-10-08T11:00:00"}, saturday)          # forzado el jueves: también toca el sábado
+    assert not ai.news_due({"created_at": "2026-10-10T08:30:00"}, saturday)      # ya hecho este sábado
+    early = datetime.datetime(2026, 10, 10, 7, 0)                                # antes de las 8:00 aún no toca
+    assert not ai.news_due({"created_at": "2026-10-03T08:30:00"}, early)
+    assert not ai.news_due({"created_at": "2026-10-05T07:30:00"}, datetime.datetime(2026, 10, 9, 18, 0))   # el último de los lunes
+    assert ai.next_radar({"created_at": "2026-10-08T10:00:00"}) == datetime.datetime(2026, 10, 10, 8, 0)
+    assert ai.next_radar({"created_at": "2026-10-13T07:30:00"}) == datetime.datetime(2026, 10, 17, 8, 0)
+    assert ai.business_week(datetime.datetime(2026, 10, 10, 8, 0)) == (datetime.date(2026, 10, 5), datetime.date(2026, 10, 9))
 
 
 def test_reimport_keeps_ai_data(repo):
@@ -671,7 +671,7 @@ def test_news_by_radar_week_range_and_centro(repo, monkeypatch):
     assert [n["title"] for n in repo.list_news(since="2026-09-28T07:00:00", limit=None)] == ["n0", "n1"]
     assert repo.count_news(before="2026-09-28T07:00:00") == {"total": 2, "unread": 1}
     # Centro de mando: esta semana y la anterior, separadas; de antes, solo las no leídas
-    monkeypatch.setattr(tv, "radar_week_start", lambda now=None: datetime.datetime(2026, 10, 5, 7, 0) if now is None
+    monkeypatch.setattr(tv, "radar_week_start", lambda now=None: datetime.datetime(2026, 10, 3, 8, 0) if now is None
                         else ai.radar_week_start(now))
     monkeypatch.setattr(tv.news_summary_service, "load", lambda db: {"week": "2026-10-05", "headline": "Titular"})
     out = tv.centro_news(repo, None)
@@ -688,3 +688,18 @@ def test_tracked_and_closed_theses_have_no_automatic_news_radar(monkeypatch):
     assert runner.radar_due({"ticker": "MSFT", "status": "ACTIVA", "extra": {}}, held)
     assert not runner.radar_due({"ticker": "NORBT.OL", "status": "ACTIVA", "extra": {}}, held)   # sin acciones
     assert not runner.radar_due({"ticker": "MSFT", "status": "CERRADA", "extra": {}}, held)
+
+
+def test_portfolio_changes_split_currency_effect():
+    # el resultado del periodo se parte en lo que hizo la empresa en su moneda y lo que hizo el cambio
+    from app.application.services.price_monitor_service import portfolio_changes
+    idx = pd.bdate_range("2026-06-01", "2026-09-30")
+    df = pd.DataFrame({"AAA": 100.0, "USDEUR=X": 0.90}, index=idx)
+    df.loc["2026-09-01":, "USDEUR=X"] = 0.85                               # el dólar cae en septiembre; la acción no se mueve
+    df.loc["2026-09-15":, "AAA"] = 110.0                                   # y luego la acción sube un 10 %
+    txs = [{"ticker": "AAA", "date": "2026-06-01", "type": "BUY", "shares": 10, "price": 100, "currency": "USD"},
+           {"ticker": "AAA", "date": "2026-09-08", "type": "BUY", "shares": 10, "price": 100, "currency": "USD", "fx": 0.85}]
+    m = portfolio_changes(df, txs, {}, rolling_days=(60,))["periods"]["60d"]
+    # las 10 primeras pierden el cambio (110 × 10 × −0,05); las compradas ya con el dólar a 0,85, nada
+    assert m["fx_eur"] == pytest.approx(110 * 10 * (0.85 - 0.90))
+    assert m["abs_eur"] == pytest.approx(20 * 110 * 0.85 - 10 * 100 * 0.90 - 10 * 100 * 0.85)

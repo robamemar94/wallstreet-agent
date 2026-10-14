@@ -15,7 +15,7 @@ from app.infrastructure.dependencies import (
 )
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
 from app.infrastructure.templates import templates
-from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached, get_currency_symbol, get_region_for_asset
+from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached, get_currency_symbol, get_market_group, MARKET_GROUP_LABELS
 
 from app.application.services import market_cap_service
 
@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 logger = logging.getLogger(__name__)
 
+from app.application.services.tier_service import tier_of
 router = APIRouter(tags=["Database Views"])
 
 
@@ -168,12 +169,15 @@ async def database_page(
             today_date = datetime.date.today()
             is_weekday = today_date.weekday() < 5
             
-            if is_weekday and p_last_date and p_last_date != today_date:
+            # su mercado aún no ha abierto hoy: sin variación (se ve «🌙 –»), con la de su última sesión al pasar el ratón
+            not_open = bool(is_weekday and p_last_date and p_last_date != today_date)
+            last_pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
+            if not_open:
                 p_prev = p_price
-                
             change = p_price - p_prev
             pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
-            m_data = {"price": p_price, "change": change, "pct": pct}
+            m_data = {"price": p_price, "change": change, "pct": pct, "not_open": not_open, "last_pct": last_pct,
+                      "last_date": p_last_date.strftime("%d/%m") if not_open and p_last_date else None}
 
         db_status = db_d.get("status")
         if not db_status or db_status == "None" or db_status == "":
@@ -183,7 +187,7 @@ async def database_page(
             "name": t, 
             "company_name": asset.company_name or "-", 
             "country": db_d.get("country", "-"), 
-            "region": get_region_for_asset(t, db_d.get("country", "-")), 
+            "region": MARKET_GROUP_LABELS[get_market_group(t, db_d.get("country", "-"))], 
             "sector": db_d.get("sector", "-"), 
             "subsector": db_d.get("industry", db_d.get("subsector", "-")),
             "currency_symbol": get_currency_symbol(db_d.get("currency", "USD"), t), 
@@ -196,6 +200,7 @@ async def database_page(
             "valuation": val, 
             "is_favorite": asset.is_favorite,
             "is_portfolio": t in active_portfolio_tickers,
+            "tier": tier_of(asset.is_favorite, db_d) or "",   # nivel: '1', '2', 'seg' o vacío (la cartera va aparte)
             "role": db_d.get("portfolio_role"),
             "mcap": market_cap_service.describe(db_d.get(market_cap_service.SHARES_KEY), m_data["price"] or None,
                                                 db_d.get("currency"), INDEX_CACHE["data"]),
@@ -204,12 +209,13 @@ async def database_page(
     return templates.TemplateResponse("database.html", {
         "request": request, 
         "tickers": tickers, 
-        "regions": sorted(list(set(t["region"] for t in tickers if t.get("region") and t["region"] != "-"))), 
+        "regions": [r for r in MARKET_GROUP_LABELS.values() if any(t.get("region") == r for t in tickers)], 
         "sectores": sorted(list(set(t["sector"] for t in tickers if t.get("sector") and t["sector"] != "-"))), 
         "subsectores": sorted(list(set(t["subsector"] for t in tickers if t.get("subsector") and t["subsector"] != "-"))),
         "countries": sorted(list(set(t["country"] for t in tickers if t.get("country") and t["country"] != "-"))),
         "cap_tiers": [{"key": k, "name": n, "range": market_cap_service.TIER_RANGES[k]} for k, n, _ in market_cap_service.TIERS],
-        "settings": settings
+        "settings": settings,
+        "themes": [{"id": lst.id, "name": lst.name} for lst in asset_repo.get_company_lists()],   # selección múltiple → tema
     })
 
 @router.post("/search")

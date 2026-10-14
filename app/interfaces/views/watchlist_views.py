@@ -22,6 +22,7 @@ from utils.number_format import es
 
 logger = logging.getLogger(__name__)
 
+from app.infrastructure.db.models import DBAsset
 router = APIRouter(tags=["Watchlist"])
 
 NOTE_KEY = "watchlist_note"
@@ -54,10 +55,15 @@ def proximity(val: Optional[Dict[str, Any]], price: Optional[float]) -> tuple:
 
 def watchlist_rows(repo: SqlAlchemyWatchlistRepository, asset_repo: SqlAlchemyAssetRepository,
                    held: Set[str], benchmark: str) -> List[Dict[str, Any]]:
-    """Watchlist = añadidas a mano + favoritas, con la valoración base de su ficha al precio de hoy.
+    """Watchlist = añadidas a mano + Tier 1 (favoritas) + las de las listas que sigues, con la valoración base
+    de su ficha al precio de hoy.
     Un solo histórico de precios da el precio, la variación del día, la distancia al máximo de 52 semanas y el monitor."""
+    from app.application.services import tier_service
     manual = {i["ticker"]: i for i in repo.list_items()}
     auto = asset_repo.get_watch_candidates()
+    themes = tier_service.themes_by_ticker(asset_repo.db)
+    favs = {a.ticker for a in asset_repo.db.query(DBAsset.ticker).filter(DBAsset.is_favorite.is_(True)).all()}
+    muted = tier_service.muted_tickers(asset_repo.db)
     tickers = sorted(set(manual) | set(auto))
     data = {t: asset_repo.get_asset_data(t) for t in tickers}
     try:
@@ -75,7 +81,10 @@ def watchlist_rows(repo: SqlAlchemyWatchlistRepository, asset_repo: SqlAlchemyAs
         # solo las sesiones de ese valor: antes de abrir su bolsa la «fila de hoy» es el cierre de ayer repetido
         st = pm.price_stats(raw[t], bench) if raw is not None and t in raw.columns else None
         price = st["price"] if st else None
-        origins = [o for o, on in (("manual", t in manual), ("favorita", t in auto)) if on]
+        info = auto.get(t) or {}
+        tier = tier_service.tier_of(t in favs, d, t in held)
+        origins = [o for o, on in (("manual", t in manual), ("tier1", tier == "1"), ("tier2", tier == "2"),
+                                   ("lista", bool(info.get("themes")))) if on]
         val = bv.live(t, d, price)
         group, drop = proximity(val, price)
         stale = bv.staleness(val["inputs"], fetch_reported_dates(t)) if val else None
@@ -84,7 +93,8 @@ def watchlist_rows(repo: SqlAlchemyWatchlistRepository, asset_repo: SqlAlchemyAs
         if added_price:
             added_price = added_price / split_service.factor_since(split_service.fetch_splits(t), item.get("added_at"))
         return {"ticker": t, "name": d.get("company_name") or t, "cur": get_currency_symbol(d.get("currency", "USD"), t),
-                "price": price, "held": t in held, "origins": origins, "role": d.get("portfolio_role"), "note": d.get(NOTE_KEY) or "", "stats": st,
+                "price": price, "held": t in held, "origins": origins, "tier": tier, "themes": [th["name"] for th in themes.get(t, []) if th["watch"] and not th["muted"]],
+                "silent": t in muted, "muted_self": bool(d.get(tier_service.MUTE_KEY)), "role": d.get("portfolio_role"), "note": d.get(NOTE_KEY) or "", "stats": st,
                 # solo si su mercado ha abierto hoy; si no, la última sesión va en el título
                 "day_pct": (st.get("change") or {}).get("1d") if st and st.get("date") == today else None,
                 "last_session": st.get("date") if st else None, "last_day_pct": (st.get("change") or {}).get("1d") if st else None,
@@ -111,7 +121,7 @@ def _names(rows: List[Dict[str, Any]], limit: int = 8) -> str:
 
 def watchlist_attention(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Lo accionable de la watchlist (sin las que ya tienes en cartera), ordenado por prioridad."""
-    rows = [r for r in rows if not r["held"]]
+    rows = [r for r in rows if not r["held"] and not r.get("silent")]   # las silenciadas no avisan
     fresh = [r for r in rows if r["val"] and not r["val"]["inputs"].get("legacy")]
     out = []
     for r in fresh:
@@ -121,7 +131,7 @@ def watchlist_attention(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             # la señal de compra sale de unos supuestos viejos: que se note antes de comprar
             old = " · valoración anticuada: revísala antes de comprar" if (r["stale"] or {}).get("stale") else ""
             out.append({"prio": 0, "type": "zona", "ticker": r["ticker"], "href": f"/ticker/{r['ticker']}#valoracion", "text": f"Por debajo de su precio de compra al {es(v['target'], 0)}% ({es(v['buy_price'], 2)}; cotiza a {es(r['price'], 2)}){cagr}{old}"})
-        elif r["group"] == "cerca":
+        elif r["group"] == "cerca" and r.get("tier") == "1":   # cerca de compra: solo las Tier 1 (objetivo)
             out.append({"prio": 1, "type": "cerca", "ticker": r["ticker"], "href": f"/ticker/{r['ticker']}#valoracion", "text": f"A un {es(r['drop_pct'], 1)}% de su precio de compra ({es(v['buy_price'], 2)}){cagr}"})
     for r in fresh:   # el año corregido a mano ya tiene dato real: la corrección ha dejado de aplicarse
         a = r["val"]["anchor"]
@@ -130,6 +140,10 @@ def watchlist_attention(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             out.append({"prio": 2, "type": "anchor_expired", "ticker": r["ticker"], "ref": str(a["year"]), "href": f"/ticker/{r['ticker']}#valoracion",
                         "text": f"Tu {label} {a['year']} corregido ({es(a['value'], 2)}) ya ha pasado: el de los últimos 12 meses es {es(a['auto'], 2)} "
                                 f"({es(100 * (a['auto'] / a['value'] - 1), 1, sign=True)}% frente a tu corrección). La corrección ya no se aplica: revisa el crecimiento"})
+    from app.application.services.insider_service import signal_notices
+    out += signal_notices([r["ticker"] for r in rows], prio=1)   # compras de directivos en bolsa
+    from app.application.services import estimate_revisions_service
+    out += estimate_revisions_service.signal_notices([r["ticker"] for r in rows if r.get("tier") == "1"], prio=2)   # recortes (Tier 1)
     legacy = [r for r in rows if r["val"] and r["val"]["inputs"].get("legacy")]
     if legacy:
         out.append({"prio": 3, "type": "legacy", "ticker": None, "label": f"{len(legacy)} empresas", "text": f"Valoración antigua sin revisar (no generan avisos): {_names(legacy)}"})
@@ -141,8 +155,31 @@ def watchlist_attention(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def watchlist_monitor(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Monitor de precios de las candidatas (las que tienes en cartera ya salen en el Resumen)."""
-    signals = [sig for r in rows if not r["held"] and r["stats"] for sig in pm.price_signals(r["ticker"], r["stats"])]
+    signals = [sig for r in rows if not r["held"] and not r.get("silent") and r["stats"] for sig in pm.price_signals(r["ticker"], r["stats"])]
     return sorted(signals, key=lambda s: (s.get("date") or "", s["ticker"]), reverse=True)
+
+
+def followed_monitor(db, held: Set[str], shown: Set[str], benchmark: str) -> tuple:
+    """Monitor de precios del Tier 2 y 3 que no está en la watchlist (avisa igual que ella). Devuelve (señales, sin datos, tickers)."""
+    from app.application.services import tier_service
+    tickers = sorted(set(tier_service.followed_outside_watchlist(db)) - held - shown)
+    if not tickers:
+        return [], set(), []
+    try:
+        df = pm.download_history(tickers + [benchmark])
+        raw = pm.download_history(tickers + [benchmark], fill=False)
+    except Exception:
+        logger.exception("Monitor del Tier 2 y 3: fallo al descargar el histórico de precios")
+        return [], set(tickers), tickers
+    bench = df[benchmark] if benchmark in df.columns else None
+    signals, no_data = [], set()
+    for t in tickers:
+        st = pm.price_stats(raw[t], bench) if t in raw.columns else None
+        if not st:
+            no_data.add(t)
+            continue
+        signals += pm.price_signals(t, st)
+    return signals, no_data, tickers
 
 
 @router.get("/watchlist/tabla", response_class=HTMLResponse)
@@ -160,8 +197,13 @@ def watchlist_fragment(
     rows = watchlist_rows(repo, asset_repo, held, benchmark)
     # alertas (cambios de zona y caídas) con los precios que ya tenemos, en segundo plano
     alerts_service.scan_in_background({r["ticker"]: r["price"] for r in rows if r["price"]}, {r["ticker"] for r in rows})
-    attention, signals, history = notice_service.track(notice_repo, "watchlist", watchlist_attention(rows), watchlist_monitor(rows),
-                                                       no_data={r["ticker"] for r in rows if not r["stats"]})
+    # el Tier 2 y 3 que no está en la watchlist no sale en la tabla, pero avisa igual (monitor y compras de directivos)
+    extra, extra_no_data, extra_tickers = followed_monitor(db_session, held, {r["ticker"] for r in rows}, benchmark)
+    monitor = sorted(watchlist_monitor(rows) + extra, key=lambda s: (s.get("date") or "", s["ticker"]), reverse=True)
+    from app.application.services.insider_service import signal_notices
+    attention = sorted(watchlist_attention(rows) + signal_notices(extra_tickers, prio=1), key=lambda a: a["prio"])
+    attention, signals, history = notice_service.track(notice_repo, "watchlist", attention, monitor,
+                                                       no_data={r["ticker"] for r in rows if not r["stats"]} | extra_no_data)
     return templates.TemplateResponse("_watchlist_table.html", {
         "request": request, "rows": rows, "attention": attention, "signals": signals, "signal_history": history,
         "seen_keys": [a["key"] for a in attention if a["seen"]], "dismissed_keys": notice_repo.dismissed_keys("watchlist"),
@@ -247,3 +289,43 @@ class NoticeClear(BaseModel):
 def clear_notice_history(payload: NoticeClear, notice_repo: SqlAlchemyNoticeRepository = Depends(get_notice_repository)):
     return {"status": "success", "deleted": notice_repo.clear_history(payload.scope, "signal")}
 
+
+class TierPayload(BaseModel):
+    tier: Optional[str] = None   # '1', '2', 'seg' o vacío (ninguno)
+
+
+@router.post("/api/ticker/{ticker}/nivel")
+def set_level(ticker: str, payload: TierPayload, db_session: Session = Depends(get_db)):
+    """Cambia el nivel de una empresa (Tier 1 = la estrella de favorita, Tier 2, Tier 3 o ninguno)."""
+    from app.application.services import tier_service
+    tier = payload.tier if payload.tier in ("1", "2", "seg") else None
+    try:
+        return {"status": "success", **tier_service.set_tier(db_session, ticker, tier)}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/api/watchlist/niveles")
+def levels_review(db_session: Session = Depends(get_db)):
+    """Tier 1 y Tier 2, para repasarlos de un vistazo."""
+    from app.application.services import tier_service
+    out = []
+    for a in db_session.query(DBAsset).all():
+        tier = tier_service.tier_of(a.is_favorite, a.data)
+        if tier in ("1", "2"):
+            out.append({"ticker": a.ticker, "name": (a.data or {}).get("company_name") or a.ticker, "tier": tier})
+    return {"items": sorted(out, key=lambda x: (x["tier"], x["ticker"])), "tier1_max": tier_service.TIER1_SOFT_MAX}
+
+
+class MutePayload(BaseModel):
+    muted: bool = True
+
+
+@router.post("/api/ticker/{ticker}/silencio")
+def mute_company(ticker: str, payload: MutePayload, db_session: Session = Depends(get_db)):
+    """Silencia (o no) todos los avisos de una empresa."""
+    from app.application.services import tier_service
+    try:
+        return {"status": "success", "muted": tier_service.set_muted(db_session, ticker, payload.muted)}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

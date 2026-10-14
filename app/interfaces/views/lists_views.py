@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.infrastructure.db.database import get_db
 from app.infrastructure.templates import templates
-from app.infrastructure.dependencies import get_asset_repository, get_settings_from_db
+from app.infrastructure.dependencies import get_asset_repository, get_portfolio_service, get_settings_from_db
+from app.application.services.portfolio_service import PortfolioService
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
 from app.interfaces.views.market_views import INDEX_CACHE, get_currency_symbol, get_region_for_asset, ensure_prices_cached
 
@@ -45,11 +46,20 @@ def _compute_media_score(db_d: dict) -> Optional[float]:
     return sum(valid) / len(valid) if valid else None
 
 @router.get("/lists", response_class=HTMLResponse)
-async def lists_page(
+def lists_page(
     request: Request,
     asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
     db_session: Session = Depends(get_db)
 ):
+    """Listas: grupos de empresas parecidas. Solo entran en la watchlist las que sigues («Seguir en la watchlist»); el
+    objetivo (cuántas posiciones y qué peso quieres) es opcional. Cada lista propone la mejor candidata para entrar."""
+    from concurrent.futures import ThreadPoolExecutor
+    from app.application.services import base_valuation_service as bv, tier_service
+    from app.interfaces.views.thesis_views import portfolio_exposure
+    from app.interfaces.views.watchlist_views import proximity
+    exposure = portfolio_exposure(portfolio_service, asset_repo)["positions"]
+    targets = tier_service.targets(db_session)
     # 1. Obtener todas las listas personalizadas de la DB
     custom_lists = asset_repo.get_company_lists()
     
@@ -80,6 +90,7 @@ async def lists_page(
             
             # Nota media de calidad (Normas + Veredicto), igual que en la tabla BBDD
             media = _compute_media_score(db_d)
+            held = asset.ticker in exposure
 
             assets_data.append({
                 "ticker": asset.ticker,
@@ -91,14 +102,30 @@ async def lists_page(
                 "symbol": get_currency_symbol(db_d.get("currency", "USD"), asset.ticker),
                 "region": get_region_for_asset(asset.ticker, db_d.get("country", "-")),
                 "status": db_d.get("status") or "NONE",
-                "is_favorite": asset.is_favorite
+                "is_favorite": asset.is_favorite,
+                "tier": tier_service.tier_of(asset.is_favorite, db_d, held), "held": held,
+                "weight": (exposure.get(asset.ticker) or {}).get("weight"), "_data": db_d,
             })
+        # valoración base al precio de hoy (CAGR estimado y cuánto falta para el precio de compra), en paralelo
+        def value(a):
+            val = bv.live(a["ticker"], a.pop("_data"), a["price"]) if a["price"] else None
+            group, drop = proximity(val, a["price"])
+            a.update(cagr=(val or {}).get("cagr"), zone=(val or {}).get("zone"), drop_pct=drop, group=group)
+            return a
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            assets_data = list(pool.map(value, assets_data))
+        meta = targets.get(str(clist.id)) or {}
+        target = tier_service.objective(meta)
+        held_rows = [a for a in assets_data if a["held"]]
+        best = tier_service.best_candidate(assets_data)
             
         lists_data.append({
             "id": clist.id,
             "name": clist.name,
             "description": clist.description or "",
-            "assets": assets_data
+            "assets": assets_data,
+            "target": target, "held_n": len(held_rows), "weight": sum(a["weight"] or 0 for a in held_rows),
+            "best": best, "muted": bool(meta.get("muted")), "watch": bool(meta.get("watch")),
         })
         
     return templates.TemplateResponse("lists.html", {
@@ -213,3 +240,59 @@ async def get_ticker_lists(
         })
         
     return result
+
+
+class ThemeTarget(BaseModel):
+    n: Optional[int] = None          # posiciones que quieres en la lista
+    weight: Optional[float] = None   # peso de la cartera (%)
+
+
+@router.put("/api/lists/{list_id}/objetivo")
+def set_theme_target(list_id: int, payload: ThemeTarget, db_session: Session = Depends(get_db)):
+    """El objetivo (opcional) de una lista: cuántas posiciones y qué peso. Vacío: sin objetivo."""
+    from app.application.services import tier_service
+    return {"status": "success", "target": tier_service.set_target(db_session, list_id, payload.n, payload.weight)}
+
+
+class ManyToTheme(BaseModel):
+    tickers: list
+    list_id: Optional[int] = None   # lista existente…
+    new_name: Optional[str] = None  # …o uno nuevo con este nombre
+
+
+@router.post("/api/temas/anadir")
+def add_many_to_theme(payload: ManyToTheme, asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository)):
+    """Añade varias empresas a una lista (existente o nueva), p. ej. desde la selección múltiple de la base de datos."""
+    list_id = payload.list_id
+    if not list_id:
+        name = (payload.new_name or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Elige una lista o escribe el nombre de la nueva")
+        from app.infrastructure.db.models import DBCompanyList
+        if asset_repo.db.query(DBCompanyList).filter(DBCompanyList.name == name).first():
+            raise HTTPException(status_code=400, detail=f"Ya existe una lista llamada «{name}»: elígela")
+        list_id = asset_repo.create_company_list(name, None).id
+    added = [t for t in {str(t).strip().upper() for t in payload.tickers if t} if asset_repo.add_ticker_to_list(list_id, t)]
+    return {"status": "success", "list_id": list_id, "added": sorted(added)}
+
+
+class ThemeWatch(BaseModel):
+    watch: bool = True
+
+
+@router.put("/api/lists/{list_id}/watchlist")
+def watch_theme(list_id: int, payload: ThemeWatch, db_session: Session = Depends(get_db)):
+    """Sigue (o no) una lista en la watchlist: sus empresas entran en ella (y en sus avisos)."""
+    from app.application.services import tier_service
+    return {"status": "success", "watch": tier_service.set_theme_watch(db_session, list_id, payload.watch)}
+
+
+class ThemeMute(BaseModel):
+    muted: bool = True
+
+
+@router.put("/api/lists/{list_id}/silencio")
+def mute_theme(list_id: int, payload: ThemeMute, db_session: Session = Depends(get_db)):
+    """Silencia (o no) los avisos de las empresas de una lista."""
+    from app.application.services import tier_service
+    return {"status": "success", "muted": tier_service.set_theme_muted(db_session, list_id, payload.muted)}

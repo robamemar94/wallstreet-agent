@@ -12,17 +12,23 @@ REWARM_HOURS = 6   # por debajo de la caducidad de las cachés (12 h los datos d
 
 
 def prefetch(earnings: Iterable[str] = (), fcf: Iterable[str] = (), valuation: Iterable[str] = (),
-             splits: Iterable[str] = (), estimates: Iterable[str] = (), ath: Iterable[str] = ()) -> None:
+             splits: Iterable[str] = (), estimates: Iterable[str] = (), ath: Iterable[str] = (),
+             insiders: Iterable[str] = ()) -> None:
     """earnings: fechas de resultados · fcf: FCF/acción TTM · valuation: BPA TTM y dividendo (valoración base) · splits
-    · estimates: BPA estimado por los analistas · ath: máximo histórico."""
+    · estimates: BPA estimado por los analistas y cómo cambia (previsiones) · ath: máximo histórico · insiders: directivos y acciones en circulación."""
+    from app.application.services.insider_service import shares_series, splits_all, trades
     from app.application.services.base_valuation_service import _market_info, analyst_eps_estimates
+    from app.application.services.estimate_revisions_service import revisions
     from app.application.services.price_monitor_service import all_time_high
     from app.application.services.thesis_review_service import _earnings_info
     from app.application.services.thesis_service import fetch_ttm_fcf_per_share
     from app.application.services.split_service import fetch_splits
     jobs = ([(_earnings_info, t) for t in set(earnings)] + [(fetch_ttm_fcf_per_share, t) for t in set(fcf)]
             + [(_market_info, t) for t in set(valuation)] + [(fetch_splits, t) for t in set(splits)]
-            + [(analyst_eps_estimates, t) for t in set(estimates)] + [(all_time_high, t) for t in set(ath)])
+            + [(analyst_eps_estimates, t) for t in set(estimates)] + [(revisions, t) for t in set(estimates)]
+            + [(all_time_high, t) for t in set(ath)]
+            + [(trades, t) for t in set(insiders)] + [(shares_series, t) for t in set(insiders)]
+            + [(splits_all, t) for t in set(insiders)])
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
         list(pool.map(lambda job: job[0](job[1]), jobs))
 
@@ -43,7 +49,7 @@ def warm_up_in_background() -> None:
         finally:
             db.close()
         prefetch(earnings=held + theses + watch + following, fcf=held + theses + watch, valuation=held + watch, splits=held + theses + watch,
-                 estimates=held + watch, ath=held)
+                 estimates=held + watch, ath=held, insiders=held + watch)
         # próximo dividendo anunciado de la cartera (previsión de dividendos y agenda de Mercado)
         from app.interfaces.views.portfolio_views import portfolio_raw
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:

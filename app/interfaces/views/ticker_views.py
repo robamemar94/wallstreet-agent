@@ -5,6 +5,7 @@ import datetime
 import yfinance as yf
 import markdown
 import pandas as pd
+from typing import Optional
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -289,14 +290,7 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
     
     ext_stats = get_extended_stats(info, stock, db_d)
 
-    # N NUEVA LÓGICA PARA EL CALENDARIO DE EVENTOS
-    events_df = get_calendar_events(ticker)
-    events_table_html = events_df.to_html(
-        classes='table table-sm table-hover mb-0 table-professional',
-        index=False,
-        border=0,
-        justify='left'
-    )
+    events = upcoming_events(ticker.upper(), info)
 
     # ── CARGA DE DATOS DE PORTAFOLIO PARA LA PESTAÑA 'MI CARTERA' ──
     portfolio_item = None
@@ -467,7 +461,7 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         "high": hi, 
         "low": lo, 
         "close": cl, 
-        "db": db_d, 
+        "db": db_d, "profile": investment_profile(db_d.get("verdict")), 
         "reports_html": reports_h, 
         "reports_meta": reports_m, 
         "is_favorite": is_fav, 
@@ -477,7 +471,7 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         "portfolio_ledger": portfolio_ledger,
         "portfolio_is_active": portfolio_is_active,
         "portfolio_total_profit_closed": portfolio_total_profit_closed,
-        "events_table_html": events_table_html,
+        "events": events,
         # Valoración base (un solo escenario, BPA o FCF/acción)
         "bval": base_valuation_service.stored(db_d),
         "bval_stale": _valuation_staleness(ticker, base_valuation_service.stored(db_d)),
@@ -494,9 +488,92 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         # pestaña «Tesis» y franja del Resumen ejecutivo: su tesis de inversión, si la tiene
         "thesis_link": thesis_strip(db_session, ticker),
         "in_watchlist": watchlist_repo.get_by_ticker(ticker) is not None,   # añadida a mano
-        "watch_auto": ["favorita"] if is_fav else [],
+        "watch_auto": ["Tier 1"] if is_fav else (["Tier 2"] if str(db_d.get("watch_tier") or "") == "2" else []),
+        "tier": tier_level(is_fav, db_d), "muted": bool(db_d.get("muted")),
     })
 
+
+
+def tier_level(is_fav: bool, data: dict) -> dict:
+    """Nivel de la empresa para el selector de la ficha."""
+    from app.application.services import tier_service
+    t = tier_service.tier_of(is_fav, data)
+    return {"value": t or "", "levels": tier_service.LEVELS}
+
+
+def _price_history(ticker: str) -> list:
+    """Cierres diarios de 10 años, ajustados por splits pero no por dividendos (comparables con tus precios de compra).
+    [[fecha ISO, cierre]]; caché en disco de 12 h."""
+    from app.application.services import market_cache
+
+    def download():
+        try:
+            close = yf.Ticker(ticker).history(period="10y", auto_adjust=False)["Close"].dropna()
+            return [[d.date().isoformat(), round(float(v), 4)] for d, v in close.items()]
+        except Exception:
+            return []
+    return market_cache.cached("price_history_10y_v1", ticker, download, ttl_hours=12) or []
+
+
+@router.get("/api/ticker/{ticker}/precio-valoracion")
+def price_valuation_api(ticker: str, db_session: Session = Depends(get_db),
+                        portfolio_service: PortfolioService = Depends(get_portfolio_service)):
+    """«Precio y valoración» del Resumen de la ficha: el histórico de precios, el precio de compra de la valoración base
+    (con su zona y CAGR estimado) y tus compras y ventas de la empresa (ajustadas por splits) para marcarlas."""
+    from app.application.services import price_monitor_service as pm
+    from app.application.services.decision_review_service import _split_factor
+    t = ticker.upper()
+    history = _price_history(t)
+    asset = db_session.query(DBAsset).filter(DBAsset.ticker == t).first()
+    data = (asset.data if asset else None) or {}
+    cached = INDEX_CACHE["data"].get(t) or {}
+    price = cached.get("price") or (history[-1][1] if history else None)
+    val = base_valuation_service.live(t, data, price) if price else None
+    txs, splits = pm.load_transactions(portfolio_service, db_session)
+    trades = [{"date": x["date"][:10], "type": x["type"], "shares": x["shares"],
+               "price": x["price"] / _split_factor(x["date"], splits.get(t, []))} for x in txs if x["ticker"] == t]
+    # tu precio medio de compra (si la tienes en cartera); se descarta si no cuadra con los precios (split sin aplicar)
+    held = next((i for i in portfolio_service.get_active_portfolio() if i.ticker == t and i.shares > 0), None)
+    avg = held.average_price if held and held.average_price else None
+    if avg and price and not (0.2 < avg / price < 5):
+        avg = None
+    return {"ticker": t, "currency": get_currency_symbol(data.get("currency", "USD"), t), "price": price,
+            "history": history, "trades": trades, "avg_cost": avg,
+            "valuation": {k: val.get(k) for k in ("buy_price", "cagr", "margin_pct", "zone", "target", "metric", "years")} if val else None}
+
+
+def _insiders(ticker: str) -> dict:
+    from app.application.services import insider_service
+    return insider_service.summary(ticker.upper())
+
+
+@router.get("/ticker/{ticker}/directivos", response_class=HTMLResponse)
+def insiders_fragment(request: Request, ticker: str, db_session: Session = Depends(get_db)):
+    """«Directivos y acciones» del Resumen ejecutivo de la ficha (se pide aparte: Yahoo puede tardar)."""
+    from app.application.services import insider_service
+    s = _insiders(ticker)
+    # acciones en circulación: mejor de las cuentas anuales de la ficha (oficiales, 10 años); si no, la serie de Yahoo
+    s["shares_source"] = "Yahoo Finance (mensual, ajustado por splits)"
+    asset = db_session.query(DBAsset).filter(DBAsset.ticker == ticker.upper()).first()
+    if asset:
+        try:
+            fin = insider_service.shares_from_financials(get_financials_history(ticker.upper(), yf.Ticker(ticker.upper()), asset.data or {}))
+        except Exception:
+            fin = None
+        if fin:
+            s.update(shares=fin["shares"], windows=fin["windows"], series=fin["series"], shares_source=fin["source"])
+    # serie de acciones en circulación como línea SVG (sin librerías): puntos en un lienzo de 300 × 80 (se estira)
+    pts, vals = "", [v for _, v in s["series"]]
+    if len(vals) > 1:
+        lo, hi = min(vals), max(vals)
+        span = (hi - lo) or 1
+        pts = " ".join(f"{300 * i / (len(vals) - 1):.1f},{76 - 72 * (v - lo) / span:.1f}" for i, v in enumerate(vals))
+    from app.application.services import estimate_revisions_service as est
+    rev = est.revisions(ticker.upper())
+    return templates.TemplateResponse("_insiders.html", {"request": request, "ticker": ticker.upper(), **s, "spark": pts,
+                                                         "signal_days": insider_service.SIGNAL_DAYS, "rev": rev,
+                                                         "rev_period": est.PERIOD_LABEL.get((rev or {}).get("period")),
+                                                         "rev_cut": est.signal(rev)})
 
 
 @router.get("/api/history/{ticker}")
@@ -521,48 +598,51 @@ def get_history(ticker: str, period: str = "10y"):
         return {"status": "error", "message": str(e)}
 
 
-def get_calendar_events(ticker: str):
-    """
-    Obtiene los próximos eventos (earnings y dividendos) para un ticker
-    y devuelve un DataFrame de pandas.
-    """
-    import pandas as pd
-    from datetime import datetime
+# Perfil de inversión: el arquetipo del veredicto de la IA, con un nombre sobrio (sin emoji ni jerga) y su justificación
+PROFILE_NAMES = [   # (palabra clave en el arquetipo, nombre); en orden: «COMPOUNDER "OUTSIDER"» antes que «COMPOUNDER»
+    ("MONOPOLIO", "Franquicia dominante"), ("OUTSIDER", "Compounder con gestión excepcional"),
+    ("CLÁSICO", "Compounder"), ("CLASICO", "Compounder"), ("DORMIDO", "Franquicia infraexplotada"),
+    ("MALGESTIONADA", "Franquicia mal gestionada"), ("LECHERA", "Generadora de caja madura"),
+    ("TURNAROUND", "En reestructuración"), ("TRAMPA", "Trampa de valor"), ("DESTRUCTOR", "Destructora de capital"),
+]
 
+
+def investment_profile(verdict: Optional[str]) -> Optional[dict]:
+    """{name, why} a partir del informe de veredicto («Arquetipo de Inversión: …» y «Justificación del Arquetipo: …»)."""
+    if not verdict:
+        return None
+    m = re.search(r"Arquetipo de Inversi[oó]n[^:\n]*:\**\s*(.+)", verdict)
+    line = (m.group(1) if m else verdict).upper()
+    name = next((n for key, n in PROFILE_NAMES if key in line), None)
+    if not name:
+        return None
+    w = re.search(r"Justificaci[oó]n del Arquetipo[^:\n]*:\**\s*(.+)", verdict)
+    why = re.sub(r"[*_`]+", "", w.group(1)).strip() if w else None
+    return {"name": name, "why": why}
+
+
+def upcoming_events(ticker: str, info: dict) -> list:
+    """Próximos resultados (la misma fecha que la agenda, cacheada) y fecha ex-dividendo, para la franja del precio.
+    [{label, date (ISO), detail}], el más cercano primero."""
+    from app.application.services.thesis_review_service import _earnings_info
+    today = datetime.date.today()
+    events = []
     try:
-        stock = yf.Ticker(ticker)
-        events = []
-
-        # 1. Obtener calendario de earnings
-        try:
-            calendar = stock.calendar
-            if calendar is not None and 'Earnings Date' in calendar.columns and not calendar.empty:
-                earnings_date = calendar['Earnings Date'][0]
-                date_str = earnings_date.strftime('%d de %B, %Y') if not isinstance(earnings_date, str) else earnings_date
-                events.append({'Evento': 'Presentación de Resultados', 'Fecha': date_str, 'Detalles': 'Conference Call post-cierre'})
-        except Exception:
-            pass
-
-        # 2. Obtener información de dividendos
-        try:
-            info = stock.info
-            ex_div_date_ts = info.get('exDividendDate')
-            if ex_div_date_ts:
-                ex_div_date = datetime.fromtimestamp(ex_div_date_ts).date()
-                if ex_div_date >= datetime.today().date():
-                     events.append({
-                        'Evento': 'Fecha Ex-Dividendo',
-                        'Fecha': ex_div_date.strftime('%d de %B, %Y'),
-                        'Detalles': f"Dividendo aprox. {info.get('lastDividendValue', 'N/A')} {get_currency_symbol(info.get('currency', 'USD'))}"
-                    })
-        except Exception:
-            pass
-        
-        if not events:
-            return pd.DataFrame([{'Evento': 'No hay eventos próximos disponibles.', 'Fecha': '', 'Detalles': ''}])
-
-        df = pd.DataFrame(events)
-        return df.sort_values(by='Fecha')
-
+        nxt = (_earnings_info(ticker) or {}).get("next")
+        if nxt and str(nxt)[:10] >= today.isoformat():
+            events.append({"label": "Resultados", "date": str(nxt)[:10], "detail": "Presentación de resultados"})
     except Exception:
-        return pd.DataFrame([{'Evento': 'Error al cargar eventos.', 'Fecha': '', 'Detalles': ''}])
+        pass
+    ts = info.get("exDividendDate")
+    if ts:
+        try:
+            ex = datetime.datetime.fromtimestamp(ts).date()
+            if ex >= today:
+                amount = info.get("lastDividendValue")
+                events.append({"label": "Ex-dividendo", "date": ex.isoformat(),
+                               "detail": f"Último dividendo {amount} {get_currency_symbol(info.get('currency', 'USD'))}" if amount else "Fecha ex-dividendo"})
+        except (OSError, ValueError, OverflowError):
+            pass
+    for e in events:
+        e["days"] = (datetime.date.fromisoformat(e["date"]) - today).days
+    return sorted(events, key=lambda e: e["date"])

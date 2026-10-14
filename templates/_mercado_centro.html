@@ -38,12 +38,12 @@
     {% if news_headline %}<div class="small px-3 py-2 border-bottom"><i class="bi bi-journal-text me-1 text-muted"></i><a href="/noticias" class="text-decoration-none">{{ news_headline }}</a></div>{% endif %}
     <ul class="list-group list-group-flush small">
     {% if not news_has_current %}
-        <li class="list-group-item news-sep">Esta semana</li>
-        <li class="list-group-item text-muted">Sin noticias muy relevantes esta semana.</li>
+        <li class="list-group-item news-sep">Última semana</li>
+        <li class="list-group-item text-muted">Sin noticias muy relevantes en la última semana.</li>
     {% endif %}
     {% for w in news_weeks %}
-        <li class="list-group-item news-sep">{{ 'Esta semana' if w.current else 'Semana anterior' }}
-            <span class="fw-normal">· radar del {{ w.monday.strftime('%d/%m') }} · {{ w.news|length }}</span></li>
+        <li class="list-group-item news-sep">{{ 'Última semana' if w.current else 'Semana anterior' }}
+            <span class="fw-normal">· del {{ w.days[0].strftime('%d/%m') }} al {{ w.days[1].strftime('%d/%m') }} · {{ w.news|length }}</span></li>
         {% for n in w.news %}{{ centro_news_row(n) }}{% endfor %}
     {% endfor %}
     {% if news_old_unread %}

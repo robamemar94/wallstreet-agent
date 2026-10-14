@@ -203,7 +203,8 @@ def portfolio_changes(df: pd.DataFrame, transactions: List[Dict[str, Any]], spli
         starts[f"{n}d"] = before[-1] if len(before) else index[0]
     by_ticker = {t: [x for x in transactions if x["ticker"] == t] for t in tickers}
 
-    def price_eur(t: str, when) -> Optional[float]:
+    def price_fx(t: str, when) -> Optional[tuple]:
+        """(precio en su divisa, € por unidad de esa divisa) al cierre de `when`."""
         cur = next((x.get("currency") for x in by_ticker[t] if x.get("currency")), "USD")
         px = df[t].loc[:when].dropna()
         if not len(px):
@@ -215,7 +216,11 @@ def portfolio_changes(df: pd.DataFrame, transactions: List[Dict[str, Any]], spli
         if fx is None:
             return None
         fxv = fx.loc[:when].dropna()
-        return price * float(fxv.iloc[-1]) if len(fxv) else None
+        return (price, float(fxv.iloc[-1])) if len(fxv) else None
+
+    def price_eur(t: str, when) -> Optional[float]:
+        pf = price_fx(t, when)
+        return pf[0] * pf[1] if pf else None
 
     def shares_at(t: str, when: str) -> float:
         total = 0.0
@@ -225,15 +230,21 @@ def portfolio_changes(df: pd.DataFrame, transactions: List[Dict[str, Any]], spli
                 total += sh if x["type"] == "BUY" else -sh
         return max(total, 0.0)
 
-    def flow_eur(x: Dict[str, Any]) -> Optional[float]:
-        cur, price = x.get("currency") or "USD", x["price"]
+    def flow_fx(x: Dict[str, Any]) -> Optional[float]:
+        """€ por unidad de la divisa de la operación, el día de la operación."""
+        cur = x.get("currency") or "USD"
         if cur == "GBp":
-            price, cur = price / 100, "GBP"
+            cur = "GBP"
         fx = x.get("fx") or (1.0 if cur == "EUR" else None)
         if fx is None:
             f = _fx_series(df, cur)
             fxv = f.loc[:x["date"][:10]].dropna() if f is not None else []
             fx = float(fxv.iloc[-1]) if len(fxv) else None
+        return fx
+
+    def flow_eur(x: Dict[str, Any]) -> Optional[float]:
+        price = x["price"] / 100 if x.get("currency") == "GBp" else x["price"]
+        fx = flow_fx(x)
         if fx is None:
             return None
         amount = x["shares"] * price * fx
@@ -248,7 +259,7 @@ def portfolio_changes(df: pd.DataFrame, transactions: List[Dict[str, Any]], spli
     periods, contrib, pnl_eur = {}, {t: {} for t in tickers}, {t: {} for t in tickers}
     for key, start in starts.items():
         start_s, span = start.date().isoformat(), max((now - start).days, 1)
-        v0_total, pnl_total, weighted_flows = 0.0, 0.0, 0.0
+        v0_total, pnl_total, weighted_flows, fx_total = 0.0, 0.0, 0.0, 0.0
         pnl, incomplete = {}, []
         for t in tickers:
             sh0 = shares_at(t, start_s)
@@ -264,10 +275,22 @@ def portfolio_changes(df: pd.DataFrame, transactions: List[Dict[str, Any]], spli
             weighted_flows += sum(f * (now - pd.Timestamp(x["date"][:10])).days / span for x, f in flows if f is not None)
             if sh0 or flows:
                 pnl[t] = v1 - v0 - net
+                # efecto divisa: lo que movió el cambio desde el inicio (o desde cada compra/venta) sobre el precio de hoy;
+                # el resto del resultado es lo que hicieron las empresas en su moneda
+                pf_now, pf0 = price_fx(t, now), price_fx(t, start)
+                if pf_now:
+                    if sh0 and pf0:
+                        fx_total += sh0 * pf_now[0] * (pf_now[1] - pf0[1])
+                    for x, f in flows:
+                        fxf = flow_fx(x)
+                        if f is not None and fxf:
+                            sh = adjusted_shares(x, splits.get(t, []))
+                            fx_total += (sh if x["type"] == "BUY" else -sh) * pf_now[0] * (pf_now[1] - fxf)
             v0_total += v0
         pnl_total = sum(pnl.values())
         denom = v0_total + weighted_flows
-        periods[key] = {"pct": 100 * pnl_total / denom if denom > 0 else None, "abs_eur": pnl_total}
+        periods[key] = {"pct": 100 * pnl_total / denom if denom > 0 else None, "abs_eur": pnl_total,
+                        "fx_eur": fx_total, "fx_pct": 100 * fx_total / denom if denom > 0 else None}
         if incomplete:
             periods[key]["incomplete"] = incomplete   # quedan fuera del cálculo de este periodo
         for t in tickers:

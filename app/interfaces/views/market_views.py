@@ -5,6 +5,7 @@ import concurrent.futures
 import threading
 import yfinance as yf
 import pandas as pd
+from typing import Any, Dict, Optional
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
@@ -46,12 +47,17 @@ def is_reload_request(request: Request) -> bool:
     return "no-cache" in cache_control or "max-age=0" in cache_control or "no-cache" in pragma
 
 def get_currency_symbol(currency_code, ticker=""):
-    symbols = {'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥', 'CAD': 'C$', 'AUD': 'A$', 'CHF': 'Fr', 'CNY': '¥', 'HKD': 'HK$', 'NZD': 'NZ$', 'SEK': 'kr', 'KRW': '₩', 'SGD': 'S$', 'NOK': 'kr', 'MXN': '$', 'INR': '₹'}
+    symbols = {'USD': '$', 'EUR': '€', 'GBP': '£', 'GBp': 'p', 'JPY': '¥', 'CAD': 'C$', 'AUD': 'A$', 'CHF': 'Fr', 'CNY': '¥', 'HKD': 'HK$',
+               'NZD': 'NZ$', 'SEK': 'kr', 'KRW': '₩', 'SGD': 'S$', 'NOK': 'kr', 'DKK': 'kr', 'MXN': '$', 'INR': '₹', 'PLN': 'zł',
+               'CZK': 'Kč', 'HUF': 'Ft', 'BRL': 'R$', 'ZAR': 'R', 'TWD': 'NT$', 'ILS': '₪', 'TRY': '₺'}
     symbol = symbols.get(currency_code)
     if symbol: return symbol
-    if ticker.endswith('.MC') or ticker.endswith('.PA') or ticker.endswith('.AS') or ticker.endswith('.MI'): return '€'
+    if ticker.endswith(('.MC', '.PA', '.AS', '.MI', '.DE', '.BR', '.LS', '.HE', '.VI', '.IR')): return '€'
     if ticker.endswith('.L'): return '£'
-    return '$'
+    if ticker.endswith('.WA'): return 'zł'
+    if ticker.endswith(('.ST', '.OL', '.CO')): return 'kr'
+    # una moneda sin símbolo conocido: su código (PLN, DKK…) mejor que un «$» que no es
+    return currency_code if currency_code and currency_code != 'USD' else '$'
 
 def get_region_for_asset(ticker, country):
     country_lower = country.lower() if country else ""
@@ -113,6 +119,46 @@ def get_market_group(ticker, country):
         return "usa"
     return "otros"
 
+# Nombre de cada grupo para mostrarlo (filtro «Región» de la base de datos), en este orden
+MARKET_GROUP_LABELS = {"usa": "EE. UU.", "europa": "Europa", "uk": "Reino Unido", "nordicos": "Nórdicos",
+                       "america": "América (sin EE. UU.)", "asia": "Asia", "oceania": "Oceanía", "otros": "Otros"}
+
+DAYS_ES = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
+
+
+def session_label(last_date, today) -> str:
+    """Cómo se llama la última sesión de un mercado que aún no ha abierto hoy: «ayer», el día de la semana si es de esta
+    semana o del fin de semana pasado («vie» un lunes), o la fecha."""
+    if not last_date:
+        return ""
+    days = (today - last_date).days
+    if days == 1:
+        return "ayer"
+    if days <= 6:
+        return DAYS_ES[last_date.weekday()]
+    return last_date.strftime("%d/%m")
+
+
+def portfolio_day(active_portfolio, asset_repo, today: Optional[datetime.date] = None) -> Dict[str, Any]:
+    """Cómo va hoy la cartera, con los precios en caché. La misma cuenta que Cartera (day_change): en € incluye lo que se
+    ha movido la divisa desde ayer. La usan la tarjeta «Mi Cartera» de Mercado y la cifra del día de la barra de arriba."""
+    from app.interfaces.views.portfolio_views import day_change
+    today = today or datetime.date.today()
+    now, prev, missing, open_ = 0.0, 0.0, [], False
+    for item in active_portfolio:
+        d = INDEX_CACHE["data"].get(item.ticker)
+        if not d or not d.get("price"):
+            missing.append(item.ticker)
+            continue
+        day = day_change(item.shares, d["price"], d["prev"], d.get("last_date"), asset_repo.get_asset_data(item.ticker).get("currency", "USD"), today)
+        value = item.shares * d["price"] * day["rate"]
+        now += value
+        prev += value - day["eur"]
+        open_ = open_ or not day["closed"]
+    return {"value": now, "eur": now - prev, "pct": ((now / prev) - 1) * 100 if prev > 0 else 0.0,
+            "any_open": open_, "missing": missing}
+
+
 def ensure_prices_cached(tickers: list, asset_repo, wait: bool = False) -> None:
     """Asegura que los tickers provistos tengan su precio y variación en INDEX_CACHE.
     Si faltan, se descargan (y se espera); si solo están viejos, se muestran y se actualizan en segundo plano.
@@ -151,6 +197,39 @@ def _load_price_snapshot() -> None:
     INDEX_CACHE["prices_update"] = snap.get("updated", 0)
 
 
+def filled_previous_session(data: pd.DataFrame) -> list:
+    """Valores cuya sesión de hoy tiene volumen pero la anterior no (Yahoo la ha rellenado con un cierre viejo). Los índices
+    y las divisas no traen volumen: no entran."""
+    if "Volume" not in data:
+        return []
+    vols = data["Volume"]
+    if isinstance(vols, pd.Series):
+        return []
+    out = []
+    for t in vols.columns:
+        v = vols[t].dropna()
+        if len(v) > 1 and v.iloc[-1] > 0 and v.iloc[-2] == 0:
+            out.append(t)
+    return out
+
+
+def previous_close_for(tickers: list) -> dict:
+    """Cierre anterior según Yahoo (info.regularMarketPreviousClose), en paralelo; solo para los pocos que lo necesitan."""
+    if not tickers:
+        return {}
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(t):
+        try:
+            info = yf.Ticker(t).info or {}
+            v = info.get("regularMarketPreviousClose") or info.get("previousClose")
+            return t, float(v) if v else None
+        except Exception:
+            return t, None
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        return {t: v for t, v in pool.map(one, tickers) if v}
+
+
 def refresh_index_prices(symbols: list, alert_tickers: list) -> None:
     """Precio y cierre anterior de cada valor (una sola descarga de 5 sesiones) → INDEX_CACHE y foto en disco."""
     data = yf.download(sorted(set(symbols)), period="5d", progress=False)
@@ -162,6 +241,9 @@ def refresh_index_prices(symbols: list, alert_tickers: list) -> None:
     # cierre de hoy vacío en Yahoo para bolsas que ya han cotizado hoy (p. ej. Tokio): se completa con el intradía
     from app.application.services.session_fill import fill_today
     closes = fill_today(closes)
+    # sesiones que Yahoo rellena repitiendo el último cierre con volumen 0 (le pasa a Varsovia): ese «cierre anterior» es
+    # de hace días y la variación del día sale falsa (+8,7 % en vez de +0,8 %). Para esos, el cierre anterior de verdad.
+    real_prev = previous_close_for(filled_previous_session(data))
     fresh = {}
     for t in closes.columns:
         col_close = closes[t].dropna()
@@ -178,6 +260,8 @@ def refresh_index_prices(symbols: list, alert_tickers: list) -> None:
                     prev = float(yf.Ticker(t).fast_info["previous_close"])
                 except Exception:
                     pass
+        if real_prev.get(t):
+            prev = real_prev[t]
         fresh[t] = {"price": price, "prev": prev, "last_date": last_date}
     INDEX_CACHE["data"].update(fresh)
     INDEX_CACHE["unavailable"] = (set(INDEX_CACHE.get("unavailable", ())) - set(fresh)) | (set(symbols) - set(fresh))
@@ -270,6 +354,17 @@ def prices_banner_context() -> dict:
 @router.get("/api/mercado/prices-status")
 def prices_status():
     return {"updated": INDEX_CACHE.get("prices_update", 0), "refreshing": bool(INDEX_CACHE.get("refreshing"))}
+
+
+@router.get("/api/portfolio/day")
+def portfolio_day_api(portfolio_service: PortfolioService = Depends(get_portfolio_service),
+                      asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository)):
+    """La cifra del día de la cartera para la barra de arriba (todas las páginas). Precios en caché; si faltan, se piden
+    en segundo plano y la siguiente consulta ya los tiene."""
+    active = [i for i in portfolio_service.get_active_portfolio() if i.shares > 0]
+    ensure_prices_cached([i.ticker for i in active], asset_repo)
+    day = portfolio_day(active, asset_repo)
+    return {**day, "updated": INDEX_CACHE.get("prices_update", 0)}
 
 
 @router.get("/")
@@ -423,21 +518,9 @@ def index(
     dates_found = [INDEX_CACHE["data"][idx]["last_date"] for idx in session_indices if idx in INDEX_CACHE["data"]]
     latest_market_date = max(dates_found) if dates_found else today
 
-    # la misma cuenta que Cartera (day_change): en € incluye lo que se ha movido la divisa desde ayer; antes se usaba el
-    # cambio de hoy para los dos precios y la cifra no coincidía con la variación 1D de Cartera
-    from app.interfaces.views.portfolio_views import day_change
-    port_now, port_prev = 0, 0
     is_weekday = today.weekday() < 5
-    for item in active_portfolio:
-        t = item.ticker
-        if t in INDEX_CACHE["data"]:
-            d = INDEX_CACHE["data"][t]
-            day = day_change(item.shares, d["price"], d["prev"], d.get("last_date"), asset_repo.get_asset_data(t).get("currency", "USD"), today)
-            v_now = item.shares * d["price"] * day["rate"]
-            port_now += v_now; port_prev += v_now - day["eur"]
-
-    port_pct = ((port_now / port_prev) - 1) * 100 if port_prev > 0 else 0
-    market_indices = [{"name": "MI CARTERA", "price": port_now, "change": port_now - port_prev, "pct": port_pct, "is_portfolio": True}]
+    pday = portfolio_day(active_portfolio, asset_repo, today)
+    market_indices = [{"name": "MI CARTERA", "price": pday["value"], "change": pday["eur"], "pct": pday["pct"], "is_portfolio": True}]
     for sym, name in indices_to_fetch.items():
         if sym in INDEX_CACHE["data"]:
             d = INDEX_CACHE["data"][sym]
@@ -467,10 +550,11 @@ def index(
             p_prev = d["prev"]
             p_last_date = d.get("last_date")
             not_open = bool(is_weekday and p_last_date and p_last_date != today)
-            if not_open:
-                p_prev = p_price
+            # su mercado aún no ha abierto hoy: en «Actividad del día» sale su última sesión (atenuada, «ayer»); el mapa de
+            # calor y las cifras del día siguen siendo solo de hoy (0)
             change = p_price - p_prev
             pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
+            pct_today = 0.0 if not_open else pct
 
             mover_item = {
                 "name": t, "company_name": db_d.get("company_name", "-"),
@@ -478,7 +562,9 @@ def index(
                 "symbol": get_currency_symbol(db_d.get("currency", "USD"), t),
                 "region": get_region_for_asset(t, db_d.get("country", "-")),
                 "market": get_market_group(t, db_d.get("country", "-")), "not_open": not_open,
-                "status": db_d.get("status") or "NONE"
+                "session_label": session_label(p_last_date, today) if not_open else None,
+                # para el filtro de «Actividad del día»: Tier 1 y Tier 2 aparte; el resto, su estado (Seguimiento = ACCEPTED)
+                "status": "T1" if is_fav else ("T2" if str(db_d.get("watch_tier") or "") == "2" else (db_d.get("status") or "NONE"))
             }
 
             if db_session:
@@ -495,7 +581,7 @@ def index(
 
                 heatmap_data.append({
                     "ticker": t,
-                    "pct": pct,
+                    "pct": pct_today,
                     "sector": db_d.get("sector", "Otros"),
                     "industry": db_d.get("industry", db_d.get("sector", "Otros")),
                     "is_portfolio": t in portfolio_tickers,
@@ -518,15 +604,16 @@ def index(
             
 
     # Sort ALL valid daily movers by PCT Descending
-    sorted_movers = sorted(all_daily_movers, key=lambda x: x["pct"], reverse=True)
+    # primero lo de hoy y, debajo, lo de los mercados que aún no han abierto (su sesión anterior)
+    sorted_movers = sorted(all_daily_movers, key=lambda x: (x["not_open"], -x["pct"]))
     top_gainers = [m for m in sorted_movers if m["pct"] >= 0]
-    top_losers = sorted([m for m in sorted_movers if m["pct"] < 0], key=lambda x: x["pct"])
+    top_losers = sorted([m for m in sorted_movers if m["pct"] < 0], key=lambda x: (x["not_open"], x["pct"]))
     
     # Portfolio Specific Movers
-    sorted_port_movers = sorted(port_daily_movers, key=lambda x: x["pct"], reverse=True)
+    sorted_port_movers = sorted(port_daily_movers, key=lambda x: (x["not_open"], -x["pct"]))
     
-    fav_movers = sorted(fav_movers, key=lambda x: x["pct"])
-    port_fav_movers = sorted(port_fav_movers, key=lambda x: x["pct"])
+    fav_movers = sorted(fav_movers, key=lambda x: (x["not_open"], x["pct"]))
+    port_fav_movers = sorted(port_fav_movers, key=lambda x: (x["not_open"], x["pct"]))
 
     # 5. Listas personalizadas para el Dashboard
     custom_lists_movers = []
@@ -539,9 +626,7 @@ def index(
                     p_price = d["price"]
                     p_prev = d["prev"]
                     p_last_date = d.get("last_date")
-                    not_open = bool(is_weekday and p_last_date and p_last_date != today)
-                    if not_open:
-                        p_prev = p_price
+                    not_open = bool(is_weekday and p_last_date and p_last_date != today)   # su sesión anterior, atenuada
                     change = p_price - p_prev
                     pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
                     
@@ -554,13 +639,14 @@ def index(
                         "symbol": get_currency_symbol(db_d.get("currency", "USD"), asset.ticker),
                         "region": get_region_for_asset(asset.ticker, db_d.get("country", "-")),
                         "market": get_market_group(asset.ticker, db_d.get("country", "-")), "not_open": not_open,
+                        "session_label": session_label(p_last_date, today) if not_open else None,
                         "status": db_d.get("status") or "NONE",
                         "is_favorite": asset.is_favorite
                     }
                     clist_movers.append(mover_item)
                     
             # Ordenar de menor a mayor pct (igual que favoritos)
-            clist_movers = sorted(clist_movers, key=lambda x: x["pct"])
+            clist_movers = sorted(clist_movers, key=lambda x: (x["not_open"], x["pct"]))
             
             custom_lists_movers.append({
                 "id": clist.id,

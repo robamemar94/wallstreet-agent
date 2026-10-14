@@ -31,8 +31,10 @@ def _sum_by(positions: List[Dict[str, Any]], key: str, default: str) -> Dict[str
     return out
 
 
-def build(positions: List[Dict[str, Any]], roles: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """positions: [{ticker, name, value (EUR), currency, sector, country, role}]; roles: los de portfolio_roles.yaml."""
+def build(positions: List[Dict[str, Any]], roles: List[Dict[str, Any]], cash: float = 0.0) -> Optional[Dict[str, Any]]:
+    """positions: [{ticker, name, value (EUR), currency, sector, country, role}]; roles: los de portfolio_roles.yaml.
+    cash: liquidez del bróker en euros. Solo entra en la divisa (es exposición real al euro) y en su propio %; los pesos,
+    roles, sectores y países siguen siendo de lo invertido."""
     positions = [p for p in positions if (p.get("value") or 0) > 0]
     total = sum(p["value"] for p in positions)
     if not total:
@@ -56,7 +58,11 @@ def build(positions: List[Dict[str, Any]], roles: List[Dict[str, Any]]) -> Optio
                           "value": by_role[NO_ROLE], "min": None, "max": None, "band": None,
                           "members": sorted(p["ticker"] for p in positions if not p.get("role"))})
 
-    currency = _slices(_sum_by(positions, "currency", "?"), total)
+    cash = max(cash or 0.0, 0.0)
+    by_ccy = _sum_by(positions, "currency", "?")
+    if cash:
+        by_ccy["EUR"] = by_ccy.get("EUR", 0.0) + cash
+    currency = _slices(by_ccy, total + cash)
     return {
         "total": total,
         "concentration": {
@@ -69,6 +75,7 @@ def build(positions: List[Dict[str, Any]], roles: List[Dict[str, Any]]) -> Optio
         "assets": assets,
         "roles": role_rows,
         "currency": currency,
+        "cash": {"value": cash, "pct": 100 * cash / (total + cash)} if cash else None,
         "sector": _slices(_sum_by(positions, "sector", "Desconocido"), total),
         "country": _slices(_sum_by(positions, "country", "Desconocido"), total),
     }
