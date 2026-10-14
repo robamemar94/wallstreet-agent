@@ -59,15 +59,20 @@
     /* grupos: una línea por tipo, las empresas como etiquetas (punto = sin leer; apagada = de hace más de 7 días) */
     .grouped .ng-block-h { font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--bs-secondary-color); margin: .2rem 0 .35rem; }
     .grouped .ng-block + .ng-block, .grouped + .grouped .ng-block { margin-top: .5rem; }
-    .grouped .ng-line { display: flex; align-items: center; gap: .4rem; padding: .3rem 0; border-bottom: 1px solid var(--bs-border-color-translucent); }
-    .grouped .ng-line .att-tag { flex: 0 0 auto; min-width: 7.5rem; text-align: center; margin: 0; }
-    .grouped .ng-chips { flex: 1 1 auto; display: flex; flex-wrap: wrap; gap: .3rem; min-width: 0; }
-    .ng-chip { border: 1px solid var(--bs-border-color); background: var(--bs-tertiary-bg); color: var(--bs-body-color); border-radius: 1rem;
-               padding: .05rem .55rem; font-size: .76rem; font-weight: 600; position: relative; }
-    .ng-chip small { font-weight: 400; color: var(--bs-secondary-color); }
-    .ng-chip.unread::before { content: ""; position: absolute; top: -2px; right: -2px; width: 7px; height: 7px; border-radius: 50%; background: var(--bs-primary); }
-    .ng-chip.held { border-color: rgba(88, 166, 255, .6); }
-    .ng-chip.old { opacity: .45; } .ng-chip.active { border-color: var(--bs-primary); background: rgba(13, 110, 253, .15); }
+    .grouped .ng-line { display: flex; align-items: center; gap: .4rem; padding: .35rem 0 .1rem; border-top: 1px solid var(--bs-border-color-translucent); }
+    .grouped .ng-line .att-tag { flex: 0 0 auto; margin: 0; }
+    /* una línea por empresa: ticker, texto breve (una línea) y fecha; pulsarla despliega el detalle */
+    .grouped .ng-rows { display: flex; flex-direction: column; padding: .1rem 0 .25rem; }
+    .ng-chip { display: flex; align-items: baseline; gap: .6rem; width: 100%; text-align: left; border: 0; background: transparent;
+               color: var(--bs-body-color); padding: .2rem .35rem .2rem 1rem; font-size: .8rem; border-radius: .25rem; position: relative; }
+    .ng-chip:hover { background: var(--bs-tertiary-bg); }
+    .ng-chip b { flex: 0 0 4.6rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ng-chip .ng-text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--bs-secondary-color); }
+    .ng-chip .ng-date { flex: 0 0 auto; color: var(--bs-secondary-color); font-family: var(--bs-font-monospace); font-size: .7rem; }
+    .ng-chip.unread::before { content: ""; position: absolute; left: .3rem; top: .62rem; width: 6px; height: 6px; border-radius: 50%; background: var(--bs-primary); }
+    .ng-chip.unread .ng-text { color: var(--bs-body-color); }
+    .ng-chip.held b { color: #58a6ff; }
+    .ng-chip.old { opacity: .45; } .ng-chip.active { background: rgba(13, 110, 253, .15); }
     .grouped .ng-line.att-seen .att-tag { opacity: .6; }
     .grouped .ng-detail { padding: .35rem .5rem .1rem 1rem; margin: .2rem 0 .3rem; border-left: 2px solid var(--bs-primary); background: var(--bs-tertiary-bg); border-radius: .25rem; }
     #slot-attention .inbox-h { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color);

@@ -310,9 +310,10 @@ function initNoticeLists(root) {
 <div class="ng-group">
     <div class="ng-line inbox-item">
         <span class="att-tag text-{{ color }} border-{{ color }}">{{ label }}</span>
-        <span class="ng-chips">{{ chips }}</span>
+        <span class="flex-grow-1"></span>
         <button type="button" class="btn btn-link btn-sm p-0 att-dismiss" title="Marcar el grupo como leído" aria-label="Marcar el grupo como leído" onclick="markSeen(this)"><i class="bi bi-eye"></i></button><button type="button" class="btn btn-link btn-sm p-0 text-muted att-dismiss" title="Descartar el grupo: no volverá a salir mientras siga dándose" aria-label="Descartar el grupo" onclick="dismissNotice(this)"><i class="bi bi-x-lg"></i></button>
     </div>
+    <div class="ng-rows">{{ chips }}</div>
     <div class="ng-detail d-none">{{ items }}</div>
 </div>
 {% endmacro %}
@@ -320,7 +321,7 @@ function initNoticeLists(root) {
 <div class="card-body small notice-list grouped" id="attList" data-collapse="999">
     <div class="ng-block"><div class="ng-block-h">Pide acción</div>
     {% for type, items in attention|groupby('type')|sort(attribute='list.0.prio') %}{% set tag = NOTICE_TAG.get(type, (type|replace('_', ' '), 'secondary')) %}
-        {% set chips %}{% for t, its in items|groupby('ticker') %}{% set first = its[0] %}<button type="button" class="ng-chip" data-ticker="{{ t or first.label or '' }}" title="{{ its|map(attribute='text')|join(' · ') }}" onclick="toggleGroupChip(this)">{{ clean_ticker(t or first.label or '') }}{% if type == 'upcoming_results' and first.ref %} <small>{{ first.ref[8:10] }}/{{ first.ref[5:7] }}</small>{% endif %}</button>{% endfor %}{% endset %}
+        {% set chips %}{% for t, its in items|groupby('ticker') %}{% set first = its[0] %}<button type="button" class="ng-chip" data-ticker="{{ t or first.label or '' }}" title="Pulsa para ver el detalle" onclick="toggleGroupChip(this)"><b>{{ clean_ticker(t or first.label or '') }}</b><span class="ng-text">{{ its|map(attribute='text')|join(' · ') }}</span></button>{% endfor %}{% endset %}
         {% set details %}{% for a in items %}{{ attention_item(a, held) }}{% endfor %}{% endset %}
         {{ group_line(tag[0], tag[1], details, chips) }}
     {% endfor %}
@@ -331,7 +332,7 @@ function initNoticeLists(root) {
     <div class="ng-block"><div class="ng-block-h">Precios · solo informa</div>
     {% for gkey, glabel, gcolor in SIGNAL_GROUPS %}{% set mine = [] %}{% for s in signals if signal_group_key(s)|trim == gkey %}{% set _ = mine.append(s) %}{% endfor %}
     {% if mine %}
-        {% set chips %}{% for t, its in mine|groupby('ticker') %}<button type="button" class="ng-chip{{ ' held' if t in held }}" data-ticker="{{ t }}" data-date="{{ its|map(attribute='date')|max }}" title="{{ its|map(attribute='text')|join(' · ') }}" onclick="toggleGroupChip(this)">{{ clean_ticker(t) }} <small>{% for s in its|sort(attribute='kind') %}{{ signal_short(s) }}{{ ' · ' if not loop.last }}{% endfor %}</small></button>{% endfor %}{% endset %}
+        {% set chips %}{% for t, its in mine|groupby('ticker') %}{% set last = its|map(attribute='date')|max %}<button type="button" class="ng-chip{{ ' held' if t in held }}" data-ticker="{{ t }}" data-date="{{ last }}" title="Pulsa para ver el detalle" onclick="toggleGroupChip(this)"><b>{{ clean_ticker(t) }}</b><span class="ng-text">{% for s in its|sort(attribute='kind') %}{% if s.kind == 'nivel' %}{{ 'nuevo mínimo' if s.tone == 'down' else 'nuevo máximo' }} · {% endif %}{{ signal_short(s) }}{{ ' · ' if not loop.last }}{% endfor %}</span><small class="ng-date">{{ last[8:10] }}/{{ last[5:7] }}</small></button>{% endfor %}{% endset %}
         {% set details %}{% for s in mine %}{{ signal_item(s, theses_ids, held, full=True) }}{% endfor %}
             {% for t in mine|map(attribute='ticker')|unique %}<div class="ng-more small" data-ticker="{{ t }}">
                 <span class="text-muted">σ: cuánto se sale el movimiento de lo normal para esta empresa (más de 2σ es raro).</span>
