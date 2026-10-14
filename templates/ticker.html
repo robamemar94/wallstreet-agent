@@ -14,38 +14,18 @@
     {{ val if val else '-' }}
   {% endif %}
 {% endmacro %}
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-2 pb-2 border-bottom gap-2">
+{# Cabecera en una línea: la empresa, el precio y su estado de un vistazo (calidad, zona de valoración, tesis, tu
+   posición); a la derecha, el nivel y «⋯ Gestionar» con lo que se usa de vez en cuando (rol, estado, silenciar,
+   listas, borrar). Los controles conservan sus id: su JavaScript no cambia. #}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-2 pb-2 border-bottom gap-2 ticker-head">
     <div class="d-flex align-items-center flex-wrap gap-2">
-        <span class="favorite-star cursor-pointer fs-5 me-1" onclick="toggleFavorite('{{ ticker }}', this)" title="Tier 1 · objetivo: la comprarías si llega a precio (atajo del selector de nivel)">
+        <a href="javascript:history.back()" class="btn btn-sm btn-link text-muted px-1" title="Volver"><i class="bi bi-arrow-left"></i></a>
+        <span class="favorite-star cursor-pointer fs-5" onclick="toggleFavorite('{{ ticker }}', this)" title="Tier 1 · objetivo: la comprarías si llega a precio (atajo del selector de nivel)">
             <i class="bi {{ 'bi-star-fill text-warning' if is_favorite else 'bi-star text-muted' }}"></i>
         </span>
-        {# nivel de interés: Tier 1 (la estrella), Tier 2, Tier 3 o ninguno; «seguimiento» = los tres #}
-        <select class="form-select form-select-sm w-auto me-1" id="tierSelect" style="font-size: .75rem;" aria-label="Nivel"
-                title="Tier 1: la comprarías si llega a precio (todos los avisos). Tier 2: te gusta, sin prisa (aviso al entrar en zona). Tier 3: solo agenda y resultados. Las tres forman tu «seguimiento».">
-            <option value="" {{ 'selected' if not tier.value }}>Sin nivel</option>
-            <option value="1" {{ 'selected' if tier.value == '1' }}>Tier 1 · objetivo</option>
-            <option value="2" {{ 'selected' if tier.value == '2' }}>Tier 2 · vigilancia</option>
-            <option value="seg" {{ 'selected' if tier.value == 'seg' }}>Tier 3</option>
-        </select>
-        <button type="button" class="btn btn-sm {{ 'btn-warning' if muted else 'btn-outline-secondary' }} py-0 me-1" id="muteBtn" data-muted="{{ 'true' if muted else 'false' }}"
-                title="{{ 'Silenciada: no genera avisos. Pulsa para volver a activarlos' if muted else 'Silenciar todos los avisos de esta empresa' }}" aria-label="Silenciar avisos">
-            <i class="bi {{ 'bi-bell-slash-fill' if muted else 'bi-bell' }}"></i></button>
-        
-        <!-- Dropdown para Añadir a Listas Personalizadas -->
-        <div class="dropdown me-2">
-            <button class="btn btn-xs btn-outline-secondary dropdown-toggle d-flex align-items-center gap-1.5 py-1 px-2" type="button" id="dropdownListsButton" data-bs-toggle="dropdown" aria-expanded="false" onclick="loadTickerLists('{{ ticker }}')" title="Gestionar listas personalizadas" style="font-size: 0.72rem; border-color: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); min-height: 25px;">
-                <i class="bi bi-list-stars"></i>
-                <span>Listas</span>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-dark p-2" aria-labelledby="dropdownListsButton" id="ticker-lists-dropdown" style="min-width: 200px; font-size: 0.8rem; background-color: var(--fin-card-bg); border: 1px solid rgba(255,255,255,0.15);">
-                <li class="text-center py-2 text-muted small">Cargando listas...</li>
-            </ul>
-        </div>
-
-        <h2 class="fw-bold mb-0 me-2" style="font-size: 1.3rem; letter-spacing: -0.02em;" title="{{ info.get('sector', 'Sector Desconocido') }} · {{ info.get('industry', 'Industria Desconocida') }} · {{ info.get('country', 'País Desconocido') }}">
+        <h2 class="fw-bold mb-0 me-1" style="font-size: 1.3rem; letter-spacing: -0.02em;" title="{{ info.get('sector', 'Sector Desconocido') }} · {{ info.get('industry', 'Industria Desconocida') }} · {{ info.get('country', 'País Desconocido') }}">
             {{ info.get('longName', ticker) }} <span class="text-muted fw-normal">({{ clean_ticker(ticker) }})</span>
         </h2>
-        {# la cotización, junto al nombre (como Google o TIKR) #}
         {% if custom_metrics.currentPrice %}
         <span class="d-inline-flex align-items-baseline gap-2 me-2">
             <span class="fw-bold num-font" style="font-size: 1.3rem; line-height: 1;">{{ num(custom_metrics.currentPrice, 2) }} {{ currency_symbol }}</span>
@@ -56,38 +36,34 @@
             {% endif %}
         </span>
         {% endif %}
-        {% if mcap %}<span class="small me-2" title="Capitalización en USD: acciones en circulación × precio × tipo de cambio. {{ mcap.tier.name }}: {{ mcap.tier.range }}">
-            <span class="text-muted">Cap.</span> <b class="num-font">{{ mcap.label }}</b><span class="cap-badge cap-{{ mcap.tier.key }}" style="vertical-align: 1px;">{{ mcap.tier.name }}</span></span>{% endif %}
-
-        <div id="status-badge-container">
-            {% if db.get('status') == 'ACCEPTED' %}
-                <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i>Aceptada</span>
-            {% elif db.get('status') == 'REJECTED' %}
-                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-x-circle-fill me-1"></i>Descartada</span>
-            {% elif db.get('status') == 'STANDBY' %}
-                <span class="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-question-circle-fill me-1"></i>Dudas</span>
-            {% else %}
-                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-hourglass-split me-1"></i>Pendiente</span>
-            {% endif %}
-        </div>
-        
+        {% if mcap %}<span class="cap-badge cap-{{ mcap.tier.key }} me-1" title="Capitalización: {{ mcap.label }} (en USD: acciones en circulación × precio × tipo de cambio). {{ mcap.tier.name }}: {{ mcap.tier.range }}">{{ mcap.tier.name }}</span>{% endif %}
+        {# insignias de estado: se leen sin pensar #}
+        <span class="d-inline-flex flex-wrap align-items-center gap-1 head-badges">
         <span id="hdr-quality">{# se refresca con el Resumen al terminar un informe #}
         {% if reports_meta.get('verdict') and reports_meta['verdict'].score != 'N/A' %}
-        <div style="cursor: pointer;" onclick="document.getElementById('verdict-tab').click(); document.getElementById('verdict-tab').scrollIntoView({behavior: 'smooth'})" title="Haz clic para ver el veredicto completo">
-            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle px-2.5 py-1" style="font-size: 0.75rem;">
-                <i class="bi bi-award-fill me-1"></i>Calidad: {{ reports_meta['verdict'].score.split('/')[0] if '/' in reports_meta['verdict'].score|string else reports_meta['verdict'].score }}
-                {% if reports_meta['verdict'].archetype %}
-                    | {{ reports_meta['verdict'].archetype }}
-                {% endif %}
-            </span>
-        </div>
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle px-2 py-1" style="font-size: .75rem; cursor: pointer;" onclick="document.getElementById('nav-analysis-tab').click();" title="Nota de calidad del veredicto de inversión{% if reports_meta['verdict'].archetype %} · {{ reports_meta['verdict'].archetype }}{% endif %}. Pulsa para ver el análisis">
+                <i class="bi bi-award-fill me-1"></i>Calidad {{ reports_meta['verdict'].score.split('/')[0] if '/' in reports_meta['verdict'].score|string else reports_meta['verdict'].score }}</span>
         {% endif %}
         </span>
+            <span id="hdrZone"></span>
+            {% if thesis_link and thesis_link.verdict %}{% set vdb = {'REFORZADA': 'success', 'INTACTA': 'primary', 'VIGILANCIA': 'warning', 'DEBILITADA': 'danger', 'ROTA': 'dark'} %}
+            <a href="/tesis/{{ thesis_link.id }}" class="badge text-decoration-none bg-{{ vdb.get(thesis_link.verdict, 'secondary') }} bg-opacity-10 text-{{ vdb.get(thesis_link.verdict, 'secondary') }} border border-{{ vdb.get(thesis_link.verdict, 'secondary') }}-subtle px-2 py-1" style="font-size: .75rem;" title="Veredicto de la tesis{% if thesis_link.health is not none %} · salud {{ thesis_link.health }}{% endif %}"><i class="bi bi-journal-text me-1"></i>Tesis {{ thesis_link.verdict|lower }}</a>{% endif %}
+            {% if portfolio_is_active and portfolio_item %}<a href="#" onclick="document.getElementById('nav-portfolio-tab').click(); return false;" class="badge text-decoration-none bg-info bg-opacity-10 text-info border border-info-subtle px-2 py-1" style="font-size: .75rem;" title="La tienes en cartera"><i class="bi bi-briefcase me-1"></i>En cartera · {{ num(portfolio_item.shares, 0 if portfolio_item.shares == portfolio_item.shares|int else 2) }} acc.</a>{% endif %}
+        </span>
     </div>
-    
     <div class="d-flex align-items-center gap-2">
-        <a href="/" class="btn btn-sm btn-outline-secondary px-3"><i class="bi bi-arrow-left me-1"></i> Volver</a>
-        
+        <select class="form-select form-select-sm w-auto" id="tierSelect" style="font-size: .75rem;" aria-label="Nivel"
+                title="Tier 1: la comprarías si llega a precio (todos los avisos). Tier 2: te gusta, sin prisa (aviso al entrar en zona). Tier 3: solo agenda y resultados. Las tres forman tu «seguimiento».">
+            <option value="" {{ 'selected' if not tier.value }}>Sin nivel</option>
+            <option value="1" {{ 'selected' if tier.value == '1' }}>Tier 1 · objetivo</option>
+            <option value="2" {{ 'selected' if tier.value == '2' }}>Tier 2 · vigilancia</option>
+            <option value="seg" {{ 'selected' if tier.value == 'seg' }}>Tier 3</option>
+        </select>
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary text-nowrap" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="manageBtn" title="Rol, estado, avisos, listas y borrar">
+                <i class="bi bi-three-dots me-1"></i>Gestionar{% if muted %} <i class="bi bi-bell-slash-fill text-warning ms-1" title="Silenciada"></i>{% endif %}</button>
+            <div class="dropdown-menu dropdown-menu-end p-3 manage-menu" aria-labelledby="manageBtn">
+                <div class="manage-h">Rol en cartera</div>
         {% set role_def = (portfolio_roles()|selectattr('key', 'equalto', db.get('portfolio_role'))|list or [none])[0] %}
         <div class="input-group input-group-sm" id="roleCard" style="width: auto;{% if role_def %} box-shadow: inset 0 -2px 0 {{ role_def.color }};{% endif %}" title="Rol en el Portfolio ideal (solo empresas en seguimiento, favoritas o en cartera)">
             <a class="input-group-text text-decoration-none" href="/ideal-portfolio" title="Ver el Portfolio ideal"><i class="bi bi-award"></i></a>
@@ -97,7 +73,8 @@
             </select>
             <button class="btn btn-outline-secondary" type="button" id="roleAiBtn" onclick="getTickerRoleSuggestion('{{ ticker }}')" title="Proponer rol con IA"><i class="bi bi-robot"></i></button>
         </div>
-
+                <div class="manage-h">Estado del análisis</div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
         <div class="btn-group btn-group-sm shadow-xs" role="group">
             <button type="button" class="btn btn-outline-success {% if db.get('status') == 'ACCEPTED' %}active{% endif %} px-2.5" id="btn-accept" onclick="updateStatus('{{ ticker }}', 'ACCEPTED')">
                 <i class="bi bi-check-lg me-1"></i>Aceptar
@@ -112,12 +89,50 @@
                 <i class="bi bi-x-lg me-1"></i>Descartar
             </button>
         </div>
-        
-        <button class="btn btn-sm btn-outline-danger shadow-xs px-2.5" onclick="deleteTicker('{{ ticker }}')" title="Eliminar Análisis">
-            <i class="bi bi-trash"></i>
-        </button>
+        <div id="status-badge-container">
+            {% if db.get('status') == 'ACCEPTED' %}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i>Aceptada</span>
+            {% elif db.get('status') == 'REJECTED' %}
+                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-x-circle-fill me-1"></i>Descartada</span>
+            {% elif db.get('status') == 'STANDBY' %}
+                <span class="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-question-circle-fill me-1"></i>Dudas</span>
+            {% else %}
+                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-hourglass-split me-1"></i>Pendiente</span>
+            {% endif %}
+        </div>
+                </div>
+                <div class="manage-h">Avisos</div>
+                <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-sm {{ 'btn-warning' if muted else 'btn-outline-secondary' }} py-0 me-1" id="muteBtn" data-muted="{{ 'true' if muted else 'false' }}"
+                title="{{ 'Silenciada: no genera avisos. Pulsa para volver a activarlos' if muted else 'Silenciar todos los avisos de esta empresa' }}" aria-label="Silenciar avisos">
+            <i class="bi {{ 'bi-bell-slash-fill' if muted else 'bi-bell' }}"></i></button>
+                    <span class="small text-muted">{{ 'Silenciada: no genera avisos' if muted else 'Avisa con normalidad' }}</span></div>
+                <div class="manage-h">Listas</div>
+                <ul class="list-unstyled mb-0 small manage-lists" id="ticker-lists-dropdown"><li class="text-muted small">Cargando listas…</li></ul>
+                <hr class="my-2">
+                <button class="btn btn-sm btn-outline-danger w-100" onclick="deleteTicker('{{ ticker }}')" title="Eliminar Análisis"><i class="bi bi-trash me-1"></i>Eliminar el análisis</button>
+            </div>
+        </div>
     </div>
 </div>
+<style>
+    .ind-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .6rem; }
+    .ind-tile { display: flex; flex-direction: column; gap: .15rem; padding: .5rem .7rem; border-radius: .5rem; background: var(--fin-card-bg, var(--bs-tertiary-bg));
+                color: var(--bs-body-color); text-decoration: none; min-width: 0; border: 1px solid transparent; }
+    a.ind-tile:hover { border-color: var(--bs-border-color); }
+    .ind-label { font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--bs-secondary-color); }
+    .ind-val { font-size: 1.05rem; font-weight: 700; line-height: 1.2; }
+    .ind-sub { font-size: .7rem; color: var(--bs-secondary-color); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .ind-bar { height: 5px; border-radius: 3px; background: var(--bs-secondary-bg); overflow: hidden; margin: .1rem 0; }
+    .ind-bar > span { display: block; height: 100%; border-radius: 3px; width: 0; }
+    @media (max-width: 991.98px) { .ind-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .manage-menu { min-width: 21rem; font-size: .8rem; z-index: 1060; }
+    .ticker-head { flex-wrap: nowrap !important; } .ticker-head > div:first-child { min-width: 0; }
+    .manage-menu .manage-h { font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--bs-secondary-color); margin: .6rem 0 .3rem; }
+    .manage-menu .manage-h:first-child { margin-top: 0; }
+    .manage-menu .manage-lists { max-height: 9rem; overflow-y: auto; }
+    .head-badges .badge { font-weight: 600; }
+</style>
 
 {# Cifras clave (el detalle completo, en Finanzas y gráficos › Estadísticas) #}
         {% set dy = info.get('dividendYield') %}{% set dy = (dy / 100 if dy and dy > 0.20 else dy) %}
@@ -513,11 +528,41 @@ function openStats() {
                 + `<span>${gap >= 0 ? '<b class="text-success">en zona de compra</b>' : `falta caer <b class="num-font">${fmtNum(-gap, 1)} %</b>`}</span>`
                 + `<span title="Rentabilidad anual estimada comprando hoy (valoración base, ${v.years} años, ${v.metric === 'fcf' ? 'FCF' : 'BPA'})">CAGR est. <b class="num-font">${v.cagr != null ? fmtNum(v.cagr, 1) + ' %' : '–'}</b></span>`;
             document.getElementById('pvZone').innerHTML = zl ? `<span class="badge text-bg-${zc}" style="text-transform: none; letter-spacing: 0;">${zl}</span>` : '';
+            // insignia de la cabecera: zona y rentabilidad estimada (lleva a la Valoración)
+            const hz = document.getElementById('hdrZone');
+            if (hz && zl) hz.innerHTML = `<a href="#valoracion" class="badge text-decoration-none bg-${zc} bg-opacity-10 text-${zc} border border-${zc}-subtle px-2 py-1" style="font-size: .75rem;" title="Zona de la valoración base y rentabilidad anual estimada comprando hoy" onclick="document.getElementById('nav-projection-tab').click(); return false;"><i class="bi bi-bullseye me-1"></i>${zl}${v.cagr != null ? ' · ' + fmtNum(v.cagr, 1) + ' %' : ''}</a>`;
         } else {
             html += '<span class="text-muted">Sin valoración base</span><a href="#valoracion" onclick="document.getElementById(\'nav-projection-tab\').click(); return false;">Valorar →</a>';
         }
         if (d.avg_cost) html += `<span title="Tu precio medio de compra">Tu precio medio <b class="num-font" style="color: #f59e0b;">${fmtNum(d.avg_cost, 2)} ${cur}</b></span>`;
         document.getElementById('pvSummary').innerHTML = html;
+    };
+    // Casillas del Resumen: distancia a compra (de la valoración base) y técnico en directo (del histórico de precios)
+    const indicators = d => {
+        const v = d.valuation, dist = document.getElementById('indDist');
+        if (dist && v && d.price) {
+            const drop = 100 * (1 - v.buy_price / d.price);   // lo que tendría que caer; ≤ 0: ya en zona
+            const [zl, zc] = ZONES[v.zone] || [v.zone || '', 'secondary'];
+            dist.textContent = drop <= 0 ? 'En zona' : `−${fmtNum(drop, 1)} %`;
+            dist.className = 'ind-val text-' + (drop <= 0 ? 'success' : drop <= 15 ? 'warning' : 'body');
+            const bar = document.getElementById('indDistBar');
+            bar.style.width = (100 - Math.min(Math.max(drop, 0), 50) * 2) + '%';
+            bar.className = 'bg-' + (drop <= 0 ? 'success' : drop <= 15 ? 'warning' : 'secondary');
+            document.getElementById('indDistSub').innerHTML = `compra a ${fmtNum(v.buy_price, 2)} ${d.currency} · ${zl}${v.cagr != null ? ' · ' + fmtNum(v.cagr, 1) + ' % al año' : ''}`;
+        }
+        const closes = (d.history || []).map(p => p[1]).filter(x => x != null);
+        const tech = document.getElementById('indTech'), sub = document.getElementById('indTechSub');
+        if (!tech || closes.length < 30) { if (sub) sub.textContent = 'sin histórico suficiente'; return; }
+        const last = closes[closes.length - 1];
+        const ma = closes.length >= 200 ? closes.slice(-200).reduce((a, b) => a + b, 0) / 200 : null;
+        let gain = 0, loss = 0;   // RSI de 14 sesiones (media simple)
+        for (let k = closes.length - 14; k < closes.length; k++) { const ch = closes[k] - closes[k - 1]; if (ch > 0) gain += ch; else loss -= ch; }
+        const rsi = loss === 0 ? 100 : 100 - 100 / (1 + gain / loss);
+        const hi = Math.max(...closes.slice(-252)), fromHi = 100 * (last / hi - 1);
+        const vsMa = ma ? 100 * (last / ma - 1) : null;
+        const word = rsi < 30 ? ['Sobreventa', 'success'] : rsi > 70 ? ['Sobrecompra', 'danger'] : vsMa != null && vsMa < 0 ? ['Bajista', 'warning'] : ['Alcista', 'success'];
+        tech.textContent = word[0]; tech.className = 'ind-val text-' + word[1];
+        sub.textContent = `${vsMa != null ? (vsMa >= 0 ? '+' : '') + fmtNum(vsMa, 1) + ' % vs media 200 · ' : ''}RSI ${fmtNum(rsi, 0)} · ${fmtNum(fromHi, 1)} % desde máx.`;
     };
     const startOf = (key, last) => {
         const d = new Date(last);
@@ -635,7 +680,7 @@ function openStats() {
     document.addEventListener('DOMContentLoaded', () => {
         buttons();
         fetch(`/api/ticker/${encodeURIComponent(T)}/precio-valoracion`).then(r => r.json()).then(d => {
-            data = d; summary(d);
+            data = d; summary(d); indicators(d);
             if (!d.history.length) { document.getElementById('pvChartBox').classList.add('d-none'); return; }
             fitPv();
             document.getElementById('pvModal').addEventListener('shown.bs.modal', () => draw(document.getElementById('pvModalChart'), document.getElementById('pvModalChart').clientHeight));
@@ -705,7 +750,7 @@ function openStats() {
     </li>
     <li class="nav-item flex-grow-1 text-center" role="presentation">
         <button class="nav-link fw-bold py-1" id="nav-analysis-tab" data-bs-toggle="pill" data-bs-target="#nav-analysis" type="button" role="tab">
-            <i class="bi bi-robot me-1"></i> Agentes IA
+            <i class="bi bi-robot me-1"></i> Análisis IA
         </button>
     </li>
     <li class="nav-item flex-grow-1 text-center" role="presentation">
@@ -713,7 +758,7 @@ function openStats() {
             <i class="bi bi-graph-up-arrow me-1"></i> Valoración
         </button>
     </li>
-    <li class="nav-item flex-grow-1 text-center" role="presentation">
+    <li class="nav-item flex-grow-1 text-center d-none" role="presentation">{# se abre desde la casilla «Técnico» del Resumen #}
         <button class="nav-link fw-bold py-1" id="nav-technical-top-tab" data-bs-toggle="pill" data-bs-target="#nav-technical-top-pane" type="button" role="tab">
             <i class="bi bi-graph-down me-1"></i> Técnico
         </button>
@@ -777,12 +822,56 @@ function openStats() {
                         {% if profile %}<span class="fw-semibold ms-1" title="Perfil de inversión según el veredicto">{{ profile.name }}</span>{% endif %}
                     </div>
                     {% if profile and profile.why %}<div class="text-muted lh-sm mt-1 dash-why">{{ profile.why }}</div>{% endif %}
+                    {# los factores clave (pros, riesgos y la línea roja), plegados: solo si los abres #}
+                    {% set verdict_pros = reports_meta.get('verdict', {}).get('pros', []) %}
+                    {% set verdict_cons = reports_meta.get('verdict', {}).get('cons', []) %}
+                    {% set red_line = db.get('verdict_rejection') or reports_meta.get('verdict', {}).get('rejection') %}
+                    {% if verdict_pros or verdict_cons or red_line %}
+                    <a class="small text-decoration-none d-inline-block mt-1" data-bs-toggle="collapse" href="#factorsBox" role="button" aria-expanded="false" aria-controls="factorsBox">
+                        <i class="bi bi-chevron-down me-1"></i>Ver factores clave ({{ verdict_pros|length }} a favor · {{ verdict_cons|length }} en contra){% if red_line %} · <span class="text-danger">línea roja</span>{% endif %}</a>
+                    <div class="collapse" id="factorsBox"><div class="pt-2 factors-box">
+                        {% if red_line %}<div class="alert alert-danger py-1 px-2 mb-2 border-0 bg-danger bg-opacity-10 text-danger-emphasis small"><i class="bi bi-exclamation-octagon-fill me-1"></i><strong>Línea roja:</strong> {{ red_line }}</div>{% endif %}
+                        <div class="row g-2">
+                            {% if verdict_pros %}<div class="col-md-6"><div class="small fw-bold text-success text-uppercase mb-1" style="font-size: .65rem;"><i class="bi bi-check-circle-fill me-1"></i>A favor</div>
+                                <ul class="list-unstyled mb-0 small">{% for pro in verdict_pros %}<li class="mb-1 d-flex gap-1"><span class="text-success fw-bold">✓</span><span>{{ pro }}</span></li>{% endfor %}</ul></div>{% endif %}
+                            {% if verdict_cons %}<div class="col-md-6"><div class="small fw-bold text-danger text-uppercase mb-1" style="font-size: .65rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i>En contra</div>
+                                <ul class="list-unstyled mb-0 small">{% for con in verdict_cons %}<li class="mb-1 d-flex gap-1"><span class="text-danger fw-bold">✗</span><span>{{ con }}</span></li>{% endfor %}</ul></div>{% endif %}
+                        </div>
+                    </div></div>
+                    {% endif %}
                     {% else %}
                     <div class="dash-label"><i class="bi bi-award me-1"></i>Calidad <span class="fw-normal text-lowercase">· análisis de IA</span></div>
                     <div class="small text-muted mb-2">Aún no hay análisis de calidad de esta empresa.</div>
                     <button class="btn btn-primary btn-sm fw-bold" onclick="document.getElementById('nav-analysis-tab').click();"><i class="bi bi-shield-check me-1"></i>Analizar con IA</button>
                     {% endif %}
                 </div></div>
+                {# Indicadores: la respuesta a «¿y ahora qué hago con ella?» en cuatro casillas. Distancia a compra y técnico se
+                   calculan en el navegador con los datos del gráfico (en directo, sin IA); tesis y previsiones, del servidor. #}
+                <div class="ind-grid mb-3">
+                    <a href="#valoracion" class="ind-tile" onclick="document.getElementById('nav-projection-tab').click(); return false;" title="Lo que tendría que caer el precio para llegar al de compra de tu valoración base">
+                        <span class="ind-label"><i class="bi bi-bullseye me-1"></i>A compra</span>
+                        <span class="ind-val" id="indDist">–</span>
+                        <span class="ind-bar"><span id="indDistBar"></span></span>
+                        <span class="ind-sub" id="indDistSub">Sin valoración base</span></a>
+                    {% if th %}
+                    <a href="/tesis/{{ th.id }}" class="ind-tile" title="Veredicto y salud de la tesis (media de los KPIs medidos)">
+                        <span class="ind-label"><i class="bi bi-journal-text me-1"></i>Tesis</span>
+                        <span class="ind-val text-{{ vd_bg.get(th.verdict, 'secondary') }}">{{ th.verdict|capitalize }}</span>
+                        <span class="ind-sub">{% if th.health is not none %}salud <b class="st-{{ th.health_status }}">{{ th.health }}</b>{% endif %}{% if th.reds %} · <span class="text-danger">{{ th.reds|length }} KPI en rojo</span>{% elif th.health is not none %} · sin KPI en rojo{% endif %}{% if th.killed %} · <span class="text-danger fw-bold">ruptura</span>{% endif %}</span></a>
+                    {% else %}
+                    <div class="ind-tile"><span class="ind-label"><i class="bi bi-journal-text me-1"></i>Tesis</span><span class="ind-val text-muted">Sin tesis</span><span class="ind-sub">Puedes crearla desde Tesis</span></div>
+                    {% endif %}
+                    {% set c90 = (rev.chg or {}).get('90d') if rev else none %}
+                    <div class="ind-tile" title="{% if rev %}BPA que esperan los analistas para {{ rev.label }}: {{ num(rev.current, 2) }} · cambio en 30 días {{ num(rev.chg.get('30d'), 1, sign=True) if rev.chg.get('30d') is not none else '–' }} %{% else %}Sin previsiones de analistas en caché{% endif %}">
+                        <span class="ind-label"><i class="bi bi-people me-1"></i>Previsiones</span>
+                        <span class="ind-val {{ 'text-danger' if rev and rev.cut else 'text-success' if c90 is not none and c90 >= 1 else 'text-muted' }}">{% if c90 is not none %}{{ '▲' if c90 >= 1 else '▼' if c90 <= -1 else '=' }} {{ num(c90, 1, sign=True) }} %{% else %}–{% endif %}</span>
+                        <span class="ind-sub">{% if rev %}BPA {{ rev.label }}, 90 días{% if rev.up_30 is not none %} · <span class="text-success">{{ rev.up_30 }}↑</span> <span class="{{ 'text-danger' if rev.down_30 else '' }}">{{ rev.down_30 or 0 }}↓</span>{% endif %}{% else %}sin datos{% endif %}</span></div>
+                    <div class="ind-tile" title="Calculado al momento con el histórico de precios: distancia a la media de 200 sesiones, RSI de 14 sesiones (por debajo de 30, sobreventa; por encima de 70, sobrecompra) y caída desde el máximo de 52 semanas">
+                        <span class="ind-label"><i class="bi bi-activity me-1"></i>Técnico</span>
+                        <span class="ind-val" id="indTech">–</span>
+                        <span class="ind-sub" id="indTechSub">calculando…</span>
+                        <a href="#" class="ind-sub text-decoration-none" onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-technical-top-tab')).show(); return false;">Informe técnico de IA →</a></div>
+                </div>
                 {# seguimiento de la tesis y directivos y acciones, lado a lado #}
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
@@ -836,79 +925,6 @@ function openStats() {
                         </div>
                     </div>
                 </div>
-                {% if has_ai %}
-                <div class="card border-0 shadow-sm mb-0 dash-card dash-purple">
-                    <div class="card-header bg-transparent py-1 d-flex align-items-center">
-                        <span class="dash-label mb-0"><i class="bi bi-lightbulb me-1"></i>Tesis de inversión · factores clave</span>
-                        <span class="ms-auto small text-muted"><i class="bi bi-cpu me-1"></i>Análisis de IA</span>
-                    </div>
-                    <div class="card-body px-3 py-2 dash-tesis-body" data-fit="100">
-                                        <!-- Alerta de Descarte / Línea Roja (Siempre visible arriba si existe) -->
-                                        {% if db.get('verdict_rejection') or reports_meta.get('verdict', {}).get('rejection') %}
-                                        <div class="alert alert-danger p-1.5 mb-2 border-0 bg-danger bg-opacity-10 text-danger-emphasis d-flex align-items-start gap-2" style="font-size: 0.72rem; line-height: 1.35; border-radius: 6px;">
-                                            <i class="bi bi-exclamation-octagon-fill fs-5 text-danger mt-0.5 flex-shrink-0"></i>
-                                            <div class="text-truncate-2" title="{{ db.get('verdict_rejection') or reports_meta.get('verdict').get('rejection') }}">
-                                                <strong>LÍNEA ROJA (Descarte):</strong> {{ db.get('verdict_rejection') or reports_meta.get('verdict').get('rejection') }}
-                                            </div>
-                                        </div>
-                                        {% endif %}
-
-                                        {% set verdict_pros = reports_meta.get('verdict', {}).get('pros', []) %}
-                                        {% set verdict_cons = reports_meta.get('verdict', {}).get('cons', []) %}
-                                
-                                        {% if verdict_pros or verdict_cons %}
-                                            <div class="row g-2">
-                                                <!-- Pros (Éxitos) -->
-                                                {% if verdict_pros %}
-                                                <div class="col-md-6">
-                                                    <div class="small fw-bold text-success text-uppercase mb-1" style="font-size: 0.65rem; letter-spacing: 0.3px;"><i class="bi bi-check-circle-fill me-1"></i> Éxitos (Pros)</div>
-                                                    <ul class="list-unstyled mb-0 ps-0 text-muted" style="font-size: 0.72rem; line-height: 1.25;">
-                                                        {% for pro in verdict_pros[:4] %}
-                                                            <li class="mb-1 d-flex align-items-start">
-                                                                <span class="text-success me-1.5 fw-bold flex-shrink-0">✓</span>
-                                                                <span class="text-dark" style="word-break: break-word;">{{ pro }}</span>
-                                                            </li>
-                                                        {% endfor %}
-                                                    </ul>
-                                                </div>
-                                                {% endif %}
-                                        
-                                                <!-- Cons (Riesgos) -->
-                                                {% if verdict_cons %}
-                                                <div class="col-md-6">
-                                                    <div class="small fw-bold text-danger text-uppercase mb-1" style="font-size: 0.65rem; letter-spacing: 0.3px;"><i class="bi bi-exclamation-triangle-fill me-1"></i> Riesgos (Cons)</div>
-                                                    <ul class="list-unstyled mb-0 ps-0 text-muted" style="font-size: 0.72rem; line-height: 1.25;">
-                                                        {% for con in verdict_cons[:4] %}
-                                                            <li class="mb-1 d-flex align-items-start">
-                                                                <span class="text-danger me-1.5 fw-bold flex-shrink-0">✗</span>
-                                                                <span class="text-dark" style="word-break: break-word;">{{ con }}</span>
-                                                            </li>
-                                                        {% endfor %}
-                                                    </ul>
-                                                </div>
-                                                {% endif %}
-                                            </div>
-                                        {% else %}
-                                            {# Fallback si hay informes pero aún no se ha sintetizado el veredicto #}
-                                            <div class="flex-grow-1 d-flex flex-column justify-content-center">
-                                                <div class="p-2 bg-light rounded text-center small text-muted border border-dashed border-secondary-subtle" style="font-size: 0.7rem;">
-                                                    <i class="bi bi-hourglass-split d-block mb-1 fs-5 text-secondary"></i>
-                                                    <strong>Tesis de Inversión Pendiente</strong><br>
-                                                    El informe de Veredicto de Inversión aún no ha sido ejecutado.
-                                                </div>
-                                            </div>
-                                        {% endif %}
-                    </div>
-                </div>
-                {% else %}
-                <div class="card border-0 shadow-sm mb-2 border-dashed text-center">
-                    <div class="card-body py-3">
-                        <div class="fw-bold mb-1"><i class="bi bi-robot me-1 text-primary"></i>¿Invertir o descartar? Pon a trabajar a tus agentes</div>
-                        <div class="small text-muted mb-2">Esta empresa aún no tiene un análisis consolidado: la tesis (pros y riesgos) y la nota de calidad salen de él.</div>
-                        <button class="btn btn-primary btn-sm fw-bold" onclick="document.getElementById('nav-analysis-tab').click();"><i class="bi bi-shield-check me-1"></i>Abrir el panel de análisis de IA</button>
-                    </div>
-                </div>
-                {% endif %}
             </div>
             {# derecha: toda para precio y valoración, con el gráfico tan alto como la columna #}
             <div class="col-lg-5 col-xxl-6 d-flex flex-column">
@@ -4927,6 +4943,8 @@ function openStats() {
     }
 
     // Listas personalizadas: Cargar pertenencia asíncronamente
+    // las listas se cargan al abrir «⋯ Gestionar» (antes, al abrir su desplegable)
+    document.getElementById('manageBtn')?.addEventListener('shown.bs.dropdown', () => loadTickerLists({{ ticker|tojson }}));
     async function loadTickerLists(ticker) {
         const dropdownMenu = document.getElementById('ticker-lists-dropdown');
         if (!dropdownMenu) return;

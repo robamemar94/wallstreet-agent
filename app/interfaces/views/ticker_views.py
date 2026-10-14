@@ -490,7 +490,15 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         "in_watchlist": watchlist_repo.get_by_ticker(ticker) is not None,   # añadida a mano
         "watch_auto": ["Tier 1"] if is_fav else (["Tier 2"] if str(db_d.get("watch_tier") or "") == "2" else []),
         "tier": tier_level(is_fav, db_d), "muted": bool(db_d.get("muted")),
+        # previsiones de los analistas (BPA a 90 días), de la caché: el indicador del Resumen
+        "rev": _estimate_revisions(ticker),
     })
+
+
+def _estimate_revisions(ticker: str):
+    from app.application.services import estimate_revisions_service as est
+    rev = est.revisions(ticker, fetch=False)
+    return {**rev, "label": est.PERIOD_LABEL.get(rev.get("period")), "cut": bool(est.signal(rev))} if rev else None
 
 
 
