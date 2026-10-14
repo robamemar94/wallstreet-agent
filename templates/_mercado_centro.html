@@ -1,5 +1,5 @@
 {# Pestaña «Centro de mando» de la portada (la pide a /mercado/centro y reparte cada [data-slot] en su hueco) #}
-{% from "_notices.html" import attention_item, signal_item, signal_history as signal_history_list %}
+{% from "_notices.html" import grouped_inbox %}
 {% from "_agenda.html" import agenda_compact, summary_card %}
 
 <div data-slot="notes">
@@ -27,28 +27,12 @@
     </div>
     <div class="inbox-grid">
         <section class="inbox-sec inbox-pend">
-            <div class="inbox-h"><i class="bi bi-flag me-1"></i>Pendiente <span class="badge text-bg-warning" data-inbox-n="pend">{{ pend_unread or '' }}</span>
-                <i class="bi bi-info-circle fw-normal ms-1" title="Lo que pide tu atención, por prioridad: tesis, valoración, previsiones, resultados… y las noticias sin leer"></i></div>
+            <div class="inbox-h d-flex align-items-center"><span><i class="bi bi-flag me-1"></i>Pendiente <span class="badge text-bg-warning" data-inbox-n="pend">{{ pend_unread or '' }}</span>
+                <i class="bi bi-info-circle fw-normal ms-1" title="Arriba lo que pide acción (por tipo) y debajo los movimientos de precio, que solo informan. Pulsa una empresa para ver el detalle; el ojo y la ✕ de cada línea valen para todo el grupo"></i></span>
+                <button type="button" class="btn btn-link btn-sm p-0 ms-auto text-decoration-none fw-normal" id="monHistBtn" title="Señales de precio que ya no están activas (no se borran)"
+                        onclick="const h = document.getElementById('attMonListHistory'), on = h.classList.contains('d-none'); h.classList.toggle('d-none', !on); ['attList', 'attMonList'].forEach(id => document.getElementById(id).classList.toggle('d-none', on)); this.textContent = on ? '← Volver' : 'Histórico de precios ({{ signal_history|length }})';">Histórico de precios ({{ signal_history|length }})</button></div>
             <div class="fixed-body">
-                <div class="card-body small notice-list" id="attList" data-collapse="8">
-                    {% for a in attention %}{{ attention_item(a, held) }}{% endfor %}
-                    <div class="text-muted att-empty {{ 'd-none' if attention }}"><i class="bi bi-check2-circle st-green me-1"></i>Nada pendiente.</div>
-                </div>
-            </div>
-        </section>
-        <section class="inbox-sec inbox-mon">
-            <div class="inbox-h d-flex align-items-center"><span><i class="bi bi-activity me-1"></i>Monitor de precios <span class="badge text-bg-secondary">{{ signals|length }}</span>
-                <i class="bi bi-info-circle fw-normal ms-1" title="Movimientos fuertes o anormales, propios frente al mercado y máximos/mínimos de 52 semanas. Solo informa: la lupa busca por qué se mueve"></i></span>
-                <div class="mon-tabs d-flex gap-1 ms-auto" data-mon="attMonList">
-                    <button type="button" class="btn btn-outline-secondary active" onclick="showMonTab(this, 'active')">Activas</button>
-                    <button type="button" class="btn btn-outline-secondary" onclick="showMonTab(this, 'history')" title="Señales que ya no están activas: no se borran">Histórico <span class="badge text-bg-secondary">{{ signal_history|length }}</span></button>
-                </div></div>
-            <div class="fixed-body">
-                <div class="card-body small notice-list" id="attMonList" data-collapse="8">
-                    {% for s in signals %}{{ signal_item(s, theses_ids, held) }}{% endfor %}
-                    <div class="text-muted att-empty {{ 'd-none' if signals }}">Sin movimientos fuera de lo normal ni niveles relevantes.</div>
-                </div>
-                {{ signal_history_list(signal_history, 'attMonList', 'resumen') }}
+                {{ grouped_inbox(attention, signals, signal_history, theses_ids, held) }}
             </div>
         </section>
         <section class="inbox-sec inbox-news">
