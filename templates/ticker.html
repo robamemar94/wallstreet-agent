@@ -652,9 +652,12 @@ function openStats() {
     const fitRow = () => {
         const row = document.querySelector('#nav-dashboard > .row');
         if (!row || !row.offsetParent) return;
-        row.style.minHeight = '';
-        // sin altura forzada: manda la columna izquierda (la tesis, como mucho hasta el borde de la ventana) y el
-        // gráfico de la derecha se estira hasta igualarla
+        // el Resumen llena la ventana: la columna izquierda estira su última fila y el gráfico de la derecha, el resto
+        const top = row.getBoundingClientRect().top + scrollY;
+        const avail = innerHeight - top - 16;
+        row.style.minHeight = avail > 420 ? avail + 'px' : '';
+        const extra = document.documentElement.scrollHeight - innerHeight;   // márgenes que no se ven en el cálculo
+        if (extra > 0 && avail - extra > 420) row.style.minHeight = (avail - extra) + 'px';
     };
     // el gráfico: el alto que le deje su caja (llena el recuadro entre los números y las cifras clave)
     // Si el hueco aún no tiene tamaño (pestaña oculta, página sin colocar), se espera: dibujado con ancho 0 se quedaba en
@@ -827,9 +830,13 @@ function openStats() {
                     {% set verdict_cons = reports_meta.get('verdict', {}).get('cons', []) %}
                     {% set red_line = db.get('verdict_rejection') or reports_meta.get('verdict', {}).get('rejection') %}
                     {% if verdict_pros or verdict_cons or red_line %}
-                    <a class="small text-decoration-none d-inline-block mt-1" data-bs-toggle="collapse" href="#factorsBox" role="button" aria-expanded="false" aria-controls="factorsBox">
-                        <i class="bi bi-chevron-down me-1"></i>Ver factores clave ({{ verdict_pros|length }} a favor · {{ verdict_cons|length }} en contra){% if red_line %} · <span class="text-danger">línea roja</span>{% endif %}</a>
-                    <div class="collapse" id="factorsBox"><div class="pt-2 factors-box">
+                    <a class="small text-decoration-none d-inline-block mt-1" data-bs-toggle="modal" href="#factorsModal" role="button">
+                        <i class="bi bi-list-check me-1"></i>Ver factores clave ({{ verdict_pros|length }} a favor · {{ verdict_cons|length }} en contra){% if red_line %} · <span class="text-danger">línea roja</span>{% endif %}</a>
+                    <div class="modal fade" id="factorsModal" tabindex="-1" aria-labelledby="factorsTitle" aria-hidden="true">
+                    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+                    <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="factorsTitle"><i class="bi bi-list-check me-1"></i>{{ clean_ticker(ticker) }} · factores clave</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                    <div class="modal-body factors-box">
                         {% if red_line %}<div class="alert alert-danger py-1 px-2 mb-2 border-0 bg-danger bg-opacity-10 text-danger-emphasis small"><i class="bi bi-exclamation-octagon-fill me-1"></i><strong>Línea roja:</strong> {{ red_line }}</div>{% endif %}
                         <div class="row g-2">
                             {% if verdict_pros %}<div class="col-md-6"><div class="small fw-bold text-success text-uppercase mb-1" style="font-size: .65rem;"><i class="bi bi-check-circle-fill me-1"></i>A favor</div>
@@ -837,7 +844,7 @@ function openStats() {
                             {% if verdict_cons %}<div class="col-md-6"><div class="small fw-bold text-danger text-uppercase mb-1" style="font-size: .65rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i>En contra</div>
                                 <ul class="list-unstyled mb-0 small">{% for con in verdict_cons %}<li class="mb-1 d-flex gap-1"><span class="text-danger fw-bold">✗</span><span>{{ con }}</span></li>{% endfor %}</ul></div>{% endif %}
                         </div>
-                    </div></div>
+                    </div></div></div></div>
                     {% endif %}
                     {% else %}
                     <div class="dash-label"><i class="bi bi-award me-1"></i>Calidad <span class="fw-normal text-lowercase">· análisis de IA</span></div>
@@ -872,8 +879,8 @@ function openStats() {
                         <span class="ind-sub" id="indTechSub">calculando…</span>
                         <a href="#" class="ind-sub text-decoration-none" onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-technical-top-tab')).show(); return false;">Informe técnico de IA →</a></div>
                 </div>
-                {# seguimiento de la tesis y directivos y acciones, lado a lado #}
-                <div class="row g-3 mb-3">
+                {# seguimiento de la tesis y directivos y acciones, lado a lado (estiran hasta el final de la ventana) #}
+                <div class="row g-3 mb-0 flex-grow-1">
                     <div class="col-md-6">
                     {# Seguimiento: la tesis (estado, salud, lo que está mal), las últimas noticias y los próximos resultados #}
                     <div class="card border-0 shadow-sm h-100 thesis-strip dash-card dash-teal">
