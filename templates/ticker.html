@@ -792,7 +792,7 @@ function openStats() {
         <div class="row g-3">
             {# izquierda: la calidad; el seguimiento de la tesis y los directivos, lado a lado; y la tesis de inversión hasta abajo #}
             <div class="col-lg-6 col-xxl-5 d-flex flex-column">
-                <div class="card border-0 shadow-sm mb-3 dash-card dash-blue dash-quality"><div class="card-body py-2 px-3 d-flex flex-column justify-content-center">
+                <div class="card border-0 shadow-sm mb-3 dash-card dash-blue dash-quality"><div class="card-body py-2 px-3 d-flex flex-column">
                     {% if has_ai %}
                     {# Pre-calcular puntuación de Normas de Calidad (rules) #}
                                     {% set rp1 = db.get("rules_pilar1_score") %}
