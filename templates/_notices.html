@@ -300,7 +300,7 @@ function initNoticeLists(root) {
    fuertes, se mueve solo, mínimos y máximos de 52 semanas). Una línea por grupo; las empresas, como etiquetas; al pulsar
    una se despliega su detalle (texto completo, fechas, ¿por qué se mueve?, leído y descartar uno a uno). #}
 {% set SIGNAL_GROUPS = [('caidas', 'Caídas fuertes', 'danger'), ('subidas', 'Subidas fuertes', 'success'), ('propio', 'Se mueve solo', 'info'),
-                        ('minimos', 'Mínimos de 52 semanas', 'danger'), ('maximos', 'Máximos de 52 semanas', 'success')] %}
+                        ('minimos', 'Mínimos 52 s', 'danger'), ('maximos', 'Máximos 52 s', 'success')] %}
 {% macro signal_group_key(s) %}{{ 'propio' if s.kind == 'propio' else ('caidas' if s.kind == 'anormal' and s.tone == 'down' else ('subidas' if s.kind == 'anormal' else ('minimos' if s.tone == 'down' else 'maximos'))) }}{% endmacro %}
 {% macro signal_short(s) %}{%- if s.kind == 'nivel' -%}{{ s.text.split('(')[-1].rstrip(')') }}
 {%- elif s.kind == 'propio' -%}{{ s.text.split(': ')[-1].split(' en 5 sesiones')[0] }} 5 s
