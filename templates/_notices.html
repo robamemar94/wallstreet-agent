@@ -297,7 +297,7 @@ function initNoticeLists(root) {
 {% endmacro %}
 
 
-{# Bandeja agrupada del Centro: «Pide acción» (avisos, por tipo) y «Precios · solo informa» (monitor: caídas y subidas
+{# Bandeja agrupada del Centro: los avisos, por tipo, y debajo «Movimientos de precio» (monitor: caídas y subidas
    fuertes, se mueve solo, mínimos y máximos de 52 semanas). Una línea por grupo; las empresas, como etiquetas; al pulsar
    una se despliega su detalle (texto completo, fechas, ¿por qué se mueve?, leído y descartar uno a uno). #}
 {% set SIGNAL_GROUPS = [('caidas', 'Caídas fuertes', 'danger'), ('subidas', 'Subidas fuertes', 'success'), ('propio', 'Se mueve solo', 'info'),
@@ -319,7 +319,7 @@ function initNoticeLists(root) {
 {% endmacro %}
 {% macro grouped_inbox(attention, signals, history, theses_ids={}, held=[]) %}
 <div class="card-body small notice-list grouped" id="attList" data-collapse="999">
-    <div class="ng-block"><div class="ng-block-h">Pide acción</div>
+    <div class="ng-block">
     {% for type, items in attention|groupby('type')|sort(attribute='list.0.prio') %}{% set tag = NOTICE_TAG.get(type, (type|replace('_', ' '), 'secondary')) %}
         {% set chips %}{% for t, its in items|groupby('ticker') %}{% set first = its[0] %}<button type="button" class="ng-chip" data-ticker="{{ t or first.label or '' }}" title="Pulsa para ver el detalle" onclick="toggleGroupChip(this)"><b>{{ clean_ticker(t or first.label or '') }}</b><span class="ng-text">{{ its|map(attribute='text')|join(' · ') }}</span></button>{% endfor %}{% endset %}
         {% set details %}{% for a in items %}{{ attention_item(a, held) }}{% endfor %}{% endset %}
@@ -329,7 +329,7 @@ function initNoticeLists(root) {
     <div class="text-muted att-empty {{ 'd-none' if attention }}"><i class="bi bi-check2-circle st-green me-1"></i>Nada que pida acción.</div>
 </div>
 <div class="card-body small notice-list grouped pt-0" id="attMonList" data-collapse="999">
-    <div class="ng-block"><div class="ng-block-h">Precios · solo informa</div>
+    <div class="ng-block"><div class="ng-block-h" title="Solo informan: caídas y subidas fuertes, movimientos propios y mínimos/máximos de 52 semanas">Movimientos de precio</div>
     {% for gkey, glabel, gcolor in SIGNAL_GROUPS %}{% set mine = [] %}{% for s in signals if signal_group_key(s)|trim == gkey %}{% set _ = mine.append(s) %}{% endfor %}
     {% if mine %}
         {% set chips %}{% for t, its in mine|groupby('ticker') %}{% set last = its|map(attribute='date')|max %}<button type="button" class="ng-chip{{ ' held' if t in held }}" data-ticker="{{ t }}" data-date="{{ last }}" title="Pulsa para ver el detalle" onclick="toggleGroupChip(this)"><b>{{ clean_ticker(t) }}</b><span class="ng-text">{% for s in its|sort(attribute='kind') %}{% if s.kind == 'nivel' %}{{ 'nuevo mínimo' if s.tone == 'down' else 'nuevo máximo' }} · {% endif %}{{ signal_short(s) }}{{ ' · ' if not loop.last }}{% endfor %}</span><small class="ng-date">{{ last[8:10] }}/{{ last[5:7] }}</small></button>{% endfor %}{% endset %}

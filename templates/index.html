@@ -57,7 +57,9 @@
     #slot-attention .inbox-pend { grid-column: 1; grid-row: 1; border-top: 0; }
     #slot-attention .inbox-news { grid-column: 2; grid-row: 1; border-top: 0; border-left: 1px solid var(--bs-border-color); }
     /* grupos: una línea por tipo, las empresas como etiquetas (punto = sin leer; apagada = de hace más de 7 días) */
-    .grouped .ng-block-h { font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--bs-secondary-color); margin: .2rem 0 .35rem; }
+    .grouped .ng-block-h { display: flex; align-items: center; gap: .5rem; font-size: .66rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+                           color: var(--bs-secondary-color); margin: .6rem 0 .2rem; }
+    .grouped .ng-block-h::after { content: ""; flex: 1; border-top: 1px dashed var(--bs-border-color); }
     .grouped .ng-block + .ng-block, .grouped + .grouped .ng-block { margin-top: .5rem; }
     .grouped .ng-line { display: flex; align-items: center; gap: .4rem; padding: .35rem 0 .1rem; border-top: 1px solid var(--bs-border-color-translucent); }
     .grouped .ng-line .att-tag { flex: 0 0 auto; margin: 0; }
