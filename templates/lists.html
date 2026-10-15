@@ -132,7 +132,7 @@
                                      <th class="py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'region')" title="Ordenar por Región" style="cursor: pointer;">
                                          Región <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-region" style="font-size: 0.68rem;"></i>
                                      </th>
-                                     <th class="py-2.5 select-none text-center" onclick="sortListTable({{ list.id }}, 'country')" title="Ordenar por País" style="cursor: pointer;">
+                                     <th class="py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'country')" title="Ordenar por País" style="cursor: pointer;">
                                          País <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-country" style="font-size: 0.68rem;"></i>
                                      </th>
                                      <th class="text-end py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'price')" title="Ordenar por Precio" style="cursor: pointer;">
@@ -187,8 +187,8 @@
                                      <td class="py-1 text-muted text-uppercase" style="font-size: 0.72rem;">
                                          {{ asset.region }}
                                      </td>
-                                     <!-- País (código; el nombre, al pasar el ratón) -->
-                                     <td class="py-1 text-muted text-center" style="font-size: 0.72rem;" title="{{ ciso[1] }}">{{ ciso[0] }}</td>
+                                     <!-- País (en español) -->
+                                     <td class="py-1 text-muted text-nowrap" style="font-size: 0.72rem;">{{ ciso[1] }}</td>
                                      <!-- Precio -->
                                      <td class="text-end py-1 align-middle num-font font-monospace fw-bold text-white">
                                          {{ num(asset.price, 2) }}{{ asset.symbol }}
