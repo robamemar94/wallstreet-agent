@@ -61,7 +61,7 @@ directivos y acciones a 1/3/5 años —estas dos llegan de `_insiders.html`—; 
   la de su última sesión, con `stale_pill` (`_ui_macros.html`; en JS `stalePill` de `base.html`): mismo color que `chg_pill`,
   apagado, sin relleno, borde discontinuo, luna y el día («ayer»/«vie»; `day=false` en columnas estrechas: Contable,
   Seguimiento, Base de datos). No cuenta en las cifras de
-  hoy (€ del día, totales) y al ordenar va al final. Lo usan Contable, Seguimiento, Watchlist y Base de datos
+  hoy (€ del día, totales) y al ordenar va al final. Lo usan Contable, Seguimiento, Watchlist, Listas y Base de datos
   (`day_change()` da `last_pct`/`last_abs`).
 - «Actividad del día» (Mercado): los valores cuyo mercado aún no ha abierto van ocultos en toda la sección (Ganadores,
   Perdedores, Favoritos/Compra/listas y Mi Cartera); el botón
@@ -114,7 +114,8 @@ directivos y acciones a 1/3/5 años —estas dos llegan de `_insiders.html`—; 
   El MSCI World queda solo como línea y columna informativas.
 - **Previsiones de los analistas** (`estimate_revisions_service`, yfinance `eps_trend`, caché 24 h, en la precarga): cambio en 7/30/90 días
   del BPA esperado del año que viene. Columna «Prev. 90 d» en Seguimiento, línea en «Directivos y acciones» y aviso `estimate_cut`
-  si cae ≥ 5 % en 90 días (cartera en el Centro, Tier 1 en la Watchlist).
+  si cae ≥ 5 % en 90 días (cartera en el Centro, Tier 1 en la Watchlist); `estimate_rise` si sube ≥ 5 % en una Tier 1
+  en zona o cerca de compra (Watchlist).
 - **Efecto divisa:** `portfolio_changes` da `fx_eur` por periodo (lo que movió el cambio; el resto es lo que hicieron las empresas
   en su moneda). Sale en las tarjetas 1S–1A de Cartera y en el «Resultado» de los informes (`backfill_fx` rellena los viejos).
 - **Liquidez del bróker** (`cash_service`, `settings['cash']`, rutas `/api/portfolio/liquidez…`): una cuenta en euros. Se parte de un

@@ -6,7 +6,7 @@
     #customListsContent .table-modern tbody td { padding-top: .35rem; padding-bottom: .35rem; }
     #customListsContent .table-modern thead th { padding-top: .45rem; padding-bottom: .45rem; }
 </style>
-{% from "_ui_macros.html" import chg_pill %}
+{% from "_ui_macros.html" import chg_pill, stale_pill %}
 <div class="container-fluid py-4">
     <!-- CABECERA -->
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -132,6 +132,9 @@
                                      <th class="py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'region')" title="Ordenar por Región" style="cursor: pointer;">
                                          Región <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-region" style="font-size: 0.68rem;"></i>
                                      </th>
+                                     <th class="py-2.5 select-none text-center" onclick="sortListTable({{ list.id }}, 'country')" title="Ordenar por País" style="cursor: pointer;">
+                                         País <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-country" style="font-size: 0.68rem;"></i>
+                                     </th>
                                      <th class="text-end py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'price')" title="Ordenar por Precio" style="cursor: pointer;">
                                          Precio <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-price" style="font-size: 0.68rem;"></i>
                                      </th>
@@ -160,9 +163,10 @@
                                      data-ticker="{{ asset.ticker }}"
                                      data-name="{{ asset.company_name|lower }}"
                                      data-region="{{ asset.region|lower }}"
+                                     {% set ciso = country_iso(asset.country) %}data-country="{{ ciso[1]|lower }}"
                                      data-price="{{ asset.price }}"
-                                     data-pct="{{ asset.pct }}"
-                                     data-chg="{{ asset.change_abs }}"
+                                     data-pct="{{ '' if asset.not_open else asset.pct }}"
+                                     data-chg="{{ '' if asset.not_open else asset.change_abs }}"
                                      data-media="{{ asset.media if asset.media is not none else -1 }}"
                                      data-cagr="{{ asset.cagr if asset.cagr is not none else -999 }}"
                                      data-drop="{{ asset.drop_pct if asset.drop_pct is not none else 999 }}">
@@ -183,15 +187,17 @@
                                      <td class="py-1 text-muted text-uppercase" style="font-size: 0.72rem;">
                                          {{ asset.region }}
                                      </td>
+                                     <!-- País (código; el nombre, al pasar el ratón) -->
+                                     <td class="py-1 text-muted text-center" style="font-size: 0.72rem;" title="{{ ciso[1] }}">{{ ciso[0] }}</td>
                                      <!-- Precio -->
                                      <td class="text-end py-1 align-middle num-font font-monospace fw-bold text-white">
                                          {{ num(asset.price, 2) }}{{ asset.symbol }}
                                      </td>
                                      <!-- Var. día (en su moneda) y Var. día % (píldora, como en Cartera) -->
-                                     <td class="text-end py-1 align-middle num-font small text-nowrap {% if asset.change_abs > 0 %}text-success{% elif asset.change_abs < 0 %}text-danger{% else %}text-muted{% endif %}">
+                                     <td class="text-end py-1 align-middle num-font small text-nowrap {% if asset.change_abs > 0 %}text-success{% elif asset.change_abs < 0 %}text-danger{% else %}text-muted{% endif %}{{ ' opacity-50' if asset.not_open }}"{% if asset.not_open %} title="Su mercado aún no ha abierto hoy: es su última sesión"{% endif %}>
                                          {% if asset.change_abs > 0 %}+{% endif %}{{ num(asset.change_abs, 2) }}{{ asset.symbol }}
                                      </td>
-                                     <td class="text-end py-1 align-middle">{{ chg_pill(asset.pct) }}</td>
+                                     <td class="text-end py-1 align-middle">{{ stale_pill(asset.pct, asset.last_date) if asset.not_open else chg_pill(asset.pct) }}</td>
                                      <td class="text-end py-1 align-middle num-font fw-bold">{{ (num(asset.cagr, 1) ~ ' %') if asset.cagr is not none else '–' }}</td>
                                      <td class="text-end py-1 align-middle num-font {{ 'text-success fw-bold' if asset.drop_pct is not none and asset.drop_pct <= 0 else ('text-warning' if asset.drop_pct is not none and asset.drop_pct <= 15 else 'text-muted') }}">
                                          {% if asset.drop_pct is none %}–{% elif asset.drop_pct <= 0 %}en zona{% else %}−{{ num(asset.drop_pct, 1) }} %{% endif %}</td>
@@ -213,7 +219,7 @@
                                  {% endfor %}
                                  {% if not list.assets %}
                                  <tr>
-                                     <td colspan="10" class="text-center py-5 text-muted">
+                                     <td colspan="11" class="text-center py-5 text-muted">
                                          <i class="bi bi-folder-symlink fs-3 d-block mb-2 text-secondary"></i>
                                          Esta lista está vacía. Añade tickers usando el buscador de arriba.
                                      </td>
@@ -622,12 +628,14 @@
         // Ordenar filas en memoria
         rows.sort((a, b) => {
             let valA, valB;
-            if (criteria === 'ticker' || criteria === 'name' || criteria === 'region') {
+            if (criteria === 'ticker' || criteria === 'name' || criteria === 'region' || criteria === 'country') {
                 valA = (a.getAttribute(`data-${criteria}`) || "").toLowerCase();
                 valB = (b.getAttribute(`data-${criteria}`) || "").toLowerCase();
                 return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
             } else { // 'price', 'chg', 'pct' o 'media'
-                valA = parseFloat(a.getAttribute(`data-${criteria}`)) || 0;
+                const ra = a.getAttribute(`data-${criteria}`), rb = b.getAttribute(`data-${criteria}`);
+                if (ra === '' || rb === '') return ra === '' ? (rb === '' ? 0 : 1) : -1;   // sin abrir: al final
+                valA = parseFloat(ra) || 0;
                 valB = parseFloat(b.getAttribute(`data-${criteria}`)) || 0;
                 return isAscending ? valA - valB : valB - valA;
             }

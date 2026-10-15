@@ -19,7 +19,7 @@ KIND_LABEL = {"zona": "zona de compra", "cerca": "cerca de compra", "legacy": "v
               "new_results": "resultados", "review_ready": "revisión lista", "decision_missing": "decisión pendiente",
               "decision_review": "revisar decisión", "concentración": "concentración",
               "upcoming_results": "próximos resultados", "ia_budget": "presupuesto IA", "insider_buy": "directivos compran", "report": "informe",
-              "estimate_cut": "previsiones a la baja", "cash_deposit": "aportación del mes"}
+              "estimate_cut": "previsiones a la baja", "estimate_rise": "previsiones al alza", "cash_deposit": "aportación del mes"}
 
 
 def _alert_item(a: Dict[str, Any], read: set) -> Dict[str, Any]:

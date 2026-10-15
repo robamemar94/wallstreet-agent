@@ -30,3 +30,11 @@ def test_recorte_avisa(monkeypatch):
 def test_sin_datos():
     assert est.parse(None) is None
     assert est.parse(pd.DataFrame()) is None
+
+
+def test_previsiones_al_alza_en_zona_o_cerca(monkeypatch):
+    revs = {"UP": {"period": "+1y", "chg": {"90d": 6.2}, "up_30": 5}, "FLAT": {"period": "+1y", "chg": {"90d": 2.0}}}
+    monkeypatch.setattr(est, "revisions", lambda t, fetch=True: revs.get(t))
+    out = est.rise_notices([{"ticker": "UP", "group": "cerca", "drop_pct": 8.3}, {"ticker": "FLAT", "group": "zona"}])
+    assert [n["ticker"] for n in out] == ["UP"] and out[0]["type"] == "estimate_rise"
+    assert "+6,2%" in out[0]["text"] and "5 analistas la suben" in out[0]["text"] and "a un 8,3%" in out[0]["text"]

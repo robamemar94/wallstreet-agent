@@ -144,6 +144,8 @@ def watchlist_attention(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     out += signal_notices([r["ticker"] for r in rows], prio=1)   # compras de directivos en bolsa
     from app.application.services import estimate_revisions_service
     out += estimate_revisions_service.signal_notices([r["ticker"] for r in rows if r.get("tier") == "1"], prio=2)   # recortes (Tier 1)
+    # al alza: Tier 1 en zona o cerca de compra (precio donde quieres y más beneficio esperado)
+    out += estimate_revisions_service.rise_notices([r for r in fresh if r.get("tier") == "1" and r["group"] in ("zona", "cerca")], prio=1)
     legacy = [r for r in rows if r["val"] and r["val"]["inputs"].get("legacy")]
     if legacy:
         out.append({"prio": 3, "type": "legacy", "ticker": None, "label": f"{len(legacy)} empresas", "text": f"Valoración antigua sin revisar (no generan avisos): {_names(legacy)}"})

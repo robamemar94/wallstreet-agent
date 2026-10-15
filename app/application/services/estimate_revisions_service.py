@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 CACHE_KIND = "eps_trend_v1"
 CACHE_TTL_H = 24
 CUT_PCT = 5.0          # aviso: la previsión de BPA cae al menos esto en 90 días
+RISE_PCT = 5.0         # aviso (Tier 1 en zona o cerca de compra): la previsión de BPA sube al menos esto en 90 días
 WINDOWS = {"7d": "7daysAgo", "30d": "30daysAgo", "90d": "90daysAgo"}
 PERIOD_LABEL = {"+1y": "el año que viene", "0y": "este año"}
 
@@ -73,6 +74,31 @@ def signal(rev: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Recorte de previsiones: la de 90 días cae CUT_PCT % o más."""
     chg = ((rev or {}).get("chg") or {}).get("90d")
     return {"chg": chg, "period": rev["period"]} if chg is not None and chg <= -CUT_PCT else None
+
+
+def rise(rev: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Previsiones al alza: la de 90 días sube RISE_PCT % o más."""
+    chg = ((rev or {}).get("chg") or {}).get("90d")
+    return {"chg": chg, "period": rev["period"]} if chg is not None and chg >= RISE_PCT else None
+
+
+def rise_notices(rows: List[Dict[str, Any]], prio: int = 1) -> List[Dict[str, Any]]:
+    """Avisos de previsiones al alza para las filas de la watchlist que se den (las Tier 1 en zona o cerca de compra):
+    el precio está donde quieres y los analistas esperan más beneficio, la combinación que más interesa. Solo caché."""
+    from utils.number_format import es
+    out = []
+    for r in rows:
+        rev = revisions(r["ticker"], fetch=False)
+        sig = rise(rev)
+        if not sig:
+            continue
+        n = rev.get("up_30")
+        votes = (f" · {n} analista{'s la suben' if n > 1 else ' la sube'}") if n else ""
+        where = "en zona de compra" if r.get("group") == "zona" else f"a un {es(r.get('drop_pct'), 1)}% de su precio de compra"
+        out.append({"prio": prio, "type": "estimate_rise", "ticker": r["ticker"],   # clave por empresa: sigue abierto mientras dure
+                    "text": f"Previsión de BPA {es(sig['chg'], 1, sign=True)}% en 90 días ({PERIOD_LABEL[sig['period']]}){votes} · {where}",
+                    "href": f"/ticker/{r['ticker']}"})
+    return out
 
 
 def signal_notices(tickers: List[str], prio: int = 2) -> List[Dict[str, Any]]:

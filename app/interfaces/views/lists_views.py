@@ -80,13 +80,18 @@ def lists_page(
             p_prev = 0.0
             pct = 0.0
             change = 0.0
-            
+            not_open, last_date = False, None
+
             if asset.ticker in INDEX_CACHE["data"]:
+                import datetime
                 d = INDEX_CACHE["data"][asset.ticker]
                 p_price = d["price"]
                 p_prev = d["prev"]
                 change = p_price - p_prev
                 pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
+                # su mercado aún no ha abierto hoy: es la variación de su última sesión (se enseña con stale_pill)
+                today, last_date = datetime.date.today(), d.get("last_date")
+                not_open = bool(today.weekday() < 5 and last_date and last_date != today)
             
             # Nota media de calidad (Normas + Veredicto), igual que en la tabla BBDD
             media = _compute_media_score(db_d)
@@ -98,9 +103,10 @@ def lists_page(
                 "company_name": db_d.get("company_name", asset.company_name or "-"),
                 "price": p_price,
                 "pct": pct,
-                "change_abs": change,
+                "change_abs": change, "not_open": not_open, "last_date": last_date,
                 "symbol": get_currency_symbol(db_d.get("currency", "USD"), asset.ticker),
                 "region": get_region_for_asset(asset.ticker, db_d.get("country", "-")),
+                "country": db_d.get("country") or "-",
                 "status": db_d.get("status") or "NONE",
                 "is_favorite": asset.is_favorite,
                 "tier": tier_service.tier_of(asset.is_favorite, db_d, held), "held": held,
