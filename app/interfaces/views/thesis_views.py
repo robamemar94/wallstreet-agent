@@ -453,6 +453,7 @@ def live_day(chart, periods, portfolio_service: PortfolioService, asset_repo: Sq
             if d["last_date"]:
                 c["last_session"] = d["last_date"].isoformat() if hasattr(d["last_date"], "isoformat") else str(d["last_date"])
             c["change"]["1d"], c["pnl_eur"]["1d"] = (None if d["closed"] else d["pct"]), d["eur"]
+            c["last_pct"] = d["last_pct"]
             c["contribution"]["1d"] = 100 * d["eur"] / prev_total if prev_total else None
     periods = dict(periods)
     if days:

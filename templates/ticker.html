@@ -120,7 +120,34 @@
     .ind-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: .6rem; }
     /* el alto que sobra en la columna se reparte entre Calidad y los indicadores (no se queda vacío abajo) */
     /* Calidad algo más grande; indicadores compactos; tesis y directivos con el alto que queda (contenido repartido) */
-    .dash-quality { flex: 1 1 auto; }
+    .dash-quality { flex: 0 0 auto; }
+    /* Señales: una línea por tema, en rejilla (semáforo · tema · conclusión · detalle · ir) */
+    .sig-card { min-height: 0; }
+    .sig-rows, .sig-async { display: flex; flex-direction: column; }
+    .sig-row { display: grid; grid-template-columns: 10px 5.4rem 6.2rem minmax(0, 1fr) 12px; align-items: center; column-gap: .55rem;
+               padding: .42rem .3rem; border-top: 1px solid var(--bs-border-color-translucent); color: var(--bs-body-color); text-decoration: none; font-size: .78rem; }
+    .sig-rows > .sig-row:first-child { border-top: 0; }
+    a.sig-row:hover { background: rgba(127, 127, 127, .08); border-radius: 6px; }
+    .sig-row { --sig: var(--bs-secondary-color); }
+    .sig-row[data-tone="good"] { --sig: var(--fin-green, #16a34a); } .sig-row[data-tone="mid"] { --sig: #f59e0b; } .sig-row[data-tone="bad"] { --sig: var(--fin-red, #dc2626); }
+    .sig-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--sig); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sig) 22%, transparent); }
+    .sig-row[data-tone="none"] .sig-dot { background: transparent; border: 1px solid var(--bs-secondary-color); box-shadow: none; }
+    .sig-name { font-size: .66rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--bs-secondary-color); white-space: nowrap; }
+    .sig-word { font-weight: 700; font-size: .9rem; color: var(--sig); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sig-row[data-tone="none"] .sig-word { color: var(--bs-body-color); }
+    .sig-detail { color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .sig-detail b { color: var(--bs-body-color); }
+    .sig-go { color: var(--bs-secondary-color); opacity: .5; font-size: .7rem; }
+    a.sig-row:hover .sig-go { opacity: 1; }
+    .sig-count .sc { font-weight: 700; margin-left: .5rem; } .sig-count .sc i { font-size: .55rem; vertical-align: middle; margin-right: .2rem; }
+    .sig-chips { display: inline-flex; gap: .3rem; vertical-align: middle; }
+    .sig-chip { border-radius: 4px; padding: 0 .35rem; font-size: .72rem; font-weight: 600; white-space: nowrap; background: var(--bs-secondary-bg); }
+    .sig-chip.up { color: var(--fin-red, #dc2626); background: color-mix(in srgb, var(--fin-red, #dc2626) 14%, transparent); }
+    .sig-chip.down { color: var(--fin-green, #16a34a); background: color-mix(in srgb, var(--fin-green, #16a34a) 14%, transparent); }
+    .sig-chip small { opacity: .75; font-weight: 500; margin-right: .2rem; }
+    .sig-news { flex: 1 1 0; min-height: 3rem; overflow-y: auto; font-size: .74rem; }
+    .sig-news-h { font-size: .64rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--bs-secondary-color); margin-bottom: .15rem; }
+    @media (max-width: 991px) { .sig-news { flex: none; overflow: visible; } .sig-row { grid-template-columns: 10px 5rem 5.6rem minmax(0, 1fr) 12px; } }
     .dash-quality .dash-why { font-size: .84rem !important; line-height: 1.4; }
     .ind-tile { align-content: center; padding: .4rem .7rem !important; }
     .ind-tile .ind-val { font-size: 1rem; }
@@ -144,31 +171,33 @@
     .manage-menu .manage-h:first-child { margin-top: 0; }
     .manage-menu .manage-lists { max-height: 9rem; overflow-y: auto; }
     .head-badges .badge { font-weight: 600; }
+    /* franja de cifras clave (arriba del Resumen) */
+    .kf-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)) auto; gap: .5rem; }
+    @media (max-width: 1199px) { .kf-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    .kf { --kf: var(--bs-secondary-color); display: flex; flex-direction: column; gap: .1rem; padding: .45rem .65rem .4rem; border-radius: .5rem; min-width: 0;
+          background: var(--fin-card-bg, var(--bs-tertiary-bg)); border-top: 3px solid color-mix(in srgb, var(--kf) 70%, transparent); }
+    .kf-good { --kf: var(--fin-green, #16a34a); } .kf-mid { --kf: #f59e0b; } .kf-bad { --kf: var(--fin-red, #dc2626); }
+    .kf-label { font-size: .64rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kf-val { font-size: 1.3rem; font-weight: 700; line-height: 1.1; color: var(--kf); white-space: nowrap; }
+    .kf-none .kf-val { color: var(--bs-body-color); }
+    .kf-spark { width: 46%; max-width: 90px; height: 22px; flex: 0 1 auto; }
+    .kf-spark polyline { stroke: var(--kf); stroke-width: 1.6; opacity: .85; }
+    .kf-none .kf-spark polyline { stroke: var(--bs-secondary-color); }
+    .kf-ctx { font-size: .68rem; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kf-more { align-items: center; justify-content: center; color: var(--bs-secondary-color); border-top-color: transparent; padding-left: .9rem; padding-right: .9rem; }
+    .kf-more:hover { color: var(--bs-body-color); }
+    .kf-more .bi { font-size: 1.1rem; }
 </style>
 
-{# Cifras clave (el detalle completo, en Finanzas y gráficos › Estadísticas) #}
-        {% set dy = info.get('dividendYield') %}{% set dy = (dy / 100 if dy and dy > 0.20 else dy) %}
-        {% set nd = ((info.get('totalDebt') - info.get('totalCash')) / info.get('ebitda')) if info.get('totalDebt') is not none and info.get('totalCash') is not none and info.get('ebitda') else none %}
-        {% set fcfy = db.get('fcf_yield') if db.get('fcf_yield') is not none else ((info.get('freeCashflow') / info.get('marketCap')) if info.get('freeCashflow') and info.get('marketCap') else none) %}
-        {# Yahoo casi nunca da el ROIC: entonces el ROE #}
-        {% set roic = ext_stats.returns.get('ROIC (TTM)') %}{% set roe = ext_stats.returns.get('ROE (TTM)') %}
-        {% set ret = (('ROIC (TTM)', roic, 'Retorno sobre el capital invertido, últimos 12 meses') if roic is number
-                     else ('ROE (TTM)', roe if roe is number else none, 'Retorno sobre fondos propios, últimos 12 meses (Yahoo no da el ROIC). Ojo: las recompras lo inflan')) %}
-        {% set growth = db.get('expected_growth') if db.get('expected_growth') is not none else info.get('revenueGrowth') %}
-        {% set key_figs = [
-            ('PER adelantado', (num(info.get('forwardPE'), 1) ~ 'x' if info.get('forwardPE') else none), 'Precio / BPA estimado de los próximos 12 meses (Yahoo)'),
-            ('FCF yield', (num(fcfy * 100, 1) ~ '%' if fcfy is not none else none), 'Flujo de caja libre / capitalización'),
-            (ret[0], (num(ret[1] * 100, 1) ~ '%' if ret[1] is not none else none), ret[2]),
-            ('Margen operativo', (num(info.get('operatingMargins') * 100, 1) ~ '%' if info.get('operatingMargins') is not none else none), 'Beneficio operativo / ingresos'),
-            ('Crec. ventas esperado', (num(growth * 100, 1) ~ '%' if growth is not none and growth != 'N/A' else none), 'Crecimiento de ingresos previsto por los analistas para el próximo año (si no lo hay, el último interanual)'),
-            ('Deuda neta / EBITDA', (num(nd, 2) ~ 'x' if nd is not none else none), 'Negativo: más caja que deuda'),
-            ('Rent. dividendo', (num(dy * 100, 2) ~ '%' if dy else none), 'Dividendo anual / precio'),
-        ] %}
 
 <style>
     /* pestañas de la ficha en una sola fila (con 7 se partían en dos y quitaban sitio al resumen) */
     #mainTickerTabs { flex-wrap: nowrap; }
     #mainTickerTabs .nav-link { white-space: nowrap; font-size: .76rem; padding-left: .4rem; padding-right: .4rem; }
+    /* a la izquierda y con el mismo hueco entre todas (estiradas, el hueco dependía del largo de cada una) */
+    #mainTickerTabs { gap: 1.6rem; padding-left: .25rem; }
+    #mainTickerTabs > .nav-item { flex: 0 0 auto !important; }
+    #mainTickerTabs .nav-link { padding-left: .15rem !important; padding-right: .15rem !important; }
     /* pestañas discretas (como TIKR o Fiscal.ai): texto en gris y la activa subrayada, sin botones rellenos */
     .ticker-tabs { background: var(--bs-body-bg); border-bottom: 1px solid var(--bs-border-color); padding: 0; flex-wrap: nowrap; }
     .ticker-tabs .nav-link { background: transparent !important; color: var(--bs-secondary-color) !important; border-radius: 0;
@@ -402,13 +431,7 @@
     /* Resumen ejecutivo: franja de la tesis y cifras clave (mismo estilo que el resumen de Cartera) */
     .key-figs { overflow-x: auto; }
     .quote-fig { font-size: .78rem; white-space: nowrap; }
-    .key-figs-grid.pv-figs { grid-template-columns: repeat(4, minmax(0, 1fr)); height: auto; flex: none; }
-    .pv-figs .key-fig { padding: .3rem .5rem; }
-    .pv-figs .key-fig:nth-child(5n) { border-right: 1px solid var(--bs-border-color-translucent); }
-    .pv-figs .key-fig:nth-child(4n) { border-right: 0; }
-    .pv-figs .key-fig:nth-child(n+5) { border-bottom: 0; }
-    .pv-figs .key-fig-val { font-size: .88rem; }
-    .pv-periods .btn { font-size: .7rem; padding: .1rem .45rem; }
+    .pv-periods .btn, .fin-periods .btn { font-size: .7rem; padding: .1rem .45rem; }   /* .pv-periods: los del Resumen (su JS los rellena); .fin-periods: los de Finanzas */
     /* Resumen de la ficha: cifras clave en dos filas, etiquetas de bloque y notas de calidad */
     .key-figs-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); height: 100%; }
     .key-figs-grid .key-fig { border-bottom: 1px solid var(--bs-border-color-translucent); justify-content: center; }
@@ -550,21 +573,32 @@ function openStats() {
         document.getElementById('pvSummary').innerHTML = html;
     };
     // Casillas del Resumen: distancia a compra (de la valoración base) y técnico en directo (del histórico de precios)
+    // Señales: cuántas a favor, a vigilar y en contra (se recuenta al llegar las que se calculan aquí y las de directivos)
+    window.sigCount = () => {
+        const box = document.getElementById('sigCount');
+        if (!box) return;
+        const n = t => document.querySelectorAll(`.sig-rows .sig-row[data-tone="${t}"]`).length;
+        const part = (t, c, l) => n(t) ? `<span class="sc" style="color: ${c}"><i class="bi bi-circle-fill"></i>${n(t)} ${l}</span>` : '';
+        box.innerHTML = part('good', 'var(--fin-green, #16a34a)', 'a favor') + part('mid', '#f59e0b', 'a vigilar') + part('bad', 'var(--fin-red, #dc2626)', 'en contra');
+    };
+    const sig = (id, tone, word, detail) => {
+        const row = document.getElementById(id);
+        if (!row) return;
+        row.dataset.tone = tone;
+        document.getElementById(id + 'Word').textContent = word;
+        document.getElementById(id + 'Detail').innerHTML = detail;
+    };
     const indicators = d => {
-        const v = d.valuation, dist = document.getElementById('indDist');
-        if (dist && v && d.price) {
+        const v = d.valuation;
+        if (v && d.price) {
             const drop = 100 * (1 - v.buy_price / d.price);   // lo que tendría que caer; ≤ 0: ya en zona
-            const [zl, zc] = ZONES[v.zone] || [v.zone || '', 'secondary'];
-            dist.textContent = drop <= 0 ? 'En zona' : `−${fmtNum(drop, 1)} %`;
-            dist.className = 'ind-val text-' + (drop <= 0 ? 'success' : drop <= 15 ? 'warning' : 'body');
-            const bar = document.getElementById('indDistBar');
-            bar.style.width = (100 - Math.min(Math.max(drop, 0), 50) * 2) + '%';
-            bar.className = 'bg-' + (drop <= 0 ? 'success' : drop <= 15 ? 'warning' : 'secondary');
-            document.getElementById('indDistSub').innerHTML = `compra a ${fmtNum(v.buy_price, 2)} ${d.currency} · ${zl}${v.cagr != null ? ' · ' + fmtNum(v.cagr, 1) + ' % al año' : ''}`;
+            const [zl] = ZONES[v.zone] || [v.zone || ''];
+            sig('sigVal', drop <= 0 ? 'good' : drop <= 15 ? 'mid' : 'bad', drop <= 0 ? 'En zona' : zl || 'Fuera',
+                (drop <= 0 ? `bajo el precio de compra (${fmtNum(v.buy_price, 2)} ${d.currency})` : `<b>−${fmtNum(drop, 1)} %</b> hasta ${fmtNum(v.buy_price, 2)} ${d.currency}`)
+                + (v.cagr != null ? ` · CAGR ${fmtNum(v.cagr, 1)} %` : ''));
         }
         const closes = (d.history || []).map(p => p[1]).filter(x => x != null);
-        const tech = document.getElementById('indTech'), sub = document.getElementById('indTechSub');
-        if (!tech || closes.length < 30) { if (sub) sub.textContent = 'sin histórico suficiente'; return; }
+        if (closes.length < 30) { sig('sigTech', 'none', '–', 'sin histórico suficiente'); sigCount(); return; }
         const last = closes[closes.length - 1];
         const ma = closes.length >= 200 ? closes.slice(-200).reduce((a, b) => a + b, 0) / 200 : null;
         let gain = 0, loss = 0;   // RSI de 14 sesiones (media simple)
@@ -572,9 +606,9 @@ function openStats() {
         const rsi = loss === 0 ? 100 : 100 - 100 / (1 + gain / loss);
         const hi = Math.max(...closes.slice(-252)), fromHi = 100 * (last / hi - 1);
         const vsMa = ma ? 100 * (last / ma - 1) : null;
-        const word = rsi < 30 ? ['Sobreventa', 'success'] : rsi > 70 ? ['Sobrecompra', 'danger'] : vsMa != null && vsMa < 0 ? ['Bajista', 'warning'] : ['Alcista', 'success'];
-        tech.textContent = word[0]; tech.className = 'ind-val text-' + word[1];
-        sub.textContent = `${vsMa != null ? (vsMa >= 0 ? '+' : '') + fmtNum(vsMa, 1) + ' % vs media 200 · ' : ''}RSI ${fmtNum(rsi, 0)} · ${fmtNum(fromHi, 1)} % desde máx.`;
+        const [word, tone] = rsi < 30 ? ['Sobreventa', 'mid'] : rsi > 70 ? ['Sobrecompra', 'mid'] : vsMa != null && vsMa < 0 ? ['Bajista', 'bad'] : ['Alcista', 'good'];
+        sig('sigTech', tone, word, `${vsMa != null ? (vsMa >= 0 ? '+' : '') + fmtNum(vsMa, 1) + ' % vs media 200 · ' : ''}RSI ${fmtNum(rsi, 0)} · ${fmtNum(fromHi, 1)} % desde máx.`);
+        sigCount();
     };
     const startOf = (key, last) => {
         const d = new Date(last);
@@ -705,10 +739,16 @@ function openStats() {
         window.fitPv = fitPv;   // también al cargar los directivos (cambia la altura de la columna izquierda)
         document.getElementById('pvOpen').addEventListener('click', e => { e.preventDefault(); bootstrap.Modal.getOrCreateInstance(document.getElementById('pvModal')).show(); });
         // pintado con la pestaña oculta, Plotly no sabe el ancho: al volver al Resumen, se reajusta
-        document.getElementById('nav-dashboard-tab')?.addEventListener('shown.bs.tab', () => { const el = document.getElementById('pvChart'); if (el.data) Plotly.Plots.resize(el); });
+        // (y si la ficha se abrió en otra pestaña y el gráfico aún no se pintó, se pinta ahora)
+        document.getElementById('nav-dashboard-tab')?.addEventListener('shown.bs.tab', () => {
+            const el = document.getElementById('pvChart');
+            pvTries = 0;
+            if (el.data) Plotly.Plots.resize(el);
+            fitPv();
+        });
     });
 })();
-// Directivos y acciones (franja bajo las cifras clave, aparte del análisis de la IA): se pide aparte
+// Directivos y acciones (las dos últimas líneas de Señales, aparte del análisis de la IA): se piden aparte
 // porque Yahoo puede tardar. La lista completa va en un desplegable con su propio scroll.
 (() => {
     const T = {{ ticker|tojson }};
@@ -717,7 +757,8 @@ function openStats() {
         if (!box) return;
         fetch(`/ticker/${encodeURIComponent(T)}/directivos`).then(r => r.text()).then(html => {
             box.innerHTML = html;
-            window.fitAll && fitAll();   // el recuadro cambia la altura de su fila: la tesis se reajusta
+            window.sigCount && sigCount();
+            window.fitAll && fitAll();
             window.fitPv && fitPv();
             // la lista de operaciones: una ventana centrada (como el calendario), fuera de la tarjeta para que quede por encima
             const modal = box.querySelector('#insModal');
@@ -726,7 +767,7 @@ function openStats() {
                 document.body.appendChild(modal);
                 if (location.hash === '#directivos') bootstrap.Modal.getOrCreateInstance(modal).show();   // enlace del aviso
             }
-        }).catch(() => { box.innerHTML = '<div class="small text-muted">No se pudieron cargar los directivos.</div>'; });
+        }).catch(() => { box.innerHTML = '<div class="sig-row" data-tone="none"><span class="sig-dot"></span><span class="sig-name">Directivos</span><span class="sig-word">–</span><span class="sig-detail">no se pudieron cargar</span></div>'; });
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load); else load();
 })();
@@ -789,6 +830,24 @@ function openStats() {
         {# Arriba: la calidad (análisis de IA), las cifras clave en dos filas y los directivos (datos de mercado).
            Abajo, a todo el ancho, la tesis: factores clave. Todo cabe en la ventana (la tesis, con scroll propio si hace falta). #}
         {% set has_ai = db.get('verdict') or db.get('franchise') or db.get('audit') %}
+        {# Cifras clave: franja de arriba, a todo el ancho (key_figures_service). Cada una, su valor en color (verde bien, ámbar
+           normal, rojo flojo), una línea de contexto y su evolución anual (minigráfico de las cuentas). El detalle, en Finanzas. #}
+        {% if kfigs %}
+        <div class="kf-strip mb-3">
+            {% for k in kfigs %}{% set v = k.value %}
+            <div class="kf kf-{{ k.tone }}" title="{{ k.label }}: {{ k.tip }}">
+                <div class="kf-label">{{ k.label }}</div>
+                <div class="d-flex align-items-end gap-2">
+                    <span class="kf-val num-font">{% if v is none %}<span class="text-muted">–</span>{% else %}{{ num(v, k.dec or (2 if k.fmt == 'x' and v|abs < 10 else 1)) }}{{ 'x' if k.fmt == 'x' else ' %' }}{% endif %}</span>
+                    {% if k.spark_pts %}<svg class="kf-spark ms-auto" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ k.spark_pts }}" fill="none" vector-effect="non-scaling-stroke"/></svg>{% endif %}
+                </div>
+                <div class="kf-ctx">{{ k.context or ' ' }}</div>
+            </div>
+            {% endfor %}
+            <a class="kf kf-more text-decoration-none" href="#" onclick="openStats(); return false;" title="Todas las estadísticas y las cuentas de la empresa">
+                <span class="kf-label">Todo</span><i class="bi bi-arrow-right"></i><span class="kf-ctx">Finanzas</span></a>
+        </div>
+        {% endif %}
         <div class="row g-3">
             {# izquierda: la calidad; el seguimiento de la tesis y los directivos, lado a lado; y la tesis de inversión hasta abajo #}
             <div class="col-lg-6 col-xxl-5 d-flex flex-column">
@@ -864,85 +923,67 @@ function openStats() {
                     <button class="btn btn-primary btn-sm fw-bold" onclick="document.getElementById('nav-analysis-tab').click();"><i class="bi bi-shield-check me-1"></i>Analizar con IA</button>
                     {% endif %}
                 </div></div>
-                {# Indicadores: la respuesta a «¿y ahora qué hago con ella?» en cuatro casillas. Distancia a compra y técnico se
-                   calculan en el navegador con los datos del gráfico (en directo, sin IA); tesis y previsiones, del servidor. #}
-                <div class="ind-grid mb-3">
-                    <a href="#valoracion" class="ind-tile" onclick="document.getElementById('nav-projection-tab').click(); return false;" title="Lo que tendría que caer el precio para llegar al de compra de tu valoración base">
-                        <span class="ind-label"><i class="bi bi-bullseye me-1"></i>A compra</span>
-                        <span class="ind-val" id="indDist">–</span>
-                        <span class="ind-bar"><span id="indDistBar"></span></span>
-                        <span class="ind-sub" id="indDistSub">Sin valoración base</span></a>
-                    {% if th %}
-                    <a href="/tesis/{{ th.id }}" class="ind-tile" title="Veredicto y salud de la tesis (media de los KPIs medidos)">
-                        <span class="ind-label"><i class="bi bi-journal-text me-1"></i>Tesis</span>
-                        <span class="ind-val text-{{ vd_bg.get(th.verdict, 'secondary') }}">{{ th.verdict|capitalize }}</span>
-                        <span class="ind-sub">{% if th.health is not none %}salud <b class="st-{{ th.health_status }}">{{ th.health }}</b>{% endif %}{% if th.reds %} · <span class="text-danger">{{ th.reds|length }} KPI en rojo</span>{% elif th.health is not none %} · sin KPI en rojo{% endif %}{% if th.killed %} · <span class="text-danger fw-bold">ruptura</span>{% endif %}</span></a>
-                    {% else %}
-                    <div class="ind-tile"><span class="ind-label"><i class="bi bi-journal-text me-1"></i>Tesis</span><span class="ind-val text-muted">Sin tesis</span><span class="ind-sub">Puedes crearla desde Tesis</span></div>
+                {# Señales: una línea por tema, todas iguales (semáforo · tema · conclusión · detalle · ir al detalle), con el
+                   recuento arriba. Valoración y técnico se calculan en el navegador con los datos del gráfico; tesis y
+                   previsiones, del servidor; directivos y acciones llegan aparte (_insiders.html, Yahoo puede tardar).
+                   Debajo, los próximos eventos y las noticias de la tesis. #}
+                {% set vd_tone = {'REFORZADA': 'good', 'INTACTA': 'good', 'VIGILANCIA': 'mid', 'DEBILITADA': 'bad', 'ROTA': 'bad'} %}
+                <div class="card border-0 shadow-sm dash-card dash-slate flex-grow-1 mb-0 sig-card">
+                <div class="card-body py-2 px-3 d-flex flex-column" style="min-height: 0;">
+                    <div class="dash-label d-flex align-items-center mb-1"><i class="bi bi-stoplights me-1"></i>Señales
+                        <span class="ms-auto sig-count" id="sigCount" style="text-transform: none; letter-spacing: 0;"></span></div>
+                    <div class="sig-rows">
+                        <a href="#valoracion" class="sig-row" id="sigVal" data-tone="none" onclick="document.getElementById('nav-projection-tab').click(); return false;"
+                           title="Lo que tendría que caer el precio para llegar al de compra de tu valoración base. Verde: en zona de compra; ámbar: a menos de un 15 %">
+                            <span class="sig-dot"></span><span class="sig-name">Valoración</span><span class="sig-word" id="sigValWord">–</span>
+                            <span class="sig-detail" id="sigValDetail">sin valoración base</span><i class="bi bi-chevron-right sig-go"></i></a>
+                        {% if th %}{% set tt = 'bad' if th.killed else vd_tone.get(th.verdict, 'none') %}
+                        <a href="/tesis/{{ th.id }}" class="sig-row" data-tone="{{ tt }}" title="Veredicto y salud de la tesis (media de los KPIs medidos)">
+                            <span class="sig-dot"></span><span class="sig-name">Tesis</span><span class="sig-word">{{ 'Ruptura' if th.killed else th.verdict|capitalize }}</span>
+                            <span class="sig-detail">{% if th.health is not none %}salud <b>{{ th.health }}</b> · {% endif %}{% if th.killed %}<span class="text-danger">{{ th.killed|join(', ') }}</span>{% elif th.reds %}<span class="text-danger">{{ th.reds|length }} KPI en rojo: {{ th.reds[:2]|join(', ') }}</span>{% else %}sin KPI en rojo{% endif %}</span>
+                            <i class="bi bi-chevron-right sig-go"></i></a>
+                        {% else %}
+                        <div class="sig-row" data-tone="none"><span class="sig-dot"></span><span class="sig-name">Tesis</span><span class="sig-word text-muted">Sin tesis</span><span class="sig-detail">puedes crearla desde Tesis</span></div>
+                        {% endif %}
+                        {% set c90 = (rev.chg or {}).get('90d') if rev else none %}
+                        {% set pt = 'none' if c90 is none else ('bad' if (rev.cut or c90 <= -2) else 'good' if c90 >= 2 else 'mid') %}
+                        <div class="sig-row" data-tone="{{ pt }}" title="{% if rev %}BPA que esperan los analistas para {{ rev.label }}: {{ num(rev.current, 2) }}. Cambio en 7 días {{ num(rev.chg.get('7d'), 1, sign=True) if rev.chg.get('7d') is not none else '–' }} % · 30 días {{ num(rev.chg.get('30d'), 1, sign=True) if rev.chg.get('30d') is not none else '–' }} % · 90 días {{ num(c90, 1, sign=True) if c90 is not none else '–' }} %. Verde si suben más de un 2 % en 90 días; rojo si bajan más de un 2 %.{% else %}Sin previsiones de analistas en caché{% endif %}">
+                            <span class="sig-dot"></span><span class="sig-name">Previsiones</span>
+                            <span class="sig-word">{{ '–' if c90 is none else 'Suben' if c90 >= 2 else 'Bajan' if c90 <= -2 else 'Estables' }}</span>
+                            <span class="sig-detail">{% if rev and c90 is not none %}BPA {{ num(c90, 1, sign=True) }} % en 90 días{% if rev.up_30 is not none %} · 30 d: <span class="text-success">{{ rev.up_30 }}↑</span> <span class="{{ 'text-danger' if rev.down_30 }}">{{ rev.down_30 or 0 }}↓</span>{% endif %}{% else %}sin datos de los analistas{% endif %}</span></div>
+                        <a href="#" class="sig-row" id="sigTech" data-tone="none" onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-technical-top-tab')).show(); return false;"
+                           title="Calculado al momento con el histórico de precios: distancia a la media de 200 sesiones, RSI de 14 sesiones (por debajo de 30, sobreventa; por encima de 70, sobrecompra) y caída desde el máximo de 52 semanas. Pulsa para el informe técnico de IA">
+                            <span class="sig-dot"></span><span class="sig-name">Técnico</span><span class="sig-word" id="sigTechWord">–</span>
+                            <span class="sig-detail" id="sigTechDetail">calculando…</span><i class="bi bi-chevron-right sig-go"></i></a>
+                        {# directivos y acciones en circulación: llegan aparte #}
+                        <div id="insSummary" class="sig-async">
+                            <div class="sig-row" data-tone="none"><span class="sig-dot"></span><span class="sig-name">Directivos</span><span class="sig-word text-muted"><span class="spinner-border spinner-border-sm"></span></span><span class="sig-detail">cargando…</span></div>
+                            <div class="sig-row" data-tone="none"><span class="sig-dot"></span><span class="sig-name">Acciones</span><span class="sig-word text-muted">–</span><span class="sig-detail">cargando…</span></div>
+                        </div>
+                    </div>
+                    {# próximos eventos, destacados #}
+                    {% if events %}
+                    <div class="d-flex flex-wrap gap-1 mt-2">{% for e in events %}
+                        <span class="badge {{ 'text-bg-danger' if e.days <= 1 else 'text-bg-warning' if e.days <= 14 else 'text-bg-primary' }} px-2 py-1" style="font-size: .76rem;"
+                              title="{{ e.detail }}: {{ e.date[8:10] }}/{{ e.date[5:7] }}/{{ e.date[:4] }}">
+                            <i class="bi {{ 'bi-calendar-event' if e.label == 'Resultados' else 'bi-cash-coin' }} me-1"></i>{{ e.label }} {{ e.date[8:10] }}/{{ e.date[5:7] }}
+                            · {{ 'hoy' if e.days == 0 else 'mañana' if e.days == 1 else 'en ' ~ e.days ~ ' días' }}</span>
+                    {% endfor %}</div>
                     {% endif %}
-                    {% set c90 = (rev.chg or {}).get('90d') if rev else none %}
-                    <div class="ind-tile" title="{% if rev %}BPA que esperan los analistas para {{ rev.label }}: {{ num(rev.current, 2) }} · cambio en 30 días {{ num(rev.chg.get('30d'), 1, sign=True) if rev.chg.get('30d') is not none else '–' }} %{% else %}Sin previsiones de analistas en caché{% endif %}">
-                        <span class="ind-label"><i class="bi bi-people me-1"></i>Previsiones</span>
-                        <span class="ind-val {{ 'text-danger' if rev and rev.cut else 'text-success' if c90 is not none and c90 >= 1 else 'text-muted' }}">{% if c90 is not none %}{{ '▲' if c90 >= 1 else '▼' if c90 <= -1 else '=' }} {{ num(c90, 1, sign=True) }} %{% else %}–{% endif %}</span>
-                        <span class="ind-sub">{% if rev %}BPA {{ rev.label }}, 90 días{% if rev.up_30 is not none %} · <span class="text-success">{{ rev.up_30 }}↑</span> <span class="{{ 'text-danger' if rev.down_30 else '' }}">{{ rev.down_30 or 0 }}↓</span>{% endif %}{% else %}sin datos{% endif %}</span></div>
-                    <div class="ind-tile" title="Calculado al momento con el histórico de precios: distancia a la media de 200 sesiones, RSI de 14 sesiones (por debajo de 30, sobreventa; por encima de 70, sobrecompra) y caída desde el máximo de 52 semanas">
-                        <span class="ind-label"><i class="bi bi-activity me-1"></i>Técnico</span>
-                        <span class="ind-val" id="indTech">–</span>
-                        <span class="ind-sub" id="indTechSub">calculando…</span>
-                        <a href="#" class="ind-sub text-decoration-none" onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-technical-top-tab')).show(); return false;">Informe técnico de IA →</a></div>
+                    {# las noticias de la tesis (las más relevantes): lo que quede de alto, con scroll propio #}
+                    {% if th and th.news %}
+                    <div class="sig-news mt-2">
+                        <div class="sig-news-h">Noticias de la tesis{% if th.unread %} · <span class="text-primary">{{ th.unread }} nueva{{ 's' if th.unread > 1 }}</span>{% endif %}</div>
+                        {% for n in th.news[:6] %}
+                        <div class="d-flex gap-2 py-1 border-top" title="{{ n.title }}">
+                            <span class="fw-bold text-nowrap {{ 'text-danger' if n.materiality and n.materiality >= 5 else 'text-warning' }}">{{ n.materiality }}/5</span>
+                            <span class="text-muted text-nowrap">{{ (n.date or '')[8:10] }}/{{ (n.date or '')[5:7] }}</span>
+                            <span class="text-truncate">{% if not n.seen %}<span class="badge text-bg-primary me-1">nueva</span>{% endif %}{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" class="text-decoration-none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </div>
-                {# seguimiento de la tesis y directivos y acciones, lado a lado (estiran hasta el final de la ventana) #}
-                <div class="row g-3 mb-0 flex-grow-1 dash-bottom">
-                    <div class="col-md-6">
-                    {# Seguimiento: la tesis (estado, salud, lo que está mal), las últimas noticias y los próximos resultados #}
-                    <div class="card border-0 shadow-sm h-100 thesis-strip dash-card dash-teal">
-                        <div class="card-body py-2 px-3" style="font-size: .76rem;">
-                            <div class="dash-label d-flex align-items-center"><i class="bi bi-binoculars me-1"></i>Tesis y seguimiento
-                                {% if th %}<a href="/tesis/{{ th.id }}" class="ms-auto text-decoration-none fw-bold" style="text-transform: none; letter-spacing: 0;">Ver tesis <i class="bi bi-arrow-right"></i></a>{% endif %}</div>
-                            {% if th %}
-                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-                                <span class="badge bg-{{ vd_bg.get(th.verdict, 'secondary') }}">{{ th.verdict }}</span>
-                                {% if th.health is not none %}<span title="Salud: media ponderada de los KPIs medidos">salud <strong class="st-{{ th.health_status }}">{{ th.health }}</strong></span>{% endif %}
-                                <span class="text-muted" title="KPIs con dato">· cobertura {{ th.coverage }}%</span>
-                                <span class="ms-auto d-inline-flex gap-1">{% for e in events %}
-                                    <span class="badge {{ 'text-bg-danger' if e.days <= 1 else 'text-bg-warning' if e.days <= 14 else 'text-bg-primary' }} px-2 py-1" style="font-size: .74rem;"
-                                          title="{{ e.detail }}: {{ e.date[8:10] }}/{{ e.date[5:7] }}/{{ e.date[:4] }}">
-                                        <i class="bi {{ 'bi-calendar-event' if e.label == 'Resultados' else 'bi-cash-coin' }} me-1"></i>{{ e.label }} {{ e.date[8:10] }}/{{ e.date[5:7] }}
-                                        · {{ 'hoy' if e.days == 0 else 'mañana' if e.days == 1 else 'en ' ~ e.days ~ ' días' }}</span>
-                                {% endfor %}</span>
-                            </div>
-                            {% if th.killed %}<div class="text-danger fw-bold mb-1" title="Kill switches activados: revisa la tesis"><i class="bi bi-exclamation-octagon-fill me-1"></i>Ruptura: {{ th.killed|join(', ') }}</div>{% endif %}
-                            {% if th.reds %}<div class="text-danger mb-1 text-truncate" title="KPIs en rojo: {{ th.reds|join(', ') }}"><i class="bi bi-exclamation-triangle me-1"></i>{{ th.reds|length }} KPI{{ 's' if th.reds|length > 1 }} en rojo: {{ th.reds[:3]|join(', ') }}</div>{% endif %}
-                            {% else %}
-                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1"><span class="text-muted">Sin tesis para esta empresa.</span>
-                                <span class="ms-auto d-inline-flex gap-1">{% for e in events %}
-                                    <span class="badge {{ 'text-bg-danger' if e.days <= 1 else 'text-bg-warning' if e.days <= 14 else 'text-bg-primary' }} px-2 py-1" style="font-size: .74rem;"
-                                          title="{{ e.detail }}: {{ e.date[8:10] }}/{{ e.date[5:7] }}/{{ e.date[:4] }}">
-                                        <i class="bi {{ 'bi-calendar-event' if e.label == 'Resultados' else 'bi-cash-coin' }} me-1"></i>{{ e.label }} {{ e.date[8:10] }}/{{ e.date[5:7] }}
-                                        · {{ 'hoy' if e.days == 0 else 'mañana' if e.days == 1 else 'en ' ~ e.days ~ ' días' }}</span>
-                                {% endfor %}</span></div>
-                            {% endif %}
-                            {% if th and th.news %}
-                            {# las más relevantes (y, a igualdad, las más recientes): llenan el alto que quede #}
-                            <div>
-                            {% for n in th.news[:4] %}
-                            <div class="d-flex gap-2 py-1 border-top" title="{{ n.title }}">
-                                <span class="fw-bold text-nowrap {{ 'text-danger' if n.materiality and n.materiality >= 5 else 'text-warning' }}">{{ n.materiality }}/5</span>
-                                <span class="text-muted text-nowrap">{{ (n.date or '')[8:10] }}/{{ (n.date or '')[5:7] }}</span>
-                                <span class="text-truncate">{% if not n.seen %}<span class="badge text-bg-primary me-1">nueva</span>{% endif %}{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" class="text-decoration-none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</span>
-                            </div>
-                            {% endfor %}
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    </div>
-                    <div class="col-md-6">
-                        {# Directivos y acciones (datos de mercado): se piden aparte (Yahoo puede tardar) #}
-                        <div class="card border-0 shadow-sm h-100 dash-card dash-amber" id="insSummary">
-                            <div class="card-body py-2 px-3 small text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Directivos y acciones…</div>
-                        </div>
-                    </div>
                 </div>
             </div>
             {# derecha: toda para precio y valoración, con el gráfico tan alto como la columna #}
@@ -974,22 +1015,6 @@ function openStats() {
                     </div>
                     <div class="mt-1 position-relative" id="pvChartBox" style="flex: 1 1 0; min-height: 140px;"><div id="pvChart" class="position-absolute top-0 start-0 w-100 h-100"></div></div>
                 </div>
-            {# Cifras clave (fundamentales): aparte del precio, en su recuadro #}
-            <div class="card border-0 shadow-sm mt-3 mb-0 dash-card dash-slate">
-                <div class="card-body py-2 px-3">
-                    <div class="dash-label d-flex align-items-center"><i class="bi bi-calculator me-1"></i>Cifras clave</div>
-                {# cifras clave, debajo del gráfico (el detalle completo, en Finanzas y gráficos › Estadísticas) #}
-                {% set short = {'PER adelantado': 'PER adel.', 'Margen operativo': 'Margen op.', 'Crec. ventas esperado': 'Crec. ventas', 'Deuda neta / EBITDA': 'Deuda/EBITDA', 'Rent. dividendo': 'Dividendo', 'ROE (TTM)': 'ROE', 'ROIC (TTM)': 'ROIC'} %}
-                <div class="key-figs-grid pv-figs">
-                    {% for label, value, tip in key_figs %}
-                    <div class="key-fig" title="{{ label }}: {{ tip }}"><span class="key-fig-label">{{ short.get(label, label) }}</span>
-                        <span class="key-fig-val num-font {{ 'text-muted' if value is none }}">{{ value if value is not none else '–' }}</span></div>
-                    {% endfor %}
-                    <a class="key-fig key-fig-more text-decoration-none" href="#" onclick="openStats(); return false;" title="Todas las estadísticas de la empresa">
-                        <span class="key-fig-label">Más</span><span class="key-fig-val"><i class="bi bi-arrow-right"></i></span></a>
-                </div>
-                </div>
-            </div>
             </div>
             </div>
         </div>
@@ -1028,12 +1053,12 @@ function openStats() {
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link fw-bold py-1 px-3" id="sub-charts-tab" data-bs-toggle="pill" data-bs-target="#sub-charts-pane" type="button" role="tab">
-                        <i class="bi bi-bar-chart-line me-1"></i> Gráficos de Tendencia
+                        <i class="bi bi-bar-chart-line me-1"></i> Gráficos
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link fw-bold py-1 px-3" id="sub-tables-tab" data-bs-toggle="pill" data-bs-target="#sub-tables-pane" type="button" role="tab" title="Cuenta de resultados, balance y flujos de caja">
-                        <i class="bi bi-table me-1"></i> Tablas Históricas
+                        <i class="bi bi-table me-1"></i> Cuentas anuales
                     </button>
                 </li>
             </ul>
@@ -1054,169 +1079,251 @@ function openStats() {
         <div class="tab-content" id="subFinancialsTabsContent">
             <!-- SUB-PESTAÑA: ESTADÍSTICAS (todas las cifras de la empresa hoy; las clave también van en el Resumen ejecutivo) -->
             <div class="tab-pane fade show active" id="sub-stats-pane" role="tabpanel">
-        <div class="row g-4 mb-2">
-            <div class="col-lg-12">
-                <div class="card shadow-sm border-0 overflow-hidden">
-                    <div class="card-header bg-dark text-white py-2 d-flex justify-content-between align-items-center">
-                        <span class="text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.5px;"><i class="bi bi-bar-chart-line me-1"></i>Company Statistics</span>
-                        <div class="d-flex align-items-center gap-2">
-                            <div id="pe-display-container" class="d-flex align-items-center gap-1">
-                                {% if db.get("fair_pe_data") %}
-                                <span class="badge bg-primary px-2 py-1" style="font-size: 0.6rem; cursor: pointer;" onclick="toggleEditPE()" data-bs-toggle="tooltip" title="Haz clic para editar manualmente el PER Justo">
-                                    Fair P/E: {{ db.get("fair_pe_data").get('fair_forward_pe') }}x <i class="bi bi-pencil-fill ms-1" style="font-size:0.5rem;"></i>
-                                </span>
-                                {% else %}
-                                <button class="btn btn-xs btn-outline-primary py-0 px-2 fw-bold" style="font-size: 0.6rem;" onclick="toggleEditPE()">
-                                    <i class="bi bi-pencil-fill me-1"></i> Fijar PER Justo
-                                </button>
-                                {% endif %}
-                            </div>
-                            <div id="pe-edit-container" class="d-none d-flex align-items-center gap-1">
-                                <input type="number" step="0.1" class="form-control form-control-sm py-0 font-monospace-data text-center fw-bold" id="input-manual-pe" style="width: 60px; font-size: 0.6rem;" value="{{ db.get('fair_pe_data', {}).get('fair_forward_pe') or '' }}" placeholder="PE">
-                                <button class="btn btn-xs btn-success py-0 px-1" style="font-size: 0.65rem;" onclick="saveManualPE('{{ ticker }}')">
-                                    <i class="bi bi-check"></i>
-                                </button>
-                                <button class="btn btn-xs btn-danger py-0 px-1" style="font-size: 0.65rem;" onclick="toggleEditPE()">
-                                    <i class="bi bi-x"></i>
-                                </button>
-                            </div>
-                            <span class="badge bg-success px-1 py-1" style="font-size: 0.6rem;">Live</span>
-                        </div>
-                    </div>
-                    <div class="card-body p-0 bg-light-subtle">
-                        <div class="row g-0">
-                            <!-- Columna 1: Perfil de Empresa (25%) -->
-                            <div class="col-lg-3 col-6 border-end">
-                                <!-- Profile -->
-                                <div class="px-2 py-1 bg-secondary bg-opacity-10 fw-bold text-uppercase border-bottom" style="font-size: 0.58rem; color: #6c757d;">Perfil de la Empresa</div>
-                                <table class="table table-sm table-hover mb-0 table-professional" style="font-size: 0.65rem; line-height: 1.2;">
-                                    <tbody>
-                                        <tr><td class="ps-2 text-muted py-1">Nombre</td><td class="text-end fw-bold py-1">{{ info.get('longName', ticker)[:24] }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">País / Región</td><td class="text-end fw-bold py-1">{{ info.get('country', 'N/A') }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Sector</td><td class="text-end fw-bold py-1">{{ info.get('sector', 'N/A') }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Industria</td><td class="text-end fw-bold py-1">{{ info.get('industry', 'N/A')[:22] }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Moneda</td><td class="text-end fw-bold py-1">{{ info.get('currency', 'USD') }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">P/E Fwd (Mkt)</td><td class="text-end fw-bold text-primary py-1">{{ "{:,.1f}x".format(info.get('forwardPE')) if info.get('forwardPE') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">EPS Fwd Est.</td><td class="text-end fw-bold text-success py-1">{{ num(info.get('forwardEps'), 2) if info.get('forwardEps') else 'N/A' }}</td></tr>
-                                    </tbody>
-                                </table>
-
-                                <!-- Growth -->
-                                <div class="px-2 py-1 bg-secondary bg-opacity-10 fw-bold text-uppercase border-bottom border-top" style="font-size: 0.58rem; color: #6c757d;">Crecimiento</div>
-                                <table class="table table-sm table-hover mb-0 table-professional" style="font-size: 0.65rem; line-height: 1.2;">
-                                    <tbody>
-                                        <tr><td class="ps-2 text-muted py-1">Ventas (YoY)</td><td class="text-end fw-bold text-info py-1">{{ "{:,.1%}".format(info.get('revenueGrowth')) if info.get('revenueGrowth') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Bº Neto (YoY)</td><td class="text-end fw-bold py-1">{{ "{:,.1%}".format(info.get('earningsGrowth')) if info.get('earningsGrowth') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Ventas CAGR (3Y/5Y)</td><td class="text-end fw-bold text-info py-1">
-                                            {{ "{:.1%}".format(custom_metrics.cagr3Y) if custom_metrics.cagr3Y != 'N/A' else '-' }} / {{ "{:.1%}".format(custom_metrics.cagr5Y) if custom_metrics.cagr5Y != 'N/A' else '-' }}
-                                        </td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <!-- Columna 2: Márgenes y Retornos (25%) -->
-                            <div class="col-lg-3 col-6 border-end">
-                                <!-- Margins -->
-                                <div class="px-2 py-1 bg-secondary bg-opacity-10 fw-bold text-uppercase border-bottom" style="font-size: 0.58rem; color: #6c757d;">Márgenes Operativos</div>
-                                <table class="table table-sm table-hover mb-0 table-professional" style="font-size: 0.65rem; line-height: 1.2;">
-                                    <tbody>
-                                        <tr><td class="ps-2 text-muted py-1">Margen Bruto</td><td class="text-end fw-bold py-1">{{ "{:,.1%}".format(info.get('grossMargins')) if info.get('grossMargins') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Margen EBITDA</td><td class="text-end fw-bold py-1">{{ "{:,.1%}".format(info.get('ebitdaMargins')) if info.get('ebitdaMargins') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Margen Operativo</td><td class="text-end fw-bold text-info py-1">{{ "{:,.1%}".format(info.get('operatingMargins')) if info.get('operatingMargins') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Margen Neto</td><td class="text-end fw-bold text-primary py-1">{{ "{:,.1%}".format(info.get('profitMargins')) if info.get('profitMargins') else 'N/A' }}</td></tr>
-                                    </tbody>
-                                </table>
-
-                                <!-- Returns -->
-                                <div class="px-2 py-1 bg-secondary bg-opacity-10 fw-bold text-uppercase border-bottom border-top" style="font-size: 0.58rem; color: #6c757d;">Rentabilidad y Retornos</div>
-                                <table class="table table-sm table-hover mb-0 table-professional" style="font-size: 0.65rem; line-height: 1.2;">
-                                    <tbody>
-                                        <tr><td class="ps-2 text-muted py-1">ROE (Equity)</td><td class="text-end fw-bold text-success py-1">{{ "{:,.1%}".format(info.get('returnOnEquity')) if info.get('returnOnEquity') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">ROA (Assets)</td><td class="text-end fw-bold text-primary py-1">{{ "{:,.1%}".format(info.get('returnOnAssets')) if info.get('returnOnAssets') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">ROC (TTM)</td><td class="text-end fw-bold py-1">{{ "{:.1%}".format(ext_stats.returns.get('ROC', 0)) if ext_stats.returns.get('ROC') != 'N/A' else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">EV / EBITDA TTM</td><td class="text-end fw-bold py-1">{{ "{:,.1f}x".format(info.get('enterpriseToEbitda')) if info.get('enterpriseToEbitda') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Price to Book (P/B)</td><td class="text-end fw-bold py-1">{{ "{:,.1f}x".format(info.get('priceToBook')) if info.get('priceToBook') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Price to Sales (P/S)</td><td class="text-end fw-bold py-1">{{ "{:,.1f}x".format(info.get('priceToSalesTrailing12Months')) if info.get('priceToSalesTrailing12Months') else 'N/A' }}</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <!-- Columna 3: Valoración y Previsiones (25%) -->
-                            <div class="col-lg-3 col-6 border-end">
-                                <!-- Valuation TTM -->
-                                <div class="px-2 py-1 bg-secondary bg-opacity-10 fw-bold text-uppercase border-bottom" style="font-size: 0.58rem; color: #6c757d;">Múltiplos de Mercado</div>
-                                <table class="table table-sm table-hover mb-0 table-professional" style="font-size: 0.65rem; line-height: 1.2;">
-                                    <tbody>
-                                        <tr><td class="ps-2 text-muted py-1">P/E Trailing (TTM)</td><td class="text-end fw-bold text-primary py-1">{{ "{:,.1f}x".format(info.get('trailingPE')) if info.get('trailingPE') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">PEG Ratio (5Y fwd)</td><td class="text-end fw-bold py-1">{{ num(info.get('pegRatio'), 2) if info.get('pegRatio') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Beta (Volatilidad)</td><td class="text-end fw-bold py-1">{{ num(info.get('beta'), 2) if info.get('beta') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Enterprise Value (EV)</td><td class="text-end fw-bold py-1">{{ "{:,.1f}B".format(info.get('enterpriseValue')/1e9) if info.get('enterpriseValue') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Cap. de Mercado</td><td class="text-end fw-bold text-info py-1">{{ "{:,.1f}B".format(info.get('marketCap')/1e9) if info.get('marketCap') else 'N/A' }}</td></tr>
-                                    </tbody>
-                                </table>
-
-                                <!-- Analyst Forecasts -->
-                                <div class="px-2 py-1 bg-secondary bg-opacity-10 fw-bold text-uppercase border-bottom border-top" style="font-size: 0.58rem; color: #6c757d;">Previsiones de Analistas</div>
-                                <table class="table table-sm table-hover mb-0 table-professional" style="font-size: 0.65rem; line-height: 1.2;">
-                                    <tbody>
-                                        <tr><td class="ps-2 text-muted py-1">Precio Obj. Medio</td><td class="text-end fw-bold text-success py-1">{{ num(info.get('targetMeanPrice'), 1) if info.get('targetMeanPrice') else 'N/A' }} {{ currency_symbol }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Precio Obj. Alto</td><td class="text-end fw-bold py-1">{{ num(info.get('targetHighPrice'), 1) if info.get('targetHighPrice') else 'N/A' }} {{ currency_symbol }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Precio Obj. Bajo</td><td class="text-end fw-bold text-danger py-1">{{ num(info.get('targetLowPrice'), 1) if info.get('targetLowPrice') else 'N/A' }} {{ currency_symbol }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Opinión Consenso</td><td class="text-end fw-bold text-uppercase text-primary py-1" style="font-size: 0.6rem;">{{ info.get('recommendationKey', 'N/A') }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Nº Analistas</td><td class="text-end fw-bold py-1">{{ info.get('numberOfAnalystOpinions', 'N/A') }}</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <!-- Columna 4: Solvencia y Dividendos (25%) -->
-                            <div class="col-lg-3 col-6">
-                                <!-- Health -->
-                                <div class="px-2 py-1 bg-secondary bg-opacity-10 fw-bold text-uppercase border-bottom" style="font-size: 0.58rem; color: #6c757d;">Balance y Solvencia</div>
-                                <table class="table table-sm table-hover mb-0 table-professional" style="font-size: 0.65rem; line-height: 1.2;">
-                                    <tbody>
-                                        <tr><td class="ps-2 text-muted py-1">Deuda Neta / EBITDA</td><td class="text-end fw-bold text-danger py-1">
-                                            {% if info.get('totalDebt') and info.get('totalCash') and info.get('ebitda') %}
-                                                {{ num((info.get('totalDebt') - info.get('totalCash')) / info.get('ebitda'), 2) }}
-                                            {% else %}
-                                                N/A
-                                            {%  endif %}
-                                        </td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Liquidez (Current Ratio)</td><td class="text-end fw-bold text-success py-1">{{ num(info.get('currentRatio'), 2) if info.get('currentRatio') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Prueba Ácida (Quick)</td><td class="text-end fw-bold py-1">{{ num(info.get('quickRatio'), 2) if info.get('quickRatio') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Caja Total</td><td class="text-end fw-bold text-success py-1">
-                                            {% if info.get('totalCash') is not none %}
-                                                {{ "{:,.1f}B".format(info.get('totalCash')/1e9) if info.get('totalCash')|abs >= 1e7 else "{:,.0f}M".format(info.get('totalCash')/1e6) }}
-                                            {% else %}
-                                                N/A
-                                            {% endif %}
-                                        </td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Deuda Total</td><td class="text-end fw-bold text-danger py-1">
-                                            {% if info.get('totalDebt') is not none %}
-                                                {{ "{:,.1f}B".format(info.get('totalDebt')/1e9) if info.get('totalDebt')|abs >= 1e7 else "{:,.0f}M".format(info.get('totalDebt')/1e6) }}
-                                            {% else %}
-                                                N/A
-                                            {% endif %}
-                                        </td></tr>
-                                    </tbody>
-                                </table>
-
-                                <!-- Dividends -->
-                                <div class="px-2 py-1 bg-secondary bg-opacity-10 fw-bold text-uppercase border-bottom border-top" style="font-size: 0.58rem; color: #6c757d;">Dividendos</div>
-                                <table class="table table-sm table-hover mb-0 table-professional" style="font-size: 0.65rem; line-height: 1.2;">
-                                    <tbody>
-                                        <tr><td class="ps-2 text-muted py-1">Dividendo Anual (DPS)</td><td class="text-end fw-bold text-success py-1">{{ num(info.get('dividendRate'), 2) if info.get('dividendRate') else 'N/A' }} {{ currency_symbol }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Yields</td><td class="text-end fw-bold text-success py-1">{{ "{:,.2%}".format(info.get('dividendYield') / 100 if info.get('dividendYield') > 0.20 else info.get('dividendYield')) if info.get('dividendYield') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Payout Ratio</td><td class="text-end fw-bold text-primary py-1">{{ "{:,.1%}".format(info.get('payoutRatio')) if info.get('payoutRatio') else 'N/A' }}</td></tr>
-                                        <tr><td class="ps-2 text-muted py-1">Crecimiento (5Y Avg)</td><td class="text-end fw-bold py-1">{{ "{:,.1%}".format(info.get('fiveYearAvgDividendYield') / 100 if info.get('fiveYearAvgDividendYield') > 0.20 else info.get('fiveYearAvgDividendYield')) if info.get('fiveYearAvgDividendYield') else 'N/A' }}</td></tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
+        {# Finanzas de un vistazo: arriba, seis minigráficos de los últimos ejercicios con su tendencia en color
+           (financial_trends_service); debajo, las cifras de hoy (Yahoo) en una tabla en español. Sin scroll de página. #}
+        {% macro pctv(v, color=False) %}{% if v is none %}<span class="text-muted">–</span>{% else %}<span class="{{ ('text-success' if v >= 0 else 'text-danger') if color }}">{{ num(v * 100, 1) }} %</span>{% endif %}{% endmacro %}
+        {% macro mult(v) %}{{ num(v, 1) ~ 'x' if v else '–' }}{% endmacro %}
+        {% macro big(v, sym='') %}{% if v is none %}–{% elif v|abs >= 1e9 %}{{ num(v / 1e9, 1) }} mil M{{ ' ' ~ sym if sym }}{% elif v|abs >= 1e6 %}{{ num(v / 1e6, 0) }} M{{ ' ' ~ sym if sym }}{% else %}{{ num(v, 0) }}{{ ' ' ~ sym if sym }}{% endif %}{% endmacro %}
+        {% set es_sector = {'Technology': 'Tecnología', 'Communication Services': 'Comunicaciones', 'Consumer Cyclical': 'Consumo cíclico', 'Consumer Defensive': 'Consumo defensivo', 'Healthcare': 'Salud', 'Financial Services': 'Servicios financieros', 'Industrials': 'Industria', 'Basic Materials': 'Materiales', 'Energy': 'Energía', 'Utilities': 'Servicios públicos', 'Real Estate': 'Inmobiliario'} %}
+        {% set es_country = {'United States': 'Estados Unidos', 'United Kingdom': 'Reino Unido', 'Germany': 'Alemania', 'France': 'Francia', 'Spain': 'España', 'Netherlands': 'Países Bajos', 'Sweden': 'Suecia', 'Switzerland': 'Suiza', 'Italy': 'Italia', 'Denmark': 'Dinamarca', 'Norway': 'Noruega', 'Finland': 'Finlandia', 'Poland': 'Polonia', 'Canada': 'Canadá', 'Mexico': 'México', 'Brazil': 'Brasil', 'China': 'China', 'Japan': 'Japón', 'Ireland': 'Irlanda', 'Belgium': 'Bélgica', 'Argentina': 'Argentina', 'Uruguay': 'Uruguay', 'Israel': 'Israel', 'Taiwan': 'Taiwán', 'South Korea': 'Corea del Sur', 'Australia': 'Australia', 'Luxembourg': 'Luxemburgo', 'Singapore': 'Singapur', 'Hong Kong': 'Hong Kong', 'India': 'India'} %}
+        {% set es_reco = {'strong_buy': 'Compra fuerte', 'buy': 'Compra', 'hold': 'Mantener', 'underperform': 'Infraponderar', 'sell': 'Venta', 'strong_sell': 'Venta fuerte'} %}
+        {% set fsym = currency_symbol %}
+        <div class="fin-profile d-flex flex-wrap align-items-center column-gap-2 row-gap-1 mb-2">
+            <span class="fw-bold">{{ info.get('longName', ticker) }}</span>
+            {% for v in [es_country.get(info.get('country'), info.get('country')), es_sector.get(info.get('sector'), info.get('sector')), info.get('industry'), info.get('currency')] if v %}<span class="text-muted">· {{ v }}</span>{% endfor %}
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <div id="pe-display-container" class="d-flex align-items-center gap-1">
+                    {% if db.get("fair_pe_data") %}
+                    <span class="badge bg-primary px-2 py-1" style="font-size: 0.68rem; cursor: pointer;" onclick="toggleEditPE()" title="Haz clic para cambiar a mano el PER justo">
+                        PER justo: {{ num(db.get("fair_pe_data").get('fair_forward_pe'), 1) }}x <i class="bi bi-pencil-fill ms-1" style="font-size:0.55rem;"></i>
+                    </span>
+                    {% else %}
+                    <button class="btn btn-xs btn-outline-primary py-0 px-2 fw-bold" style="font-size: 0.68rem;" onclick="toggleEditPE()">
+                        <i class="bi bi-pencil-fill me-1"></i> Fijar PER justo
+                    </button>
+                    {% endif %}
+                </div>
+                <div id="pe-edit-container" class="d-none d-flex align-items-center gap-1">
+                    <input type="number" step="0.1" class="form-control form-control-sm py-0 font-monospace-data text-center fw-bold" id="input-manual-pe" style="width: 64px; font-size: 0.7rem;" value="{{ db.get('fair_pe_data', {}).get('fair_forward_pe') or '' }}" placeholder="PER">
+                    <button class="btn btn-xs btn-success py-0 px-1" style="font-size: 0.65rem;" onclick="saveManualPE('{{ ticker }}')"><i class="bi bi-check"></i></button>
+                    <button class="btn btn-xs btn-danger py-0 px-1" style="font-size: 0.65rem;" onclick="toggleEditPE()"><i class="bi bi-x"></i></button>
                 </div>
             </div>
         </div>
-        
+
+        {# 1) Minigráficos de 10 años #}
+        {% if fin_trends and fin_trends|rejectattr('empty')|list %}
+        <div class="fin-trends mb-2">
+            {% for t in fin_trends %}{% set tr = t.trend %}
+            <div class="fin-trend fin-{{ t.tone }}">
+                <div class="d-flex align-items-baseline gap-1">
+                    <span class="fin-trend-title">{{ t.title }}</span>
+                    <span class="ms-auto fin-trend-chip" title="{% if tr and tr.kind == 'cagr' %}Crecimiento anual compuesto de {{ t.years[0] }} al último ejercicio completo{% elif tr and tr.kind == 'pp' %}Puntos de margen {{ tr.of }} ganados o perdidos en {{ tr.years }} años{% elif tr and tr.kind == 'debt' %}Deuda financiera (sin arrendamientos) menos caja{% endif %}">
+                    {% if t.empty or not tr %}sin datos
+                    {% elif tr.kind == 'cagr' and tr.pct is not none %}{{ num(tr.pct, 1, sign=True) }} %/año
+                    {% elif tr.kind == 'dir' %}{{ 'mejora' if tr.up else 'empeora' }}
+                    {% elif tr.kind == 'pp' %}{{ num(tr.pp, 1, sign=True) }} pp
+                    {% elif tr.kind == 'debt' %}{% if t.net_debt is not none and t.net_debt <= 0 %}caja neta{% elif t.years_fcf %}{{ num(t.years_fcf, 1) }} años de FCF{% else %}{{ 'baja' if t.tone == 'good' else 'sube' if t.tone == 'bad' else 'estable' }}{% endif %}
+                    {% endif %}</span>
+                </div>
+                <div class="fin-trend-val num-font">
+                    {% if t.key == 'revenue' or t.key == 'fcf' %}{{ big(t.last, fsym) }}
+                    {% elif t.key == 'eps' %}{{ num(t.last, 2) ~ ' ' ~ fsym if t.last is not none else '–' }}
+                    {% elif t.key == 'margins' %}{{ num(t.last, 1) ~ ' %' if t.last is not none else '–' }} <span class="fin-trend-sub">{{ tr.of if tr else '' }} · <span style="color: #94a3b8;">bruto</span> · <span style="color: #3b82f6;">neto</span></span>
+                    {% elif t.key == 'shares' %}{{ big(t.last) }}{% if tr and tr.pct is not none %} <span class="fin-trend-sub">{{ 'recompra' if tr.pct < -0.5 else 'diluye' if tr.pct > 0.5 else 'estable' }} {{ num(tr.pct|abs, 1) }} %/año</span>{% endif %}
+                    {% elif t.key == 'debt' %}{{ big(t.last, fsym) }} <span class="fin-trend-sub">{% if t.cash is not none %}<span class="text-success">caja {{ big(t.cash) }}</span>{% endif %}</span>
+                    {% endif %}
+                </div>
+                <div class="fin-trend-chart" id="finTrend-{{ t.key }}"></div>
+            </div>
+            {% endfor %}
+        </div>
+        <script type="application/json" id="finTrendsData">{{ fin_trends|tojson }}</script>
+        {% endif %}
+
+        {# 2) Las cifras de hoy (Yahoo), en cuatro columnas. Como la franja de cifras clave del Resumen: las que más importan,
+           destacadas (fs-key); el valor en color con umbrales sencillos (verde bien, ámbar normal, rojo flojo; sin color las
+           que dependen de cada empresa). TTM = últimos 12 meses; NTM = próximos 12 meses (estimación de los analistas). #}
+        {% macro tn(v, good, ok, lower=false) %}{% if v is none %}{% elif lower %}{{ 'fs-good' if v <= good else 'fs-mid' if v <= ok else 'fs-bad' }}{% else %}{{ 'fs-good' if v >= good else 'fs-mid' if v >= ok else 'fs-bad' }}{% endif %}{% endmacro %}
+        {% set pr = info.get('currentPrice') or info.get('regularMarketPrice') %}
+        {% set g_rev, g_ni = info.get('revenueGrowth'), info.get('earningsGrowth') %}
+        {% set c3 = custom_metrics.cagr3Y if custom_metrics.cagr3Y != 'N/A' else none %}{% set c5 = custom_metrics.cagr5Y if custom_metrics.cagr5Y != 'N/A' else none %}
+        {% set roc = ext_stats.returns.get('ROC') if ext_stats.returns.get('ROC') not in (none, 'N/A') else none %}
+        {% set fair_pe = (db.get('fair_pe_data') or {}).get('fair_forward_pe') %}{% set fpe = info.get('forwardPE') %}
+        {% set nd = ((info.get('totalDebt') - info.get('totalCash')) / info.get('ebitda')) if info.get('totalDebt') is not none and info.get('totalCash') is not none and info.get('ebitda') else none %}
+        {% set fcfy = (info.get('freeCashflow') / info.get('marketCap') * 100) if info.get('freeCashflow') and info.get('marketCap') else none %}
+        {% set reco = info.get('recommendationKey') %}
+        <div class="fin-stats">
+            <div class="fin-stats-col">
+                <div class="fin-stats-h">Crecimiento</div>
+                <table class="fin-stats-t"><tbody>
+                    <tr class="fs-key"><td title="Ventas de los últimos 12 meses frente a los 12 anteriores">Ventas TTM (interanual)</td><td class="{{ tn(g_rev * 100 if g_rev is not none else none, 10, 3) }}">{{ pctv(g_rev) }}</td></tr>
+                    <tr><td title="Beneficio neto de los últimos 12 meses frente a los 12 anteriores">Beneficio neto TTM (interanual)</td><td class="{{ tn(g_ni * 100 if g_ni is not none else none, 10, 3) }}">{{ pctv(g_ni) }}</td></tr>
+                    <tr><td title="Crecimiento anual compuesto de las ventas a 3 y 5 años">Ventas CAGR 3a / 5a</td><td><span class="{{ tn(c3 * 100 if c3 is not none else none, 10, 3) }}">{{ pctv(c3) }}</span> / <span class="{{ tn(c5 * 100 if c5 is not none else none, 10, 3) }}">{{ pctv(c5) }}</span></td></tr>
+                </tbody></table>
+                <div class="fin-stats-h">Márgenes TTM</div>
+                <table class="fin-stats-t"><tbody>
+                    <tr><td>Bruto</td><td class="{{ tn(info.get('grossMargins') * 100 if info.get('grossMargins') is not none else none, 50, 30) }}">{{ pctv(info.get('grossMargins')) }}</td></tr>
+                    <tr><td>EBITDA</td><td class="{{ tn(info.get('ebitdaMargins') * 100 if info.get('ebitdaMargins') is not none else none, 25, 15) }}">{{ pctv(info.get('ebitdaMargins')) }}</td></tr>
+                    <tr class="fs-key"><td>Operativo</td><td class="{{ tn(info.get('operatingMargins') * 100 if info.get('operatingMargins') is not none else none, 20, 10) }}">{{ pctv(info.get('operatingMargins')) }}</td></tr>
+                    <tr><td>Neto</td><td class="{{ tn(info.get('profitMargins') * 100 if info.get('profitMargins') is not none else none, 15, 8) }}">{{ pctv(info.get('profitMargins')) }}</td></tr>
+                </tbody></table>
+            </div>
+            <div class="fin-stats-col">
+                <div class="fin-stats-h">Rentabilidad TTM</div>
+                <table class="fin-stats-t"><tbody>
+                    <tr class="fs-key"><td title="Beneficio sobre fondos propios. Ojo: las recompras lo inflan">ROE</td><td class="{{ tn(info.get('returnOnEquity') * 100 if info.get('returnOnEquity') is not none else none, 15, 8) }}">{{ pctv(info.get('returnOnEquity')) }}</td></tr>
+                    <tr><td title="Beneficio sobre activos">ROA</td><td class="{{ tn(info.get('returnOnAssets') * 100 if info.get('returnOnAssets') is not none else none, 8, 4) }}">{{ pctv(info.get('returnOnAssets')) }}</td></tr>
+                    <tr class="fs-key"><td title="Rentabilidad sobre el capital empleado">ROC</td><td class="{{ tn(roc * 100 if roc is not none else none, 15, 8) }}">{{ pctv(roc) }}</td></tr>
+                </tbody></table>
+                <div class="fin-stats-h">Múltiplos</div>
+                <table class="fin-stats-t"><tbody>
+                    <tr><td title="Precio / BPA de los últimos 12 meses">PER TTM</td><td>{{ mult(info.get('trailingPE')) }}</td></tr>
+                    <tr class="fs-key"><td title="Precio / BPA estimado de los próximos 12 meses{{ '. Verde: por debajo de tu PER justo (' ~ num(fair_pe, 1) ~ 'x)' if fair_pe }}">PER NTM</td><td class="{{ ('fs-good' if fpe <= fair_pe else 'fs-mid' if fpe <= fair_pe * 1.2 else 'fs-bad') if fpe and fair_pe else '' }}">{{ mult(fpe) }}</td></tr>
+                    <tr><td title="BPA que esperan los analistas para los próximos 12 meses">BPA NTM</td><td>{{ num(info.get('forwardEps'), 2) ~ ' ' ~ fsym if info.get('forwardEps') else '–' }}</td></tr>
+                    <tr><td title="PER entre el crecimiento esperado a 5 años. Verde hasta 1, ámbar hasta 2">PEG</td><td class="{{ tn(info.get('pegRatio'), 1, 2, lower=true) if info.get('pegRatio') }}">{{ num(info.get('pegRatio'), 2) if info.get('pegRatio') else '–' }}</td></tr>
+                    <tr class="fs-key"><td title="Flujo de caja libre (TTM) / capitalización. Verde desde el 4 %, ámbar desde el 2 %">FCF yield TTM</td><td class="{{ tn(fcfy, 4, 2) }}">{{ num(fcfy, 1) ~ ' %' if fcfy is not none else '–' }}</td></tr>
+                    <tr><td>EV / EBITDA TTM</td><td>{{ mult(info.get('enterpriseToEbitda')) }}</td></tr>
+                    <tr><td>Precio / valor contable</td><td>{{ mult(info.get('priceToBook')) }}</td></tr>
+                    <tr><td>Precio / ventas TTM</td><td>{{ mult(info.get('priceToSalesTrailing12Months')) }}</td></tr>
+                </tbody></table>
+            </div>
+            <div class="fin-stats-col">
+                <div class="fin-stats-h">Tamaño y riesgo</div>
+                <table class="fin-stats-t"><tbody>
+                    <tr><td>Capitalización</td><td>{{ big(info.get('marketCap'), fsym) }}</td></tr>
+                    <tr><td title="Capitalización + deuda − caja">Valor de empresa (EV)</td><td>{{ big(info.get('enterpriseValue'), fsym) }}</td></tr>
+                    <tr><td title="Cuánto se mueve frente al mercado (1 = como el mercado)">Beta</td><td>{{ num(info.get('beta'), 2) if info.get('beta') else '–' }}</td></tr>
+                </tbody></table>
+                <div class="fin-stats-h">Analistas (12 meses)</div>
+                {% set tgt = info.get('targetMeanPrice') %}{% set up = ((tgt / pr - 1) * 100) if tgt and pr else none %}
+                <table class="fin-stats-t"><tbody>
+                    <tr class="fs-key"><td title="Precio objetivo medio a 12 meses y lo que queda hasta él desde el precio de hoy">Precio objetivo medio</td><td>{{ num(tgt, 2) ~ ' ' ~ fsym if tgt else '–' }}{% if up is not none %} <span class="{{ 'fs-good' if up >= 10 else 'fs-mid' if up >= 0 else 'fs-bad' }}">({{ num(up, 0, sign=True) }} %)</span>{% endif %}</td></tr>
+                    <tr><td>Precio objetivo alto / bajo</td><td>{{ num(info.get('targetHighPrice'), 0) if info.get('targetHighPrice') else '–' }} / {{ num(info.get('targetLowPrice'), 0) ~ ' ' ~ fsym if info.get('targetLowPrice') else '–' }}</td></tr>
+                    <tr><td>Recomendación</td><td class="{{ 'fs-good' if reco in ('strong_buy', 'buy') else 'fs-mid' if reco == 'hold' else 'fs-bad' if reco in ('underperform', 'sell', 'strong_sell') }}">{{ es_reco.get(reco, reco or '–') }}</td></tr>
+                    <tr><td>Analistas</td><td>{{ info.get('numberOfAnalystOpinions') or '–' }}</td></tr>
+                </tbody></table>
+            </div>
+            <div class="fin-stats-col">
+                <div class="fin-stats-h">Balance</div>
+                <table class="fin-stats-t"><tbody>
+                    <tr class="fs-key"><td title="Años de EBITDA para pagar la deuda neta (negativo: más caja que deuda). Verde hasta 1, ámbar hasta 3">Deuda neta / EBITDA</td><td class="{{ tn(nd, 1, 3, lower=true) }}">{{ num(nd, 2) ~ 'x' if nd is not none else '–' }}</td></tr>
+                    <tr><td title="Activo corriente / pasivo corriente. Verde desde 1,5, ámbar desde 1">Liquidez corriente</td><td class="{{ tn(info.get('currentRatio'), 1.5, 1) if info.get('currentRatio') }}">{{ num(info.get('currentRatio'), 2) if info.get('currentRatio') else '–' }}</td></tr>
+                    <tr><td title="Como la liquidez corriente, sin existencias. Verde desde 1, ámbar desde 0,7">Prueba ácida</td><td class="{{ tn(info.get('quickRatio'), 1, 0.7) if info.get('quickRatio') }}">{{ num(info.get('quickRatio'), 2) if info.get('quickRatio') else '–' }}</td></tr>
+                    <tr><td>Caja</td><td>{{ big(info.get('totalCash'), fsym) }}</td></tr>
+                    <tr><td>Deuda</td><td>{{ big(info.get('totalDebt'), fsym) }}</td></tr>
+                </tbody></table>
+                <div class="fin-stats-h">Dividendos</div>
+                {% set dy = info.get('dividendYield') %}{% set dy5 = info.get('fiveYearAvgDividendYield') %}{% set po = info.get('payoutRatio') %}
+                <table class="fin-stats-t"><tbody>
+                    <tr><td>Dividendo anual por acción</td><td>{{ num(info.get('dividendRate'), 2) ~ ' ' ~ fsym if info.get('dividendRate') else '–' }}</td></tr>
+                    <tr><td>Rentabilidad por dividendo</td><td>{{ pctv((dy / 100 if dy > 0.2 else dy) if dy else none) }}</td></tr>
+                    <tr><td title="Parte del beneficio que se reparte. Verde hasta el 60 %, ámbar hasta el 80 %">Pay-out</td><td class="{{ tn(po * 100, 60, 80, lower=true) if po }}">{{ pctv(po or none) }}</td></tr>
+                    <tr><td>Rentabilidad media 5 años</td><td>{{ pctv((dy5 / 100 if dy5 > 0.2 else dy5) if dy5 else none) }}</td></tr>
+                </tbody></table>
+            </div>
+        </div>
+        <style>
+            .fin-profile { font-size: .8rem; }
+            .fin-trends { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .5rem; }
+            @media (max-width: 1199px) { .fin-trends { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+            @media (max-width: 575px) { .fin-trends { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+            .fin-trend { border-radius: 8px; padding: .4rem .55rem .2rem; background: var(--bs-secondary-bg); border-top: 3px solid var(--bs-secondary-border-subtle); min-width: 0; }
+            .fin-trend.fin-good { border-top-color: var(--bs-success); } .fin-trend.fin-bad { border-top-color: var(--bs-danger); } .fin-trend.fin-flat { border-top-color: var(--bs-warning); }
+            .fin-trend-title { font-size: .68rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .fin-trend-chip { font-size: .7rem; font-weight: 700; white-space: nowrap; color: var(--bs-secondary-color); }
+            .fin-good .fin-trend-chip { color: var(--bs-success); } .fin-bad .fin-trend-chip { color: var(--bs-danger); } .fin-flat .fin-trend-chip { color: var(--bs-warning-text-emphasis); }
+            .fin-trend-val { font-size: .95rem; font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .fin-trend-sub { font-size: .68rem; font-weight: 400; color: var(--bs-secondary-color); }
+            .fin-trend-chart { height: 120px; }
+            .fin-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 1rem; border-radius: 8px; padding: .35rem .7rem .5rem; background: var(--bs-secondary-bg); }
+            @media (max-width: 991px) { .fin-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+            .fin-stats-col { min-width: 0; }
+            .fin-stats-h { font-size: .64rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--bs-secondary-color); margin: .35rem 0 .1rem; padding-bottom: .1rem; border-bottom: 1px solid var(--bs-border-color); }
+            .fin-stats-t { width: 100%; table-layout: fixed; font-size: .76rem; border-collapse: collapse; }
+            .fin-stats-t td { padding: .12rem 0; border-bottom: 1px solid var(--bs-border-color-translucent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .fin-stats-t tr:last-child td { border-bottom: 0; }
+            .fin-stats-t td:first-child { color: var(--bs-secondary-color); width: 62%; }
+            .fin-stats-t td:last-child { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+            /* las cifras importantes (fs-key): solo el número, en color según sea bueno o flojo y algo más marcado; el resto, sin color */
+            .fin-stats-t tr.fs-key .fs-good { color: var(--fin-green, #16a34a); } .fin-stats-t tr.fs-key .fs-mid { color: #f59e0b; } .fin-stats-t tr.fs-key .fs-bad { color: var(--fin-red, #dc2626); }
+            .fin-stats-t tr.fs-key td:last-child { font-weight: 700; }
+            /* selector segmentado (cuentas y gráficos), como el de periodos */
+            .fin-seg { gap: 2px; background: var(--bs-secondary-bg); border-radius: 7px; padding: 2px; flex-wrap: nowrap; }
+            .fin-seg .nav-link { font-size: .74rem; font-weight: 600; padding: .18rem .7rem; border-radius: 5px; color: var(--bs-secondary-color); white-space: nowrap; }
+            .fin-seg .nav-link.active { background: var(--bs-body-bg); color: var(--bs-body-color); box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+            /* cuentas anuales */
+            .fin-table-wrap { overflow: auto; }
+            .fin-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .76rem; font-variant-numeric: tabular-nums; }
+            .fin-table th { position: sticky; top: 0; z-index: 2; background: var(--bs-card-bg, var(--bs-body-bg)); font-size: .66rem; font-weight: 700; letter-spacing: .03em;
+                            color: var(--bs-secondary-color); text-align: right; padding: .3rem .55rem; border-bottom: 1px solid var(--bs-border-color); white-space: nowrap; }
+            .fin-table td { text-align: right; padding: .2rem .55rem; border-bottom: 1px solid var(--bs-border-color-translucent); white-space: nowrap; }
+            .fin-table .fin-label { text-align: left; position: sticky; left: 0; z-index: 1; background: var(--bs-card-bg, var(--bs-body-bg)); min-width: 230px; max-width: 300px;
+                                    overflow: hidden; text-overflow: ellipsis; color: var(--bs-secondary-color); padding-left: 1.1rem; }
+            .fin-table th.fin-label { z-index: 3; }
+            .fin-table tr.fin-total td { font-weight: 700; color: var(--bs-body-color); }
+            .fin-table tr.fin-total .fin-label { padding-left: .4rem; color: var(--bs-body-color); }
+            .fin-table tr.fin-key td { background: rgba(59, 130, 246, .08); }
+            .fin-table tr.fin-key .fin-label { box-shadow: inset 3px 0 0 #3b82f6; background: color-mix(in srgb, var(--bs-card-bg, var(--bs-body-bg)) 92%, #3b82f6); }
+            .fin-table tr.fin-pct td { font-style: italic; color: var(--bs-secondary-color); font-size: .72rem; }
+            .fin-table .fin-ltm { background: rgba(127, 127, 127, .06); }
+            .fin-table .fin-neg { color: var(--bs-danger); }
+            .fin-table .fin-na { color: var(--bs-secondary-color); opacity: .5; }
+            .fin-table tr.row-interactive { cursor: pointer; }
+            .fin-table tr.row-interactive:hover td { background: rgba(127, 127, 127, .1); }
+            .fin-table tr.row-selected td { background: rgba(13, 202, 240, .15) !important; }
+        </style>
+        <script>
+        // Minigráficos de Finanzas: se dibujan al abrir la pestaña (con ancho 0 saldrían en blanco)
+        (() => {
+            let done = false;
+            const sym = '{{ currency_symbol }}';
+            const big = v => v == null ? '–' : Math.abs(v) >= 1e9 ? fmtNum(v / 1e9, 1) + ' mil M' : Math.abs(v) >= 1e6 ? fmtNum(v / 1e6, 0) + ' M' : fmtNum(v, 2);
+            const TONE = {good: '#16a34a', bad: '#dc2626', flat: '#d97706', none: '#64748b'};
+            const draw = () => {
+                const raw = document.getElementById('finTrendsData');
+                const pane = document.getElementById('sub-stats-pane');
+                if (done || !raw || !pane || !pane.offsetParent) return;
+                done = true;
+                const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                const grid = dark ? '#334155' : '#e9eef5', font = {size: 9, color: dark ? '#94a3b8' : '#64748b'};
+                // los gráficos se alargan con el alto que sobre en la ventana (sin pasarse)
+                const charts = [...document.querySelectorAll('.fin-trend-chart')];
+                const free = innerHeight - pane.getBoundingClientRect().bottom - 16;
+                if (free > 0) charts.forEach(el => el.style.height = Math.min(260, el.clientHeight + free) + 'px');
+                JSON.parse(raw.textContent).forEach(t => {
+                    const el = document.getElementById('finTrend-' + t.key);
+                    if (!el || t.empty) { if (el) el.innerHTML = '<div class="small text-muted pt-4 text-center">Sin datos en las cuentas cargadas</div>'; return; }
+                    const x = t.years.map(y => y === 'LTM' ? '12m' : "'" + String(y).slice(2));
+                    const fmt = v => v == null ? '–' : t.unit === 'pct' ? fmtNum(v, 1) + ' %' : t.unit === 'price' ? fmtNum(v, 2) + ' ' + sym : t.unit === 'count' ? big(v) : big(v) + ' ' + sym;
+                    const c = TONE[t.tone] || TONE.none;
+                    let traces;
+                    if (t.type === 'bar') {
+                        const v = t.series[0].values;
+                        traces = [{x, y: v, type: 'bar', marker: {color: v.map((y, i) => y != null && y < 0 ? '#dc2626' : c), opacity: t.years.map(y => y === 'LTM' ? .45 : .85)},
+                                   text: v.map(fmt), textposition: 'none', hovertemplate: '%{x}: %{text}<extra></extra>'}];
+                    } else if (t.type === 'debt') {
+                        traces = [{x, y: t.series[0].values, type: 'bar', name: 'Deuda', marker: {color: '#94a3b8'}, text: t.series[0].values.map(fmt), textposition: 'none', hovertemplate: 'Deuda %{x}: %{text}<extra></extra>'},
+                                  {x, y: t.series[1].values, type: 'scatter', mode: 'lines', name: 'Caja', line: {color: '#16a34a', width: 2}, text: t.series[1].values.map(fmt), hovertemplate: 'Caja %{x}: %{text}<extra></extra>'}];
+                    } else {
+                        const colors = {Bruto: '#94a3b8', Operativo: c, Neto: '#3b82f6', Acciones: c};
+                        traces = t.series.map(s => ({x, y: s.values, type: 'scatter', mode: 'lines', name: s.name, connectgaps: true,
+                            line: {color: colors[s.name] || c, width: s.name === 'Operativo' || s.name === 'Acciones' ? 2.2 : 1.4},
+                            text: s.values.map(fmt), hovertemplate: s.name + ' %{x}: %{text}<extra></extra>'}));
+                    }
+                    Plotly.newPlot(el, traces, {height: el.clientHeight, margin: {l: 4, r: 4, t: 4, b: 16}, showlegend: false, bargap: .25,
+                        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font, hovermode: 'closest',
+                        xaxis: {type: 'category', fixedrange: true, tickfont: {size: 8}, showgrid: false},
+                        yaxis: {visible: false, fixedrange: true, zeroline: true, zerolinecolor: grid, rangemode: t.unit === 'count' ? 'normal' : 'tozero'}},
+                        {displayModeBar: false, responsive: true});
+                });
+            };
+            document.addEventListener('DOMContentLoaded', () => {
+                ['nav-financials-tab', 'sub-stats-tab'].forEach(id => document.getElementById(id)?.addEventListener('shown.bs.tab', () => setTimeout(draw, 30)));
+                setTimeout(draw, 300);   // si la ficha abre ya en Finanzas
+            });
+        })();
+        </script>
             </div> <!-- Cierre de sub-stats-pane -->
 
             <!-- SUB-PESTAÑA A: GRÁFICOS DE TENDENCIA -->
@@ -1224,21 +1331,21 @@ function openStats() {
         <div class="row g-2 mb-2">
             <!-- Columna Izquierda: Gráfico de Precio (50% de ancho) -->
             <div class="col-lg-6">
-                <div class="card shadow-sm border-0 d-flex flex-column" id="priceChartCard">
-                    <div class="card-header bg-white border-bottom-0 py-1 d-flex justify-content-between align-items-center">
-                        <span class="fw-bold text-primary text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.5px;"><i class="bi bi-graph-up me-1"></i> Cotización de Precio<span id="priceRangeChg" class="ms-2"></span></span>
-                        <div class="btn-group" role="group" aria-label="Rango de fechas">
-                                <button type="button" class="btn btn-sm btn-outline-primary py-0" data-period="1d" onclick="updatePriceChart(this, '{{ ticker }}')">1D</button>
-                                <button type="button" class="btn btn-sm btn-outline-primary py-0" data-period="5d" onclick="updatePriceChart(this, '{{ ticker }}')">5D</button>
-                                <button type="button" class="btn btn-sm btn-outline-primary py-0" data-period="1mo" onclick="updatePriceChart(this, '{{ ticker }}')">1M</button>
-                                <button type="button" class="btn btn-sm btn-outline-primary py-0" data-period="6mo" onclick="updatePriceChart(this, '{{ ticker }}')">6M</button>
-                                <button type="button" class="btn btn-sm btn-outline-primary py-0" data-period="ytd" onclick="updatePriceChart(this, '{{ ticker }}')">YTD</button>
-                                <button type="button" class="btn btn-sm btn-outline-primary py-0" data-period="1y" onclick="updatePriceChart(this, '{{ ticker }}')">1A</button>
-                                <button type="button" class="btn btn-sm btn-outline-primary py-0" data-period="5y" onclick="updatePriceChart(this, '{{ ticker }}')">5A</button>
-                                <button type="button" class="btn btn-sm btn-outline-primary py-0 active" data-period="10y" onclick="updatePriceChart(this, '{{ ticker }}')">MAX</button>
+                <div class="card shadow-sm border-0 d-flex flex-column dash-card dash-green" id="priceChartCard">
+                    <div class="card-header bg-transparent border-0 pt-2 pb-1 px-2 d-flex justify-content-between align-items-center">
+                        <span class="dash-label mb-0"><i class="bi bi-graph-up me-1"></i>Cotización<span id="priceRangeChg" class="ms-2" style="text-transform: none;"></span></span>
+                        <div class="btn-group btn-group-sm fin-periods" role="group" aria-label="Rango de fechas">
+                                <button type="button" class="btn btn-outline-secondary" data-period="1d" onclick="updatePriceChart(this, '{{ ticker }}')">1D</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="5d" onclick="updatePriceChart(this, '{{ ticker }}')">5D</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="1mo" onclick="updatePriceChart(this, '{{ ticker }}')">1M</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="6mo" onclick="updatePriceChart(this, '{{ ticker }}')">6M</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="ytd" onclick="updatePriceChart(this, '{{ ticker }}')">YTD</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="1y" onclick="updatePriceChart(this, '{{ ticker }}')">1A</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="5y" onclick="updatePriceChart(this, '{{ ticker }}')">5A</button>
+                                <button type="button" class="btn btn-outline-secondary active" data-period="10y" onclick="updatePriceChart(this, '{{ ticker }}')">MAX</button>
                             </div>
                     </div>
-                    <div class="card-body p-0 border-top flex-grow-1">
+                    <div class="card-body p-0 flex-grow-1">
                         <div id="priceChart" class="fin-fit-chart" style="height: 380px; width: 100%;"></div>
                     </div>
                 </div>
@@ -1246,21 +1353,18 @@ function openStats() {
 
             <!-- Columna Derecha: Gráficos de Estados Financieros con pestañas (50% de ancho) -->
             <div class="col-lg-6">
-                <div class="card shadow-sm border-0 d-flex flex-column">
-                    <div class="card-header bg-white border-bottom-0 py-0">
-                        <ul class="nav nav-tabs border-0 {{ 'invisible' if not fin_years }}" id="chartTabs" role="tablist" style="font-size: 0.75rem;">
-                            <li class="nav-item"><button class="nav-link active fw-bold py-1 px-2 text-primary" id="revenue-chart-tab" data-bs-toggle="tab" data-bs-target="#revenue-tab-pane" type="button" role="tab">Rev</button></li>
-                            <li class="nav-item"><button class="nav-link fw-bold py-1 px-2" id="net-income-chart-tab" data-bs-toggle="tab" data-bs-target="#net-income-tab-pane" type="button" role="tab">Net</button></li>
-                            <li class="nav-item"><button class="nav-link fw-bold py-1 px-2" id="eps-chart-tab" data-bs-toggle="tab" data-bs-target="#eps-tab-pane" type="button" role="tab">EPS</button></li>
-                            <li class="nav-item">
-                                <button class="nav-link fw-bold py-1 px-2" id="fcf-chart-tab" data-bs-toggle="tab" data-bs-target="#fcf-tab-pane" type="button" role="tab">FCF</button>
-                            </li>
-                            <li class="nav-item">
-                                <button class="nav-link fw-bold py-1 px-2 text-info d-none" id="custom-chart-tab" data-bs-toggle="tab" data-bs-target="#custom-tab-pane" type="button" role="tab">📊 Detalle IA</button>
-                            </li>
+                <div class="card shadow-sm border-0 d-flex flex-column dash-card dash-blue">
+                    <div class="card-header bg-transparent border-0 pt-2 pb-1 px-2 d-flex align-items-center gap-2">
+                        <ul class="nav nav-pills fin-seg {{ 'invisible' if not fin_years }}" id="chartTabs" role="tablist">
+                            <li class="nav-item"><button class="nav-link active" id="revenue-chart-tab" data-bs-toggle="tab" data-bs-target="#revenue-tab-pane" type="button" role="tab">Ventas</button></li>
+                            <li class="nav-item"><button class="nav-link" id="net-income-chart-tab" data-bs-toggle="tab" data-bs-target="#net-income-tab-pane" type="button" role="tab">Beneficio neto</button></li>
+                            <li class="nav-item"><button class="nav-link" id="eps-chart-tab" data-bs-toggle="tab" data-bs-target="#eps-tab-pane" type="button" role="tab">BPA</button></li>
+                            <li class="nav-item"><button class="nav-link" id="fcf-chart-tab" data-bs-toggle="tab" data-bs-target="#fcf-tab-pane" type="button" role="tab">Flujo de caja libre</button></li>
+                            <li class="nav-item"><button class="nav-link d-none" id="custom-chart-tab" data-bs-toggle="tab" data-bs-target="#custom-tab-pane" type="button" role="tab">Detalle IA</button></li>
                         </ul>
+                        <span class="ms-auto small text-muted text-nowrap" id="finBarInfo"></span>
                     </div>
-                    <div class="card-body p-0 border-top flex-grow-1">
+                    <div class="card-body p-0 flex-grow-1">
                         {% if not fin_years %}
                         <div class="fin-empty">
                             <i class="bi bi-bar-chart"></i>
@@ -1298,7 +1402,7 @@ function openStats() {
         <div id="financials-chart-card-hist" class="card shadow-sm border border-info mb-2 d-none">
             <div class="card-header bg-info bg-opacity-10 py-1 d-flex justify-content-between align-items-center">
                 <span class="fw-bold text-info" style="font-size: 0.75rem;">
-                    <i class="bi bi-graph-up me-2"></i> COMPARACIÓN DE TENDENCIAS SELECCIONADAS (HISTÓRICO)
+                    <i class="bi bi-graph-up me-2"></i>Tendencia de las filas elegidas
                 </span>
                 <div class="d-flex align-items-center gap-2">
                     <button class="btn btn-xs btn-outline-secondary py-0" style="font-size: 0.65rem;" onclick="clearInteractiveMetrics('hist')">
@@ -1369,32 +1473,24 @@ function openStats() {
         </div>
 
         <!-- Explorador Histórico Financiero Multimodal -->
-        <div class="card shadow-sm border-0 mb-0">
-    <div class="card-header bg-white py-1 d-flex justify-content-between align-items-center gap-2">
-        <h5 class="mb-0 fw-bold text-uppercase" style="font-size: 0.74rem; letter-spacing: 0.5px;">
-            <i class="bi bi-clock-history me-1 text-primary"></i>Histórico Financiero Detallado
-            {% if fin_full %}<span class="text-muted fw-normal ms-2 d-none d-xl-inline" style="text-transform: none; letter-spacing: 0;">· clic en una fila para ver su tendencia</span>{% endif %}
-        </h5>
-        <div class="d-flex align-items-center gap-2">
-            <button class="btn btn-sm btn-outline-primary fw-bold py-0 px-2" style="font-size: 0.7rem;" type="button" data-bs-toggle="collapse" data-bs-target="#feedback-collapse-audit">
-                <i class="bi bi-pencil-square me-1"></i> {% if db.get('full_audit_structure') %}Modificar Datos Auditoría{% else %}Insertar Datos Auditoría{% endif %}
-            </button>
-            <ul class="nav nav-pills small" id="histTabs" role="tablist">
-                <li class="nav-item"><button class="nav-link active py-0 px-3" id="hist-income-tab" data-bs-toggle="pill" data-bs-target="#hist-income" type="button" role="tab">P&L</button></li>
-                <li class="nav-item"><button class="nav-link py-0 px-3" id="hist-balance-tab" data-bs-toggle="pill" data-bs-target="#hist-balance" type="button" role="tab">Balance</button></li>
-                <li class="nav-item"><button class="nav-link py-0 px-3" id="hist-cashflow-tab" data-bs-toggle="pill" data-bs-target="#hist-cashflow" type="button" role="tab">Cash Flow</button></li>
+        {# Cuentas anuales en español (financial_labels): de la más antigua a la más reciente, importes en millones, los
+           totales en negrita y las cifras clave resaltadas. Clic en una fila: su tendencia en el gráfico de arriba. #}
+        {% macro fcell(v, k) %}{% if v is none %}<span class="fin-na">–</span>{% elif k == 'pct' %}<span class="{{ 'fin-neg' if v < 0 }}">{{ num(v, 1) }} %</span>{% elif k == 'per_share' %}<span class="{{ 'fin-neg' if v < 0 }}">{{ num(v, 2) }}</span>{% else %}<span class="{{ 'fin-neg' if v < 0 }}">{{ num(v, 0 if v|abs >= 100 else 1) }}</span>{% endif %}{% endmacro %}
+        <div class="card border-0 shadow-sm dash-card dash-blue mb-0">
+    <div class="card-body p-2">
+        <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+            <ul class="nav nav-pills fin-seg" id="histTabs" role="tablist">
+                <li class="nav-item"><button class="nav-link active" id="hist-income-tab" data-bs-toggle="pill" data-bs-target="#hist-income" type="button" role="tab">Cuenta de resultados</button></li>
+                <li class="nav-item"><button class="nav-link" id="hist-balance-tab" data-bs-toggle="pill" data-bs-target="#hist-balance" type="button" role="tab">Balance</button></li>
+                <li class="nav-item"><button class="nav-link" id="hist-cashflow-tab" data-bs-toggle="pill" data-bs-target="#hist-cashflow" type="button" role="tab">Flujos de caja</button></li>
             </ul>
+            <span class="text-muted small">Millones de {{ info.get('currency', '') }} · BPA por acción · {% if fin_full %}pulsa una fila para ver su tendencia{% endif %}</span>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2 ms-auto" style="font-size: 0.72rem;" type="button" data-bs-toggle="collapse" data-bs-target="#feedback-collapse-audit">
+                <i class="bi bi-pencil-square me-1"></i>{{ 'Editar datos' if db.get('full_audit_structure') else 'Cargar datos' }}
+            </button>
         </div>
-    </div>
-    <div class="card-body p-0 border-top bg-white">
         <div class="tab-content" id="histTabsContent">
-            {% set hist_sections = [
-                ('income', 'income_statement'),
-                ('balance', 'balance_sheet'),
-                ('cashflow', 'cash_flow')
-            ] %}
-
-            {% for id, key in hist_sections %}
+            {% for id, key in [('income', 'income_statement'), ('balance', 'balance_sheet'), ('cashflow', 'cash_flow')] %}
             <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="hist-{{ id }}" role="tabpanel">
                 {% if not fin_years %}
                 <div class="fin-empty">
@@ -1404,49 +1500,29 @@ function openStats() {
                     <button class="btn btn-warning btn-sm fw-bold mt-1" onclick="switchToFinancialsAndOpenAuditData()"><i class="bi bi-database-add me-1"></i>Cargar datos</button>
                 </div>
                 {% else %}
-                <div class="table-responsive" data-fit="200">
-                    <table class="table table-sm table-hover mb-0 table-professional">
-                        <thead>
-                            <tr>
-                                <th class="ps-3 text-uppercase text-muted" style="min-width: 250px;">Métrica</th>
-                                {% for year in financials_hist['years']|reverse %}
-                                <th class="text-end pe-3">{{ year }}</th>
-                                {% endfor %}
-                            </tr>
-                        </thead>
+                {% set trs = fin_tables.get(key) or [] %}
+                <div class="fin-table-wrap" data-fit="200">
+                    <table class="fin-table">
+                        <thead><tr><th class="fin-label"></th>{% for y in fin_years_ord %}<th class="{{ 'fin-ltm' if y == 'LTM' }}">{{ 'Últ. 12 m' if y == 'LTM' else y }}</th>{% endfor %}</tr></thead>
                         <tbody>
-                            {% if financials_hist.get(key) %}
-                                {% for metric, vals in financials_hist[key].items() %}
-                                {% set m_lower = metric|lower %}
-                                {% set is_major = ('total' in m_lower or 'net' in m_lower or 'operating' in m_lower or 'gross' in m_lower or 'revenue' in m_lower or 'ebit' in m_lower or 'efectivo' in m_lower or 'cash' in m_lower or 'fcf' in m_lower or 'bpa' in m_lower or 'eps' in m_lower or 'ingresos' in m_lower or 'ventas' in m_lower or 'beneficio' in m_lower or 'balance' in m_lower or 'activos' in m_lower or 'pasivos' in m_lower or 'patrimonio' in m_lower or 'equity' in m_lower) %}
-                                {% set is_primary_total = ('revenue' in m_lower or 'ventas' in m_lower or 'ingresos' in m_lower or 'net income' in m_lower or 'beneficio neto' in m_lower or 'free cash flow' in m_lower or 'fcf' in m_lower or 'flujo de caja libre' in m_lower or 'total assets' in m_lower or 'total activos' in m_lower or 'activos totales' in m_lower) %}
-                                <tr class="row-interactive {% if is_major %}table-group-header{% endif %} {% if is_primary_total %}total-row-highlight{% endif %}" onclick='toggleInteractiveMetric(this, {{ metric|tojson }}, {{ vals|tojson }}, {{ financials_hist["years"]|tojson }}, "hist")' title="Clic para seleccionar y comparar en gráfico">
-                                    <td class="text-start {% if is_major %}fw-bold{% else %}indent-submetric{% endif %}">
-                                        {% if is_major %}
-                                            <i class="bi bi-folder-fill me-1 text-primary opacity-75"></i>
-                                        {% else %}
-                                            <i class="bi bi-circle me-1 opacity-50" style="font-size: 0.5rem; vertical-align: middle;"></i>
-                                        {% endif %}
-                                        {{ metric }}
-                                    </td>
-                                    {% for val in vals|reverse %}
-                                    <td class="text-end pe-3 {% if is_major %}fw-bold{% endif %}">{{ format_financial_value(val, 0) }}</td>
-                                    {% endfor %}
-                                </tr>
+                        {% for r in trs %}
+                            <tr class="row-interactive {{ 'fin-total' if r.total }} {{ 'fin-key' if r.key }} {{ 'fin-pct' if r.kind == 'pct' }}" title="{{ r.name }} · clic para ver su tendencia"
+                                onclick='toggleInteractiveMetric(this, {{ r.label|tojson }}, {{ r["values"]|tojson }}, {{ fin_years_ord|tojson }}, "hist")'>
+                                <td class="fin-label">{{ r.label }}</td>
+                                {% for v in r["values"] %}<td class="{{ 'fin-ltm' if fin_years_ord[loop.index0] == 'LTM' }}">{{ fcell(v, r.kind) }}</td>{% endfor %}
+                            </tr>
+                        {% else %}
+                            {% set basic = {'income': [('Ventas', 'revenue', 'money'), ('Beneficio neto', 'net_income', 'money'), ('BPA', 'eps', 'per_share')], 'cashflow': [('Flujo de caja libre', 'fcf', 'money')]}.get(id) %}
+                            {% if basic %}
+                                {% for lab, k, kd in basic %}{% set vals = financials_hist.get(k) or [] %}
+                                <tr class="fin-total"><td class="fin-label">{{ lab }}</td>{% for y in fin_years_ord %}{% set i = financials_hist['years'].index(y) if y in financials_hist['years'] else -1 %}{% set v = vals[i] if i >= 0 and i < vals|length else none %}<td>{{ fcell(none if v is none else (v / 1e6 if kd == 'money' else v), kd) }}</td>{% endfor %}</tr>
                                 {% endfor %}
                             {% else %}
-                                <!-- Fallback para datos de API clásica si no hay estructura manual -->
-                                {% if id == 'income' %}
-                                    <tr onclick="switchChartTab('revenue')"><td class="ps-3 fw-bold">Revenue</td>{% for v in financials_hist['revenue']|reverse %}<td class="text-end pe-3">{{ format_financial_value(v, 0) }}</td>{% endfor %}</tr>
-                                    <tr onclick="switchChartTab('net-income')"><td class="ps-3 fw-bold">Net Income</td>{% for v in financials_hist['net_income']|reverse %}<td class="text-end pe-3">{{ format_financial_value(v, 0) }}</td>{% endfor %}</tr>
-                                {% elif id == 'cashflow' %}
-                                    <tr onclick="switchChartTab('fcf')"><td class="ps-3 fw-bold">Free Cash Flow</td>{% for v in financials_hist['fcf']|reverse %}<td class="text-end pe-3">{{ format_financial_value(v, 0) }}</td>{% endfor %}</tr>
-                                {% else %}
-                                    <tr><td colspan="100" class="text-center py-3 text-muted" style="position: static;">
-                                        <i class="bi bi-info-circle me-1"></i>Sin balance: solo hay cifras básicas de {{ fin_src }}.
-                                        <a href="#" class="fw-bold ms-1" onclick="switchToFinancialsAndOpenAuditData(); return false;">Cargar estados financieros</a></td></tr>
-                                {% endif %}
+                                <tr><td colspan="100" class="text-center py-3 text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>Sin balance: solo hay cifras básicas de {{ fin_src }}.
+                                    <a href="#" class="fw-bold ms-1" onclick="switchToFinancialsAndOpenAuditData(); return false;">Cargar estados financieros</a></td></tr>
                             {% endif %}
+                        {% endfor %}
                         </tbody>
                     </table>
                 </div>
@@ -1454,8 +1530,8 @@ function openStats() {
             </div>
             {% endfor %}
         </div>
-    </div> <!-- Cierre de card-body 317 -->
-    </div> <!-- Cierre de card 306 -->
+    </div>
+    </div>
     
     </div> <!-- Cierre de sub-tables-pane -->
     </div> <!-- Cierre de subFinancialsTabsContent -->
@@ -2838,93 +2914,24 @@ function openStats() {
     <!-- SECCIÓN 1.1: MI CARTERA (INFORMACIÓN DEL PORTAFOLIO) -->
     {% if portfolio_item %}
     <div class="tab-pane fade" id="nav-portfolio" role="tabpanel">
-        <div class="row mb-3 mt-1">
-            <div class="col-12 d-flex justify-content-between align-items-center">
-                <div>
-                    <h4 class="fw-bold mb-0">Posición en {{ info.get('longName', ticker) }}</h4>
-                    <span class="text-muted small">
-                        {% if portfolio_is_active %}
-                        Posición Abierta — {{ num(portfolio_item.shares, 0 if portfolio_item.shares == portfolio_item.shares|int else 2) }} acciones
-                        {% else %}
-                        Posición Cerrada Histórica
-                        {% endif %}
-                    </span>
-                </div>
-                <div>
-                    <a href="/portfolio" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-briefcase me-1"></i> Ir al Portfolio General
-                    </a>
-                </div>
-            </div>
+        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+            <span class="fw-bold">{{ 'Posición abierta' if portfolio_is_active else 'Posición cerrada' }}</span>
+            <span class="text-muted small">{% if portfolio_is_active %}{{ num(portfolio_item.shares, 0 if portfolio_item.shares == portfolio_item.shares|int else 2) }} acciones a {{ num(portfolio_item.average_price, 2) }} {{ currency_symbol }} de media{% endif %}</span>
+            {% if portfolio_is_active and currency_symbol != '€' %}<button type="button" class="btn btn-sm btn-outline-secondary ms-auto py-0" data-bs-toggle="modal" data-bs-target="#ledgerModal" title="Qué parte del resultado viene de la cotización y qué parte del cambio de divisa, y las comisiones">
+                <i class="bi bi-currency-exchange me-1"></i>Divisa y comisiones</button>{% endif %}
+            <a href="/portfolio" class="btn btn-sm btn-outline-primary py-0 {{ 'ms-auto' if not (portfolio_is_active and currency_symbol != '€') }}"><i class="bi bi-briefcase me-1"></i>Ir a la cartera</a>
         </div>
+        <div id="mpBody"><div class="text-muted small p-3"><span class="spinner-border spinner-border-sm me-1"></span>Calculando tu posición frente al S&amp;P 500…</div></div>
 
-        <div class="row g-3 mb-4">
-            <!-- Resumen de Posición -->
-            <div class="col-md-3 col-sm-6">
-                <div class="card shadow-sm border-0 bg-light p-3 h-100">
-                    <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Beneficio Realizado</div>
-                    <h3 class="fw-bold mt-2 mb-0 {% if portfolio_item.realized_pnl > 0 %}text-success{% elif portfolio_item.realized_pnl < 0 %}text-danger{% endif %}" style="font-size: 1.5rem;">
-                        {% if portfolio_item.realized_pnl > 0 %}+{% endif %}{{ num(portfolio_item.realized_pnl, 2) }} {{ currency_symbol }}
-                    </h3>
-                </div>
-            </div>
-            
-            <div class="col-md-3 col-sm-6">
-                <div class="card shadow-sm border-0 bg-light p-3 h-100">
-                    <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Dividendos Cobrados</div>
-                    <h3 class="fw-bold mt-2 mb-0 text-success" style="font-size: 1.5rem;">
-                        +{{ num(portfolio_item.dividends_collected|default(0), 2) }} {{ currency_symbol }}
-                    </h3>
-                </div>
-            </div>
-
-            <div class="col-md-3 col-sm-6">
-                <div class="card shadow-sm border-0 bg-light p-3 h-100 border-start border-4 {% if portfolio_total_profit_closed > 0 %}border-success{% elif portfolio_total_profit_closed < 0 %}border-danger{% else %}border-secondary{% endif %}">
-                    <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Bº Total Histórico</div>
-                    <h3 class="fw-bold mt-2 mb-0 {% if portfolio_total_profit_closed > 0 %}text-success{% elif portfolio_total_profit_closed < 0 %}text-danger{% endif %}" style="font-size: 1.5rem;">
-                        {% if portfolio_total_profit_closed > 0 %}+{% endif %}{{ num(portfolio_total_profit_closed, 2) }} {{ currency_symbol }}
-                    </h3>
-                    <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">
-                        (Ventas + Dividendos)
-                        {% if not portfolio_is_active and portfolio_item.cagr is not none %}
-                        <span class="d-block mt-0.5">CAGR: <span class="fw-bold {% if portfolio_item.cagr > 0 %}text-success{% elif portfolio_item.cagr < 0 %}text-danger{% endif %}">{% if portfolio_item.cagr > 0 %}+{% endif %}{{ (num(portfolio_item.cagr, 2) ~ '%') }}</span></span>
-                        {% endif %}
-                    </small>
-                </div>
-            </div>
-
-            {% if portfolio_is_active %}
-            <div class="col-md-3 col-sm-6">
-                <div class="card shadow-sm border-0 bg-light p-3 h-100">
-                    <div class="d-flex flex-column justify-content-between h-100">
-                        <div>
-                            <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.72rem;">Bº Latente (No Realizado)</div>
-                            <h3 class="fw-bold mt-2 mb-0 {% if portfolio_item.return_abs > 0 %}text-success{% elif portfolio_item.return_abs < 0 %}text-danger{% endif %}" style="font-size: 1.5rem;">
-                                {% if portfolio_item.return_abs > 0 %}+{% endif %}{{ num(portfolio_item.return_abs, 2) }} {{ currency_symbol }}
-                            </h3>
-                            <small class="text-muted d-block mt-1" style="font-size: 0.7rem;">
-                                ({{ (num(portfolio_item.return_pct, 2) ~ '%') }})
-                                {% if portfolio_item.cagr is not none %}
-                                · <span class="fw-semibold">CAGR: <span class="{% if portfolio_item.cagr > 0 %}text-success{% elif portfolio_item.cagr < 0 %}text-danger{% endif %}">{% if portfolio_item.cagr > 0 %}+{% endif %}{{ (num(portfolio_item.cagr, 2) ~ '%') }}</span></span>
-                                {% endif %}
-                            </small>
-                        </div>
-                        
-                        {% if currency_symbol != '€' %}
-                        <div class="mt-2">
-                            <button class="btn btn-xs btn-outline-secondary border-0 py-0 px-2 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFx" aria-expanded="false" style="font-size: 0.7rem;">
-                                <i class="bi bi-search me-1"></i> Divisa y Comisiones
-                            </button>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-        </div>
+        {# El desglose de divisa y comisiones, en una ventana (el libro de operaciones va en la tabla de la pestaña) #}
+        <div class="modal fade" id="ledgerModal" tabindex="-1" aria-labelledby="ledgerModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg"><div class="modal-content">
+        <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="ledgerModalTitle"><i class="bi bi-currency-exchange me-1"></i>{{ clean_ticker(ticker) }} · divisa y comisiones</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <div class="modal-body">
 
         {% if portfolio_is_active and currency_symbol != '€' %}
-        <div class="row mt-1 mb-4 collapse" id="collapseFx">
+        <div class="row mb-3" id="collapseFx">
             <div class="col-12">
                 <div class="card border-0 shadow-sm bg-light-subtle">
                     <div class="card-body py-3">
@@ -2968,152 +2975,168 @@ function openStats() {
         </div>
         {% endif %}
 
-        <!-- Ledger Table -->
-        <div class="card shadow-sm border mb-4">
-            <div class="card-header bg-white py-3">
-                <h6 class="mb-0 fw-bold text-dark text-uppercase"><i class="bi bi-journal-text me-1 text-primary"></i> Libro Mayor de Transacciones</h6>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.8rem;">
-                    <thead>
-                        <tr class="table-light">
-                            <th class="ps-4 py-2">Fecha</th>
-                            <th class="text-center py-2">Tipo</th>
-                            <th class="text-end py-2">Cantidad</th>
-                            <th class="text-end py-2">Precio Operación</th>
-                            <th class="text-end py-2">Valor Total</th>
-                            <th class="text-center py-2" style="width:58px;"></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for tx in portfolio_ledger %}
-                        <tr class="align-middle" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#txDetails-{{ loop.index }}" aria-expanded="false">
-                            <td class="ps-4 num-font py-2">
-                                <i class="bi bi-chevron-right text-muted me-1.5 small" id="chevron-{{ loop.index }}"></i>{{ tx.date }}
-                            </td>
-                            <td class="text-center py-2">
-                                {% if tx.type == 'BUY' %}
-                                    <span class="badge bg-primary px-2.5 py-1">COMPRA</span>
-                                {% elif tx.type == 'SELL' %}
-                                    <span class="badge bg-danger px-2.5 py-1">VENTA</span>
-                                {% elif tx.type == 'DIVIDEND' %}
-                                    <span class="badge bg-success px-2.5 py-1">DIVIDENDO</span>
-                                {% elif tx.type == 'SPLIT' %}
-                                    <span class="badge bg-warning px-2.5 py-1 text-dark">SPLIT</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-end num-font py-2">
-                                {% if tx.type == 'DIVIDEND' %}
-                                    <span class="text-muted small" style="font-size: 0.7rem;">Por {{ num(tx.shares, 2) }} accs.</span>
-                                {% elif tx.type == 'SPLIT' %}
-                                    <span class="fw-bold">1 : {{ "{:g}".format(tx.shares) }}</span>
-                                {% else %}
-                                    {{ num(tx.shares, 2) }}
-                                {% endif %}
-                            </td>
-                            <td class="text-end num-font py-2">
-                                {% if tx.type == 'SPLIT' %}
-                                    -
-                                {% else %}
-                                    {{ num(tx.price, 4) }} {{ currency_symbol }}
-                                {% endif %}
-                            </td>
-                            <td class="text-end fw-bold num-font py-2 {% if tx.type == 'DIVIDEND' or tx.type == 'SELL' %}text-success{% elif tx.type == 'SPLIT' %}text-muted{% else %}text-danger{% endif %}">
-                                {% if tx.type == 'SPLIT' %}
-                                    -
-                                {% else %}
-                                    {% if tx.type == 'DIVIDEND' or tx.type == 'SELL' %}+{% else %}-{% endif %}{{ num(tx.total, 2) }} {{ currency_symbol }}
-                                {% endif %}
-                            </td>
-                            <td class="text-center py-2">
-                                {% if tx.type != 'DIVIDEND' and tx.type != 'SPLIT' %}
-                                <button class="btn btn-sm btn-outline-danger border-0 p-0" onclick="event.stopPropagation(); deleteTransaction('{{ tx.date }}', '{{ tx.type }}', {{ tx.shares }}, {{ tx.price }})" title="Eliminar Transacción">🗑️</button>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        <tr class="collapse" id="txDetails-{{ loop.index }}" style="background-color: rgba(248, 249, 250, 0.55);">
-                            <td colspan="6" class="py-3 px-4 border-bottom shadow-inner" style="font-size:0.8rem;">
-                                <div class="row g-3">
-                                    <div class="col-md-4">
-                                        <span class="text-muted d-block small fw-semibold">Detalles de Operación</span>
-                                        <span class="fw-bold text-dark">
-                                            {% if tx.type == 'BUY' %}Compra de{% elif tx.type == 'SELL' %}Venta de{% elif tx.type == 'DIVIDEND' %}Cobro de Dividendo{% else %}Split de{% endif %}
-                                            {{ num(tx.shares, 2) }} acciones a {{ num(tx.price, 4) }} {{ currency_symbol }}
-                                        </span>
-                                        {% if tx.type != 'SPLIT' %}
-                                        <div class="mt-2 text-muted" style="font-size:0.75rem;">
-                                            <span>Broker: <strong class="text-dark">{{ tx.broker }}</strong></span>
-                                            {% if tx.is_manual and (tx.type == 'BUY' or tx.type == 'SELL') %}
-                                            <div class="dropdown d-inline-block ms-1">
-                                                <button class="btn btn-xs btn-outline-secondary dropdown-toggle py-0 px-1" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size:0.65rem; line-height:1.1;">
-                                                    Cambiar
-                                                </button>
-                                                <ul class="dropdown-menu shadow-sm" style="font-size:0.7rem; min-width:110px;">
-                                                    <li><button class="dropdown-item py-1 text-warning fw-bold" onclick="event.stopPropagation(); changeTxBroker('{{ tx.date }}', '{{ tx.type }}', {{ tx.shares }}, {{ tx.price }}, 'DEGIRO')">🟠 DEGIRO</button></li>
-                                                    <li><button class="dropdown-item py-1 text-success fw-bold" onclick="event.stopPropagation(); changeTxBroker('{{ tx.date }}', '{{ tx.type }}', {{ tx.shares }}, {{ tx.price }}, 'IBKR')">🟢 IBKR</button></li>
-                                                </ul>
-                                            </div>
-                                            {% endif %}
-                                            {% if tx.fee > 0 and tx.type != 'DIVIDEND' %}
-                                            <span class="d-block mt-1">✂️ Comisión: <strong class="text-danger">{{ num(tx.fee, 2) }} {{ currency_symbol }}</strong></span>
-                                            {% endif %}
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                    
-                                    {% if currency_symbol != '€' and tx.type != 'SPLIT' %}
-                                    <div class="col-md-4 border-start">
-                                        <span class="text-muted d-block small fw-semibold">Tipo de Cambio</span>
-                                        <span class="fw-bold text-dark">
-                                            1 {{ currency_symbol }} = {{ num(tx.fx_rate, 4) }} EUR
-                                            {% if tx.type == 'SELL' and tx.fx_avg_purchase %}
-                                            <small class="text-muted d-block fw-normal" style="font-size:0.7rem;">(Histórico de compra: {{ num(tx.fx_avg_purchase, 4) }})</small>
-                                            {% endif %}
-                                        </span>
-                                    </div>
-                                    <div class="col-md-4 border-start">
-                                        <span class="text-muted d-block small fw-semibold">Equivalente en Euros (EUR)</span>
-                                        <span>
-                                            {% if tx.type == 'DIVIDEND' %}
-                                                <strong class="text-success">+{{ num(tx.pnl_eur, 2) }} €</strong>
-                                                <small class="text-muted d-block fw-normal" style="font-size:0.7rem;">Recibido neto en EUR</small>
-                                            {% elif tx.type == 'SELL' %}
-                                                <div class="fw-bold {% if tx.pnl_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                                    Resultado: {% if tx.pnl_eur >= 0 %}+{% endif %}{{ num(tx.pnl_eur, 2) }} €
-                                                </div>
-                                                <div class="small text-muted mt-1" style="font-size:0.72rem; line-height:1.25;">
-                                                    • Por Cotización: <strong class="{% if tx.pnl_price_eur >= 0 %}text-success{% else %}text-danger{% endif %}">{% if tx.pnl_price_eur >= 0 %}+{% endif %}{{ num(tx.pnl_price_eur, 2) }} €</strong><br>
-                                                    • Por Efecto Divisa: <strong class="{% if tx.pnl_fx_eur >= 0 %}text-success{% else %}text-danger{% endif %}">{% if tx.pnl_fx_eur >= 0 %}+{% endif %}{{ num(tx.pnl_fx_eur, 2) }} €</strong><br>
-                                                    {% if tx.fee > 0 %}
-                                                    • Comisiones pagadas: <strong class="text-danger">{{ num(tx.fee * tx.fx_rate, 2) }} €</strong>
-                                                    {% endif %}
-                                                </div>
-                                            {% else %}
-                                                <strong class="text-dark">{{ num(tx.total * tx.fx_rate, 2) }} €</strong>
-                                                <small class="text-muted d-block fw-normal" style="font-size:0.7rem;">Valor total invertido (con comisiones)</small>
-                                            {% endif %}
-                                        </span>
-                                    </div>
-                                    {% else %}
-                                    <div class="col-md-8 border-start">
-                                        <span class="text-muted d-block small fw-semibold">Valor Total en Euros</span>
-                                        <span class="fw-bold text-dark">
-                                            {% if tx.type == 'DIVIDEND' or tx.type == 'SELL' %}+{% else %}-{% endif %}{{ num(tx.total, 2) }} €
-                                        </span>
-                                        {% if tx.fee > 0 and tx.type != 'DIVIDEND' %}
-                                        <small class="text-muted d-block mt-1" style="font-size:0.7rem;">(Incluye comisiones de {{ num(tx.fee, 2) }} €)</small>
-                                        {% endif %}
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+        </div></div></div>
         </div>
 
+        <style>
+            .mp-answers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; }
+            @media (max-width: 991px) { .mp-answers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+            .mp-answer { border-radius: 8px; padding: .45rem .7rem; background: var(--bs-secondary-bg); border-left: 4px solid var(--bs-secondary-border-subtle); min-width: 0; }
+            .mp-answer.mp-good { border-left-color: var(--bs-success); }
+            .mp-answer.mp-bad { border-left-color: var(--bs-danger); }
+            .mp-answer .q { font-size: .68rem; text-transform: uppercase; letter-spacing: .03em; color: var(--bs-secondary-color); }
+            .mp-answer .a { font-size: 1.15rem; font-weight: 700; line-height: 1.2; }
+            .mp-answer .d { font-size: .74rem; color: var(--bs-secondary-color); line-height: 1.25; }
+            .mp-col { min-height: 0; }
+            .mp-ops { min-height: 0; overflow-y: auto; font-size: .78rem; }
+            .mp-table { font-size: .76rem; --bs-table-bg: transparent; }
+            .mp-table th { font-size: .64rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--bs-secondary-color); background: var(--bs-body-bg); position: sticky; top: 0; z-index: 1; white-space: nowrap; }
+            .mp-table td { white-space: nowrap; padding-top: .28rem; padding-bottom: .28rem; }
+            .mp-table td.dec-note { white-space: normal; max-width: 0; width: 100%; }
+            .mp-table .dec-note-text { min-width: 0; }
+            .mp-table tr.mp-div td { color: var(--bs-secondary-color); }
+            .mp-op { padding: .35rem .25rem; border-bottom: 1px solid var(--bs-border-color-translucent); }
+            .mp-op:last-child { border-bottom: 0; }
+            .mp-op .dec-note { font-size: .74rem; margin-top: .1rem; }
+            .mp-op .dec-note textarea { font-size: .74rem; }
+            .mp-nonote { opacity: .6; }
+            .mp-entry { font-size: .74rem; color: var(--bs-secondary-color); }
+            .mp-key { font-weight: 700; }
+            .mp-tools .btn { font-size: .68rem; padding: .05rem .4rem; }
+            @media (max-width: 991px) { .mp-main { height: auto !important; } .mp-ops { overflow: visible; } }
+        </style>
+        <script>
+        // «Mi cartera»: se pide al abrir la pestaña (descarga precios del valor y del índice)
+        (() => {
+            const T = '{{ ticker }}';
+            let loaded = false;
+            const body = () => document.getElementById('mpBody');
+            // el bloque principal llena el alto que queda en la ventana; el gráfico se estira y las operaciones hacen scroll por dentro
+            const fit = () => {
+                const main = document.querySelector('#mpBody .mp-main');
+                if (!main || !main.offsetParent) return;
+                if (innerWidth >= 992) {
+                    const avail = innerHeight - main.getBoundingClientRect().top - 16;
+                    main.style.height = Math.max(320, avail) + 'px';
+                    const extra = document.documentElement.scrollHeight - innerHeight;
+                    if (extra > 0) main.style.height = Math.max(320, avail - extra) + 'px';
+                }
+                const el = document.getElementById('mpChart'), box = document.getElementById('mpChartBox');
+                if (el && el.data) Plotly.relayout(el, {height: box.clientHeight, width: box.clientWidth});
+            };
+            const draw = () => {
+                const raw = document.getElementById('mpChartData'), el = document.getElementById('mpChart');
+                if (!raw || !el) return;
+                const d = JSON.parse(raw.textContent), sym = '{{ currency_symbol }}';
+                const box = document.getElementById('mpChartBox');
+                const mk = (type, color, symbol, label) => {
+                    const m = d.markers.filter(x => x.type === type);
+                    return {x: m.map(x => x.date), y: m.map(x => x.price), mode: 'markers', type: 'scatter', name: label,
+                        marker: {color, symbol, size: 12, line: {color: '#fff', width: 1}},
+                        text: m.map(x => `${label} · ${x.date.slice(8, 10)}/${x.date.slice(5, 7)}/${x.date.slice(2, 4)}<br>${fmtNum(x.shares, x.shares % 1 ? 2 : 0)} acc. a ${fmtNum(x.price, 2)} ${sym}`),
+                        hovertemplate: '%{text}<extra></extra>'};
+                };
+                const traces = [{x: d.dates, y: d.close, type: 'scatter', mode: 'lines', name: 'Precio', line: {color: '#3b82f6', width: 1.6},
+                    text: d.close.map(v => fmtNum(v, 2) + ' ' + sym), hovertemplate: '%{x|%d/%m/%y} · %{text}<extra></extra>'},
+                    mk('BUY', '#16a34a', 'triangle-up', 'Compra'), mk('SELL', '#dc2626', 'triangle-down', 'Venta')];
+                const shapes = d.avg && d.dates.length ? [{type: 'line', xref: 'x', x0: d.dates[0], x1: d.dates[d.dates.length - 1], y0: d.avg, y1: d.avg,
+                    line: {color: '#64748b', width: 1, dash: 'dash'}}] : [];
+                const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                Plotly.newPlot(el, traces, {height: box.clientHeight, width: box.clientWidth, margin: {l: 48, r: 10, t: 6, b: 28},
+                    showlegend: false, shapes, hovermode: 'closest', paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                    font: {size: 10, color: dark ? '#cbd5e1' : '#475569'}, separators: ',.',
+                    xaxis: {type: 'date', tickformat: '%m/%y', gridcolor: dark ? '#334155' : '#eef2f7'},
+                    yaxis: {gridcolor: dark ? '#334155' : '#eef2f7', ticksuffix: ' ' + sym}, dragmode: 'pan'},
+                    {displayModeBar: false, responsive: false, scrollZoom: true}).then(() => {
+                        view();
+                        // al arrastrar o hacer zoom con la rueda, el eje Y se ajusta a lo que se ve
+                        el.on('plotly_relayout', ev => { const r = relayoutXRange(ev); if (r && r !== 'all' && ev['yaxis.range[0]'] === undefined) fitY(r[0], r[1]); });
+                    });
+            };
+            // periodo (6M, 1A, 3A, 5A, todo el histórico o desde tu primera compra) y escala (lineal o logarítmica: con subidas grandes, la log compara mejor los % de cada tramo)
+            const st = {period: 'buy', log: false};
+            const fitY = (a, b) => {
+                const el = document.getElementById('mpChart'), d = JSON.parse(document.getElementById('mpChartData').textContent);
+                const [i, j] = rangeIndices(d.dates, a, b);
+                const ys = [d.close.slice(i, j + 1), d.markers.filter(m => m.date >= String(a).slice(0, 10) && m.date <= String(b).slice(0, 10)).map(m => m.price)].flat();
+                if (d.avg) ys.push(d.avg);
+                const lo = Math.min(...ys), hi = Math.max(...ys);
+                if (!isFinite(lo)) return;
+                const range = st.log ? [Math.log10(lo * 0.95), Math.log10(hi * 1.05)] : [lo - (hi - lo) * 0.06, hi + (hi - lo) * 0.06];
+                Plotly.relayout(el, {'yaxis.range': range, 'yaxis.autorange': false});
+            };
+            const view = () => {
+                const el = document.getElementById('mpChart'), raw = document.getElementById('mpChartData');
+                if (!el || !el.data || !raw) return;
+                const d = JSON.parse(raw.textContent), last = d.dates[d.dates.length - 1];
+                let from = d.dates[0];
+                if (st.period === 'buy') from = d.from_buy && d.from_buy > from ? d.from_buy : from;
+                else if (st.period !== 'max') {
+                    const t = new Date(last); t.setMonth(t.getMonth() - {'6m': 6, '1y': 12, '3y': 36, '5y': 60}[st.period]);
+                    const iso = t.toISOString().slice(0, 10);
+                    if (iso > from) from = iso;
+                }
+                Plotly.relayout(el, {'xaxis.range': [from, last], 'yaxis.type': st.log ? 'log' : 'linear'}).then(() => fitY(from, last));
+                document.querySelectorAll('#mpBody [data-mp-period]').forEach(b => b.classList.toggle('active', b.dataset.mpPeriod === st.period));
+                document.querySelectorAll('#mpBody [data-mp-scale]').forEach(b => b.classList.toggle('active', (b.dataset.mpScale === 'log') === st.log));
+            };
+            document.addEventListener('click', e => {
+                const p = e.target.closest('#mpBody [data-mp-period]'), sc = e.target.closest('#mpBody [data-mp-scale]');
+                if (p) { st.period = p.dataset.mpPeriod; view(); }
+                if (sc) { st.log = sc.dataset.mpScale === 'log'; view(); }
+            });
+            const load = () => {
+                if (loaded) return fit();
+                loaded = true;
+                fetch(`/ticker/${encodeURIComponent(T)}/mi-posicion`).then(r => { if (!r.ok) throw new Error(r.statusText); return r.text(); })
+                    .then(html => { body().innerHTML = html; fit(); draw(); setTimeout(fit, 50); })
+                    .catch(e => { loaded = false; body().innerHTML = `<div class="p-3 small text-danger">No se pudo calcular tu posición: ${e.message}</div>`; });
+            };
+            document.addEventListener('DOMContentLoaded', () => {
+                const tab = document.getElementById('nav-portfolio-tab');
+                if (!tab) return;
+                tab.addEventListener('shown.bs.tab', load);
+                if (tab.classList.contains('active')) load();
+                let rt = null;
+                addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(fit, 120); });
+                // el porqué de una operación: se edita en su línea (Intro guarda, Escape cancela), como en Decisiones
+                body().addEventListener('click', e => {
+                    const btn = e.target.closest('.dec-note-edit');
+                    if (!btn) return;
+                    const cell = btn.closest('.dec-note'), text = cell.querySelector('.dec-note-text'), none = cell.querySelector('.mp-nonote');
+                    if (cell.querySelector('textarea')) return;
+                    const box = document.createElement('textarea');
+                    box.className = 'form-control form-control-sm';
+                    box.rows = 2; box.maxLength = 1000; box.value = text.textContent.trim();
+                    box.placeholder = 'Por qué compraste o vendiste: tesis, precio, señal…';
+                    [text, btn, none].forEach(x => x && x.classList.add('d-none'));
+                    cell.prepend(box); box.focus();
+                    const done = () => { box.remove(); [text, btn].forEach(x => x.classList.remove('d-none'));
+                        if (none) none.classList.toggle('d-none', !!text.textContent.trim()); };
+                    let saving = false;
+                    const save = async () => {
+                        if (saving) return;
+                        const note = box.value.trim();
+                        if (note === text.textContent.trim()) return done();
+                        saving = true; box.disabled = true;
+                        try {
+                            const r = await fetch('/api/portfolio/transaction/note', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({ticker: cell.dataset.ticker, refs: JSON.parse(cell.dataset.refs), note})});
+                            if (!r.ok) throw new Error(r.statusText);
+                            text.textContent = note;
+                            btn.title = (note ? 'Editar' : 'Anotar') + ' el porqué';
+                            done();
+                        } catch (err) { saving = false; box.disabled = false; alert('No se pudo guardar: ' + err.message); }
+                    };
+                    box.addEventListener('keydown', ev => {
+                        if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); save(); }
+                        if (ev.key === 'Escape') done();
+                    });
+                    box.addEventListener('blur', save);
+                });
+            });
+        })();
+        </script>
         <script>
         async function deleteTransaction(date, type, shares, price) {
             if (!confirm(`¿Seguro que quieres eliminar esta transacción del ${date}? Solo se eliminarán las transacciones añadidas manualmente.`)) return;
@@ -3268,11 +3291,11 @@ function openStats() {
         type: 'scatter',
         mode: 'lines',
         line: {
-            color: '#0d6efd',
-            width: 2
+            color: '#16a34a',
+            width: 1.6
         },
         fill: 'tozeroy',
-        fillcolor: isDark ? 'rgba(13, 110, 253, 0.1)' : 'rgba(13, 110, 253, 0.05)',
+        fillcolor: isDark ? 'rgba(22, 163, 74, 0.08)' : 'rgba(22, 163, 74, 0.05)',
         name: 'Precio'
     };
 
@@ -3289,7 +3312,7 @@ function openStats() {
         },
         yaxis: { 
             autorange: true, 
-            title: { text: 'Precio ({{ currency_symbol }})', font: { color: textColor } },
+            ticksuffix: ' {{ currency_symbol }}',
             type: 'linear',
             gridcolor: gridColor,
             tickfont: { color: textColor }
@@ -3417,33 +3440,53 @@ function openStats() {
         }
     }
 
-    function createBarChart(id, xData, yData, title, color) {
-        if (!document.getElementById(id)) return;
+    // Barras de Finanzas › Gráficos: como los minigráficos de Estadísticas. Importes en mil M / M, negativos en rojo, el
+    // último año de 12 meses (LTM) más claro y, encima de cada barra, cuánto creció frente al año anterior.
+    const FIN_BAR_INFO = {};
+    function createBarChart(id, xData, yData, title, color, perShare) {
+        const el = document.getElementById(id);
+        if (!el || !xData || !xData.length) return;
         const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
-        const textColor = isDark ? "#adb5bd" : "#2c3e50";
-        const gridColor = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
-
-        var trace = {
-            x: xData,
-            y: yData,
-            type: 'bar',
-            marker: { color: color }
+        const textColor = isDark ? '#94a3b8' : '#64748b';
+        const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+        const sym = '{{ currency_symbol }}';
+        const vals = yData.map(v => v == null || v === '' || isNaN(+v) ? null : +v);
+        const big = Math.max(...vals.map(v => Math.abs(v || 0)));
+        const [div, unit] = perShare ? [1, sym] : big >= 1e9 ? [1e9, 'mil M ' + sym] : big >= 1e6 ? [1e6, 'M ' + sym] : [1, sym];
+        const y = vals.map(v => v == null ? null : v / div);
+        const yoy = y.map((v, i) => i && v != null && y[i - 1] ? (v / y[i - 1] - 1) * 100 * Math.sign(y[i - 1]) : null);
+        const x = xData.map(v => String(v).toUpperCase() === 'LTM' ? 'Últ. 12 m' : String(v));
+        // tendencia: crecimiento anual del primer al último ejercicio completo (sin el LTM)
+        const full = vals.map((v, i) => [i, v]).filter(([i, v]) => v != null && String(xData[i]).toUpperCase() !== 'LTM');
+        if (full.length > 1) {
+            const [[i0, a], [i1, b]] = [full[0], full[full.length - 1]];
+            FIN_BAR_INFO[id] = a > 0 && b > 0 ? `${xData[i0]}–${xData[i1]}: <b class="${b >= a ? 'text-success' : 'text-danger'}">${fmtNum((Math.pow(b / a, 1 / (i1 - i0)) - 1) * 100, 1, true)} %/año</b>`
+                                             : `${xData[i0]}–${xData[i1]}: <b class="${b >= a ? 'text-success' : 'text-danger'}">${b >= a ? 'mejora' : 'empeora'}</b>`;
+        }
+        const trace = {x, y, type: 'bar', marker: {color: y.map(v => v != null && v < 0 ? '#dc2626' : color),
+                       opacity: xData.map(v => String(v).toUpperCase() === 'LTM' ? 0.5 : 0.9)},
+                       text: yoy.map(g => g == null || Math.abs(g) > 999 ? '' : (g >= 0 ? '+' : '') + fmtNum(g, 0) + ' %'),
+                       textposition: 'outside', cliponaxis: false, textfont: {size: 9, color: textColor},
+                       customdata: y.map(v => v == null ? '–' : fmtNum(v, perShare || Math.abs(v) < 100 ? 2 : 1) + ' ' + unit),
+                       hovertemplate: '%{x}: %{customdata}<extra></extra>'};
+        const layout = {
+            margin: {r: 10, t: 18, b: 28, l: 52}, bargap: 0.3, showlegend: false,
+            xaxis: {type: 'category', tickfont: {color: textColor, size: 10}, showgrid: false},
+            yaxis: {tickfont: {color: textColor, size: 10}, gridcolor: gridColor, zerolinecolor: gridColor, ticksuffix: ' ' + unit.replace(' ' + sym, '').replace(sym, ''),
+                    title: {text: perShare ? sym + ' por acción' : unit, font: {size: 10, color: textColor}}},
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: {color: textColor}, separators: ',.'
         };
-        var layout = {
-            margin: { r: 10, t: 25, b: 40, l: 60 },
-            xaxis: { type: 'category', tickfont: { color: textColor } },
-            yaxis: { title: title, tickfont: { color: textColor }, gridcolor: gridColor },
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            plot_bgcolor: 'rgba(0,0,0,0)',
-            font: { color: textColor }
-        };
-        Plotly.newPlot(id, [trace], layout, {responsive: true});
+        Plotly.newPlot(id, [trace], layout, {responsive: true, displayModeBar: false});
     }
+    const showFinBarInfo = id => { const box = document.getElementById('finBarInfo'); if (box) box.innerHTML = FIN_BAR_INFO[id] || ''; };
 
-    createBarChart('revenueChart', finYears, revData, 'Ingresos Totales', '#0d6efd');
-    createBarChart('netIncomeChart', finYears, niData, 'Beneficio Neto', '#198754');
-    createBarChart('epsChart', finYears, epsData, 'BPA', '#6f42c1');
-    createBarChart('fcfChart', finYears, fcfData, 'Free Cash Flow', '#ffc107');
+    createBarChart('revenueChart', finYears, revData, 'Ventas', '#16a34a');
+    createBarChart('netIncomeChart', finYears, niData, 'Beneficio neto', '#16a34a');
+    createBarChart('epsChart', finYears, epsData, 'BPA', '#16a34a', true);
+    createBarChart('fcfChart', finYears, fcfData, 'Flujo de caja libre', '#16a34a');
+    showFinBarInfo('revenueChart');
+    [['revenue-chart-tab', 'revenueChart'], ['net-income-chart-tab', 'netIncomeChart'], ['eps-chart-tab', 'epsChart'], ['fcf-chart-tab', 'fcfChart']]
+        .forEach(([tab, chart]) => document.getElementById(tab)?.addEventListener('shown.bs.tab', () => showFinBarInfo(chart)));
 
     // Gráficos de Finanzas: el alto que queda en la ventana, sin scroll de página
     function fitFinCharts() {
@@ -3543,7 +3586,7 @@ function openStats() {
                     shouldRestore = false;
                 }
                 // con #valoracion en el enlace manda el enlace, no la última pestaña que se abrió
-                if (location.hash === '#valoracion' || location.hash === '#directivos') shouldRestore = false;
+                if (['#valoracion', '#directivos', '#mi-cartera', '#finanzas', '#graficos', '#cuentas'].includes(location.hash)) shouldRestore = false;
             }
 
             // Load saved tab
@@ -5507,11 +5550,16 @@ function openStats() {
                 syncMetricLabels();
                 recalculateValuation();
             }
-            // /ticker/X#valoracion abre directamente esta pestaña (enlace desde la watchlist)
+            // /ticker/X#valoracion (enlace desde la watchlist), #mi-cartera o #finanzas abren directamente esa pestaña
             // (al terminar de cargar, para que no se le adelante ninguna pestaña recordada ni su transición)
-            if (location.hash === '#valoracion') {
-                const tab = document.getElementById('nav-projection-tab');
-                const go = () => { if (tab) bootstrap.Tab.getOrCreateInstance(tab).show(); };
+            // (#graficos y #cuentas: Finanzas con esa sub-pestaña)
+            const hashTab = {'#valoracion': 'nav-projection-tab', '#mi-cartera': 'nav-portfolio-tab', '#finanzas': 'nav-financials-tab',
+                             '#graficos': 'nav-financials-tab', '#cuentas': 'nav-financials-tab'}[location.hash];
+            const hashSub = {'#graficos': 'sub-charts-tab', '#cuentas': 'sub-tables-tab'}[location.hash];
+            if (hashTab) {
+                const tab = document.getElementById(hashTab);
+                const go = () => { if (tab) bootstrap.Tab.getOrCreateInstance(tab).show();
+                    if (hashSub) bootstrap.Tab.getOrCreateInstance(document.getElementById(hashSub)).show(); };
                 if (document.readyState === 'complete') setTimeout(go, 50); else window.addEventListener('load', () => setTimeout(go, 50));
             }
         });

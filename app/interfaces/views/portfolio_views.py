@@ -60,6 +60,9 @@ def day_change(shares: float, price: Optional[float], prev: Optional[float], las
     today = today or datetime.date.today()
     ccy = (currency or "USD").upper()
     closed = bool(today.weekday() < 5 and last_date and last_date != today)
+    # la de su última sesión (la que se enseña, como no es de hoy, con la luna: stale_pill)
+    last_pct = ((price / prev) - 1) * 100 if closed and price and prev else None
+    last_abs = (price - prev) if closed and price and prev else None
     if closed or not prev:
         prev = price
     # el cambio de hoy y el de ayer, de la misma fuente: mezclar el de reserva (GLOBAL_CACHE) con el cierre de ayer de
@@ -69,6 +72,7 @@ def day_change(shares: float, price: Optional[float], prev: Optional[float], las
     rate_prev = rate if closed or ccy == "EUR" or not fx.get("price") else (fx.get("prev") or rate)
     price = price or 0.0
     return {"closed": closed, "last_date": last_date, "rate": rate, "rate_prev": rate_prev, "prev": prev,
+            "last_pct": last_pct, "last_abs": last_abs,
             "eur": shares * (price * rate - prev * rate_prev), "pct": ((price / prev) - 1) * 100 if prev else 0.0}
 
 DROP_FROM_HIGH_PCT = 30.0   # Resumen: posiciones que caen al menos esto desde su máximo de 52 semanas
@@ -518,6 +522,7 @@ def portfolio_page(
             'daily_change_pct': day["pct"],
             'closed_today': closed_today,
             'last_date': p_last_date,
+            'last_pct': day["last_pct"], 'last_abs': day["last_abs"],
             'total_profit_closed': item.get('realized_pnl', 0) + item.get('dividends_collected', 0),
             'total_fees_eur': round(total_fees_eur, 2),
         })

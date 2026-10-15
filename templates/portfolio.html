@@ -2,7 +2,7 @@
 {% block title %}Alpha-Flow · Mi Portfolio{% endblock %}
 
 {% block content %}
-{% from "_ui_macros.html" import chg_pill %}
+{% from "_ui_macros.html" import chg_pill, stale_pill %}
 <style>
     .cagr-green { color: var(--fin-green) !important; } .cagr-amber { color: #e3b341 !important; } .cagr-orange { color: #f0883e !important; } .cagr-red { color: var(--fin-red) !important; }
     /* .table-modern pinta todos los enlaces del color del texto: el CAGR conserva su color de zona */
@@ -429,11 +429,12 @@
                     </td>
                     <td class="text-muted align-middle text-truncate" style="max-width: 150px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
                     {% if item.closed_today %}{% set why = 'Su mercado no ha abierto hoy' ~ (' (última sesión ' ~ item.last_date.strftime('%d/%m') ~ ')' if item.last_date else '') %}
+                    {% set la = item.last_abs %}
                     <td class="text-end num-font align-middle" data-sort-value="{{ item.current_price }}">
                         <div class="price-main">{{ num(item.current_price, 2) }} {{ item.currency_symbol }}</div>
-                        <div class="price-move text-body-secondary" title="{{ why }}">–</div></td>
-                    <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
-                    <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }}">–</td>
+                        <div class="price-move {{ 'text-success' if la and la > 0 else ('text-danger' if la and la < 0 else 'text-body-secondary') }} opacity-50" title="{{ why }}">{% if la is not none %}<i class="bi bi-moon-fill" style="font-size: .6rem;"></i> {{ num(la, 2, sign=True) }} {{ item.currency_symbol }}{% else %}–{% endif %}</div></td>
+                    <td class="text-end align-middle" data-sort-value="" title="{{ why }}">{{ stale_pill(item.last_pct, item.last_date, day=false) }}</td>
+                    <td class="text-end num-font align-middle text-body-secondary" data-sort-value="" title="{{ why }} · no cuenta en lo de hoy">–</td>
                     {% else %}{% set dc = item.daily_change_total_eur %}
                     {% set da = item.daily_change_abs %}
                     <td class="text-end num-font align-middle" data-sort-value="{{ item.current_price }}">
@@ -1822,7 +1823,11 @@ window.plotHover = () => {
                 const why = `Su mercado no ha abierto hoy (última sesión ${d.slice(8, 10)}/${d.slice(5, 7)})` +
                     (fx ? ` · el cambio de divisa mueve ${(fx >= 0 ? '+' : '') + fmtNum(fx, 2)} € su valor` : '');
                 cells.forEach(cell => { cell.textContent = '–'; cell.className = 'text-end num-font align-middle text-body-secondary ' + cell.className.split(' ').find(k => k.startsWith('cell-')); cell.dataset.sort = ''; cell.title = why; });
-                cm.textContent = '–'; cm.className = 'price-move cell-move text-body-secondary'; cm.title = why;
+                // la variación: la de su última sesión, con la luna (stalePill), para que no se confunda con la de hoy
+                const cc = tr.querySelector('.cell-change'); cc.innerHTML = stalePill(c.last_pct, d, false); cc.className = 'text-end align-middle cell-change';
+                const lmv = c.price && c.last_pct != null ? c.price - c.price / (1 + c.last_pct / 100) : null;
+                cm.innerHTML = lmv === null ? '–' : `<i class="bi bi-moon-fill" style="font-size: .6rem;"></i> ${fmtNum(lmv, 2, true)} ${c.cur || ''}`;
+                cm.className = 'price-move cell-move opacity-50 ' + (lmv === null ? 'text-body-secondary' : cls(lmv)); cm.title = why;
                 return;
             }
             cells.forEach(cell => cell.title = ''); cm.title = '';
@@ -3360,8 +3365,8 @@ window.plotHover = () => {
                 let numA = parseFloat(valA);
                 let numB = parseFloat(valB);
 
-                numA = isNaN(numA) ? -Infinity : numA;
-                numB = isNaN(numB) ? -Infinity : numB;
+                // sin dato (p. ej. la variación del día de un mercado que aún no ha abierto): al final, se ordene como se ordene
+                if (isNaN(numA) || isNaN(numB)) return isNaN(numA) ? (isNaN(numB) ? 0 : 1) : -1;
 
                 return ascending ? numA - numB : numB - numA;
             } else {

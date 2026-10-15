@@ -33,6 +33,23 @@ templates.env.globals["num"] = num
 templates.env.globals["clean_ticker"] = clean_ticker
 
 
+def session_label(last_date) -> str:
+    """Nombre corto de la última sesión de un mercado que aún no ha abierto hoy («ayer», «vie», «10/10»)."""
+    import datetime
+    from app.interfaces.views.market_views import session_label as label
+    if isinstance(last_date, str):
+        try:
+            last_date = datetime.date.fromisoformat(last_date[:10])
+        except ValueError:
+            return ""
+    if isinstance(last_date, datetime.datetime):
+        last_date = last_date.date()
+    return label(last_date, datetime.date.today()) if last_date else ""
+
+
+templates.env.globals["session_label"] = session_label
+
+
 def _zone_cuts():
     from app.application.services import base_valuation_service as bv
     return {"ganga": bv.TARGET_RETURN_PCT, "barata": bv.BARATA_PCT, "justo": bv.JUSTO_PCT}

@@ -177,7 +177,10 @@ async def database_page(
             change = p_price - p_prev
             pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
             m_data = {"price": p_price, "change": change, "pct": pct, "not_open": not_open, "last_pct": last_pct,
-                      "last_date": p_last_date.strftime("%d/%m") if not_open and p_last_date else None}
+                      "last_date": p_last_date.strftime("%d/%m") if not_open and p_last_date else None,
+                      "last_iso": p_last_date.isoformat() if not_open and p_last_date else None,
+                      # bajo el precio: lo que se movió en su última sesión (no «+0»)
+                      "last_change": (p_price - d["prev"]) if not_open and d["prev"] else None}
 
         db_status = db_d.get("status")
         if not db_status or db_status == "None" or db_status == "":

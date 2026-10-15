@@ -23,6 +23,20 @@
             const a = (0.12 + Math.min(Math.abs(p) / 3, 1) * 0.6).toFixed(2), k = p > 0 ? 'chg-up' : (p < 0 ? 'chg-down' : 'chg-flat');
             return `<span class="chg-pill ${k}${Math.abs(p) >= 2 ? ' chg-strong' : ''}" style="--a: ${a}">${fmtNum(p, 2, true)}%</span>`;
         };
+        // La de la última sesión de un valor cuyo mercado aún no ha abierto hoy (igual que la macro stale_pill): mismo color,
+        // sin relleno, borde discontinuo, luna y el día; así no se confunde con la de hoy
+        window.sessionLabel = iso => {
+            if (!iso) return '';
+            const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'), t = new Date(); t.setHours(12, 0, 0, 0);
+            const days = Math.round((t - d) / 864e5);
+            return days === 1 ? 'ayer' : days <= 6 ? ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][d.getDay()] : `${String(iso).slice(8, 10)}/${String(iso).slice(5, 7)}`;
+        };
+        window.stalePill = (p, iso, showDay = true) => {
+            const lab = sessionLabel(iso), day = lab && showDay ? `<span class="chg-stale-day">${lab}</span>` : '';
+            if (p === null || p === undefined || isNaN(p)) return `<span class="chg-pill chg-stale chg-flat" title="Su mercado aún no ha abierto hoy"><i class="bi bi-moon-fill"></i> –</span>`;
+            const k = p > 0 ? 'chg-up' : (p < 0 ? 'chg-down' : 'chg-flat');
+            return `<span class="chg-pill chg-stale ${k}" title="Su mercado aún no ha abierto hoy: es la variación de su última sesión${lab ? ' (' + lab + ')' : ''}"><i class="bi bi-moon-fill"></i> ${fmtNum(p, 2, true)}%${day}</span>`;
+        };
         // Alto de un gráfico para que la página quepa en la ventana: se mide lo que queda por debajo con el gráfico muy alto
         // (así la página siempre es más larga que la ventana) y se le da el resto.
         window.fitChartHeight = (id, min = 240) => {
@@ -234,6 +248,12 @@
         .chg-down { color: var(--fin-red); background: color-mix(in srgb, var(--fin-red) calc(var(--a) * 100%), transparent); }
         .chg-flat { color: var(--bs-secondary-color); background: var(--bs-secondary-bg); }
         .chg-up.chg-strong, .chg-down.chg-strong { color: #fff; }
+        /* la de la última sesión (su mercado aún no ha abierto hoy): sin relleno y con borde discontinuo */
+        .chg-pill.chg-stale { background: transparent; border: 1px dashed color-mix(in srgb, currentColor 35%, transparent); padding: .1rem .35rem; min-width: 0;
+                              font-weight: 500; font-size: .76rem; white-space: nowrap; opacity: .55; }
+        .chg-pill.chg-stale:hover { opacity: .9; }
+        .chg-pill.chg-stale .bi-moon-fill { font-size: .6rem; }
+        .chg-stale-day { font-size: .6rem; margin-left: .3rem; }
     </style>
     <style>
         :root {

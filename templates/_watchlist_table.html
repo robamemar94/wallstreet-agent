@@ -1,6 +1,6 @@
 {# Contenido de la página Watchlist (lo pide a /watchlist/tabla): panel de avisos + tabla compacta #}
 {% from "_notices.html" import attention_list, monitor_card_body %}
-{% from "_ui_macros.html" import chg_pill %}
+{% from "_ui_macros.html" import chg_pill, stale_pill %}
 {% set zone_band = {'ganga': 'green', 'barata': 'amber', 'justo': 'orange', 'cara': 'red'} %}
 {% set zone_label = {'ganga': 'Ganga', 'barata': 'Barata', 'justo': 'Justo', 'cara': 'Cara'} %}
 {% macro dmy(d) %}{{ d[8:10] }}/{{ d[5:7] }}/{{ d[2:4] }}{% endmacro %}
@@ -29,7 +29,7 @@
         {% if r.day_pct is not none %}
         <td class="text-end" data-sort="{{ r.day_pct }}">{{ chg_pill(r.day_pct) }}</td>
         {% else %}
-        <td class="text-end text-muted small" data-sort="" title="{{ 'Su mercado no ha abierto hoy · última sesión ' ~ r.last_session[8:10] ~ '/' ~ r.last_session[5:7] ~ (': ' ~ num(r.last_day_pct, 2, sign=True) ~ '%' if r.last_day_pct is not none else '') if r.last_session else 'Sin datos' }}"><i class="bi bi-moon opacity-50"></i> –</td>
+        <td class="text-end text-muted small" data-sort="" title="{{ 'Su mercado no ha abierto hoy · última sesión ' ~ r.last_session[8:10] ~ '/' ~ r.last_session[5:7] if r.last_session else 'Sin datos' }}">{{ stale_pill(r.last_day_pct, r.last_session) if r.last_session else '–' }}</td>
         {% endif %}
         {% if v %}
         {% set d = r.drop_pct %}

@@ -362,7 +362,7 @@
 <!-- 2. Row: Movers (Ganadores, Perdedores, Mi Cartera) -->
 <div class="d-flex justify-content-start align-items-center mb-3 mt-4 flex-wrap gap-3">
     <h4 class="fw-bold mb-0 text-white" id="activityTitle" style="font-size: 1.12rem;">Actividad del Día</h4>
-    <span class="badge rounded-pill text-white-50 d-none" id="activityNotOpen" style="font-size: 0.68rem; background: rgba(255,255,255,0.08); font-weight: 500;" title="Cotizan hoy pero su bolsa aún no ha abierto: se ocultan para no llenar la lista de 0,00 %"></span>
+    <button type="button" class="badge rounded-pill border-0 text-white-50 d-none" id="activityNotOpen" onclick="toggleActivityNotOpen()" style="font-size: 0.68rem; background: rgba(255,255,255,0.08); font-weight: 500;"></button>
     <div class="btn-group btn-group-sm" id="activityFilterGroup" role="group" aria-label="Filtro de Región">
         <button type="button" class="btn btn-outline-secondary active py-1 px-2" data-filter="all" onclick="setActivityRegionFilter('all')" title="Todos los países" style="font-size: 0.72rem; line-height: 1;">Todos</button>
         <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="usa" onclick="setActivityRegionFilter('usa')" title="EE.UU." style="font-size: 0.72rem; line-height: 1;">🇺🇸 EEUU</button>
@@ -741,8 +741,12 @@
         return m === activityRegionFilter;
     };
 
+    // los que hoy aún no han abierto (su sesión anterior): ocultos en toda la «Actividad del día» (Ganadores, Perdedores,
+    // Favoritos/Compra/listas y Mi Cartera) salvo que se pulse el ojo de «🕒 N sin abrir»; entonces salen atenuados
+    // (tr[data-not-open]) y debajo de los de hoy. Sigue en la dirección (?ayer=1)
+    let showNotOpen = !!(window.urlState && urlState.get('ayer'));
     window.activityFilterFn = el => {
-        // los que hoy aún no han abierto salen con su sesión anterior: atenuados (tr[data-not-open]) y debajo de los de hoy
+        if (!showNotOpen && el.dataset.notOpen) return false;
         // 1. Filtrar por región
         const passRegion = passActivityRegion(el);
 
@@ -762,9 +766,21 @@
         const n = [...document.querySelectorAll('.gainer-item-market[data-not-open], .loser-item-market[data-not-open]')]
             .filter(el => passActivityRegion(el)
                 && (selectedActivityStatuses.includes('ALL') || selectedActivityStatuses.includes(el.dataset.status || 'NONE'))).length;
-        badge.textContent = `🕒 ${n} sin abrir`;
-        badge.title = `${n} valores cuyo mercado aún no ha abierto hoy: salen atenuados, debajo, con su última sesión`;
+        badge.innerHTML = `<i class="bi ${showNotOpen ? 'bi-eye' : 'bi-eye-slash'} me-1"></i>🕒 ${n} sin abrir`;
+        badge.title = showNotOpen ? `Se ven los ${n} valores cuyo mercado aún no ha abierto hoy (su última sesión, atenuados y debajo). Pulsa para ocultarlos`
+                                  : `${n} valores cuyo mercado aún no ha abierto hoy, ocultos. Pulsa para verlos con su última sesión`;
+        badge.style.background = showNotOpen ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.08)';
         badge.classList.toggle('d-none', n === 0);
+    }
+    function toggleActivityNotOpen() {
+        showNotOpen = !showNotOpen;
+        window.urlState && urlState.set({ayer: showNotOpen ? '1' : ''});
+        window.paginationStates?.['gainerListMarket']?.refresh();
+        window.paginationStates?.['loserListMarket']?.refresh();
+        window.paginationStates?.['list-body-' + (window.currentDashboardListId || 'fav')]?.refresh();
+        window.paginationStates?.['portListMarket']?.refresh();
+        if (typeof paintBuyZoneEmpty === 'function') paintBuyZoneEmpty();
+        updateActivityNotOpen();
     }
 
     // filtros de «Actividad del día» guardados en la dirección (?region=usa&niveles=T1,T2): se vuelven a poner al cargar

@@ -25,7 +25,7 @@ from app.application.services.portfolio_service import PortfolioService
 from app.infrastructure.templates import templates
 from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached, get_currency_symbol
 
-from app.application.services import rules_synthesis_service, market_cap_service
+from app.application.services import rules_synthesis_service, market_cap_service, financial_trends_service, financial_labels, key_figures_service
 from utils.financial_math import calculate_custom_metrics, calculate_cagr_metrics, get_estimated_growth, get_financials_history, get_extended_stats
 
 logger = logging.getLogger(__name__)
@@ -301,7 +301,6 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
     try:
         from app.interfaces.views.portfolio_views import get_current_rate, GLOBAL_CACHE
         from utils.financial_math import calculate_position_cagr
-        from app.infrastructure.db.models import DBTransaction
 
         ticker_upper = ticker.upper()
         portfolio_data = [p.model_dump() for p in portfolio_service.get_active_portfolio()]
@@ -385,45 +384,7 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
                 item['pnl_fx_eur'] = 0.0
                 item['total_fees_eur'] = item.get('total_fees', 0.0) * 1.0
 
-            ticker_trades = portfolio_service.get_realized_trades(GLOBAL_CACHE.get("rates", {}))
-            ticker_trades = [t for t in ticker_trades if t['ticker'] == ticker_upper]
-
-            manual_txs = db_session.query(DBTransaction).filter(DBTransaction.ticker == ticker_upper).all()
-
-            for ledger_entry in ledger_data:
-                match = None
-                for trade in ticker_trades:
-                    trade_type_matches = (
-                        (trade['type'] == 'VENTA' and ledger_entry['type'] == 'SELL') or
-                        (trade['type'] == 'COMPRA' and ledger_entry['type'] == 'BUY') or
-                        (trade['type'] == 'DIVIDENDO' and ledger_entry['type'] == 'DIVIDEND')
-                    )
-                    if trade_type_matches and trade['date'][:10] == ledger_entry['date'][:10] and abs(trade['shares'] - ledger_entry['shares']) < 0.001:
-                        match = trade
-                        break
-
-                is_manual = False
-                for m_tx in manual_txs:
-                    if m_tx.date[:10] == ledger_entry['date'][:10] and m_tx.type == ledger_entry['type'] \
-                       and abs(m_tx.shares - ledger_entry['shares']) < 0.001:
-                        is_manual = True
-                        break
-                ledger_entry['is_manual'] = is_manual
-
-                if match:
-                    ledger_entry['pnl_eur'] = match.get('pnl_eur')
-                    ledger_entry['pnl_price_eur'] = match.get('pnl_price_eur')
-                    ledger_entry['pnl_fx_eur'] = match.get('pnl_fx_eur')
-                    ledger_entry['fx_rate'] = match.get('fx_rate')
-                    ledger_entry['fx_avg_purchase'] = match.get('fx_avg_purchase')
-                    ledger_entry['broker'] = match.get('broker') or 'IBKR'
-                else:
-                    ledger_entry['pnl_eur'] = None
-                    ledger_entry['pnl_price_eur'] = None
-                    ledger_entry['pnl_fx_eur'] = None
-                    ledger_entry['fx_rate'] = ledger_entry.get('fx_rate_at_purchase') or rate or 1.0
-                    ledger_entry['fx_avg_purchase'] = None
-                    ledger_entry['broker'] = ledger_entry.get('broker') or 'IBKR'
+            enrich_ledger(portfolio_service, db_session, ticker_upper, ledger_data, rate)
 
             realized = item.get('realized_pnl', 0)
             dividends = item.get('dividends_collected', 0)
@@ -442,6 +403,8 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
     except Exception as e:
         print(f"Error loading portfolio data for ticker view {ticker}: {e}")
 
+    fin_hist = get_financials_history(ticker, stock, db_d)
+
     # Informes que se están generando ahora: al recargar, la ficha los sigue esperando en vez de ofrecer «Generar ahora»
     from app.interfaces.api.analysis_api import running_tasks
     running = running_tasks(db_session, ticker)
@@ -453,7 +416,11 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         "info": info, 
         "currency_symbol": get_currency_symbol(info.get('currency', 'USD'), ticker), 
         "custom_metrics": metrics, 
-        "financials_hist": get_financials_history(ticker, stock, db_d), 
+        "financials_hist": fin_hist,
+        "fin_trends": financial_trends_service.build(fin_hist),
+        "kfigs": key_figures_service.build(info, db_d, ext_stats, fin_hist, dates, cl),
+        "fin_tables": {k: financial_labels.rows(fin_hist.get(k), fin_hist.get("years") or []) for k in ("income_statement", "balance_sheet", "cash_flow")},
+        "fin_years_ord": financial_labels.ordered_years(fin_hist.get("years") or []),
         "rules_syn": rules_synthesis_service.status(db_d),
         "mcap": _ticker_market_cap(ticker, info, metrics, asset_repo),
         "dates": dates, 
@@ -582,6 +549,113 @@ def insiders_fragment(request: Request, ticker: str, db_session: Session = Depen
                                                          "signal_days": insider_service.SIGNAL_DAYS, "rev": rev,
                                                          "rev_period": est.PERIOD_LABEL.get((rev or {}).get("period")),
                                                          "rev_cut": est.signal(rev)})
+
+
+def enrich_ledger(portfolio_service, db_session: Session, ticker: str, ledger_data: list, rate) -> list:
+    """Libro de operaciones de una empresa con lo que no guarda el ledger: resultado en € de las ventas (cotización y
+    divisa), cambio del día, bróker y si es una operación añadida a mano (solo esas se pueden borrar o cambiar)."""
+    from app.interfaces.views.portfolio_views import GLOBAL_CACHE
+    from app.infrastructure.db.models import DBTransaction
+    ticker_upper = ticker.upper()
+    ticker_trades = portfolio_service.get_realized_trades(GLOBAL_CACHE.get("rates", {}))
+    ticker_trades = [t for t in ticker_trades if t['ticker'] == ticker_upper]
+
+    manual_txs = db_session.query(DBTransaction).filter(DBTransaction.ticker == ticker_upper).all()
+
+    for ledger_entry in ledger_data:
+        match = None
+        for trade in ticker_trades:
+            trade_type_matches = (
+                (trade['type'] == 'VENTA' and ledger_entry['type'] == 'SELL') or
+                (trade['type'] == 'COMPRA' and ledger_entry['type'] == 'BUY') or
+                (trade['type'] == 'DIVIDENDO' and ledger_entry['type'] == 'DIVIDEND')
+            )
+            if trade_type_matches and trade['date'][:10] == ledger_entry['date'][:10] and abs(trade['shares'] - ledger_entry['shares']) < 0.001:
+                match = trade
+                break
+
+        is_manual = False
+        for m_tx in manual_txs:
+            if m_tx.date[:10] == ledger_entry['date'][:10] and m_tx.type == ledger_entry['type'] \
+               and abs(m_tx.shares - ledger_entry['shares']) < 0.001:
+                is_manual = True
+                break
+        ledger_entry['is_manual'] = is_manual
+
+        if match:
+            ledger_entry['pnl_eur'] = match.get('pnl_eur')
+            ledger_entry['pnl_price_eur'] = match.get('pnl_price_eur')
+            ledger_entry['pnl_fx_eur'] = match.get('pnl_fx_eur')
+            ledger_entry['fx_rate'] = match.get('fx_rate')
+            ledger_entry['fx_avg_purchase'] = match.get('fx_avg_purchase')
+            ledger_entry['broker'] = match.get('broker') or 'IBKR'
+        else:
+            ledger_entry['pnl_eur'] = None
+            ledger_entry['pnl_price_eur'] = None
+            ledger_entry['pnl_fx_eur'] = None
+            ledger_entry['fx_rate'] = ledger_entry.get('fx_rate_at_purchase') or rate or 1.0
+            ledger_entry['fx_avg_purchase'] = None
+            ledger_entry['broker'] = ledger_entry.get('broker') or 'IBKR'
+    return ledger_data
+
+
+@router.get("/ticker/{ticker}/mi-posicion", response_class=HTMLResponse)
+def my_position_fragment(request: Request, ticker: str, db_session: Session = Depends(get_db),
+                         portfolio_service: PortfolioService = Depends(get_portfolio_service),
+                         asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository)):
+    """Pestaña «Mi cartera» de la ficha (se pide al abrirla: descarga precios del valor y del índice): resultado frente
+    al S&P 500, peso, compras y ventas sobre el gráfico, cada operación con su porqué y su balance, y los dividendos."""
+    import json
+    from app.application.services import decision_review_service as dr, price_monitor_service as pm
+    from app.application.services import position_review_service as prs
+    from app.interfaces.views.thesis_views import portfolio_exposure
+    t = ticker.upper()
+    data = asset_repo.get_asset_data(t) or {}
+    all_txs, all_splits = pm.load_transactions(portfolio_service, db_session)
+    txs, splits = [x for x in all_txs if x["ticker"] == t], all_splits.get(t, [])
+    item = next((p for p in portfolio_service.get_active_portfolio() + portfolio_service.get_closed_portfolio() if p.ticker == t), None)
+    currency = data.get("currency") or (item.currency_code if item else None) or "USD"
+    ctx = {"request": request, "ticker": t, "txs": txs, "error": None, "benchmark": dr.BENCHMARK_NAME}
+    if not txs:
+        return templates.TemplateResponse("_my_position.html", ctx)
+    df = None
+    try:
+        df = dr.download(dr.symbols(txs), min(x["date"] for x in txs))
+    except Exception as e:
+        logger.exception("Mi posición: fallo al descargar precios de %s", t)
+        ctx["error"] = str(e)
+    divs = [{"date": str(e.date)[:10], "native": e.total,
+             "eur": e.total * (dr._fx_at(df, currency, str(e.date)) or 0) * (0.01 if currency == "GBp" else 1)}
+            for e in portfolio_service.get_ledger(t) if getattr(e.type, "value", e.type) == "DIVIDEND"]
+    review = dr.build(df, txs, {t: data}, {t: data.get("company_name") or t}, {t: splits})
+    # el libro de operaciones (cada orden, con su bróker y comisión) y, en cada compra o venta, el balance de esa decisión
+    from app.interfaces.views.portfolio_views import get_current_rate
+    ledger = enrich_ledger(portfolio_service, db_session, t, [entry.model_dump() for entry in portfolio_service.get_ledger(t)],
+                           1.0 if currency == "EUR" else get_current_rate("GBP" if currency == "GBp" else currency))
+    by_day = {(o["date"], o["type"]): o for o in review["ops"]}
+    for row in ledger:
+        kind = getattr(row["type"], "value", row["type"])
+        row["kind"], row["op"] = kind, by_day.get((str(row["date"])[:10], kind))
+        row["fx"] = dr._fx_at(df, currency, str(row["date"])) if kind in ("BUY", "SELL", "DIVIDEND") else None
+    ledger.sort(key=lambda r: str(r["date"]), reverse=True)
+    exposure = portfolio_exposure(portfolio_service, asset_repo)
+    pos = exposure["positions"].get(t) or {}
+    # precio para el gráfico: cierres sin ajustar por dividendos (los de tus operaciones), desde un poco antes de la primera
+    chart = {"dates": [], "close": []}
+    try:
+        # todo el histórico (para «Máx» y los periodos largos aunque la posición sea reciente); se abre desde la compra
+        close = yf.Ticker(t).history(period="max", auto_adjust=False)["Close"].dropna()
+        chart = {"dates": [d.strftime("%Y-%m-%d") for d in close.index], "close": [round(float(v), 4) for v in close]}
+    except Exception:
+        logger.warning("Mi posición: sin histórico de precios para el gráfico de %s", t)
+    chart["markers"] = prs.markers(txs, splits)
+    chart["avg"] = item.average_price if item and item.shares > 0 else None
+    chart["from_buy"] = (pd.Timestamp(min(x["date"] for x in txs)) - pd.Timedelta(days=60)).strftime("%Y-%m-%d")
+    ctx.update(vs=prs.versus_index(txs, divs, df, currency, splits), ops=review["ops"], entries=review["entries"], ledger=ledger, pence=currency == "GBp",
+               weight=pos.get("weight"), value_eur=pos.get("value_eur"), divs=sorted(divs, key=lambda d: d["date"], reverse=True),
+               div_years=prs.dividends_by_year(divs), active=bool(item and item.shares > 0),
+               currency_symbol=get_currency_symbol(currency, t), chart_json=json.dumps(chart))
+    return templates.TemplateResponse("_my_position.html", ctx)
 
 
 @router.get("/api/history/{ticker}")

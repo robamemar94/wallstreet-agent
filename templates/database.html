@@ -5,7 +5,6 @@
     /* filas más bajas para que entren más por página (el estilo común pone 10 px arriba y abajo) */
     #dbTable tbody td { padding-top: .3rem; padding-bottom: .3rem; }
     /* variación de la sesión anterior de los que hoy aún no han abierto: a la vista pero apagada (no cuenta al ordenar) */
-    .db-stale { opacity: .5; font-size: .75rem; white-space: nowrap; }
     #dbTable thead th { padding-top: .45rem; padding-bottom: .45rem; }
     /* Pestañas como las de Cartera: texto gris, la activa en verde con raya; el número, discreto */
     .db-tabs { border-bottom: 1px solid var(--bs-border-color); }
@@ -28,7 +27,7 @@
     .filter-chip button:hover { color: var(--bs-danger); }
     .filter-chip-clear { font-size: .72rem; }
 </style>
-{% from "_ui_macros.html" import chg_pill %}
+{% from "_ui_macros.html" import chg_pill, stale_pill %}
 {% set roles = portfolio_roles() %}{% set roles_by_key = {} %}{% for r in roles %}{% set _ = roles_by_key.update({r.key: r}) %}{% endfor %}
 <style>
     /* Estilos ultra-compactos y profesionales para la Base de Datos */
@@ -542,12 +541,17 @@
                             </td>
                             <td class="text-end align-middle fw-bold num-font text-nowrap" data-sort-value="{{ t.market_data.price }}">
                                 {{ format_euro(t.market_data.price, 2) }} {{ t.currency_symbol }}
+                                {% if t.market_data.not_open %}{% set lc = t.market_data.last_change %}
+                                <div class="var-abs opacity-50 {% if lc and lc > 0 %}text-success{% elif lc and lc < 0 %}text-danger{% else %}text-muted{% endif %}" data-last-abs="{{ lc if lc is not none else '' }}" title="Lo que se movió en su última sesión">{% if lc is not none %}<i class="bi bi-moon-fill" style="font-size: .55rem;"></i> {{ num(lc, 2, sign=True) }}{% else %}–{% endif %}</div>
+                                {% else %}
                                 <div class="var-abs {% if t.market_data.change > 0 %}text-success{% elif t.market_data.change < 0 %}text-danger{% else %}text-muted{% endif %}">{% if t.market_data.change > 0 %}+{% endif %}{{ format_euro(t.market_data.change, 2) }}</div>
+                                {% endif %}
                             </td>
                             {% if t.market_data.not_open %}
                             <td class="text-end align-middle var-cell text-muted small" data-sort-value="" data-abs-1d="" data-pct-1d="" data-price="{{ t.market_data.price }}" data-not-open="1"
                                 data-last="{{ num(t.market_data.last_pct, 2, sign=True) }} %"
-                                title="Su mercado no ha abierto hoy: es la última sesión ({{ t.market_data.last_date }}). Al ordenar va al final"><span class="db-stale"><i class="bi bi-moon"></i> {{ num(t.market_data.last_pct, 2, sign=True) }} %</span></td>
+                                data-last-pct="{{ t.market_data.last_pct }}" data-last-iso="{{ t.market_data.last_iso }}"
+                                title="Su mercado no ha abierto hoy: es la última sesión ({{ t.market_data.last_date }}). Al ordenar va al final">{{ stale_pill(t.market_data.last_pct, t.market_data.last_iso, day=false) }}</td>
                             {% else %}
                             <td class="text-end align-middle var-cell" data-sort-value="{{ t.market_data.pct }}" data-abs-1d="{{ t.market_data.change }}" data-pct-1d="{{ t.market_data.pct }}" data-price="{{ t.market_data.price }}">{{ chg_pill(t.market_data.pct) }}</td>
                             {% endif %}
@@ -654,7 +658,10 @@
             document.querySelectorAll('#dbBody td.var-cell').forEach(cell => {
                 if (cell.dataset.notOpen) {   // su mercado no ha abierto hoy: «🌙 –», al final al ordenar
                     cell.setAttribute('data-sort-value', '');   // vacío: al final, se ordene como se ordene
-                    cell.innerHTML = `<span class="db-stale"><i class="bi bi-moon"></i> ${cell.dataset.last || '–'}</span>`;
+                    cell.innerHTML = stalePill(parseFloat(cell.dataset.lastPct), cell.dataset.lastIso, false);
+                    const absEl = cell.closest('tr').querySelector('.var-abs'), la = parseFloat(absEl?.dataset.lastAbs);
+                    if (absEl) { absEl.className = 'var-abs opacity-50 ' + (la > 0 ? 'text-success' : la < 0 ? 'text-danger' : 'text-muted');
+                                 absEl.innerHTML = isNaN(la) ? '–' : `<i class="bi bi-moon-fill" style="font-size: .55rem;"></i> ${fmtNum(la, 2, true)}`; }
                     return;
                 }
                 const pct = parseFloat(cell.getAttribute('data-pct-1d'));

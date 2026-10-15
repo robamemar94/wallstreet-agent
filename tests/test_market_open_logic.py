@@ -71,3 +71,20 @@ def test_day_change_takes_both_fx_rates_from_the_same_source(monkeypatch):
     monkeypatch.setattr(pv, "get_current_rate", lambda c: 0.92)
     d = pv.day_change(16, 530.15, 530.15, today, "USD", today=today)
     assert d["pct"] == 0 and abs(d["eur"] - 16 * 530.15 * (0.8883 - 0.8885)) < 1e-6
+
+
+def test_day_change_keeps_last_session_when_market_not_open():
+    """Sin abrir hoy: sin variación del día (no cuenta en lo de hoy), pero con la de su última sesión para enseñarla."""
+    from app.interfaces.views import portfolio_views as pv
+    today = datetime.date(2026, 10, 15)   # jueves
+    d = pv.day_change(10, 110.0, 100.0, datetime.date(2026, 10, 14), "EUR", today=today)
+    assert d["closed"] and d["pct"] == 0 and d["eur"] == 0
+    assert abs(d["last_pct"] - 10) < 1e-9 and abs(d["last_abs"] - 10) < 1e-9
+    d = pv.day_change(10, 110.0, 100.0, today, "EUR", today=today)
+    assert not d["closed"] and d["last_pct"] is None
+
+
+def test_session_label_template_helper():
+    from app.infrastructure.templates import session_label
+    yesterday = datetime.date.today() - datetime.timedelta(days=1)
+    assert session_label(yesterday.isoformat()) == "ayer" and session_label(None) == ""

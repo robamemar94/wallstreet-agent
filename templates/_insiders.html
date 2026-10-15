@@ -1,69 +1,30 @@
-{# «Directivos y acciones»: recuadro arriba a la derecha del Resumen de la ficha (datos de mercado, no del análisis de IA).
-   Lo pide ticker.html a /ticker/{t}/directivos. El saldo de compras frente a ventas de los directivos en 12 meses; la
-   evolución de las acciones en circulación a 1, 3 y 5 años (recompra o dilución) con su gráfico; la lista completa,
-   flotando sobre la página (no la alarga). Solo compras y ventas en bolsa. Sin IA (yfinance, caché de 24 h). #}
+{# «Directivos» y «Acciones»: las dos últimas líneas de Señales en el Resumen de la ficha (datos de mercado, no del
+   análisis de IA). Lo pide ticker.html a /ticker/{t}/directivos. El saldo de compras frente a ventas de los directivos en
+   12 meses; las acciones en circulación a 1, 3 y 5 años (recompra o dilución) con su gráfico; la lista completa, en una
+   ventana. Solo compras y ventas en bolsa. Sin IA (yfinance, caché de 24 h). #}
 {% set sh = shares %}
 {% macro money(v) %}{% if v is none %}–{% elif v|abs >= 1e6 %}{{ num(v / 1e6, 1) }} M{% elif v|abs >= 1e3 %}{{ num(v / 1e3, 0) }} mil{% else %}{{ num(v, 0) }}{% endif %}{% endmacro %}
 {% set total = buys.value + sells.value %}
-<div class="card-body py-2 px-3 d-flex flex-column" style="font-size: .76rem;">
-    <div class="dash-label d-flex align-items-center text-nowrap"><i class="bi bi-person-badge me-1"></i>Directivos y acciones
-        <i class="bi bi-info-circle ms-1 fw-normal" title="Datos de mercado (no del análisis de IA). Directivos: solo compras y ventas en bolsa de los últimos 12 meses; las acciones que la empresa da como sueldo, los regalos y el ejercicio de opciones no cuentan. Las compras son la señal: el directivo pone su dinero; las ventas suelen ser planificadas o para pagar impuestos. Importes en la moneda del registro (USD o CAD); Yahoo solo da directivos de EE. UU. y Canadá. Acciones en circulación ajustadas por splits."></i>
-        {% if trades %}
-        <a href="#" class="ms-auto text-decoration-none fw-bold" style="text-transform: none; letter-spacing: 0;" data-bs-toggle="modal" data-bs-target="#insModal">
-            {{ trades|length }} ops. <i class="bi bi-box-arrow-up-right"></i></a>
-        {% endif %}
-    </div>
-
-    {# 1) directivos: compran o venden (12 meses) #}
-    {% if not available %}
-    <div class="text-muted mb-2" title="Yahoo solo tiene las operaciones de directivos de empresas de EE. UU. y Canadá">Directivos: sin datos</div>
-    {% elif not total %}
-    <div class="text-muted mb-2">Directivos: sin compras ni ventas en 12 meses</div>
-    {% else %}
-    <div class="d-flex justify-content-between align-items-baseline gap-2" title="Compras {{ money(buys.value) }} · ventas {{ money(sells.value) }} · saldo {{ '+' if net > 0 }}{{ money(net) }} (12 meses)">
-        <span class="fw-bold {{ 'text-success' if net > 0 else 'text-danger' if not buys.value }}">
-            {% if net > 0 %}Compran más de lo que venden{% elif buys.value %}Venden más de lo que compran{% else %}Solo venden, nadie compra{% endif %}</span>
-        <span class="text-muted text-nowrap">{% if buys.insiders %}<span class="text-success fw-bold">{{ buys.insiders }} compra{{ 'n' if buys.insiders > 1 }}</span> {{ money(buys.value) }}{% endif %}{% if buys.insiders and sells.insiders %} · {% endif %}{% if sells.insiders %}{{ sells.insiders }} vende{{ 'n' if sells.insiders > 1 }} {{ money(sells.value) }}{% endif %}</span>
-    </div>
-    <div class="progress my-1" style="height: 6px;">
-        <div class="progress-bar bg-success" style="width: {{ 100 * buys.value / total }}%"></div>
-        <div class="progress-bar bg-secondary" style="width: {{ 100 * sells.value / total }}%"></div>
-    </div>
-    {% if signal %}<div class="mb-2 text-success fw-bold"><i class="bi bi-bell-fill me-1"></i>{{ signal.insiders|length }} compra{{ 'n' if signal.insiders|length > 1 }} en los últimos {{ signal_days }} días</div>{% endif %}
-    {% endif %}
-
-    {# 2) previsiones de los analistas: cómo ha cambiado el BPA que esperan (suele moverse antes que el precio) #}
-    {% if rev %}{% set c90 = rev.chg.get('90d') %}
-    <div class="d-flex justify-content-between align-items-baseline gap-2 mb-1"
-         title="BPA que esperan los analistas para {{ rev_period }}: {{ num(rev.current, 2) }}. Cambio en 7 días {{ num(rev.chg.get('7d'), 1, sign=True) if rev.chg.get('7d') is not none else '–' }} % · 30 días {{ num(rev.chg.get('30d'), 1, sign=True) if rev.chg.get('30d') is not none else '–' }} % · 90 días {{ num(c90, 1, sign=True) if c90 is not none else '–' }} %. Avisa si cae un 5 % o más en 90 días (cartera y Tier 1).">
-        <span class="text-muted text-nowrap">Previsión BPA</span>
-        <span class="text-nowrap"><span class="fw-bold num-font {{ 'text-danger' if rev_cut else 'text-success' if c90 is not none and c90 >= 1 else 'text-muted' }}">
-            {% if c90 is not none %}{{ '▲' if c90 >= 1 else '▼' if c90 <= -1 else '=' }} {{ num(c90, 1, sign=True) }} % en 90 d{% else %}–{% endif %}</span>
-            {% if rev.up_30 is not none %}<span class="text-muted"> · 30 d: <span class="text-success">{{ rev.up_30 }}↑</span> <span class="{{ 'text-danger' if rev.down_30 else '' }}">{{ rev.down_30 or 0 }}↓</span></span>{% endif %}</span>
-    </div>
-    {% endif %}
-
-    {# 3) acciones en circulación: la conclusión y su gráfico, y tres casillas de color a 1, 3 y 5 años
-       (rojo y ▲: hay más acciones, diluye; verde y ▼: hay menos, recompra) #}
-    <div class="d-flex align-items-center gap-2 mt-1">
-        <span class="text-muted">Acciones en circulación</span>
-        <span class="badge {{ 'text-bg-success' if sh and sh.label == 'recompra' else 'text-bg-danger' if sh and sh.label == 'diluye' else 'text-bg-secondary' }}"
-              title="Acciones (diluidas). Tendencia de los últimos {{ sh.years if sh else 3 }} años{{ (': ' ~ num(sh.pct, 1, sign=True) ~ ' % al año') if sh }}. Fuente: {{ shares_source }}">
-            {% if sh %}{{ {'recompra': 'Recompra', 'diluye': 'Diluye', 'estable': 'Estable'}[sh.label] }}{% else %}Sin historial{% endif %}</span>
-        {% if spark %}<svg viewBox="0 0 300 80" preserveAspectRatio="none" class="flex-grow-1" style="height: 18px; min-width: 40px;" role="img" aria-label="Acciones en circulación">
+{# directivos: verde si compran (o hay compras recientes); ámbar si solo venden (suelen ser ventas planificadas) #}
+{% set dt = 'none' if not available or not total else ('good' if net > 0 or signal else 'mid') %}
+{% if trades %}<a href="#" data-bs-toggle="modal" data-bs-target="#insModal" class="sig-row" data-tone="{{ dt }}"{% else %}<div class="sig-row" data-tone="{{ dt }}"{% endif %}
+    title="Compras y ventas en bolsa de los directivos, 12 meses (sin acciones de sueldo, regalos ni opciones). Las compras son la señal: el directivo pone su dinero; las ventas suelen ser planificadas o para pagar impuestos. Yahoo solo da directivos de EE. UU. y Canadá.{{ ' Pulsa para ver las ' ~ trades|length ~ ' operaciones.' if trades }}">
+    <span class="sig-dot"></span><span class="sig-name">Directivos</span>
+    <span class="sig-word">{% if not available %}Sin datos{% elif not total %}Quietos{% elif net > 0 %}Compran{% elif buys.value %}Venden más{% else %}Solo venden{% endif %}</span>
+    <span class="sig-detail">{% if not available %}Yahoo no los da para esta empresa{% elif not total %}sin compras ni ventas en 12 meses{% else %}{% if signal %}<span class="text-success fw-bold">{{ signal.insiders|length }} compra{{ 'n' if signal.insiders|length > 1 }} en {{ signal_days }} días</span> · {% endif %}{% if buys.insiders %}<span class="text-success">{{ buys.insiders }} compra{{ 'n' if buys.insiders > 1 }} {{ money(buys.value) }}</span>{% else %}nadie compra{% endif %} · {% if sells.insiders %}{{ sells.insiders }} vende{{ 'n' if sells.insiders > 1 }} {{ money(sells.value) }}{% else %}nadie vende{% endif %}{% endif %}</span>
+    {% if trades %}<i class="bi bi-chevron-right sig-go"></i>{% endif %}
+{% if trades %}</a>{% else %}</div>{% endif %}
+{# acciones en circulación: la conclusión y, a la vista, las tres ventanas (1, 3 y 5 años) y su evolución #}
+<div class="sig-row" data-tone="{{ 'good' if sh and sh.label == 'recompra' else 'bad' if sh and sh.label == 'diluye' else 'none' }}"
+     title="Acciones en circulación (diluidas). Verde: hay menos (recompra); rojo: hay más (diluye). Tendencia de los últimos {{ sh.years if sh else 3 }} años{{ (': ' ~ num(sh.pct, 1, sign=True) ~ ' % al año') if sh }}. Fuente: {{ shares_source }}">
+    <span class="sig-dot"></span><span class="sig-name">Acciones</span>
+    <span class="sig-word">{% if sh %}{{ {'recompra': 'Recompra', 'diluye': 'Diluye', 'estable': 'Estables'}[sh.label] }}{% else %}Sin historial{% endif %}</span>
+    <span class="sig-detail d-flex align-items-center gap-2">
+        <span class="sig-chips">{% for n in (1, 3, 5) %}{% set w = windows.get(n) %}{% set up = w and w.total > 0.5 %}{% set down = w and w.total < -0.5 %}
+            <span class="sig-chip {{ 'up' if up else 'down' if down }}" title="{{ ('En ' ~ n ~ (' año' if n == 1 else ' años') ~ ': ' ~ num(w.total, 1, sign=True) ~ ' % en total (' ~ num(w.annual, 1, sign=True) ~ ' % al año)') if w else 'El historial no llega a ' ~ n ~ ' años' }}"><small>{{ n }}a</small>{% if w %}{{ num(w.total, 1, sign=True) }} %{% else %}–{% endif %}</span>{% endfor %}</span>
+        {% if spark %}<svg viewBox="0 0 300 80" preserveAspectRatio="none" class="flex-grow-1" style="height: 16px; min-width: 30px;" role="img" aria-label="Acciones en circulación">
             <polyline points="{{ spark }}" fill="none" stroke="{{ 'var(--bs-success)' if sh and sh.label == 'recompra' else 'var(--bs-danger)' if sh and sh.label == 'diluye' else 'var(--bs-secondary-color)' }}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>{% endif %}
-    </div>
-    <div class="d-flex gap-2 mt-1">
-        {% for n in (1, 3, 5) %}{% set w = windows.get(n) %}
-        {% set up = w and w.total > 0.5 %}{% set down = w and w.total < -0.5 %}
-        <div class="flex-fill rounded text-center py-1 {{ 'bg-danger bg-opacity-10 text-danger' if up else 'bg-success bg-opacity-10 text-success' if down else 'text-muted' }}"
-             style="{{ '' if up or down else 'background: var(--bs-secondary-bg);' }}"
-             title="{{ ('Acciones (diluidas) en ' ~ n ~ (' año' if n == 1 else ' años') ~ ': ' ~ num(w.total, 1, sign=True) ~ ' % en total (' ~ num(w.annual, 1, sign=True) ~ ' % al año). ' ~ ('Diluye' if up else 'Recompra' if down else 'Estable') ~ '. Fuente: ' ~ shares_source) if w else 'El historial no llega a ' ~ n ~ ' años' }}">
-            <div style="font-size: .64rem; opacity: .8;">{{ n }} año{{ 's' if n > 1 }}</div>
-            <div class="fw-bold num-font text-nowrap" style="font-size: .82rem;">{% if w %}{{ '▲' if up else '▼' if down else '=' }} {{ num(w.total, 1, sign=True) }} %{% else %}–{% endif %}</div>
-        </div>
-        {% endfor %}
-    </div>
+    </span>
 </div>
 {% if trades %}
 <div class="modal fade" id="insModal" tabindex="-1" aria-labelledby="insModalTitle" aria-hidden="true">

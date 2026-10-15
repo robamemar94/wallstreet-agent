@@ -6,3 +6,13 @@
 <span class="chg-pill {{ 'chg-up' if pct > 0 else ('chg-down' if pct < 0 else 'chg-flat') }}{{ ' chg-strong' if pct|abs >= 2 }}" style="--a: {{ '%.2f'|format(0.12 + a * 0.6) }}">{{ '+' if pct > 0 }}{{ num(pct, 2) }}%</span>
 {%- endif -%}
 {%- endmacro %}
+{# Variación de la última sesión de un valor cuyo mercado aún no ha abierto hoy: el mismo color que chg_pill, pero sin
+   relleno, con borde discontinuo, la luna y el día («ayer», «vie»), para que no se confunda con la de hoy. Formato
+   estándar en Cartera, Seguimiento, Watchlist y Base de datos (en JS: stalePill de base.html). day=false: sin el día
+   (columnas estrechas; va en el título). #}
+{% macro stale_pill(pct, last_date=none, day=true) -%}
+{%- set lab = session_label(last_date) if last_date else '' -%}
+{%- if pct is not defined or pct is none -%}<span class="chg-pill chg-stale chg-flat" title="Su mercado aún no ha abierto hoy"><i class="bi bi-moon-fill"></i> –</span>
+{%- else -%}<span class="chg-pill chg-stale {{ 'chg-up' if pct > 0 else ('chg-down' if pct < 0 else 'chg-flat') }}" title="Su mercado aún no ha abierto hoy: es la variación de su última sesión{{ ' (' ~ lab ~ ')' if lab }}"><i class="bi bi-moon-fill"></i> {{ '+' if pct > 0 }}{{ num(pct, 2) }}%{% if lab and day %}<span class="chg-stale-day">{{ lab }}</span>{% endif %}</span>
+{%- endif -%}
+{%- endmacro %}
