@@ -2,6 +2,7 @@
 
 {% block content %}
 <style>
+    .cagr-green { color: var(--fin-green) !important; } .cagr-amber { color: #e3b341 !important; } .cagr-orange { color: #f0883e !important; } .cagr-red { color: var(--fin-red) !important; }
     /* filas más bajas para ver más empresas a la vez (el estilo común de las tablas pone 10 px arriba y abajo) */
     #customListsContent .table-modern tbody td { padding-top: .35rem; padding-bottom: .35rem; }
     #customListsContent .table-modern thead th { padding-top: .45rem; padding-bottom: .45rem; }
@@ -129,9 +130,6 @@
                                      <th class="py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'name')" title="Ordenar por Empresa" style="cursor: pointer;">
                                          Empresa <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-name" style="font-size: 0.68rem;"></i>
                                      </th>
-                                     <th class="py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'region')" title="Ordenar por Región" style="cursor: pointer;">
-                                         Región <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-region" style="font-size: 0.68rem;"></i>
-                                     </th>
                                      <th class="py-2.5 select-none" onclick="sortListTable({{ list.id }}, 'country')" title="Ordenar por País" style="cursor: pointer;">
                                          País <i class="bi bi-arrow-down-up ms-1 text-muted" id="sort-icon-{{ list.id }}-country" style="font-size: 0.68rem;"></i>
                                      </th>
@@ -162,7 +160,6 @@
                                      style="border-bottom: 1px solid rgba(255,255,255,0.05); transition: all 0.15s;"
                                      data-ticker="{{ asset.ticker }}"
                                      data-name="{{ asset.company_name|lower }}"
-                                     data-region="{{ asset.region|lower }}"
                                      {% set ciso = country_iso(asset.country) %}data-country="{{ ciso[1]|lower }}"
                                      data-price="{{ asset.price }}"
                                      data-pct="{{ '' if asset.not_open else asset.pct }}"
@@ -183,12 +180,8 @@
                                      <td class="py-1" onclick="window.location='/ticker/{{ asset.ticker }}'" style="cursor: pointer;">
                                          <span class="company-name text-white opacity-85">{{ asset.company_name }}</span>
                                      </td>
-                                     <!-- Región -->
-                                     <td class="py-1 text-muted text-uppercase" style="font-size: 0.72rem;">
-                                         {{ asset.region }}
-                                     </td>
                                      <!-- País (en español) -->
-                                     <td class="py-1 text-muted text-nowrap" style="font-size: 0.72rem;">{{ ciso[1] }}</td>
+                                     <td class="py-1 text-muted text-nowrap" style="font-size: 0.76rem;">{{ ciso[1] }}</td>
                                      <!-- Precio -->
                                      <td class="text-end py-1 align-middle num-font font-monospace fw-bold text-white">
                                          {{ num(asset.price, 2) }}{{ asset.symbol }}
@@ -198,7 +191,10 @@
                                          {% if asset.change_abs > 0 %}+{% endif %}{{ num(asset.change_abs, 2) }}{{ asset.symbol }}
                                      </td>
                                      <td class="text-end py-1 align-middle">{{ stale_pill(asset.pct, asset.last_date) if asset.not_open else chg_pill(asset.pct) }}</td>
-                                     <td class="text-end py-1 align-middle num-font fw-bold">{{ (num(asset.cagr, 1) ~ ' %') if asset.cagr is not none else '–' }}</td>
+                                     {# color = zona de la valoración base (como en Seguimiento y la Watchlist) #}
+                                     {% set band = none if asset.cagr is none else ('green' if asset.cagr >= ZONE.ganga else ('amber' if asset.cagr >= ZONE.barata else ('orange' if asset.cagr >= ZONE.justo else 'red'))) %}
+                                     <td class="text-end py-1 align-middle num-font fw-bold {{ 'cagr-' ~ band if band else 'text-muted' }}"
+                                         title="{{ {'green': 'ganga ≥%.0f%%'|format(ZONE.ganga), 'amber': 'barata %.0f–%.0f%%'|format(ZONE.barata, ZONE.ganga), 'orange': 'justo %.0f–%.0f%%'|format(ZONE.justo, ZONE.barata), 'red': 'cara <%.0f%%'|format(ZONE.justo)}[band] if band else 'Sin valoración base en la ficha' }}">{{ (num(asset.cagr, 1) ~ ' %') if asset.cagr is not none else '–' }}</td>
                                      <td class="text-end py-1 align-middle num-font {{ 'text-success fw-bold' if asset.drop_pct is not none and asset.drop_pct <= 0 else ('text-warning' if asset.drop_pct is not none and asset.drop_pct <= 15 else 'text-muted') }}">
                                          {% if asset.drop_pct is none %}–{% elif asset.drop_pct <= 0 %}en zona{% else %}−{{ num(asset.drop_pct, 1) }} %{% endif %}</td>
                                      <!-- Nota Media -->
@@ -219,7 +215,7 @@
                                  {% endfor %}
                                  {% if not list.assets %}
                                  <tr>
-                                     <td colspan="11" class="text-center py-5 text-muted">
+                                     <td colspan="10" class="text-center py-5 text-muted">
                                          <i class="bi bi-folder-symlink fs-3 d-block mb-2 text-secondary"></i>
                                          Esta lista está vacía. Añade tickers usando el buscador de arriba.
                                      </td>
@@ -628,7 +624,7 @@
         // Ordenar filas en memoria
         rows.sort((a, b) => {
             let valA, valB;
-            if (criteria === 'ticker' || criteria === 'name' || criteria === 'region' || criteria === 'country') {
+            if (criteria === 'ticker' || criteria === 'name' || criteria === 'country') {
                 valA = (a.getAttribute(`data-${criteria}`) || "").toLowerCase();
                 valB = (b.getAttribute(`data-${criteria}`) || "").toLowerCase();
                 return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
