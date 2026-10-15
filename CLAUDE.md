@@ -109,6 +109,10 @@ directivos y acciones a 1/3/5 años —estas dos llegan de `_insiders.html`—; 
   seguimiento, dudas…: el `status` de cada fila es 'T1'/'T2' o el estado); la tarjeta de la derecha sigue con Favoritos (= Tier 1) · Compra.
 - **Tesis:** `config/theses/<ticker>.yaml` (datos y reglas) + `.md` (texto). Los documentos fuente están en `data/theses/`.
 - **Valoración:** un único caso base con selector BPA o FCF. Zonas en `config/settings.json` → `valuation`.
+  Sus supuestos se contrastan con lo real (`valuation_reality_service`): crecimiento de la métrica por acción a 3/5/10 años
+  y múltiplo real (cierre de año / métrica; media 5 a, mediana 10 a). Conservador / ajustado (hasta +5 pp o +20 % de
+  múltiplo) / optimista. Se ve en la pestaña Valoración (bajo cada supuesto y casilla «Supuestos»); solo si es optimista,
+  en Señales, con un ⚠ junto al CAGR de la Watchlist y añadido a los avisos de zona o cerca de compra (no hay aviso propio).
 - **Rendimiento y alfas:** todas las alfas van contra el índice de `performance.benchmark_ticker` (SPY: el S&P 500;
   `performance_service.reference_benchmark`). Con menos de un año de historia no se anualiza (`annualized()`): el CAGR sale «—».
   El MSCI World queda solo como línea y columna informativas.

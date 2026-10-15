@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.application.services import alerts_service, base_valuation_service as bv, notice_service, price_monitor_service as pm, split_service
+from app.application.services import valuation_reality_service as vr
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.thesis_review_service import fetch_reported_dates
 from app.infrastructure.db.database import get_db
@@ -100,7 +101,9 @@ def watchlist_rows(repo: SqlAlchemyWatchlistRepository, asset_repo: SqlAlchemyAs
                 "last_session": st.get("date") if st else None, "last_day_pct": (st.get("change") or {}).get("1d") if st else None,
                 "from_high_pct": st.get("from_high_pct") if st else None,
                 "added_at": item.get("added_at"), "added_price": added_price,
-                "val": val, "group": group, "drop_pct": drop, "stale": stale}
+                "val": val, "group": group, "drop_pct": drop, "stale": stale,
+                # supuestos de la valoración frente a lo real: solo se enseña si son optimistas
+                "reality_warn": vr.warning(vr.for_ticker(t, d), "PER" if val["metric"] == "eps" else "P/FCF") if val else None}
 
     with ThreadPoolExecutor(max_workers=8) as pool:   # la métrica TTM (si no está en caché) se descarga por empresa
         rows = list(pool.map(row, tickers))
@@ -130,9 +133,11 @@ def watchlist_attention(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if r["group"] == "zona":
             # la señal de compra sale de unos supuestos viejos: que se note antes de comprar
             old = " · valoración anticuada: revísala antes de comprar" if (r["stale"] or {}).get("stale") else ""
+            old += f" · {r['reality_warn']}: revísalos antes de comprar" if r.get("reality_warn") else ""
             out.append({"prio": 0, "type": "zona", "ticker": r["ticker"], "href": f"/ticker/{r['ticker']}#valoracion", "text": f"Por debajo de su precio de compra al {es(v['target'], 0)}% ({es(v['buy_price'], 2)}; cotiza a {es(r['price'], 2)}){cagr}{old}"})
         elif r["group"] == "cerca" and r.get("tier") == "1":   # cerca de compra: solo las Tier 1 (objetivo)
-            out.append({"prio": 1, "type": "cerca", "ticker": r["ticker"], "href": f"/ticker/{r['ticker']}#valoracion", "text": f"A un {es(r['drop_pct'], 1)}% de su precio de compra ({es(v['buy_price'], 2)}){cagr}"})
+            warn = f" · {r['reality_warn']}" if r.get("reality_warn") else ""
+            out.append({"prio": 1, "type": "cerca", "ticker": r["ticker"], "href": f"/ticker/{r['ticker']}#valoracion", "text": f"A un {es(r['drop_pct'], 1)}% de su precio de compra ({es(v['buy_price'], 2)}){cagr}{warn}"})
     for r in fresh:   # el año corregido a mano ya tiene dato real: la corrección ha dejado de aplicarse
         a = r["val"]["anchor"]
         if a and a["state"] == "expired":

@@ -25,7 +25,7 @@ from app.application.services.portfolio_service import PortfolioService
 from app.infrastructure.templates import templates
 from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached, get_currency_symbol
 
-from app.application.services import rules_synthesis_service, market_cap_service, financial_trends_service, financial_labels, key_figures_service
+from app.application.services import rules_synthesis_service, market_cap_service, financial_trends_service, financial_labels, key_figures_service, valuation_reality_service
 from utils.financial_math import calculate_custom_metrics, calculate_cagr_metrics, get_estimated_growth, get_financials_history, get_extended_stats
 
 logger = logging.getLogger(__name__)
@@ -404,6 +404,9 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         print(f"Error loading portfolio data for ticker view {ticker}: {e}")
 
     fin_hist = get_financials_history(ticker, stock, db_d)
+    # lo que ha hecho de verdad la empresa, para contrastar los supuestos de la valoración base (pestaña Valoración)
+    bval_reality = valuation_reality_service.history(fin_hist, valuation_reality_service.yearly_closes_from(dates, cl),
+                                                     quote_unit_factor(info.get('currency')))
 
     # Informes que se están generando ahora: al recargar, la ficha los sigue esperando en vez de ofrecer «Generar ahora»
     from app.interfaces.api.analysis_api import running_tasks
@@ -452,6 +455,9 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         "bval_target": base_valuation_service.TARGET_RETURN_PCT,
         "bval_years": base_valuation_service.DEFAULT_YEARS,
         "bval_metrics": base_valuation_service.METRICS,
+        "bval_reality": bval_reality,
+        "bval_reality_warn": valuation_reality_service.warning(valuation_reality_service.verdict(base_valuation_service.stored(db_d), bval_reality),
+                                                               "PER" if (base_valuation_service.stored(db_d) or {}).get("metric", "eps") == "eps" else "P/FCF"),
         # pestaña «Tesis» y franja del Resumen ejecutivo: su tesis de inversión, si la tiene
         "thesis_link": thesis_strip(db_session, ticker),
         "in_watchlist": watchlist_repo.get_by_ticker(ticker) is not None,   # añadida a mano

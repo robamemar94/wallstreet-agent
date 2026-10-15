@@ -574,6 +574,7 @@ function openStats() {
     };
     // Casillas del Resumen: distancia a compra (de la valoración base) y técnico en directo (del histórico de precios)
     // Señales: cuántas a favor, a vigilar y en contra (se recuenta al llegar las que se calculan aquí y las de directivos)
+    window.BV_REALITY_WARN = {{ bval_reality_warn|tojson }};   // supuestos de la valoración optimistas (o null)
     window.sigCount = () => {
         const box = document.getElementById('sigCount');
         if (!box) return;
@@ -594,7 +595,8 @@ function openStats() {
             const drop = 100 * (1 - v.buy_price / d.price);   // lo que tendría que caer; ≤ 0: ya en zona
             const [zl] = ZONES[v.zone] || [v.zone || ''];
             sig('sigVal', drop <= 0 ? 'good' : drop <= 15 ? 'mid' : 'bad', drop <= 0 ? 'En zona' : zl || 'Fuera',
-                (drop <= 0 ? `bajo el precio de compra (${fmtNum(v.buy_price, 2)} ${d.currency})` : `<b>−${fmtNum(drop, 1)} %</b> hasta ${fmtNum(v.buy_price, 2)} ${d.currency}`)
+                (window.BV_REALITY_WARN ? `<span class="text-danger" title="${BV_REALITY_WARN}"><i class="bi bi-exclamation-triangle-fill"></i> supuestos optimistas</span> · ` : '')
+                + (drop <= 0 ? `bajo el precio de compra (${fmtNum(v.buy_price, 2)} ${d.currency})` : `<b>−${fmtNum(drop, 1)} %</b> hasta ${fmtNum(v.buy_price, 2)} ${d.currency}`)
                 + (v.cagr != null ? ` · CAGR ${fmtNum(v.cagr, 1)} %` : ''));
         }
         const closes = (d.history || []).map(p => p[1]).filter(x => x != null);
@@ -2694,6 +2696,8 @@ function openStats() {
         .val-num-sm { width: 5.6rem; }
         .val-num .form-control, .val-num .input-group-text { padding-top: .1rem; padding-bottom: .1rem; font-size: .76rem; }
         .val-sub { font-size: .68rem; margin-bottom: .2rem; }
+        .val-real { font-size: .66rem; color: var(--bs-secondary-color); line-height: 1.3; margin: -.1rem 0 .35rem; }
+        .val-real b { color: var(--bs-body-color); font-weight: 600; }
         .val-slider { margin-bottom: .15rem; }
         .val-slider .val-line { margin-bottom: 0; }
         .val-slider .form-range { height: 1rem; }
@@ -2761,6 +2765,10 @@ function openStats() {
                             <span class="key-fig-label">Zona <i class="bi bi-info-circle"></i></span>
                             <span class="key-fig-val text-uppercase" id="res-zone">–</span>
                             <span class="val-note">ganga ≥{{ num(ZONE.ganga, 0) }}% · barata ≥{{ num(ZONE.barata, 0) }}% · justo ≥{{ num(ZONE.justo, 0) }}%</span></div>
+                        <div class="key-fig" title="Tus supuestos frente a lo que ha hecho de verdad la empresa (cuentas anuales y precios): crecimiento de la métrica por acción a 5 años y múltiplo medio de 5 años. Conservador: pides lo mismo o menos; ajustado: hasta 5 puntos de crecimiento o un 20 % de múltiplo por encima; optimista: más. Manda el peor de los dos">
+                            <span class="key-fig-label">Supuestos <i class="bi bi-info-circle"></i></span>
+                            <span class="key-fig-val" id="res-reality">–</span>
+                            <span class="val-note" id="res-reality-note">frente a lo real</span></div>
                     </div>
                 </div>
 
@@ -2829,6 +2837,7 @@ function openStats() {
                                     </div>
                                 </div>
                                 <input type="range" class="form-range custom-range" id="slider-{{ id }}" min="{{ mn }}" max="{{ mx }}" step="{{ st }}" value="{{ "{:.1f}".format(val) }}">
+                                {% if id in ('growth', 'multiple') %}<div class="val-real" id="real-{{ id }}"></div>{% endif %}
                             </div>
                             {% endfor %}
                             <div class="val-sub text-muted" id="val-multiple-now"></div>
@@ -5265,7 +5274,7 @@ function openStats() {
         }
 
         // VALORACIÓN BASE (mismo cálculo que app/application/services/base_valuation_service.py)
-        const VAL = {{ {'ttm': bval_ttm, 'ttm_end': bval_ttm_end, 'estimates': bval_estimates, 'target': bval_target, 'metrics': bval_metrics, 'years': bval_years, 'anchor': bv.get('anchor'), 'year0_source': bv.get('year0_source') or 'analysts', 'zone': ZONE}|tojson }};
+        const VAL = {{ {'ttm': bval_ttm, 'ttm_end': bval_ttm_end, 'estimates': bval_estimates, 'target': bval_target, 'metrics': bval_metrics, 'years': bval_years, 'anchor': bv.get('anchor'), 'year0_source': bv.get('year0_source') or 'analysts', 'zone': ZONE, 'reality': bval_reality}|tojson }};
         const YEAR0 = new Date().getFullYear();   // año en curso; el año t es YEAR0 + t
         const BASIS_GAP_PCT = 10;   // como base_valuation_service.BASIS_GAP_PCT
         const COVERED_DAYS = 46;    // como base_valuation_service.COVERED_DAYS
@@ -5350,8 +5359,29 @@ function openStats() {
             document.querySelectorAll('#nav-projection .eps-only').forEach(el => el.classList.toggle('d-none', valMetric() !== 'eps'));
         }
 
+        // Tus supuestos frente a lo real (valuation_reality_service, mismos umbrales): debajo del crecimiento y del múltiplo,
+        // y el veredicto en la franja de resultado. Se recalcula al mover cualquier número.
+        const REAL_TONE = {good: ['conservador', 'text-success'], mid: ['ajustado', 'text-warning'], bad: ['optimista', 'text-danger']};
+        function renderReality(v) {
+            const h = (VAL.reality || {})[v.metric] || {}, m = VAL.metrics[v.metric];
+            const pct = x => x == null ? '–' : fmtNum(x, 1) + ' %', mx = x => x == null ? '–' : fmtNum(x, 1) + 'x';
+            const g = 100 * v.growth, refG = [h.cagr5, h.cagr3, h.cagr10].find(x => x != null);
+            const tG = refG == null ? null : (g - refG <= 0 ? 'good' : g - refG <= 5 ? 'mid' : 'bad');
+            const refM = h.mult_avg5 || h.mult_med10, tM = refM && v.exit_multiple ? (v.exit_multiple / refM <= 1 ? 'good' : v.exit_multiple / refM <= 1.2 ? 'mid' : 'bad') : null;
+            // analistas: lo que esperan que crezca el BPA del año que viene (solo BPA)
+            const est = ((VAL.estimates || {}).estimates || []), ga = v.metric === 'eps' && est.length > 1 && est[0].value > 0 ? 100 * (est[1].value / est[0].value - 1) : null;
+            const dot = t => t ? `<span class="${REAL_TONE[t][1]} fw-bold">● ${REAL_TONE[t][0]}</span>` : '<span class="text-muted">sin datos para comparar</span>';
+            const rg = document.getElementById('real-growth'), rm = document.getElementById('real-multiple');
+            if (rg) rg.innerHTML = `real: 3a ${pct(h.cagr3)} · <b>5a ${pct(h.cagr5)}</b> · 10a ${pct(h.cagr10)}${ga != null ? ' · analistas ' + pct(ga) : ''} ${dot(tG)}`;
+            if (rm) rm.innerHTML = `real: <b>media 5a ${mx(h.mult_avg5)}</b> · mediana 10a ${mx(h.mult_med10)} ${dot(tM)}${tM && tM !== 'good' ? ` <span class="text-muted">(${fmtNum(100 * (v.exit_multiple / refM - 1), 0, true)} %)</span>` : ''}`;
+            const rank = {good: 0, mid: 1, bad: 2}, worst = [tG, tM].filter(Boolean).sort((a, b) => rank[b] - rank[a])[0];
+            const res = document.getElementById('res-reality'), note = document.getElementById('res-reality-note');
+            if (res) { res.textContent = worst ? {good: 'Conservadores', mid: 'Ajustados', bad: 'Optimistas'}[worst] : '–'; res.className = 'key-fig-val ' + (worst ? REAL_TONE[worst][1] : 'text-muted'); }
+            if (note) note.textContent = worst === 'bad' ? 'revisa los marcados en rojo antes de comprar' : worst ? `crecimiento y ${m.multiple} frente a lo real` : 'faltan cuentas o precios para comparar';
+        }
         function recalculateValuation() {
             const v = valInputs(), price = num('proj-current-price'), m = VAL.metrics[v.metric];
+            renderReality(v);
             const set = (id, text, cls) => { const el = document.getElementById(id); el.textContent = text; if (cls !== undefined) el.className = cls; };
             const body = document.getElementById('val-years-body');
             const startYear = YEAR0, [state, anchor] = anchorState(v);
