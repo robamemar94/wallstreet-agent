@@ -16,6 +16,8 @@ from app.interfaces.api.analysis_api import router as analysis_api_router
 from app.interfaces.views.settings_views import router as settings_router
 from app.interfaces.views.lists_views import router as lists_router
 from app.interfaces.views.thesis_views import router as thesis_views_router
+from app.interfaces.views.seguimiento_views import router as seguimiento_views_router
+from app.interfaces.views.portada_views import router as portada_views_router
 from app.interfaces.api.thesis_api import router as thesis_api_router
 from app.interfaces.views.watchlist_views import router as watchlist_router
 from app.interfaces.api.notifications_api import router as notifications_router
@@ -79,6 +81,8 @@ app.include_router(analysis_api_router, prefix="/api")
 app.include_router(settings_router)
 app.include_router(lists_router)
 app.include_router(thesis_views_router)
+app.include_router(seguimiento_views_router)
+app.include_router(portada_views_router)
 app.include_router(thesis_api_router, prefix="/api")
 app.include_router(watchlist_router)
 app.include_router(notifications_router, prefix="/api")

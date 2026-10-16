@@ -6,6 +6,12 @@ Se carga al trabajar en `app/`. Las reglas generales están en el `CLAUDE.md` de
 ## Dónde está cada cosa
 - **Vistas y API:** las vistas HTML están en `interfaces/views/`; la API JSON, en `interfaces/api/` (prefijo `/api`).
 - **Servicios:** en `application/services/`.
+- **Vistas de la portada y del Seguimiento:**
+  - `interfaces/views/portada_views.py`: Mi Cartera (`/api/centro/pulso`), Bandeja, Agenda, noticias de la semana y
+    `/mercado/centro`;
+  - `interfaces/views/seguimiento_views.py`: `positions_tracking`, `live_day` y `/portfolio/seguimiento`;
+  - en `thesis_views.py` queda solo lo de Tesis, Noticias y logos, más los helpers que comparten (`portfolio_exposure`,
+    `news_weeks`, `_card`…).
 - **`interfaces/views/market_views.py`:** guarda lo común de precios, y lo importan las demás vistas y `price_scheduler`.
   - Caché y carga de precios: `INDEX_CACHE`, `ensure_prices_cached`, `get_currency_symbol`, `price_decimals`.
   - Pre/post-market: `refresh_extended_prices`, `ext_quote`, `ext_day`, `asia_open_after`.

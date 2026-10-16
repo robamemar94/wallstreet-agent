@@ -662,7 +662,7 @@ def test_spanish_number_format():
 
 def test_news_by_radar_week_range_and_centro(repo, monkeypatch):
     from app.infrastructure.db.models import DBThesisNews
-    from app.interfaces.views import thesis_views as tv
+    from app.interfaces.views import portada_views as tv
     thesis = repo.import_spec(load_thesis_yaml("config/theses/dsgx.yaml"))
     for i, (found, seen) in enumerate([("2026-10-05T10:00:00", False), ("2026-09-28T10:00:00", True),
                                        ("2026-09-21T10:00:00", True), ("2026-08-03T10:00:00", False)]):
@@ -671,8 +671,11 @@ def test_news_by_radar_week_range_and_centro(repo, monkeypatch):
     assert [n["title"] for n in repo.list_news(since="2026-09-28T07:00:00", limit=None)] == ["n0", "n1"]
     assert repo.count_news(before="2026-09-28T07:00:00") == {"total": 2, "unread": 1}
     # Centro de mando: esta semana y la anterior, separadas; de antes, solo las no leídas
-    monkeypatch.setattr(tv, "radar_week_start", lambda now=None: datetime.datetime(2026, 10, 3, 8, 0) if now is None
-                        else ai.radar_week_start(now))
+    from app.interfaces.views import thesis_views
+    fixed = lambda now=None: datetime.datetime(2026, 10, 3, 8, 0) if now is None else ai.radar_week_start(now)
+    for mod in (tv, thesis_views):   # news_weeks (thesis_views) y centro_news (portada) la usan cada uno
+        if hasattr(mod, "radar_week_start"):
+            monkeypatch.setattr(mod, "radar_week_start", fixed)
     monkeypatch.setattr(tv.news_summary_service, "load", lambda db: {"week": "2026-10-05", "headline": "Titular"})
     out = tv.centro_news(repo, None)
     assert [(w["current"], [n["title"] for n in w["news"]]) for w in out["news_weeks"]] == [(True, ["n0"]), (False, ["n1"])]

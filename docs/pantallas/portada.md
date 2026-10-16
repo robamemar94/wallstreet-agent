@@ -20,7 +20,7 @@ Una sola vista, sin pestañas. `/mercado` y `/` (`/centro` lleva aquí).
 - Abajo, la **Actividad del día**, que llena el resto.
 
 ## Cómo se carga
-Cada bloque por su cuenta:
+Vistas en `portada_views.py`. Cada bloque por su cuenta:
 - `/portada/bandeja`: avisos ya guardados (~0,3 s).
 - `/portada/agenda`.
 - `/api/centro/pulso`: Mi Cartera.

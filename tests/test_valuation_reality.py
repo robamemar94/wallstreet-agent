@@ -49,7 +49,7 @@ def test_grupos_de_los_avisos():
 
 def test_agenda_por_semanas():
     import datetime
-    from app.interfaces.views.thesis_views import agenda_weeks
+    from app.interfaces.views.portada_views import agenda_weeks
     d = datetime.date
     weeks = agenda_weeks([{"ticker": "META", "date": d(2026, 10, 21)}, {"ticker": "ROL", "date": d(2026, 10, 21)},
                           {"ticker": "BKNG", "date": d(2026, 11, 3)}],
