@@ -33,6 +33,7 @@ IDIOSYNCRATIC_SIGMA = 2.0
 BIG_MOVE_DAY_PCT = 5.0
 BIG_MOVE_5D_PCT = 7.0
 NEW_EXTREME_SESSIONS = 5                        # «nuevo máximo/mínimo» si ocurrió en las últimas 5 sesiones
+MIN_52W_SPAN_DAYS = 330                         # y solo si el histórico cubre casi un año (uno corto o roto no es «de 52 semanas»)
 SWING_WINDOW = 5
 MIN_CAGR_PCT = 6.0                              # por debajo: «cara» (poco retorno implícito)
 MAX_WEIGHT_PCT = 15.0                           # por encima: concentración
@@ -326,13 +327,15 @@ def price_stats(close: pd.Series, bench: Optional[pd.Series] = None) -> Optional
     fmt = lambda ts: ts.date().isoformat()
     w52 = close.iloc[-252:]
     hi, lo = float(w52.max()), float(w52.min())
+    full_year = (close.index[-1] - close.index[0]).days >= MIN_52W_SPAN_DAYS
     ma200 = float(close.iloc[-200:].mean()) if len(close) >= 200 else None
     st = {
         "price": float(last), "change": ch, "sigma_d": sigma,
         "z_day": (ch["1d"] / 100) / sigma if sigma and ch["1d"] is not None else None,
         "r5": r5, "z_week": (r5 / 100) / (sigma * math.sqrt(5)) if sigma and r5 is not None else None,
         "high_52w": hi, "low_52w": lo, "from_high_pct": 100 * (last / hi - 1), "from_low_pct": 100 * (last / lo - 1),
-        "new_high": bool(w52.iloc[-NEW_EXTREME_SESSIONS:].max() >= hi), "new_low": bool(w52.iloc[-NEW_EXTREME_SESSIONS:].min() <= lo),
+        "new_high": full_year and bool(w52.iloc[-NEW_EXTREME_SESSIONS:].max() >= hi),
+        "new_low": full_year and bool(w52.iloc[-NEW_EXTREME_SESSIONS:].min() <= lo),
         "date": fmt(close.index[-1]), "r5_from": fmt(close.index[-6]) if len(close) > 5 else None,
         "high_date": fmt(w52.idxmax()), "low_date": fmt(w52.idxmin()),
         "ma200": ma200, "vs_ma200_pct": 100 * (last / ma200 - 1) if ma200 else None, "ma200_cross": None,

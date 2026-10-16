@@ -1,0 +1,205 @@
+  <!-- Pestaña Fundamentales -->
+  <div class="tab-pane fade" id="fund-pane" role="tabpanel" aria-labelledby="fund-tab">
+    <div class="row g-3 mb-3">
+      <!-- Tarjeta 1: Calidad, Crecimiento y Riesgo (Ponderadas) -->
+      <div class="col-12 col-xl-6">
+        <div class="card h-100 shadow-sm border-0 bg-white rounded-3">
+          <div class="card-header bg-white border-bottom border-light-subtle py-2">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h6 class="fw-bold mb-0" style="font-size:0.9rem;">
+                  <i class="bi bi-cpu text-primary me-1.5"></i>Calidad, Crecimiento y Riesgo (Ponderado)
+                </h6>
+              </div>
+            </div>
+          </div>
+          <div class="card-body py-2 px-3">
+            <div class="row g-2 align-items-center text-center">
+              <!-- ROIC -->
+              <div class="col-4 border-end border-light-subtle">
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">ROIC (TTM)</div>
+                <span class="fw-bold fund-big {{ 'text-success' if port_roic >= 15 else ('text-danger' if port_roic < 8 else '') }} lh-1">{{ (num(port_roic, 1) ~ '%') }}</span>
+              </div>
+              <!-- Crecimiento -->
+              <div class="col-4 border-end border-light-subtle">
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Crecimiento (NTM)</div>
+                <span class="fw-bold fund-big {{ 'text-success' if port_growth >= 12 else ('text-danger' if port_growth < 5 else '') }} lh-1">{{ (num(port_growth, 1) ~ '%') }}</span>
+              </div>
+              <!-- Beta -->
+              <div class="col-4">
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Beta Cartera</div>
+                <span class="fw-bold fund-big text-secondary lh-1">{{ num(port_beta, 2) }}</span>
+              </div>
+              
+              <div class="col-12 border-top border-light-subtle pt-2">
+                <div class="row text-center">
+                  <!-- M. Bruto -->
+                  <div class="col-4 border-end border-light-subtle">
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Margen Bruto</div>
+                    <span class="fw-bold fund-small lh-1">{{ (num(port_gross_margin, 1) ~ '%') }}</span>
+                  </div>
+                  <!-- M. Operativo -->
+                  <div class="col-4 border-end border-light-subtle">
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Margen Operativo</div>
+                    <span class="fw-bold fund-small lh-1">{{ (num(port_operating_margin, 1) ~ '%') }}</span>
+                  </div>
+                  <!-- Alfa -->
+                  <div class="col-4">
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;" title="Frente al {{ perf_ref_bench }} y con la beta de la cartera; {% if perf_alpha_annualized %}anual{% else %}del periodo (con menos de un año no se anualiza){% endif %}">Alfa de Jensen</div>
+                    <span class="fw-bold fund-small {% if port_alpha >= 0 %}text-success{% else %}text-danger{% endif %} lh-1">
+                      {% if port_alpha >= 0 %}+{% endif %}{{ (num(port_alpha, 2) ~ '%') }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Tarjeta 2: Valoración, Dividendos y Solvencia (Ponderadas) -->
+      <div class="col-12 col-xl-6">
+        <div class="card h-100 shadow-sm border-0 bg-white rounded-3">
+          <div class="card-header bg-white border-bottom border-light-subtle py-2">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h6 class="fw-bold mb-0" style="font-size:0.9rem;">
+                  <i class="bi bi-wallet2 text-primary me-1.5"></i>Valoración, Dividendos y Solvencia (Ponderado)
+                </h6>
+              </div>
+            </div>
+          </div>
+          <div class="card-body py-2 px-3">
+            <div class="row g-2 align-items-center text-center">
+              <!-- PER Forward -->
+              <div class="col-3 border-end border-light-subtle">
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PER Forward</div>
+                <span class="fw-bold fund-big lh-1">{{ num(port_forward_pe, 1) ~ "x" }}</span>
+              </div>
+              <!-- FCF Yield -->
+              <div class="col-3 border-end border-light-subtle">
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">FCF Yield</div>
+                <span class="fw-bold fund-big {{ 'text-success' if port_fcf_yield >= 4 else ('text-danger' if port_fcf_yield < 2 else '') }} lh-1">{{ (num(port_fcf_yield, 2) ~ '%') }}</span>
+              </div>
+              <!-- Deuda Neta / EBITDA -->
+              <div class="col-3 border-end border-light-subtle">
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Deuda / EBITDA</div>
+                <span class="fw-bold fund-big {{ 'text-success' if port_net_debt_ebitda <= 1 else ('text-danger' if port_net_debt_ebitda > 3 else '') }} lh-1">{{ num(port_net_debt_ebitda, 2) ~ "x" }}</span>
+              </div>
+              <!-- Dividend Yield -->
+              <div class="col-3">
+                <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Div. Yield</div>
+                <span class="fw-bold fund-big lh-1">{{ (num(port_yield, 2) ~ '%') }}</span>
+              </div>
+              
+              <div class="col-12 border-top border-light-subtle pt-2">
+                <div class="row text-center">
+                  <!-- PER Trailing -->
+                  <div class="col-4 border-end border-light-subtle">
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PER Trailing</div>
+                    <span class="fw-bold fund-small lh-1">{{ num(port_trailing_pe, 1) ~ "x" }}</span>
+                  </div>
+                  <!-- PEG Ratio -->
+                  <div class="col-4 border-end border-light-subtle">
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">PEG Ratio</div>
+                    <span class="fw-bold fund-small lh-1">{{ num(port_peg, 2) }}</span>
+                  </div>
+                  <!-- Liquidez -->
+                  <div class="col-4">
+                    <div class="text-muted text-uppercase" style="font-size:0.55rem; letter-spacing:0.04em; font-weight:700;">Liquidez Corr.</div>
+                    <span class="fw-bold fund-small lh-1">{{ num(port_current_ratio, 2) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabla Detallada por Compañía -->
+    <div class="card shadow-sm border-0 mb-4 bg-white rounded-3">
+      <div class="card-header bg-white border-bottom border-light-subtle py-3">
+        <h5 class="fw-bold mb-0 " style="font-size:0.95rem;">
+          <i class="bi bi-building text-primary me-1.5"></i>Desglose de Fundamentales por Compañía
+          <i class="bi bi-info-circle text-muted ms-1" style="font-size:.8rem;" title="Verde = bueno · rojo = flojo · sin color = normal. ROIC ≥15 % / <8 % · Crecimiento ≥12 % / <5 % · M. bruto ≥50 % / <25 % · M. oper. ≥20 % / <10 % · PER fwd ≤20x / >35x · PEG ≤1,5 / >2,5 · Yield FCF ≥4 % / <2 % · Deuda/EBITDA ≤1x / >3x. Dividendo y beta, sin color: no son buenos ni malos por sí solos."></i>
+          <span class="small text-muted fw-normal ms-2" style="font-size:.7rem;"><span class="text-success">verde</span> bueno · <span class="text-danger">rojo</span> flojo</span>
+        </h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-modern align-middle mb-0" id="fundamentalsTable" style="font-size:0.85rem;">
+            <thead>
+              <tr class="fund-groups">
+                <th colspan="3" class="text-center"></th>
+                <th colspan="3" class="fund-sep text-center">Calidad</th>
+                <th colspan="1" class="fund-sep text-center">Crecimiento</th>
+                <th colspan="3" class="fund-sep text-center">Valoración</th>
+                <th colspan="1" class="fund-sep text-center">Balance</th>
+                <th colspan="1" class="fund-sep text-center">Accionista</th>
+                <th colspan="1" class="fund-sep text-center">Riesgo</th>
+              </tr>
+              <tr style="cursor: pointer; user-select: none; font-size:0.75rem;">
+                <th class="ps-4" onclick="sortTable('fundamentalsTable', 0, false)">Activo <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="" onclick="sortTable('fundamentalsTable', 1, false)">Compañía <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 2, true)">Peso % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 3, true)">ROIC <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 4, true)">M. bruto <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 5, true)">M. oper. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 6, true)">Crec. NTM <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 7, true)">PER fwd <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 8, true)">PEG <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" onclick="sortTable('fundamentalsTable', 9, true)">Yield FCF <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 10, true)">Deuda/EBITDA <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 11, true)">Yield div. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep pe-4" onclick="sortTable('fundamentalsTable', 12, true)">Beta <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in portfolio %}
+              {% set peso = (item.current_value_eur / total_current_value * 100) if total_current_value > 0 else 0 %}
+              <tr>
+                <td class="ps-4 align-middle">
+                  <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none  fw-bold">{{ clean_ticker(item.ticker) }}</a>
+                </td>
+                <td class="text-muted align-middle text-truncate" style="max-width: 140px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
+                <td class="text-end num-font align-middle fw-semibold" data-sort-value="{{ peso }}">{{ (num(peso, 1) ~ '%') }}</td>
+                <td class="fund-sep text-end num-font align-middle fw-bold {{ ('text-success' if item.roic >= 15 else ('text-danger' if item.roic < 8 else '')) if item.roic is not none else '' }}" data-sort-value="{{ item.roic if item.roic is not none else -100 }}">
+                  {{ (num(item.roic, 1) ~ '%') if item.roic is not none else '—' }}
+                </td>
+                <td class="text-end num-font align-middle {{ ('text-success' if item.gross_margin >= 50 else ('text-danger' if item.gross_margin < 25 else '')) if item.gross_margin is not none else '' }}" data-sort-value="{{ item.gross_margin if item.gross_margin is not none else -100 }}">
+                  {{ (num(item.gross_margin, 1) ~ '%') if item.gross_margin is not none else '—' }}
+                </td>
+                <td class="text-end num-font align-middle {{ ('text-success' if item.operating_margin >= 20 else ('text-danger' if item.operating_margin < 10 else '')) if item.operating_margin is not none else '' }}" data-sort-value="{{ item.operating_margin if item.operating_margin is not none else -100 }}">
+                  {{ (num(item.operating_margin, 1) ~ '%') if item.operating_margin is not none else '—' }}
+                </td>
+                <td class="fund-sep text-end num-font align-middle fw-bold {{ ('text-success' if item.expected_growth >= 12 else ('text-danger' if item.expected_growth < 5 else '')) if item.expected_growth is not none else '' }}" data-sort-value="{{ item.expected_growth if item.expected_growth is not none else -100 }}">
+                  {{ (num(item.expected_growth, 1) ~ '%') if item.expected_growth is not none else '—' }}
+                </td>
+                <td class="fund-sep text-end num-font align-middle fw-semibold {{ ('text-success' if item.forward_pe <= 20 else ('text-danger' if item.forward_pe > 35 else '')) if item.forward_pe is not none else '' }}" data-sort-value="{{ item.forward_pe if item.forward_pe is not none else -100 }}">
+                  {{ num(item.forward_pe, 1) ~ "x" if item.forward_pe is not none else '—' }}
+                </td>
+                <td class="text-end num-font align-middle {{ ('text-success' if item.peg_ratio <= 1.5 else ('text-danger' if item.peg_ratio > 2.5 else '')) if item.peg_ratio is not none else '' }}" data-sort-value="{{ item.peg_ratio if item.peg_ratio is not none else 100 }}">
+                  {{ num(item.peg_ratio, 2) if item.peg_ratio is not none else '—' }}
+                </td>
+                <td class="text-end num-font align-middle fw-semibold {{ ('text-success' if item.fcf_yield >= 4 else ('text-danger' if item.fcf_yield < 2 else '')) if item.fcf_yield is not none else '' }}" data-sort-value="{{ item.fcf_yield if item.fcf_yield is not none else -100 }}">
+                  {{ (num(item.fcf_yield, 1) ~ '%') if item.fcf_yield is not none else '—' }}
+                </td>
+                <td class="fund-sep text-end num-font align-middle fw-semibold {{ ('text-success' if item.net_debt_ebitda <= 1 else ('text-danger' if item.net_debt_ebitda > 3 else '')) if item.net_debt_ebitda is not none else '' }}" data-sort-value="{{ item.net_debt_ebitda if item.net_debt_ebitda is not none else 100 }}">
+                  {{ num(item.net_debt_ebitda, 2) ~ "x" if item.net_debt_ebitda is not none else '—' }}
+                </td>
+                <td class="fund-sep text-end num-font align-middle" data-sort-value="{{ item.dividend_yield if item.dividend_yield is not none else -100 }}">
+                  {{ (num(item.dividend_yield, 2) ~ '%') if item.dividend_yield is not none else '—' }}
+                </td>
+                <td class="pe-4 fund-sep text-end num-font align-middle text-muted" data-sort-value="{{ item.beta if item.beta is not none else -100 }}">
+                  {{ num(item.beta, 2) if item.beta is not none else '—' }}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>

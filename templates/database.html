@@ -486,13 +486,13 @@
                     <thead>
                         <tr style="cursor: pointer;">
                             <th class="ps-3" style="width: 7.5%;" onclick="sortRows(0)"><input type="checkbox" class="form-check-input me-1" id="dbPickAll" title="Seleccionar las visibles" onclick="event.stopPropagation(); dbPickAll(this.checked)">Ticker</th>
-                            <th style="width: 22%;" onclick="sortRows(1)">Nombre</th>
+                            <th style="width: 20%;" onclick="sortRows(1)">Nombre</th>
                             <th class="text-center" style="width: 4%;" onclick="sortRows(2)">País</th>
                             <th style="width: 11.5%;" onclick="sortRows(3)">Sector</th>
                             <th style="width: 11.5%;" onclick="sortRows(4)">Subsector</th>
                             <th class="text-end" style="width: 9%;" onclick="sortRows(5)" title="Capitalización en USD (acciones en circulación × último precio × tipo de cambio) y su categoría">Capitalización</th>
                             <th class="text-end" style="width: 7%;" onclick="sortRows(6)" title="Último precio y, debajo, cuánto se ha movido en su moneda en el periodo">Precio</th>
-                            <th class="text-end" style="width: 6.5%;" onclick="sortRows(7)" title="Variación en %">Var. % <span class="var-header-period"></span></th>
+                            <th class="text-end" style="width: 8.5%;" onclick="sortRows(7)" title="Variación en %">Var. % <span class="var-header-period"></span></th>
                             <th class="text-center" style="width: 4.5%;" onclick="sortRows(8)" title="Nota de las Normas de Calidad (0-10)">Normas</th>
                             <th class="text-center" style="width: 4.5%;" onclick="sortRows(9)" title="Nota del Veredicto Final (0-10)">Verd.</th>
                             <th class="text-center" style="width: 4.5%;" onclick="sortRows(10)" title="Media de Normas y Veredicto">Media</th>
@@ -547,11 +547,11 @@
                                 <div class="var-abs {% if t.market_data.change > 0 %}text-success{% elif t.market_data.change < 0 %}text-danger{% else %}text-muted{% endif %}">{% if t.market_data.change > 0 %}+{% endif %}{{ format_euro(t.market_data.change, 2) }}</div>
                                 {% endif %}
                             </td>
-                            {% if t.market_data.not_open %}
-                            <td class="text-end align-middle var-cell text-muted small" data-sort-value="" data-abs-1d="" data-pct-1d="" data-price="{{ t.market_data.price }}" data-not-open="1"
+                            {% if t.market_data.not_open %}{% set ext = ext_quote(t.name) %}
+                            <td class="text-end align-middle var-cell text-muted small" data-sort-value="{{ t.market_data.last_pct if t.market_data.last_pct is not none else '' }}" data-sort-group="1" data-abs-1d="" data-pct-1d="" data-price="{{ t.market_data.price }}" data-not-open="1"
                                 data-last="{{ num(t.market_data.last_pct, 2, sign=True) }} %"
-                                data-last-pct="{{ t.market_data.last_pct }}" data-last-iso="{{ t.market_data.last_iso }}"
-                                title="Su mercado no ha abierto hoy: es la última sesión ({{ t.market_data.last_date }}). Al ordenar va al final">{{ stale_pill(t.market_data.last_pct, t.market_data.last_iso, day=false) }}</td>
+                                data-last-pct="{{ t.market_data.last_pct }}" data-last-iso="{{ t.market_data.last_iso }}"{% if ext %} data-ext="{{ ext|tojson|forceescape }}"{% endif %}
+                                title="Su mercado no ha abierto hoy: es la última sesión ({{ t.market_data.last_date }}). Al ordenar va después de los abiertos">{{ stale_pill(t.market_data.last_pct, t.market_data.last_iso, day=false, ext=ext) }}</td>
                             {% else %}
                             <td class="text-end align-middle var-cell" data-sort-value="{{ t.market_data.pct }}" data-abs-1d="{{ t.market_data.change }}" data-pct-1d="{{ t.market_data.pct }}" data-price="{{ t.market_data.price }}">{{ chg_pill(t.market_data.pct) }}</td>
                             {% endif %}
@@ -656,9 +656,9 @@
 
         if (period === '1d') {
             document.querySelectorAll('#dbBody td.var-cell').forEach(cell => {
-                if (cell.dataset.notOpen) {   // su mercado no ha abierto hoy: «🌙 –», al final al ordenar
-                    cell.setAttribute('data-sort-value', '');   // vacío: al final, se ordene como se ordene
-                    cell.innerHTML = stalePill(parseFloat(cell.dataset.lastPct), cell.dataset.lastIso, false);
+                if (cell.dataset.notOpen) {   // su mercado no ha abierto hoy: su última sesión, después de los abiertos al ordenar
+                    cell.setAttribute('data-sort-value', cell.dataset.lastPct || ''); cell.dataset.sortGroup = '1';
+                    cell.innerHTML = stalePill(parseFloat(cell.dataset.lastPct), cell.dataset.lastIso, false, cell.dataset.ext ? JSON.parse(cell.dataset.ext) : null);
                     const absEl = cell.closest('tr').querySelector('.var-abs'), la = parseFloat(absEl?.dataset.lastAbs);
                     if (absEl) { absEl.className = 'var-abs opacity-50 ' + (la > 0 ? 'text-success' : la < 0 ? 'text-danger' : 'text-muted');
                                  absEl.innerHTML = isNaN(la) ? '–' : `<i class="bi bi-moon-fill" style="font-size: .55rem;"></i> ${fmtNum(la, 2, true)}`; }
@@ -701,6 +701,7 @@
             const ticker = row.getAttribute('data-ticker');
             const cell = row.querySelector('td.var-cell');
             if (!cell) return;
+            delete cell.dataset.sortGroup;   // otros periodos: sin grupos de abierto / sin abrir
             const pct = data[ticker];
             if (pct === undefined || pct === null) {
                 cell.setAttribute('data-sort-value', '-');
@@ -1050,6 +1051,9 @@
             const cellA = a.cells[col];
             const cellB = b.cells[col];
             
+            // variación del día: primero los que han abierto hoy y luego los que no (data-sort-group), cada grupo por su cuenta
+            const ga = +(cellA.dataset.sortGroup || 0), gb = +(cellB.dataset.sortGroup || 0);
+            if (ga !== gb) return ga - gb;
             const sa = cellA.getAttribute('data-sort-value');
             const sb = cellB.getAttribute('data-sort-value');
             

@@ -18,12 +18,30 @@ RECOVERY_PCT = 5        # se cierra al volver a menos de un 5 % del máximo (no 
 HIGH_WINDOW_DAYS = 365
 AUTO_CLEAN_DAYS = 180   # las alertas se borran solas a los ~6 meses (las caídas abiertas nunca: siguen activas)
 ZONE_MARGIN = 0.5       # pp de CAGR que hay que pasar un límite de zona para cambiar (si no, vaivén en el borde)
+ZONE_COOLDOWN_DAYS = 30  # el mismo cambio de zona de una empresa no vuelve a avisar en 30 días (vaivén lento de semanas)
 REOPEN_DAYS = 30        # una caída que vuelve dentro de este plazo desde el mismo máximo reabre el episodio sin avisar
 
 
 def alert_when(a: Dict[str, Any]) -> str:
     """Fecha de referencia de una alerta: cierre, última actualización o creación."""
     return a.get("closed_date") or a.get("updated") or a.get("date") or ""
+
+
+def drop_repeated_zone_changes(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Quita los cambios de zona que repiten el mismo cambio (empresa, de qué zona a cuál) a menos de ZONE_COOLDOWN_DAYS
+    de uno anterior que se quedó: los que con la pausa de 30 días ya no habrían avisado. Se queda el primero de cada racha."""
+    kept_at: Dict[tuple, datetime] = {}
+    drop = set()
+    vals = sorted((i for i, h in enumerate(history) if h.get("type") == "VALORACIÓN" and h.get("date")), key=lambda i: history[i]["date"])
+    for i in vals:
+        h = history[i]
+        k = (h.get("ticker"), h.get("old_status"), h.get("new_status"))
+        when = datetime.strptime(h["date"][:19], "%Y-%m-%d %H:%M:%S")
+        if k in kept_at and (when - kept_at[k]).days < ZONE_COOLDOWN_DAYS:
+            drop.add(i)
+        else:
+            kept_at[k] = when
+    return [h for i, h in enumerate(history) if i not in drop]
 
 
 def purge_old(history: List[Dict[str, Any]], days: int) -> List[Dict[str, Any]]:
@@ -162,7 +180,13 @@ def run_alerts_scan(
                 # una alerta por empresa y día: si ya cambió hoy, se actualiza esa (desde la zona con la que empezó el día)
                 same_day = next((i for i, h in enumerate(history) if h.get("type") == "VALORACIÓN" and h.get("ticker") == t
                                  and (h.get("date") or "")[:10] == today_str[:10]), None)
-                if same_day is None:
+                # el mismo cambio (de esa zona a esa otra) ya avisó hace menos de ZONE_COOLDOWN_DAYS: no se repite
+                cooldown_from = (datetime.now() - timedelta(days=ZONE_COOLDOWN_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+                repeated = any(h.get("type") == "VALORACIÓN" and h.get("ticker") == t and h.get("old_status") == old_status
+                               and h.get("new_status") == current_status and (h.get("date") or "") >= cooldown_from for h in history)
+                if same_day is None and repeated:
+                    pass
+                elif same_day is None:
                     history.append({"type": "VALORACIÓN", "ticker": t, "company_name": name,
                                     "old_status": old_status, "new_status": current_status, **info, "date": today_str})
                     new_count += 1
@@ -240,7 +264,7 @@ def run_alerts_scan(
             history[entry_idx] = entry
 
     alerts_data["last_zones"] = last_zones
-    alerts_data["history"] = purge_old(history, AUTO_CLEAN_DAYS)
+    alerts_data["history"] = drop_repeated_zone_changes(purge_old(history, AUTO_CLEAN_DAYS))
     alerts_data["drops"] = drops
     cutoff = (now - timedelta(days=REOPEN_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
     alerts_data["drops_closed"] = {k: v for k, v in closed.items() if v.get("closed_date", "") >= cutoff}

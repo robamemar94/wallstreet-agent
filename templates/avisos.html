@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{# Avisos: todas las notificaciones en un sitio (las mismas que la campana, con el mismo leído), en una sola lista por días.
+   A la izquierda, los tipos de aviso con su recuento: pulsar uno enseña solo ese (?tipo=…); «Todo», todos menos los
+   ocultos con el ojo (de serie, «Otros»: los cambios de zona que no van hacia
+   compra), que se recuerdan en este navegador (localStorage). Encima de la lista, sin leer / todos, cartera / seguimiento
+   y el buscador (código, nombre o texto, sin tildes), en la dirección. Sin scroll de página: la lista tiene el suyo.
+   Al abrirse, recalcula en segundo plano los avisos del Centro y de la Watchlist (sin IA) y refresca la lista
+   (/avisos/lista devuelve _avisos_list.html). #}
+{% block title %}Alpha-Flow · Avisos{% endblock %}
+{% block content %}
+<style>
+    .av-wrap { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 1rem; }
+    @media (max-width: 991px) { .av-wrap { grid-template-columns: 1fr; } }
+    .av-side-h { font-size: .64rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--bs-secondary-color); margin: 0 0 .35rem .55rem; }
+    .av-filters { display: flex; flex-direction: column; gap: 1px; }
+    .av-filter { display: flex; align-items: center; gap: .6rem; padding: .4rem .55rem; border-radius: 7px; color: var(--bs-body-color); cursor: pointer;
+                 font-size: .82rem; user-select: none; white-space: nowrap; }
+    .av-filter:hover { background: rgba(127, 127, 127, .09); }
+    .av-filter.active { background: rgba(59, 130, 246, .16); color: #8ab4ff; font-weight: 600; }
+    .av-filter > .bi:first-child { width: 1rem; text-align: center; opacity: .85; }
+    .av-filter .av-n { margin-left: auto; font-size: .7rem; font-weight: 700; min-width: 1.5rem; text-align: center; border-radius: 1rem; padding: 0 .4rem;
+                       color: var(--bs-secondary-color); }
+    .av-filter .av-n.hot { background: #3b82f6; color: #fff; }
+    .av-filter .av-eye { border: 0; background: transparent; color: var(--bs-secondary-color); padding: 0 .15rem; font-size: .8rem; opacity: 0; line-height: 1; }
+    .av-filter:hover .av-eye { opacity: .8; }
+    .av-filter .av-eye:hover { opacity: 1; color: var(--bs-body-color); }
+    .av-filter.hidden-type { color: var(--bs-secondary-color); }
+    .av-filter.hidden-type:not(.active) > :not(.av-eye) { opacity: .55; }
+    .av-filter.hidden-type .av-eye { opacity: .7; }
+    .av-filter-all { font-weight: 600; margin-bottom: .25rem; border-bottom: 1px solid var(--bs-border-color-translucent); border-radius: 7px 7px 0 0; }
+    .av-hint { font-size: .68rem; color: var(--bs-secondary-color); margin: .6rem .55rem 0; line-height: 1.35; }
+    .av-seg { display: flex; gap: 2px; background: var(--bs-secondary-bg); border-radius: 7px; padding: 2px; }
+    .av-seg button { border: 0; background: transparent; color: var(--bs-secondary-color); font-size: .74rem; font-weight: 600; padding: .22rem .6rem; border-radius: 5px; white-space: nowrap; }
+    .av-seg button.active { background: var(--bs-body-bg); color: var(--bs-body-color); box-shadow: 0 1px 2px rgba(0, 0, 0, .2); }
+    .av-card { background: var(--fin-card-bg, var(--bs-tertiary-bg)); border-radius: 10px; border: 1px solid var(--bs-border-color-translucent); min-width: 0; }
+    .av-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; padding: .55rem .9rem; border-bottom: 1px solid var(--bs-border-color-translucent); font-size: .8rem; }
+    .av-toolbar .form-control { width: 10rem; }
+    .av-list { overflow-y: auto; position: relative; }
+    .av-day { position: sticky; top: 0; z-index: 1; padding: .35rem .9rem; font-size: .66rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+              color: var(--bs-secondary-color); background: var(--fin-card-bg, var(--bs-tertiary-bg)); border-bottom: 1px solid var(--bs-border-color-translucent); }
+    .av-row { display: grid; grid-template-columns: 8px 32px minmax(0, 1fr) 3rem 3rem; align-items: center; column-gap: .7rem; padding: .55rem .9rem;
+              border-bottom: 1px solid var(--bs-border-color-translucent); }
+    .av-row:hover { background: rgba(127, 127, 127, .06); }
+    .av-dot { width: 7px; height: 7px; border-radius: 50%; background: transparent; }
+    .av-unread .av-dot { background: #3b82f6; }
+    .av-icon { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: .95rem; --c: #64748b;
+               color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); }
+    .av-green { --c: var(--fin-green, #16a34a); } .av-purple { --c: #a78bfa; } .av-blue { --c: #60a5fa; } .av-amber { --c: #f59e0b; }
+    .av-slate { --c: #94a3b8; } .av-grey { --c: #9ca3af; } .av-teal { --c: #2dd4bf; } .av-icon.av-red { --c: var(--fin-red, #dc2626); }
+    .av-main { min-width: 0; color: var(--bs-body-color); text-decoration: none; display: flex; flex-direction: column; gap: .1rem; }
+    .av-head { display: flex; align-items: center; gap: .45rem; min-width: 0; }
+    .av-ticker { font-weight: 700; font-size: .84rem; }
+    .av-ticker-gen { font-weight: 600; color: var(--bs-secondary-color); }
+    .av-name { font-size: .74rem; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14rem; }
+    .av-origin { font-size: .62rem; font-weight: 700; border-radius: 4px; padding: 0 .35rem; text-transform: uppercase; letter-spacing: .03em; }
+    .av-origin-cartera { color: #60a5fa; background: rgba(96, 165, 250, .14); } .av-origin-seguimiento { color: #9ca3af; background: rgba(156, 163, 175, .14); }
+    .av-kind { font-size: .7rem; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .av-text { font-size: .8rem; color: var(--bs-secondary-color); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .av-unread .av-text { color: var(--bs-body-color); }
+    .av-date { font-size: .72rem; color: var(--bs-secondary-color); white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; }
+    .av-actions { display: flex; gap: .55rem; justify-content: flex-end; opacity: 0; transition: opacity .15s; }
+    .av-row:hover .av-actions { opacity: 1; }
+    .av-actions .btn { color: var(--bs-secondary-color); font-size: .9rem; line-height: 1; }
+    .av-actions .btn:hover { color: var(--bs-body-color); }
+    .av-actions [data-act="dismiss"]:hover { color: var(--fin-red, #dc2626); }
+    .av-empty { display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: 3rem 1rem; color: var(--bs-secondary-color); }
+    .av-empty .bi { font-size: 2rem; color: var(--fin-green, #16a34a); }
+    .av-sync { font-size: .72rem; color: var(--bs-secondary-color); }
+    .av-jump { display: flex; gap: .3rem; padding: .35rem .9rem; border-bottom: 1px solid var(--bs-border-color-translucent); }
+    .av-jump button { border: 0; background: transparent; color: var(--bs-secondary-color); font-size: .72rem; font-weight: 600; padding: .1rem .55rem; border-radius: 1rem; }
+    .av-jump button:hover:not(:disabled) { background: rgba(127, 127, 127, .12); color: var(--bs-body-color); }
+    .av-jump button.current { background: rgba(59, 130, 246, .16); color: #8ab4ff; }
+    .av-jump button:disabled { opacity: .35; cursor: default; }
+    .av-live { font-size: .62rem; font-weight: 700; border-radius: 4px; padding: 0 .35rem; color: #2dd4bf; background: rgba(45, 212, 191, .13); white-space: nowrap; cursor: default; }
+    .av-more { border: 0; border-radius: 4px; padding: 0 .35rem; font-size: .66rem; font-weight: 700; color: var(--bs-body-color); background: var(--bs-secondary-bg); }
+    .av-more:hover, .av-more.open { background: #3b82f6; color: #fff; }
+    .av-older { display: flex; flex-direction: column; gap: .1rem; margin-top: .3rem; padding-left: .6rem; border-left: 2px solid var(--bs-border-color); font-size: .74rem; color: var(--bs-secondary-color); }
+    .av-older b { font-weight: 600; margin-right: .35rem; font-variant-numeric: tabular-nums; }
+</style>
+
+<div class="container-fluid py-3">
+    <div class="d-flex align-items-end flex-wrap gap-2 mb-3">
+        <div>
+            <h4 class="fw-bold mb-0"><i class="bi bi-bell me-2 text-primary"></i>Avisos</h4>
+            <div class="text-muted small">Lo que pasa en tu cartera y en lo que sigues, en un sitio. Elige a la izquierda qué tipos ver; lo que leas o descartes aquí queda así en todas partes.</div>
+        </div>
+        <span class="ms-auto av-sync" id="avSync"><span class="spinner-border spinner-border-sm me-1"></span>Comprobando avisos nuevos…</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary py-0" id="avRefresh" title="Volver a comprobar los avisos (cartera y watchlist, sin IA)"><i class="bi bi-arrow-clockwise"></i></button>
+    </div>
+
+    <div class="av-wrap">
+        <aside>
+            <div class="av-side-h">Qué ver</div>
+            <div class="av-filters" id="avFilters">
+                <div class="av-filter av-filter-all" data-filter="" title="Todos los tipos, menos los que ocultes con el ojo"><i class="bi bi-inbox"></i>Todo<span class="av-n"></span></div>
+                {% for f in filters %}
+                <div class="av-filter" data-filter="{{ f.key }}" data-default="{{ '1' if f.on }}" title="Ver solo: {{ f.label|lower }}">
+                    <i class="bi {{ f.icon }}"></i><span>{{ f.label }}</span><span class="av-n"></span>
+                    <button type="button" class="av-eye" data-eye title="Ocultar de «Todo» (o volver a mostrarlo)"><i class="bi bi-eye"></i></button></div>
+                {% endfor %}
+            </div>
+            <div class="av-hint">Pulsa un tipo para ver solo ese. Con el ojo lo quitas de «Todo»: de serie, «Otros» (cambios de zona que no van hacia compra y recuperaciones). Las noticias, en el resumen semanal. «×N»: la misma empresa avisó N veces (púlsalo para verlas).</div>
+        </aside>
+        <section class="av-card d-flex flex-column" style="min-height: 0;">
+            <div class="av-toolbar">
+                <div class="av-seg" id="avShow">
+                    <button type="button" class="active" data-show="vigentes" title="Lo que hoy sigue pidiendo algo (zona de compra, previsiones, resultados, decisiones…). Pasa el ratón por «vigente» para ver hasta cuándo">Vigentes</button>
+                    <button type="button" data-show="unread">Sin leer</button>
+                    <button type="button" data-show="all" title="También lo pasado: cambios de zona, caídas cerradas, señales que ya terminaron">Todo</button>
+                </div>
+                <div class="av-seg" id="avOrigin">
+                    <button type="button" class="active" data-origin="">Todas</button>
+                    <button type="button" data-origin="cartera" title="Las que tienes en cartera (y los avisos generales)">Cartera</button>
+                    <button type="button" data-origin="seguimiento" title="Watchlist, Tier 1-3 y listas que sigues">Seguimiento</button>
+                </div>
+                <input type="search" class="form-control form-control-sm" id="avSearch" placeholder="Buscar…" title="Busca por código, nombre de la empresa o texto del aviso (sin importar tildes ni mayúsculas)">
+                <span id="avCount" class="fw-semibold ms-auto"></span>
+                <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" id="avReadAll" title="Marcar como leídos los avisos que se ven con estos filtros"><i class="bi bi-check2-all me-1"></i>Leídos</button>
+            </div>
+            {# índice de días: saltar a esa parte de la lista (no filtra) #}
+            <div class="av-jump" id="avJump">{% for d in ['Hoy', 'Ayer', 'Esta semana', 'Este mes', 'Antes'] %}<button type="button" data-jump="{{ d }}">{{ d }}</button>{% endfor %}</div>
+            <div class="av-list" id="avList" data-fit="260">{% include "_avisos_list.html" %}</div>
+        </section>
+    </div>
+</div>
+
+<script>
+(() => {
+    const list = document.getElementById('avList');
+    const FILTERS_KEY = 'avisos_grupos_off_v3';   // preferencia fija del navegador: los grupos ocultos (v2: con los 7 grupos)
+    const defaults = [...document.querySelectorAll('#avFilters [data-filter]:not([data-filter=""])')].filter(b => !b.dataset.default).map(b => b.dataset.filter);
+    let off;
+    try { off = JSON.parse(localStorage.getItem(FILTERS_KEY)); } catch (e) { off = null; }
+    off = new Set((Array.isArray(off) ? off : defaults).filter(Boolean));
+    const st = {origin: '', show: 'vigentes', q: '', type: ''};
+    // sin leer / todos, empresas y búsqueda, en la dirección (antes del primer filtrado)
+    let userShow = window.urlState && urlState.get('ver');
+    if (window.urlState) { st.origin = urlState.get('empresas') || ''; st.show = {todo: 'all', todos: 'all', 'sin-leer': 'unread'}[userShow] || 'vigentes'; st.q = urlState.get('q') || ''; st.type = urlState.get('tipo') || ''; }
+    document.getElementById('avSearch').value = st.q;
+    // sin nada sin leer (y sin elegirlo en la dirección): se abre en «Todos», para no enseñar una lista vacía
+    const autoShow = () => {};   // de serie, «Vigentes»: nunca está vacío sin motivo (lo pasado, en «Todo»)
+    const fold = t => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const rows = () => [...list.querySelectorAll('.av-row')];
+    const passOrigin = r => !st.origin || r.dataset.origin === st.origin || (st.origin === 'cartera' && r.dataset.origin === 'general');
+    const passShow = r => st.show === 'all' || (st.show === 'unread' ? !r.dataset.read : !!r.dataset.vigente);
+    const passQ = r => !st.q || fold(st.q).split(/\s+/).every(w => r.dataset.q.includes(w));
+    const apply = () => {
+        let n = 0;
+        rows().forEach(r => {
+            const ok = (st.type ? r.dataset.filter === st.type : !off.has(r.dataset.filter)) && passOrigin(r) && passShow(r) && passQ(r);
+            r.classList.toggle('d-none', !ok); if (ok) n++;
+        });
+        list.querySelectorAll('.av-day').forEach(h => h.classList.toggle('d-none', !rows().some(r => r.dataset.day === h.dataset.day && !r.classList.contains('d-none'))));
+        list.querySelector('.av-empty')?.classList.toggle('d-none', n > 0);
+        document.getElementById('avCount').textContent = `${n} aviso${n === 1 ? '' : 's'}${st.show === 'unread' ? ' sin leer' : st.show === 'vigentes' ? ' vigente' + (n === 1 ? '' : 's') : ''}`;
+        // cada interruptor: cuántos tiene con los demás filtros (sin leer / todos, empresas, búsqueda)
+        document.querySelectorAll('#avFilters [data-filter]').forEach(b => {
+            const k = b.dataset.filter, mine = r => k ? r.dataset.filter === k : !off.has(r.dataset.filter);
+            const c = rows().filter(r => mine(r) && passOrigin(r) && passShow(r) && passQ(r)).length;
+            const unread = rows().some(r => mine(r) && !r.dataset.read && passOrigin(r));
+            const el = b.querySelector('.av-n'); el.textContent = c || ''; el.classList.toggle('hot', unread && st.show !== 'all');
+            b.classList.toggle('active', k === st.type);
+            if (k) {
+                b.classList.toggle('hidden-type', off.has(k));
+                const eye = b.querySelector('.av-eye');
+                eye.innerHTML = `<i class="bi ${off.has(k) ? 'bi-eye-slash' : 'bi-eye'}"></i>`;
+                eye.title = off.has(k) ? 'Volver a mostrarlo en «Todo»' : 'Ocultarlo de «Todo»';
+            }
+        });
+        document.querySelectorAll('#avOrigin button').forEach(b => b.classList.toggle('active', b.dataset.origin === st.origin));
+        document.querySelectorAll('#avShow button').forEach(b => b.classList.toggle('active', b.dataset.show === st.show));
+        // índice de días: solo los que tienen algo con estos filtros
+        document.querySelectorAll('#avJump [data-jump]').forEach(b => b.disabled = !list.querySelector(`.av-day[data-day="${b.dataset.jump}"]:not(.d-none)`));
+        markJump();
+        window.fitAll && fitAll();
+    };
+    const saveOff = () => { try { localStorage.setItem(FILTERS_KEY, JSON.stringify([...off])); } catch (e) {} };
+    const save = () => window.urlState && urlState.set({empresas: st.origin, ver: {all: 'todo', unread: 'sin-leer'}[st.show] || '', q: st.q, tipo: st.type});
+    // saltar a un día; el botón del día que se ve arriba de la lista queda marcado al desplazarse
+    document.getElementById('avJump').addEventListener('click', e => {
+        const b = e.target.closest('[data-jump]'); if (!b || b.disabled) return;
+        const h = list.querySelector(`.av-day[data-day="${b.dataset.jump}"]:not(.d-none)`);
+        if (h) list.scrollTo({top: dayTop(h), behavior: 'smooth'});
+    });
+    // dónde empieza un día en la lista: la cabecera es «pegajosa» (su offsetTop es donde está pegada), así que se mide
+    // con la primera línea visible de ese día
+    const dayTop = h => {
+        const first = [...list.querySelectorAll(`.av-row[data-day="${h.dataset.day}"]`)].find(r => !r.classList.contains('d-none'));
+        return first ? Math.max(0, first.offsetTop - h.offsetHeight) : 0;
+    };
+    function markJump() {
+        const heads = [...list.querySelectorAll('.av-day:not(.d-none)')];
+        const cur = heads.filter(h => dayTop(h) <= list.scrollTop + 5).pop() || heads[0];
+        document.querySelectorAll('#avJump [data-jump]').forEach(b => b.classList.toggle('current', !!cur && b.dataset.jump === cur.dataset.day));
+    }
+    list.addEventListener('scroll', () => requestAnimationFrame(markJump), {passive: true});
+    // pulsar un tipo: ver solo ese (otra vez, o «Todo»: volver a todos); el ojo: quitarlo o devolverlo a «Todo»
+    document.getElementById('avFilters').addEventListener('click', e => {
+        const b = e.target.closest('[data-filter]'); if (!b) return;
+        if (e.target.closest('[data-eye]')) {
+            const k = b.dataset.filter; off.has(k) ? off.delete(k) : off.add(k); saveOff();
+        } else st.type = st.type === b.dataset.filter ? '' : b.dataset.filter;
+        save(); apply();
+    });
+    document.getElementById('avOrigin').addEventListener('click', e => { const b = e.target.closest('[data-origin]'); if (b) { st.origin = b.dataset.origin; save(); apply(); } });
+    document.getElementById('avShow').addEventListener('click', e => { const b = e.target.closest('[data-show]'); if (b) { st.show = b.dataset.show; userShow = b.dataset.show; save(); apply(); } });
+    document.getElementById('avSearch').addEventListener('input', e => { st.q = e.target.value.trim(); save(); apply(); });
+    // leído / no leído, descartar y abrir (abrir lo marca como leído)
+    const setRead = (r, read) => {
+        r.dataset.read = read ? '1' : ''; r.classList.toggle('av-unread', !read);
+        const b = r.querySelector('[data-act="read"]');
+        if (b) { b.title = read ? 'Marcar como no leído' : 'Marcar como leído'; b.innerHTML = `<i class="bi ${read ? 'bi-envelope' : 'bi-check2'}"></i>`; }
+    };
+    list.addEventListener('click', async e => {
+        const r = e.target.closest('.av-row'); if (!r) return;
+        const act = e.target.closest('[data-act]'), keys = JSON.parse(r.dataset.keys || '[]');
+        if (act && act.dataset.act === 'more') {   // los anteriores de la misma empresa (sin abrir el enlace)
+            e.preventDefault(); act.classList.toggle('open'); r.querySelector('.av-older')?.classList.toggle('d-none'); window.fitAll && fitAll();
+        } else if (act && act.dataset.act === 'read') {
+            const read = !r.dataset.read; setRead(r, read);
+            window.markNotificationsRead({keys, read}); apply();
+        } else if (act && act.dataset.act === 'dismiss') {
+            r.style.opacity = .4;
+            const res = await fetch('/api/notices/dismiss', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({keys: JSON.parse(r.dataset.dismiss || '[]'), seen: true})});
+            if (res.ok) { r.remove(); window.refreshNotificationBadges && refreshNotificationBadges(); apply(); } else r.style.opacity = 1;
+        } else if (e.target.closest('[data-open]') && !r.dataset.read) {
+            setRead(r, true); window.markNotificationsRead({keys, read: true});
+        }
+    });
+    // leído desde la campana, la Bandeja de hoy u otra pestaña: se repinta sin recargar
+    document.addEventListener('notif-read', e => {
+        const {keys, read} = e.detail;
+        rows().forEach(r => { if (JSON.parse(r.dataset.keys || '[]').some(k => keys.includes(k)) && !!r.dataset.read !== read) setRead(r, read); });
+        apply();
+    });
+    document.getElementById('avReadAll').addEventListener('click', () => {
+        const vis = rows().filter(r => !r.classList.contains('d-none') && !r.dataset.read);
+        const keys = vis.flatMap(r => JSON.parse(r.dataset.keys || '[]'));
+        if (!keys.length) return;
+        vis.forEach(r => setRead(r, true));
+        window.markNotificationsRead({keys, read: true}); apply();
+    });
+    // al abrir (y con el botón): recalcular los avisos de cartera y watchlist (sin IA) y refrescar la lista
+    const sync = document.getElementById('avSync');
+    const refresh = () => {
+        sync.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Comprobando avisos nuevos…';
+        Promise.allSettled([fetch('/mercado/centro'), fetch('/watchlist/tabla')])
+            .then(() => fetch('/avisos/lista')).then(r => r.text()).then(html => {
+                const scroll = list.scrollTop; list.innerHTML = html; list.scrollTop = scroll; autoShow(); apply();
+                window.refreshNotificationBadges && refreshNotificationBadges();
+                const t = new Date();
+                sync.textContent = `Al día · ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+            }).catch(() => { sync.textContent = 'No se pudieron comprobar los avisos nuevos'; });
+    };
+    document.getElementById('avRefresh').addEventListener('click', refresh);
+    autoShow(); apply();
+    refresh();
+})();
+</script>
+{% endblock %}

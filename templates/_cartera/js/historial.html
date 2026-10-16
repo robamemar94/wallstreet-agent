@@ -1,0 +1,391 @@
+function exportTableToCSV(tableId, filename) {
+        const table = document.getElementById(tableId);
+        if (!table) return;
+        const rows = Array.from(table.querySelectorAll('tr'));
+        
+        let csvContent = "";
+        rows.forEach(row => {
+            const cols = Array.from(row.querySelectorAll('th, td'));
+            const data = cols.map(col => {
+                let text = col.innerText.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""').trim();
+                return `"${text}"`;
+            });
+            // Si la última columna es "Ajustes", no la exportamos
+            if(data.length > 0 && cols[cols.length - 1].innerText === 'Ajustes' || (cols[cols.length - 1].querySelector('button'))) {
+                data.pop();
+            }
+            csvContent += data.join(",") + "\n";
+        });
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // ── Historial P&L Filtering, KPI Calculation, and Pagination ──────────────
+    let closedTxPageState = 1;
+    let CLOSED_TX_PER_PAGE = 10;
+
+    function applyHistFilters(resetPage = true) {
+        if (resetPage) {
+            closedTxPageState = 1;
+        }
+        CLOSED_TX_PER_PAGE = rowsPerPage('closedTable', CLOSED_TX_PER_PAGE);   // sin scroll: las filas que caben
+
+        const fromVal = document.getElementById('histDateFrom').value;
+        const toVal = document.getElementById('histDateTo').value;
+        const query = document.getElementById('closedTxSearch')?.value.toLowerCase() || '';
+        const typeFilter = document.getElementById('histTypeFilter')?.value || 'all';
+
+        // Interpret dates in local time to avoid timezone offset shifts
+        const parseLocalDate = (dateStr) => {
+            if (!dateStr) return null;
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return null;
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        };
+
+        const dateFrom = parseLocalDate(fromVal);
+        const dateTo = parseLocalDate(toVal);
+
+        const rows = document.querySelectorAll('.hist-row');
+        let totalGains = 0;
+        let totalLosses = 0;
+        let totalDividends = 0;
+
+        const matchingRows = [];
+
+        rows.forEach(row => {
+            const dateStr = row.getAttribute('data-date');
+            const type = row.getAttribute('data-type');
+            const pnl = parseFloat(row.getAttribute('data-pnl') || '0');
+            const rowDate = parseLocalDate(dateStr);
+            const ticker = row.cells[2].innerText.toLowerCase();
+
+            let matches = true;
+            if (dateFrom && rowDate && rowDate < dateFrom) matches = false;
+            if (dateTo && rowDate && rowDate > dateTo) matches = false;
+            if (query && !ticker.includes(query)) matches = false;
+            if (typeFilter !== 'all' && type !== typeFilter) matches = false;
+
+            if (matches) {
+                matchingRows.push(row);
+                
+                // Calcular KPIs solo para las filas filtradas
+                if (type === 'VENTA') {
+                    if (pnl >= 0) {
+                        totalGains += pnl;
+                    } else {
+                        totalLosses += pnl; // is negative
+                    }
+                } else if (type === 'DIVIDENDO') {
+                    totalDividends += pnl;
+                }
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // Aplicar paginación sobre las filas que coinciden
+        const total = matchingRows.length;
+        const pages = Math.ceil(total / CLOSED_TX_PER_PAGE) || 1;
+        closedTxPageState = Math.min(pages, Math.max(1, closedTxPageState));
+        
+        const start = (closedTxPageState - 1) * CLOSED_TX_PER_PAGE;
+        
+        matchingRows.forEach((row, i) => {
+            if (i >= start && i < start + CLOSED_TX_PER_PAGE) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // Actualizar controles de paginación
+        const info = document.getElementById('closedTxPageInfo');
+        if (info) info.textContent = `Pág. ${closedTxPageState} / ${pages}`;
+
+        // Calcular total e inflar los KPIs
+        const totalNet = totalGains + totalLosses + totalDividends;
+        document.getElementById('histGains').innerText = formatCurrency(totalGains);
+        document.getElementById('histLosses').innerText = formatCurrency(totalLosses);
+        document.getElementById('histDividends').innerText = formatCurrency(totalDividends);
+        
+        const netEl = document.getElementById('histNet');
+        if (netEl) {
+            netEl.innerText = formatCurrency(totalNet);
+            netEl.className = 'fw-bold ' + (totalNet >= 0 ? 'text-success' : 'text-danger');
+        }
+    }
+
+    function closedTxPage(delta) {
+        const rows = document.querySelectorAll('.hist-row');
+        const fromVal = document.getElementById('histDateFrom').value;
+        const toVal = document.getElementById('histDateTo').value;
+        const query = document.getElementById('closedTxSearch')?.value.toLowerCase() || '';
+        const typeFilter = document.getElementById('histTypeFilter')?.value || 'all';
+
+        const parseLocalDate = (dateStr) => {
+            if (!dateStr) return null;
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return null;
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        };
+
+        const dateFrom = parseLocalDate(fromVal);
+        const dateTo = parseLocalDate(toVal);
+
+        const matchingCount = Array.from(rows).filter(row => {
+            const dateStr = row.getAttribute('data-date');
+            const rowDate = parseLocalDate(dateStr);
+            const ticker = row.cells[2].innerText.toLowerCase();
+            const type = row.getAttribute('data-type');
+            
+            let matches = true;
+            if (dateFrom && rowDate && rowDate < dateFrom) matches = false;
+            if (dateTo && rowDate && rowDate > dateTo) matches = false;
+            if (query && !ticker.includes(query)) matches = false;
+            if (typeFilter !== 'all' && type !== typeFilter) matches = false;
+            return matches;
+        }).length;
+
+        const pages = Math.ceil(matchingCount / CLOSED_TX_PER_PAGE) || 1;
+        closedTxPageState = Math.min(pages, Math.max(1, closedTxPageState + delta));
+        
+        applyHistFilters(false); // Llamamos con false para no resetear a la pag 1
+    }
+
+    // ── Filtros Avanzados para Posiciones Cerradas ──────────────────────────
+    let closedPnlFilterState = 'all';
+
+    function setClosedPnlFilter(type) {
+        closedPnlFilterState = type;
+        const btns = ['all', 'profit', 'loss'];
+        btns.forEach(b => {
+            const el = document.getElementById('pnlFilter-' + b);
+            if (el) {
+                if (b === type) {
+                    el.classList.remove('btn-outline-secondary');
+                    el.classList.add('btn-dark');
+                } else {
+                    el.classList.remove('btn-dark');
+                    el.classList.add('btn-outline-secondary');
+                }
+            }
+        });
+        closedPosPageState = 1; // reset page to 1
+        filterClosedPositions();
+    }
+
+    function filterClosedPositions() {
+        const query = document.getElementById('closedPosSearch')?.value.toLowerCase() || '';
+        const rows = document.querySelectorAll('.closed-pos-row');
+        
+        // 1. Filtrar las filas por búsqueda de texto y ganancias/pérdidas
+        const matchingRows = [];
+        rows.forEach(row => {
+            const ticker = row.cells[0].innerText.toLowerCase();
+            const company = row.cells[1].innerText.toLowerCase();
+            
+            // Obtener el P&L numérico para ver si es positivo o negativo (está en la columna 9)
+            const pnlVal = parseFloat(row.cells[9].getAttribute('data-sort-value') || '0');
+
+            let matchesText = ticker.includes(query) || company.includes(query);
+            let matchesPnl = true;
+            if (closedPnlFilterState === 'profit' && pnlVal < 0) matchesPnl = false;
+            if (closedPnlFilterState === 'loss' && pnlVal >= 0) matchesPnl = false;
+
+            if (matchesText && matchesPnl) {
+                matchingRows.push(row);
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // 2. Aplicar paginación sobre las que coinciden
+        const total = matchingRows.length;
+        const pages = Math.ceil(total / CLOSED_POS_PER_PAGE) || 1;
+        closedPosPageState = Math.min(pages, Math.max(1, closedPosPageState));
+        
+        const start = (closedPosPageState - 1) * CLOSED_POS_PER_PAGE;
+        matchingRows.forEach((row, i) => {
+            if (i >= start && i < start + CLOSED_POS_PER_PAGE) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        // 3. Actualizar indicador de páginas
+        const info = document.getElementById('closedPosPageInfo');
+        if (info) info.textContent = `Pág. ${closedPosPageState} / ${pages}`;
+    }
+
+    function formatCurrency(val) {
+        return fmtNum(val, 2) + ' €';   // con separador de miles también en 4 cifras (Intl es-ES no lo pone)
+    }
+
+    // Auxiliar de Debouncing para suavizar el filtrado de búsqueda en tiempo real
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+    // Registrar escuchadores de búsqueda con debounce de 300ms cuando el DOM esté cargado
+    document.addEventListener("DOMContentLoaded", function() {
+        const closedPosSearch = document.getElementById('closedPosSearch');
+        if (closedPosSearch) {
+            closedPosSearch.addEventListener('input', debounce(function() {
+                closedPosPageState = 1; // resetear a pág 1 al buscar
+                filterClosedPositions();
+            }, 300));
+        }
+
+        const closedTxSearch = document.getElementById('closedTxSearch');
+        if (closedTxSearch) {
+            closedTxSearch.addEventListener('input', debounce(function() {
+                applyHistFilters(true); // resetear a pág 1 al buscar
+            }, 300));
+        }
+    });
+
+    function setHistPeriod(period) {
+        const today = new Date();
+        let fromDate = null;
+        let toDate = null;
+
+        // Reset all buttons
+        const btns = ['all', 'month', '3m', 'ytd', '1y'];
+        btns.forEach(b => {
+            const el = document.getElementById('histBtn-' + b);
+            if (el) {
+                el.classList.remove('btn-dark');
+                el.classList.add('btn-outline-secondary');
+            }
+        });
+
+        // Set active button
+        const activeBtn = document.getElementById('histBtn-' + period);
+        if (activeBtn) {
+            activeBtn.classList.remove('btn-outline-secondary');
+            activeBtn.classList.add('btn-dark');
+        }
+
+        if (period === 'month') {
+            fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        } else if (period === '3m') {
+            fromDate = new Date();
+            fromDate.setMonth(fromDate.getMonth() - 3);
+        } else if (period === 'ytd') {
+            fromDate = new Date(today.getFullYear(), 0, 1);
+        } else if (period === '1y') {
+            fromDate = new Date();
+            fromDate.setFullYear(fromDate.getFullYear() - 1);
+        }
+
+        // Format Date to YYYY-MM-DD in local time
+        const formatLocalDate = (dateObj) => {
+            if (!dateObj) return '';
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
+
+        document.getElementById('histDateFrom').value = fromDate ? formatLocalDate(fromDate) : '';
+        document.getElementById('histDateTo').value = ''; // usually empty for up-to-now
+
+        applyHistFilters();
+    }
+
+    // Configuración visual de comisiones de Brokers cargadas de la DB
+    const BROKER_SETTINGS = {
+        degiro_fee_eur: {{ settings.get('brokers', {}).get('degiro_fee_eur', 1.0) }},
+        degiro_fee_usd: {{ settings.get('brokers', {}).get('degiro_fee_usd', 1.0) }},
+        degiro_fee_sek: {{ settings.get('brokers', {}).get('degiro_fee_sek', 3.90) }},
+        degiro_autofx_pct: {{ settings.get('brokers', {}).get('degiro_autofx_pct', 0.25) }},
+        ibkr_fee_usd_per_share: {{ settings.get('brokers', {}).get('ibkr_fee_usd_per_share', 0.005) }},
+        ibkr_fee_usd_min: {{ settings.get('brokers', {}).get('ibkr_fee_usd_min', 1.00) }},
+        ibkr_fee_usd_max_pct: {{ settings.get('brokers', {}).get('ibkr_fee_usd_max_pct', 1.0) }},
+        ibkr_autofx_usd_min: {{ settings.get('brokers', {}).get('ibkr_autofx_usd_min', 2.00) }},
+        ibkr_autofx_usd_pct: {{ settings.get('brokers', {}).get('ibkr_autofx_usd_pct', 0.2) }},
+        ibkr_fee_sek_min: {{ settings.get('brokers', {}).get('ibkr_fee_sek_min', 40.0) }},
+        ibkr_fee_sek_pct: {{ settings.get('brokers', {}).get('ibkr_fee_sek_pct', 0.05) }},
+        ibkr_fee_eur_min: {{ settings.get('brokers', {}).get('ibkr_fee_eur_min', 1.25) }},
+        ibkr_fee_eur_pct: {{ settings.get('brokers', {}).get('ibkr_fee_eur_pct', 0.05) }}
+    };
+
+    function calculateEstimatedFee() {
+        const shares = parseFloat(document.getElementById('add-shares').value) || 0;
+        const price = parseFloat(document.getElementById('add-price').value) || 0;
+        const broker = document.getElementById('add-broker').value;
+        const currency = document.getElementById('add-currency').value.toUpperCase();
+
+        if (shares <= 0 || price <= 0) {
+            document.getElementById('add-fee').value = "0.00";
+            return;
+        }
+
+        let estFee = 0;
+        const value = shares * price;
+
+        if (broker === 'DEGIRO') {
+            if (currency === 'EUR') {
+                estFee = BROKER_SETTINGS.degiro_fee_eur;
+            } else if (currency === 'USD') {
+                // Fijo USD convertido a USD + AutoFX
+                const usdRate = 1.08; // fallback aproximado para estimación local
+                estFee = BROKER_SETTINGS.degiro_fee_usd + (BROKER_SETTINGS.degiro_autofx_pct / 100.0) * value;
+            } else if (currency === 'SEK') {
+                estFee = BROKER_SETTINGS.degiro_fee_sek + (BROKER_SETTINGS.degiro_autofx_pct / 100.0) * value;
+            } else {
+                estFee = BROKER_SETTINGS.degiro_fee_eur + (BROKER_SETTINGS.degiro_autofx_pct / 100.0) * value;
+            }
+        } else {
+            // IBKR
+            if (currency === 'USD') {
+                let comm = Math.max(BROKER_SETTINGS.ibkr_fee_usd_min, BROKER_SETTINGS.ibkr_fee_usd_per_share * shares);
+                comm = Math.min(comm, (BROKER_SETTINGS.ibkr_fee_usd_max_pct / 100.0) * value);
+                const fx = Math.max(BROKER_SETTINGS.ibkr_autofx_usd_min, (BROKER_SETTINGS.ibkr_autofx_usd_pct / 100.0) * value);
+                estFee = comm + fx;
+            } else if (currency === 'SEK') {
+                const comm = Math.max(BROKER_SETTINGS.ibkr_fee_sek_min, (BROKER_SETTINGS.ibkr_fee_sek_pct / 100.0) * value);
+                const fx = 22.0; // aprox 2 USD en SEK
+                estFee = comm + fx;
+            } else if (currency === 'EUR') {
+                estFee = Math.max(BROKER_SETTINGS.ibkr_fee_eur_min, (BROKER_SETTINGS.ibkr_fee_eur_pct / 100.0) * value);
+            } else {
+                estFee = Math.max(BROKER_SETTINGS.ibkr_fee_eur_min, (BROKER_SETTINGS.ibkr_fee_eur_pct / 100.0) * value);
+            }
+        }
+
+        document.getElementById('add-fee').value = estFee.toFixed(2);
+    }
+
+    // Inicializar fecha de hoy
+    document.addEventListener("DOMContentLoaded", function() {
+        const dateInput = document.getElementById('add-date');
+        if (dateInput && !dateInput.value) {
+            const today = new Date();
+            const y = today.getFullYear();
+            const m = String(today.getMonth() + 1).padStart(2, '0');
+            const d = String(today.getDate()).padStart(2, '0');
+            dateInput.value = `${y}-${m}-${d}`;
+        }
+    });
+
+    // Run initial KPIs and filters calculation for Historial
+    document.addEventListener("DOMContentLoaded", function() {
+        if (document.getElementById('closedTable')) {
+            applyHistFilters();
+        }
+    });

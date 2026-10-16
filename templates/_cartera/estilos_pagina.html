@@ -1,0 +1,137 @@
+<style>
+    /* Estilos ultra-compactos y profesionales para la página de Mi Portfolio */
+    /* Resumen: dos barras (lo que tienes · variación por periodo) con tramos del mismo estilo; desde 1300px van en una
+       línea (con el menú lateral, ~120 px por cifra). En la de variación, el tramo activo es el que muestra Seguimiento */
+    .summary-strip { display: flex; flex-direction: column; gap: .5rem; }
+    .sum-group { overflow-x: auto; }
+    .sum-row { display: flex; min-width: 560px; height: 100%; }
+    .sum-seg { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0; padding: .3rem .6rem;
+               border: 0; border-right: 1px solid var(--bs-border-color); background: transparent; color: inherit; text-align: left; }
+    .sum-seg:last-child { border-right: 0; }
+    /* Valor actual: el tramo principal, con el cambio de hoy debajo; raya, fondo tenue y cambio en verde o rojo según el día */
+    .sum-seg-key { --key: var(--bs-secondary-color); box-shadow: inset 3px 0 0 var(--key); }
+    .sum-seg-key.key-up { --key: var(--fin-green); background: rgba(34, 197, 94, .06); }
+    .sum-seg-key.key-down { --key: var(--fin-red); background: rgba(239, 68, 68, .06); }
+    .sum-seg-key .key-chg { color: var(--key); white-space: nowrap; }
+    .sum-seg-key .sum-val { font-size: 1.05rem; }
+    .sum-seg-key .key-chg { font-size: .86rem; font-weight: 700; line-height: 1.2; }
+    .sum-seg-key .key-pct { font-size: .74rem; font-weight: 600; }
+    button.sum-seg:hover { background: rgba(127, 127, 127, .08); }
+    .var-band.picking .sum-seg.active { box-shadow: inset 0 -2px 0 var(--bs-primary); background: rgba(127, 127, 127, .06); }
+    .sum-label { font-size: .65rem; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--bs-secondary-color); white-space: nowrap; }
+    .sum-label .bi { font-size: .7rem; cursor: pointer; }
+    .sum-val { font-size: .98rem; font-weight: 700; white-space: nowrap; }
+    .sum-sub { font-size: .72rem; font-weight: 600; }
+    .sum-bench { font-size: .66rem; color: var(--bs-secondary-color); white-space: nowrap; }
+    @media (min-width: 1300px) {
+        .summary-strip { flex-direction: row; }
+        .sum-group { flex: 1 1 0; min-width: 0; }
+        .sum-row { min-width: 0; }
+        .sum-seg { padding: .4rem .55rem; }
+        .sum-val { font-size: .88rem; }
+    }
+    .tab-content {
+        font-size: 0.78rem;
+    }
+    
+    /* Reducir el tamaño de las tarjetas de KPI del Resumen Global */
+    .row-cols-lg-6 .card {
+        border-radius: 4px !important;
+        border: 1px solid var(--fin-border) !important;
+        background-color: var(--fin-card-bg) !important;
+    }
+    .row-cols-lg-6 .card-body {
+        padding: 8px 12px !important;
+    }
+    .row-cols-lg-6 h4 {
+        font-size: 1.05rem !important;
+        font-weight: 700 !important;
+        color: var(--text-primary) !important;
+        font-family: 'SFMono-Regular', Consolas, monospace !important;
+        font-variant-numeric: tabular-nums !important;
+        margin-bottom: 0 !important;
+    }
+    .row-cols-lg-6 h6 {
+        font-size: 0.62rem !important;
+        color: var(--text-secondary) !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.3px !important;
+        margin-bottom: 2px !important;
+    }
+    .row-cols-lg-6 small {
+        font-size: 0.65rem !important;
+    }
+    
+    /* Hacer todas las tablas de portfolio extremadamente compactas */
+    .table-modern {
+        font-size: 0.74rem !important;
+    }
+    .table-modern thead th {
+        font-size: 0.65rem !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.5px !important;
+        padding: 4px 8px !important;
+        background-color: #151821 !important;
+        color: var(--text-secondary) !important;
+        border-bottom: 1px solid var(--fin-border) !important;
+    }
+    .table-modern tbody td {
+        padding: 4px 8px !important;
+        height: 32px !important;
+        border-bottom: 1px solid var(--fin-border) !important;
+    }
+    
+    /* Quitar sombras de las tablas responsivas */
+    .table-responsive {
+        box-shadow: none !important;
+        border: 1px solid var(--fin-border) !important;
+        border-radius: 4px !important;
+        background-color: var(--fin-card-bg) !important;
+    }
+    
+    /* Formato de las pestañas (Tabs) */
+    .nav-tabs {
+        border-bottom: 1px solid var(--fin-border) !important;
+    }
+    .nav-tabs .nav-link {
+        font-size: 0.74rem !important;
+        padding: 4px 10px !important;
+        color: var(--text-secondary) !important;
+        border: none !important;
+        border-bottom: 2px solid transparent !important;
+    }
+    .nav-tabs .nav-link.active {
+        color: var(--fin-green) !important;
+        background: transparent !important;
+        border-bottom: 2px solid var(--fin-green) !important;
+    }
+    
+    /* Compactar los botones de exportar y distribución */
+    .btn-sm {
+        font-size: 0.7rem !important;
+        padding: 2px 6px !important;
+    }
+    
+    /* Ajustes específicos para el modo oscuro en las KPI de colores sólidos */
+    [data-bs-theme="dark"] .bg-success, [data-bs-theme="dark"] .bg-danger, [data-bs-theme="dark"] .bg-light {
+        background-color: var(--fin-card-bg) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--fin-border) !important;
+    }
+    [data-bs-theme="dark"] .bg-success h4, [data-bs-theme="dark"] .bg-success h6,
+    [data-bs-theme="dark"] .bg-danger h4, [data-bs-theme="dark"] .bg-danger h6 {
+        color: inherit !important;
+    }
+    [data-bs-theme="dark"] .bg-success h4 { color: var(--fin-green) !important; }
+    [data-bs-theme="dark"] .bg-danger h4 { color: var(--fin-red) !important; }
+    
+    /* Cambiar estilo de links */
+    .table-modern a {
+        color: var(--text-primary) !important;
+        font-weight: 700 !important;
+    }
+    .table-modern a:hover {
+        color: var(--fin-green) !important;
+    }
+</style>

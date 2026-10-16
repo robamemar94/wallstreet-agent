@@ -7,7 +7,13 @@
 {{ thesis_styles() }}
 <style>
     /* tarjetas compactas: hasta 4 por fila */
-    .thesis-card .card-body { padding: .75rem .85rem; }
+    .thesis-card .card-body { padding: .85rem .95rem; }
+    .thesis-card .thesis-foot { padding-top: .6rem !important; margin-top: .7rem !important; flex-wrap: nowrap !important; white-space: nowrap; gap: .4rem !important; overflow: hidden; }
+    .thesis-card .thesis-foot .bi { margin-right: .2rem !important; }
+    /* nada salta de línea aunque la tarjeta se estreche (barra de scroll con más tesis, ventana más pequeña) */
+    .thesis-card .thesis-title-line { flex-wrap: nowrap !important; min-width: 0; }
+    .thesis-card .thesis-title-line .badge { flex: 0 0 auto; }
+    .thesis-card .thesis-cov { flex-wrap: nowrap; white-space: nowrap; gap: .4rem; }
     .thesis-card .health-num { font-size: 1.35rem; line-height: 1.1; }
     .thesis-card .pillar-row { font-size: .74rem; padding: 1px 0; }
     .thesis-card .border-top.pt-2 { padding-top: .35rem !important; margin-top: .35rem !important; }
@@ -35,17 +41,23 @@
     .pillar-toggle[aria-expanded="true"] .bi { transform: rotate(180deg); }
 </style>
 <input type="file" id="logoInput" accept="image/*" class="d-none">
-<div class="container-fluid py-4">
+<div class="container-fluid py-3">
     {{ centro_tabs('tesis') }}
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
-        <div>
-            <h4 class="fw-bold mb-1"><i class="bi bi-clipboard2-pulse me-2 text-primary"></i>Seguimiento de tesis</h4>
-            <p class="text-muted small mb-0">Cada tesis se mide con sus KPIs. El score solo cuenta los KPIs con dato; la cobertura indica cuántos lo tienen.</p>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div class="d-flex align-items-center flex-wrap gap-3">
+            <h4 class="fw-bold mb-0" title="Cada tesis se mide con sus KPIs. El score solo cuenta los KPIs con dato; la cobertura indica cuántos lo tienen."><i class="bi bi-clipboard2-pulse me-2 text-primary"></i>Seguimiento de tesis</h4>
+        <ul class="nav nav-pills nav-sm mb-0 thesis-group-tabs" role="tablist">
+            <li class="nav-item"><button class="nav-link active py-1 px-3" data-bs-toggle="pill" data-bs-target="#grpCartera" type="button" data-group="cartera">
+                <i class="bi bi-briefcase me-1"></i>Cartera <span class="badge rounded-pill text-bg-secondary ms-1">{{ cards|length }}</span></button></li>
+            <li class="nav-item"><button class="nav-link py-1 px-3" data-bs-toggle="pill" data-bs-target="#grpSeguimiento" type="button" data-group="seguimiento"
+                    title="Empresas que no tienes en cartera: sin radar automático de noticias ni análisis automáticos; los resultados los analizas cuando quieras desde su tesis. Pasan solas a Cartera cuando compras.">
+                <i class="bi bi-binoculars me-1"></i>Seguimiento <span class="badge rounded-pill text-bg-secondary ms-1">{{ tracking_cards|length }}</span></button></li>
+        </ul>
         </div>
         <div class="d-flex gap-2">
             <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#pdfModal"><i class="bi bi-file-earmark-arrow-up me-1"></i>Nueva tesis (PDF o MD)</button>
             <button class="btn btn-outline-secondary btn-sm" id="btnReimport" title="Relee config/theses/*.yaml sin perder observaciones">
-                <i class="bi bi-arrow-repeat me-1"></i>Reimportar YAML
+                <i class="bi bi-arrow-repeat"></i>
             </button>
         </div>
     </div>
@@ -81,7 +93,7 @@
         <div class="col-12 col-md-6 col-xl-4 col-xxl-3">
         <a href="/tesis/{{ t.id }}" class="text-decoration-none text-body">
         <div class="card thesis-card h-100"><div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2 gap-2">
+            <div class="d-flex justify-content-between align-items-start mb-3 gap-2">
                 <div class="d-flex gap-2 align-items-start min-w-0 thesis-head-left">
                     <div class="thesis-logo" title="Cambiar logo">
                         <img src="/logo/{{ t.ticker }}" alt="" loading="lazy" onerror="this.remove()">
@@ -89,7 +101,7 @@
                         <button type="button" class="thesis-logo-upload" aria-label="Subir logo de {{ t.ticker }}" onclick="event.preventDefault(); event.stopPropagation(); pickLogo('{{ t.ticker }}', this)"><i class="bi bi-camera"></i></button>
                     </div>
                 <div class="min-w-0">
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="d-flex align-items-center gap-2 thesis-title-line">
                         <span class="fs-6 fw-bold">{{ t.ticker }}</span>
                         {{ verdict_badge(t.verdict) }}
                         {% if t.status == 'EN_REVISION' %}<span class="badge text-bg-warning">EN REVISIÓN</span>{% endif %}
@@ -108,8 +120,10 @@
             <div class="d-flex align-items-center gap-3 mb-1">
                 <div class="health-num {{ 'st-' ~ ev.health_status if ev.health_status else 'st-none' }}" title="Health score">{{ ev.health_score if ev.health_score is not none else '–' }}</div>
                 <div class="flex-grow-1 min-w-0">
-                    <div class="d-flex justify-content-between small text-muted mb-1">
-                        <span title="KPIs con dato">Cobertura {{ ev.coverage }}%</span>
+                    <div class="d-flex justify-content-between small text-muted mb-1 thesis-cov">
+                        <span><span title="KPIs con dato">Cobertura {{ ev.coverage }}%</span>
+                            <button type="button" class="btn btn-link p-0 ms-1 text-muted text-decoration-none pillar-toggle" aria-expanded="false" title="Ver pasos"
+                                    onclick="event.preventDefault(); event.stopPropagation(); togglePillars(this)"><i class="bi bi-chevron-down"></i></button></span>
                         <span class="font-monospace-data">
                             {{ status_icon('green') }} {{ ev.counts.green }}&nbsp;
                             {{ status_icon('amber') }} {{ ev.counts.amber }}&nbsp;
@@ -127,8 +141,6 @@
                 Kill switch disparado: {{ ev.kill_triggered|map(attribute='name')|join(', ') }}. Revisión recomendada.</div>
             {% endif %}
 
-            <button type="button" class="btn btn-link p-0 text-muted text-decoration-none pillar-toggle" aria-expanded="false"
-                    onclick="event.preventDefault(); event.stopPropagation(); togglePillars(this)">Ver pasos <i class="bi bi-chevron-down"></i></button>
             <div class="border-top pt-2 mt-1 d-none pillar-list">
                 {% for p in ev.pillars %}
                 <div class="pillar-row">
@@ -144,14 +156,12 @@
                 {% if c.position %}<span title="Peso en cartera · {{ format_euro(c.position.value_eur, 0) }} €"><i class="bi bi-briefcase me-1"></i><strong class="text-body">{{ num(c.position.weight, 1) }}%</strong>{% if c.position.pnl_pct is not none %} <span class="{{ 'text-success' if c.position.pnl_pct >= 0 else 'text-danger' }}">{{ num(c.position.pnl_pct, 1, sign=True) }}%</span>{% endif %}</span>
                 {% else %}<span title="No está en cartera"><i class="bi bi-briefcase me-1"></i>–</span>{% endif %}
                 {% set watch = ev.kill_switches|selectattr('state', 'equalto', 'watch')|list %}
-                <span title="Kill switches disparados · en vigilancia"><i class="bi bi-shield-check me-1"></i>{{ ev.kill_triggered|length }} · {{ watch|length }} vig.</span>
+                <span title="Kill switches: {{ ev.kill_triggered|length }} disparados · {{ watch|length }} en vigilancia"><i class="bi bi-shield-check me-1"></i>{{ ev.kill_triggered|length }} · {{ watch|length }}</span>
                 <span title="Próximos resultados"><i class="bi bi-calendar-event me-1"></i>{% if c.next_earnings %}{{ c.next_earnings.strftime('%d/%m') }} ({{ c.days_to_earnings }} d){% else %}sin fecha{% endif %}</span>
+                {% set nitems = (c.news.digest['items'] if c.news.digest else []) or [] %}
+                {% if nitems %}{% set critical = nitems|selectattr('materiality', 'ge', 5)|list %}
+                <span class="{{ 'st-red' if critical else 'st-amber' }}" title="Radar {{ c.news.digest.created_at[8:10] }}/{{ c.news.digest.created_at[5:7] }}: {{ nitems|length }} noticia{{ 's' if nitems|length > 1 }} muy relevante{{ 's' if nitems|length > 1 }}{% if critical %} · {{ critical|length }} puede{{ 'n' if critical|length > 1 }} cambiar la tesis{% endif %}"><i class="bi bi-broadcast me-1"></i>{{ nitems|length }}</span>{% endif %}
             </div>
-            {% if c.news.digest and c.news.digest['items'] %}
-            {% set critical = c.news.digest['items']|selectattr('materiality', 'ge', 5)|list %}
-            <div class="small {{ 'st-amber' if c.news.digest['items'] else 'text-muted' }} mt-1"><i class="bi bi-broadcast me-1"></i>Radar {{ c.news.digest.created_at[:10] }}:
-                {% if c.news.digest['items'] %}{{ c.news.digest['items']|length }} noticia{{ 's' if c.news.digest['items']|length > 1 }} muy relevante{{ 's' if c.news.digest['items']|length > 1 }}{% if critical %} · {{ critical|length }} puede{{ 'n' if critical|length > 1 }} cambiar la tesis{% endif %}{% endif %}</div>
-            {% endif %}
 
         </div></div>
         </a>
@@ -160,13 +170,6 @@
 
     {# Cartera / Seguimiento: según tengas o no acciones de la empresa (no es un estado que se elija). Las de seguimiento
        no tienen radar automático de noticias ni análisis automáticos: los resultados, cuando los pidas. #}
-    <ul class="nav nav-pills nav-sm mb-3 thesis-group-tabs" role="tablist">
-        <li class="nav-item"><button class="nav-link active py-1 px-3" data-bs-toggle="pill" data-bs-target="#grpCartera" type="button" data-group="cartera">
-            <i class="bi bi-briefcase me-1"></i>Cartera <span class="badge rounded-pill text-bg-secondary ms-1">{{ cards|length }}</span></button></li>
-        <li class="nav-item"><button class="nav-link py-1 px-3" data-bs-toggle="pill" data-bs-target="#grpSeguimiento" type="button" data-group="seguimiento"
-                title="Empresas que no tienes en cartera: sin radar automático de noticias ni análisis automáticos; los resultados los analizas cuando quieras desde su tesis. Pasan solas a Cartera cuando compras.">
-            <i class="bi bi-binoculars me-1"></i>Seguimiento <span class="badge rounded-pill text-bg-secondary ms-1">{{ tracking_cards|length }}</span></button></li>
-    </ul>
     <div class="tab-content">
         <div class="tab-pane fade show active" id="grpCartera" data-fit data-fit-snap=".row > [class*=col]">
             <div class="row g-3">{% for c in cards %}{{ thesis_card(c) }}{% else %}<div class="col-12 small text-muted">Ninguna tesis de empresas en cartera.</div>{% endfor %}</div>
@@ -278,12 +281,12 @@ document.getElementById('logoInput').addEventListener('change', async e => {
 });
 </script>
 <script>
-// «Ver pasos»: despliega el detalle de los pasos de una tarjeta (la tarjeta entera es un enlace a la tesis)
+// «Ver pasos» (la flechita junto a la cobertura): despliega el detalle de los pasos de una tarjeta (la tarjeta entera es un enlace a la tesis)
 function togglePillars(btn) {
     const open = btn.getAttribute('aria-expanded') !== 'true';
     btn.setAttribute('aria-expanded', open);
-    btn.firstChild.textContent = open ? 'Ocultar pasos ' : 'Ver pasos ';
-    btn.nextElementSibling.classList.toggle('d-none', !open);
+    btn.title = open ? 'Ocultar pasos' : 'Ver pasos';
+    btn.closest('.card-body').querySelector('.pillar-list').classList.toggle('d-none', !open);
 }
 </script>
 {% endblock %}

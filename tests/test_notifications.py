@@ -38,12 +38,12 @@ def test_panel_collects_alerts_news_and_notices_and_marks_them_read():
     items = notification_service.collect(db, theses, notices)
     assert {i["group"] for i in items} == {"alertas", "noticias", "avisos", "monitor"}
     assert all(i["ticker"] != "BBB" for i in items)                      # las heredadas silenciosas no salen
-    # nada en cartera: se ven las 3, pero no cuentan en el globo
-    assert notification_service.unread_counts(items) == {"total": 0, "alertas": 0, "noticias": 0, "avisos": 0, "monitor": 0, "all": 4, "alertas_all": 1, "quiet": 4}
+    # nada en cartera: se ven, pero no cuentan en el globo; la noticia suelta no avisa (va en el resumen semanal)
+    assert notification_service.unread_counts(items) == {"total": 0, "alertas": 0, "noticias": 0, "avisos": 0, "monitor": 0, "all": 3, "alertas_all": 1, "quiet": 3, "pendientes": 2}
     from app.infrastructure.db.models import DBAsset, DBPortfolioItem
     db.add(DBAsset(ticker="AAA", data={})); db.add(DBPortfolioItem(ticker="AAA", shares=10)); db.commit()
     items = notification_service.collect(db, theses, notices)
-    assert notification_service.unread_counts(items) == {"total": 3, "alertas": 1, "noticias": 1, "avisos": 0, "monitor": 1, "all": 4, "alertas_all": 1, "quiet": 1}
+    assert notification_service.unread_counts(items) == {"total": 2, "alertas": 1, "noticias": 0, "avisos": 0, "monitor": 1, "all": 3, "alertas_all": 1, "quiet": 1, "pendientes": 2}
     notification_service.mark_read(db, theses, notices, [i["key"] for i in items])
     assert notification_service.unread_counts(notification_service.collect(db, theses, notices))["all"] == 0
     alert_key = next(i["key"] for i in items if i["group"] == "alertas")

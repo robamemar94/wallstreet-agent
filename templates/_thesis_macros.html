@@ -21,7 +21,8 @@
 {%- endmacro %}
 
 {% macro money(value, cur='$', fmt='%.2f') -%}
-{%- set txt = ('{:,.0f}'.format(value) if fmt == 'int' else fmt|format(value)) -%}
+{#- formato español (1.234,56): 'int' sin decimales; '%.Nf', N decimales -#}
+{%- set txt = num(value, 0 if fmt == 'int' else (fmt[2:-1]|int if fmt.startswith('%.') else 2)) -%}
 {%- if cur in ('kr', 'Fr') -%}{{ txt }} {{ cur }}{%- else -%}{{ cur }}{{ txt }}{%- endif -%}
 {%- endmacro %}
 

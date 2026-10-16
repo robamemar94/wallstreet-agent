@@ -1,0 +1,306 @@
+    <!-- SECCIÓN 1.1: MI CARTERA (INFORMACIÓN DEL PORTAFOLIO) -->
+    {% if portfolio_item %}
+    <div class="tab-pane fade" id="nav-portfolio" role="tabpanel">
+        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+            <span class="fw-bold">{{ 'Posición abierta' if portfolio_is_active else 'Posición cerrada' }}</span>
+            <span class="text-muted small">{% if portfolio_is_active %}{{ num(portfolio_item.shares, 0 if portfolio_item.shares == portfolio_item.shares|int else 2) }} acciones a {{ num(portfolio_item.average_price, 2) }} {{ currency_symbol }} de media{% endif %}</span>
+            {% if portfolio_is_active and currency_symbol != '€' %}<button type="button" class="btn btn-sm btn-outline-secondary ms-auto py-0" data-bs-toggle="modal" data-bs-target="#ledgerModal" title="Qué parte del resultado viene de la cotización y qué parte del cambio de divisa, y las comisiones">
+                <i class="bi bi-currency-exchange me-1"></i>Divisa y comisiones</button>{% endif %}
+            <a href="/portfolio" class="btn btn-sm btn-outline-primary py-0 {{ 'ms-auto' if not (portfolio_is_active and currency_symbol != '€') }}"><i class="bi bi-briefcase me-1"></i>Ir a la cartera</a>
+        </div>
+        <div id="mpBody"><div class="text-muted small p-3"><span class="spinner-border spinner-border-sm me-1"></span>Calculando tu posición frente al S&amp;P 500…</div></div>
+
+        {# El desglose de divisa y comisiones, en una ventana (el libro de operaciones va en la tabla de la pestaña) #}
+        <div class="modal fade" id="ledgerModal" tabindex="-1" aria-labelledby="ledgerModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg"><div class="modal-content">
+        <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="ledgerModalTitle"><i class="bi bi-currency-exchange me-1"></i>{{ clean_ticker(ticker) }} · divisa y comisiones</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <div class="modal-body">
+
+        {% if portfolio_is_active and currency_symbol != '€' %}
+        <div class="row mb-3" id="collapseFx">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm bg-light-subtle">
+                    <div class="card-body py-3">
+                        <h6 class="fw-bold mb-3 d-flex align-items-center gap-2 flex-wrap" style="font-size: 0.85rem;">
+                            <i class="bi bi-currency-exchange me-1 text-primary"></i> Desglose de Divisa y Comisiones (en Euros)
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle ms-auto" style="font-size: 0.7rem; font-weight: 600;">
+                                ✂️ Comisiones Acumuladas: {{ num(portfolio_item.total_fees_eur|default(0), 2) }} €
+                            </span>
+                        </h6>
+                        <div class="row text-center g-3">
+                            <div class="col-md-3 border-end">
+                                <div class="text-muted small" style="font-size: 0.75rem;">Valoración Total (EUR)</div>
+                                <div class="fw-bold mt-1" style="font-size: 1.1rem;">{{ num(portfolio_item.current_value_eur, 2) }} €</div>
+                                <small class="text-muted" style="font-size: 0.65rem;">Coste: {{ num(portfolio_item.invested_value_eur, 2) }} €</small>
+                            </div>
+                            <div class="col-md-3 border-end">
+                                <div class="text-muted small" style="font-size: 0.75rem;">Rendimiento Cotización</div>
+                                <div class="fw-bold mt-1 {% if portfolio_item.pnl_price_eur >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 1.1rem;">
+                                    {% if portfolio_item.pnl_price_eur >= 0 %}+{% endif %}{{ num(portfolio_item.pnl_price_eur, 2) }} €
+                                </div>
+                                <small class="text-muted" style="font-size: 0.65rem;">Cambio en precio de cotización</small>
+                            </div>
+                            <div class="col-md-3 border-end">
+                                <div class="text-muted small" style="font-size: 0.75rem;">Efecto Tipo de Cambio</div>
+                                <div class="fw-bold mt-1 {% if portfolio_item.pnl_fx_eur >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 1.1rem;">
+                                    {% if portfolio_item.pnl_fx_eur >= 0 %}+{% endif %}{{ num(portfolio_item.pnl_fx_eur, 2) }} €
+                                </div>
+                                <small class="text-muted" style="font-size: 0.65rem;">Cambio por fluctuación de moneda</small>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-muted small" style="font-size: 0.75rem;">P&amp;L Total (EUR)</div>
+                                <div class="fw-bold mt-1 {% if portfolio_item.total_pnl_eur >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 1.1rem;">
+                                    {% if portfolio_item.total_pnl_eur >= 0 %}+{% endif %}{{ num(portfolio_item.total_pnl_eur, 2) }} €
+                                </div>
+                                <small class="text-muted" style="font-size: 0.65rem;">Compra: {{ num(portfolio_item.fx_avg_purchase, 4) }} | Actual: {{ num(portfolio_item.current_fx_rate, 4) }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        </div></div></div>
+        </div>
+
+        <style>
+            .mp-answers { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; }
+            @media (max-width: 991px) { .mp-answers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+            .mp-answer { border-radius: 8px; padding: .45rem .7rem; background: var(--bs-secondary-bg); border-left: 4px solid var(--bs-secondary-border-subtle); min-width: 0; }
+            .mp-answer.mp-good { border-left-color: var(--bs-success); }
+            .mp-answer.mp-bad { border-left-color: var(--bs-danger); }
+            .mp-answer .q { font-size: .68rem; text-transform: uppercase; letter-spacing: .03em; color: var(--bs-secondary-color); }
+            .mp-answer .a { font-size: 1.15rem; font-weight: 700; line-height: 1.2; }
+            .mp-answer .d { font-size: .74rem; color: var(--bs-secondary-color); line-height: 1.25; }
+            .mp-col { min-height: 0; }
+            .mp-ops { min-height: 0; overflow-y: auto; font-size: .78rem; }
+            .mp-table { font-size: .76rem; --bs-table-bg: transparent; }
+            .mp-table th { font-size: .64rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--bs-secondary-color); background: var(--bs-body-bg); position: sticky; top: 0; z-index: 1; white-space: nowrap; }
+            .mp-table td { white-space: nowrap; padding-top: .28rem; padding-bottom: .28rem; }
+            .mp-table td.dec-note { white-space: normal; max-width: 0; width: 100%; }
+            .mp-table .dec-note-text { min-width: 0; }
+            .mp-table tr.mp-div td { color: var(--bs-secondary-color); }
+            .mp-op { padding: .35rem .25rem; border-bottom: 1px solid var(--bs-border-color-translucent); }
+            .mp-op:last-child { border-bottom: 0; }
+            .mp-op .dec-note { font-size: .74rem; margin-top: .1rem; }
+            .mp-op .dec-note textarea { font-size: .74rem; }
+            .mp-nonote { opacity: .6; }
+            .mp-entry { font-size: .74rem; color: var(--bs-secondary-color); }
+            .mp-key { font-weight: 700; }
+            .mp-tools .btn { font-size: .68rem; padding: .05rem .4rem; }
+            @media (max-width: 991px) { .mp-main { height: auto !important; } .mp-ops { overflow: visible; } }
+        </style>
+        <script>
+        // «Mi cartera»: se pide al abrir la pestaña (descarga precios del valor y del índice)
+        (() => {
+            const T = '{{ ticker }}';
+            let loaded = false;
+            const body = () => document.getElementById('mpBody');
+            // el bloque principal llena el alto que queda en la ventana; el gráfico se estira y las operaciones hacen scroll por dentro
+            const fit = () => {
+                const main = document.querySelector('#mpBody .mp-main');
+                if (!main || !main.offsetParent) return;
+                if (innerWidth >= 992) {
+                    const avail = innerHeight - main.getBoundingClientRect().top - 16;
+                    main.style.height = Math.max(320, avail) + 'px';
+                    const extra = document.documentElement.scrollHeight - innerHeight;
+                    if (extra > 0) main.style.height = Math.max(320, avail - extra) + 'px';
+                }
+                const el = document.getElementById('mpChart'), box = document.getElementById('mpChartBox');
+                if (el && el.data) Plotly.relayout(el, {height: box.clientHeight, width: box.clientWidth});
+            };
+            const draw = () => {
+                const raw = document.getElementById('mpChartData'), el = document.getElementById('mpChart');
+                if (!raw || !el) return;
+                const d = JSON.parse(raw.textContent), sym = '{{ currency_symbol }}';
+                const box = document.getElementById('mpChartBox');
+                const mk = (type, color, symbol, label) => {
+                    const m = d.markers.filter(x => x.type === type);
+                    return {x: m.map(x => x.date), y: m.map(x => x.price), mode: 'markers', type: 'scatter', name: label,
+                        marker: {color, symbol, size: 12, line: {color: '#fff', width: 1}},
+                        text: m.map(x => `${label} · ${x.date.slice(8, 10)}/${x.date.slice(5, 7)}/${x.date.slice(2, 4)}<br>${fmtNum(x.shares, x.shares % 1 ? 2 : 0)} acc. a ${fmtNum(x.price, 2)} ${sym}`),
+                        hovertemplate: '%{text}<extra></extra>'};
+                };
+                const traces = [{x: d.dates, y: d.close, type: 'scatter', mode: 'lines', name: 'Precio', line: {color: '#3b82f6', width: 1.6},
+                    text: d.close.map(v => fmtNum(v, 2) + ' ' + sym), hovertemplate: '%{x|%d/%m/%y} · %{text}<extra></extra>'},
+                    mk('BUY', '#16a34a', 'triangle-up', 'Compra'), mk('SELL', '#dc2626', 'triangle-down', 'Venta')];
+                const shapes = d.avg && d.dates.length ? [{type: 'line', xref: 'x', x0: d.dates[0], x1: d.dates[d.dates.length - 1], y0: d.avg, y1: d.avg,
+                    line: {color: '#64748b', width: 1, dash: 'dash'}}] : [];
+                const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                Plotly.newPlot(el, traces, {height: box.clientHeight, width: box.clientWidth, margin: {l: 48, r: 10, t: 6, b: 28},
+                    showlegend: false, shapes, hovermode: 'closest', paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                    font: {size: 10, color: dark ? '#cbd5e1' : '#475569'}, separators: ',.',
+                    xaxis: {type: 'date', tickformat: '%m/%y', gridcolor: dark ? '#334155' : '#eef2f7'},
+                    yaxis: {gridcolor: dark ? '#334155' : '#eef2f7', ticksuffix: ' ' + sym}, dragmode: 'pan'},
+                    {displayModeBar: false, responsive: false, scrollZoom: true}).then(() => {
+                        view();
+                        // al arrastrar o hacer zoom con la rueda, el eje Y se ajusta a lo que se ve
+                        el.on('plotly_relayout', ev => { const r = relayoutXRange(ev); if (r && r !== 'all' && ev['yaxis.range[0]'] === undefined) fitY(r[0], r[1]); });
+                    });
+            };
+            // periodo (6M, 1A, 3A, 5A, todo el histórico o desde tu primera compra) y escala (lineal o logarítmica: con subidas grandes, la log compara mejor los % de cada tramo)
+            const st = {period: 'buy', log: false};
+            const fitY = (a, b) => {
+                const el = document.getElementById('mpChart'), d = JSON.parse(document.getElementById('mpChartData').textContent);
+                const [i, j] = rangeIndices(d.dates, a, b);
+                const ys = [d.close.slice(i, j + 1), d.markers.filter(m => m.date >= String(a).slice(0, 10) && m.date <= String(b).slice(0, 10)).map(m => m.price)].flat();
+                if (d.avg) ys.push(d.avg);
+                const lo = Math.min(...ys), hi = Math.max(...ys);
+                if (!isFinite(lo)) return;
+                const range = st.log ? [Math.log10(lo * 0.95), Math.log10(hi * 1.05)] : [lo - (hi - lo) * 0.06, hi + (hi - lo) * 0.06];
+                Plotly.relayout(el, {'yaxis.range': range, 'yaxis.autorange': false});
+            };
+            const view = () => {
+                const el = document.getElementById('mpChart'), raw = document.getElementById('mpChartData');
+                if (!el || !el.data || !raw) return;
+                const d = JSON.parse(raw.textContent), last = d.dates[d.dates.length - 1];
+                let from = d.dates[0];
+                if (st.period === 'buy') from = d.from_buy && d.from_buy > from ? d.from_buy : from;
+                else if (st.period !== 'max') {
+                    const t = new Date(last); t.setMonth(t.getMonth() - {'6m': 6, '1y': 12, '3y': 36, '5y': 60}[st.period]);
+                    const iso = t.toISOString().slice(0, 10);
+                    if (iso > from) from = iso;
+                }
+                Plotly.relayout(el, {'xaxis.range': [from, last], 'yaxis.type': st.log ? 'log' : 'linear'}).then(() => fitY(from, last));
+                document.querySelectorAll('#mpBody [data-mp-period]').forEach(b => b.classList.toggle('active', b.dataset.mpPeriod === st.period));
+                document.querySelectorAll('#mpBody [data-mp-scale]').forEach(b => b.classList.toggle('active', (b.dataset.mpScale === 'log') === st.log));
+            };
+            document.addEventListener('click', e => {
+                const p = e.target.closest('#mpBody [data-mp-period]'), sc = e.target.closest('#mpBody [data-mp-scale]');
+                if (p) { st.period = p.dataset.mpPeriod; view(); }
+                if (sc) { st.log = sc.dataset.mpScale === 'log'; view(); }
+            });
+            const load = () => {
+                if (loaded) return fit();
+                loaded = true;
+                fetch(`/ticker/${encodeURIComponent(T)}/mi-posicion`).then(r => { if (!r.ok) throw new Error(r.statusText); return r.text(); })
+                    .then(html => { body().innerHTML = html; fit(); draw(); setTimeout(fit, 50); })
+                    .catch(e => { loaded = false; body().innerHTML = `<div class="p-3 small text-danger">No se pudo calcular tu posición: ${e.message}</div>`; });
+            };
+            document.addEventListener('DOMContentLoaded', () => {
+                const tab = document.getElementById('nav-portfolio-tab');
+                if (!tab) return;
+                tab.addEventListener('shown.bs.tab', load);
+                if (tab.classList.contains('active')) load();
+                let rt = null;
+                addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(fit, 120); });
+                // el porqué de una operación: se edita en su línea (Intro guarda, Escape cancela), como en Decisiones
+                body().addEventListener('click', e => {
+                    const btn = e.target.closest('.dec-note-edit');
+                    if (!btn) return;
+                    const cell = btn.closest('.dec-note'), text = cell.querySelector('.dec-note-text'), none = cell.querySelector('.mp-nonote');
+                    if (cell.querySelector('textarea')) return;
+                    const box = document.createElement('textarea');
+                    box.className = 'form-control form-control-sm';
+                    box.rows = 2; box.maxLength = 1000; box.value = text.textContent.trim();
+                    box.placeholder = 'Por qué compraste o vendiste: tesis, precio, señal…';
+                    [text, btn, none].forEach(x => x && x.classList.add('d-none'));
+                    cell.prepend(box); box.focus();
+                    const done = () => { box.remove(); [text, btn].forEach(x => x.classList.remove('d-none'));
+                        if (none) none.classList.toggle('d-none', !!text.textContent.trim()); };
+                    let saving = false;
+                    const save = async () => {
+                        if (saving) return;
+                        const note = box.value.trim();
+                        if (note === text.textContent.trim()) return done();
+                        saving = true; box.disabled = true;
+                        try {
+                            const r = await fetch('/api/portfolio/transaction/note', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({ticker: cell.dataset.ticker, refs: JSON.parse(cell.dataset.refs), note})});
+                            if (!r.ok) throw new Error(r.statusText);
+                            text.textContent = note;
+                            btn.title = (note ? 'Editar' : 'Anotar') + ' el porqué';
+                            done();
+                        } catch (err) { saving = false; box.disabled = false; alert('No se pudo guardar: ' + err.message); }
+                    };
+                    box.addEventListener('keydown', ev => {
+                        if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); save(); }
+                        if (ev.key === 'Escape') done();
+                    });
+                    box.addEventListener('blur', save);
+                });
+            });
+        })();
+        </script>
+        <script>
+        async function deleteTransaction(date, type, shares, price) {
+            if (!confirm(`¿Seguro que quieres eliminar esta transacción del ${date}? Solo se eliminarán las transacciones añadidas manualmente.`)) return;
+            
+            try {
+                const res = await fetch(`/api/portfolio/transaction/delete/{{ ticker }}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: date,
+                        type: type,
+                        shares: shares,
+                        price: price
+                    })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    alert(data.message || 'Error al eliminar');
+                }
+            } catch (err) {
+                alert('Error de red');
+            }
+        }
+
+        async function changeTxBroker(date, type, shares, price, newBroker) {
+            try {
+                const res = await fetch('/api/portfolio/transaction/edit-broker', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticker: '{{ ticker }}',
+                        date: date,
+                        type: type,
+                        shares: shares,
+                        price: price,
+                        new_broker: newBroker
+                    })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    alert(data.detail || 'Error al cambiar de broker');
+                }
+            } catch (err) {
+                alert('Error de red');
+            }
+        }
+
+        // Toggle chevron rotation on collapse show/hide
+        document.addEventListener("DOMContentLoaded", function() {
+            const collapses = document.querySelectorAll('.collapse');
+            collapses.forEach(c => {
+                c.addEventListener('show.bs.collapse', function() {
+                    const index = this.id.split('-')[1];
+                    const icon = document.getElementById('chevron-' + index);
+                    if (icon) {
+                        icon.classList.remove('bi-chevron-right');
+                        icon.classList.add('bi-chevron-down');
+                        icon.classList.add('text-dark');
+                        icon.classList.remove('text-muted');
+                    }
+                });
+                c.addEventListener('hide.bs.collapse', function() {
+                    const index = this.id.split('-')[1];
+                    const icon = document.getElementById('chevron-' + index);
+                    if (icon) {
+                        icon.classList.remove('bi-chevron-down');
+                        icon.classList.add('bi-chevron-right');
+                        icon.classList.remove('text-dark');
+                        icon.classList.add('text-muted');
+                    }
+                });
+            });
+        });
+        </script>
+    </div>
+    {% endif %}

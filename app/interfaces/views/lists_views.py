@@ -9,7 +9,7 @@ from app.infrastructure.templates import templates
 from app.infrastructure.dependencies import get_asset_repository, get_portfolio_service, get_settings_from_db
 from app.application.services.portfolio_service import PortfolioService
 from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlchemyAssetRepository
-from app.interfaces.views.market_views import INDEX_CACHE, get_currency_symbol, get_region_for_asset, ensure_prices_cached
+from app.interfaces.views.market_views import INDEX_CACHE, get_currency_symbol, get_region_for_asset, ensure_prices_cached, price_decimals
 
 router = APIRouter(tags=["Company Lists"])
 
@@ -105,6 +105,7 @@ def lists_page(
                 "pct": pct,
                 "change_abs": change, "not_open": not_open, "last_date": last_date,
                 "symbol": get_currency_symbol(db_d.get("currency", "USD"), asset.ticker),
+                "dec": price_decimals(db_d.get("currency")),
                 "region": get_region_for_asset(asset.ticker, db_d.get("country", "-")),
                 "country": db_d.get("country") or "-",
                 "status": db_d.get("status") or "NONE",

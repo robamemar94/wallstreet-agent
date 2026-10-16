@@ -1,0 +1,110 @@
+{# Cabecera en una línea: la empresa, el precio y su estado de un vistazo (calidad, zona de valoración, tesis, tu
+   posición); a la derecha, el nivel y «⋯ Gestionar» con lo que se usa de vez en cuando (rol, estado, silenciar,
+   listas, borrar). Los controles conservan sus id: su JavaScript no cambia. #}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-2 pb-2 border-bottom gap-2 ticker-head">
+    <div class="d-flex align-items-center flex-wrap gap-2">
+        <a href="javascript:history.back()" class="btn btn-sm btn-link text-muted px-1" title="Volver"><i class="bi bi-arrow-left"></i></a>
+        <span class="favorite-star cursor-pointer fs-5" onclick="toggleFavorite('{{ ticker }}', this)" title="Tier 1 · objetivo: la comprarías si llega a precio (atajo del selector de nivel)">
+            <i class="bi {{ 'bi-star-fill text-warning' if is_favorite else 'bi-star text-muted' }}"></i>
+        </span>
+        <h2 class="fw-bold mb-0 me-1" style="font-size: 1.3rem; letter-spacing: -0.02em;" title="{{ info.get('sector', 'Sector Desconocido') }} · {{ info.get('industry', 'Industria Desconocida') }} · {{ info.get('country', 'País Desconocido') }}">
+            {{ info.get('longName', ticker) }} <span class="text-muted fw-normal">({{ clean_ticker(ticker) }})</span>
+        </h2>
+        {% if custom_metrics.currentPrice %}
+        <span class="d-inline-flex align-items-baseline gap-2 me-2">
+            <span class="fw-bold num-font" style="font-size: 1.3rem; line-height: 1;">{{ num(custom_metrics.currentPrice, 2) }} {{ currency_symbol }}</span>
+            {% if custom_metrics.priceChangePct is not none %}
+            <span class="fw-bold num-font small {{ 'text-success' if custom_metrics.priceChangePct >= 0 else 'text-danger' }}">
+                {{ num(custom_metrics.priceChange, 2, sign=True) }} {{ currency_symbol }}
+                ({{ num(custom_metrics.priceChangePct, 2, sign=True) }} %)</span>
+            {% endif %}
+            {# EE. UU. antes de abrir: como Google, lo de la sesión arriba y, al lado y más apagado, el pre/post-market #}
+            {% set xq = ext_quote(ticker) %}{% if xq %}
+            <span class="small text-body-secondary">al cierre</span>
+            <span class="small text-body-secondary num-font ms-1" title="{{ 'Pre-market de hoy' if xq.kind == 'pre' else 'Post-market' }}: último precio a las {{ xq.time }} (hora de aquí). Su mercado aún no ha abierto hoy">
+                <i class="bi {{ 'bi-sunrise-fill' if xq.kind == 'pre' else 'bi-moon-stars-fill' }}" style="font-size: .7rem;"></i>
+                <span class="text-body">{{ num(xq.price, 2) }} {{ currency_symbol }}</span>
+                <span class="{{ 'text-success' if xq.pct > 0 else ('text-danger' if xq.pct < 0 else '') }}">{{ num(xq.chg, 2, sign=True) ~ ' ' if xq.chg is defined }}({{ num(xq.pct, 2, sign=True) }} %)</span>
+                · {{ xq.time }}</span>
+            {% endif %}
+        </span>
+        {% endif %}
+        {% if mcap %}<span class="cap-badge cap-{{ mcap.tier.key }} me-1" title="Capitalización: {{ mcap.label }} (en USD: acciones en circulación × precio × tipo de cambio). {{ mcap.tier.name }}: {{ mcap.tier.range }}">{{ mcap.tier.name }}</span>{% endif %}
+        {# insignias de estado: se leen sin pensar #}
+        <span class="d-inline-flex flex-wrap align-items-center gap-1 head-badges">
+        <span id="hdr-quality">{# se refresca con el Resumen al terminar un informe #}
+        {% if reports_meta.get('verdict') and reports_meta['verdict'].score != 'N/A' %}
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle px-2 py-1" style="font-size: .75rem; cursor: pointer;" onclick="document.getElementById('nav-analysis-tab').click();" title="Nota de calidad del veredicto de inversión{% if reports_meta['verdict'].archetype %} · {{ reports_meta['verdict'].archetype }}{% endif %}. Pulsa para ver el análisis">
+                <i class="bi bi-award-fill me-1"></i>Calidad {{ reports_meta['verdict'].score.split('/')[0] if '/' in reports_meta['verdict'].score|string else reports_meta['verdict'].score }}</span>
+        {% endif %}
+        </span>
+            <span id="hdrZone"></span>
+            {% if thesis_link and thesis_link.verdict %}{% set vdb = {'REFORZADA': 'success', 'INTACTA': 'primary', 'VIGILANCIA': 'warning', 'DEBILITADA': 'danger', 'ROTA': 'dark'} %}
+            <a href="/tesis/{{ thesis_link.id }}" class="badge text-decoration-none bg-{{ vdb.get(thesis_link.verdict, 'secondary') }} bg-opacity-10 text-{{ vdb.get(thesis_link.verdict, 'secondary') }} border border-{{ vdb.get(thesis_link.verdict, 'secondary') }}-subtle px-2 py-1" style="font-size: .75rem;" title="Veredicto de la tesis{% if thesis_link.health is not none %} · salud {{ thesis_link.health }}{% endif %}"><i class="bi bi-journal-text me-1"></i>Tesis {{ thesis_link.verdict|lower }}</a>{% endif %}
+            {% if portfolio_is_active and portfolio_item %}<a href="#" onclick="document.getElementById('nav-portfolio-tab').click(); return false;" class="badge text-decoration-none bg-info bg-opacity-10 text-info border border-info-subtle px-2 py-1" style="font-size: .75rem;" title="La tienes en cartera"><i class="bi bi-briefcase me-1"></i>En cartera · {{ num(portfolio_item.shares, 0 if portfolio_item.shares == portfolio_item.shares|int else 2) }} acc.</a>{% endif %}
+        </span>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <select class="form-select form-select-sm w-auto" id="tierSelect" style="font-size: .75rem;" aria-label="Nivel"
+                title="Tier 1: la comprarías si llega a precio (todos los avisos). Tier 2: te gusta, sin prisa (aviso al entrar en zona). Tier 3: solo agenda y resultados. Las tres forman tu «seguimiento».">
+            <option value="" {{ 'selected' if not tier.value }}>Sin nivel</option>
+            <option value="1" {{ 'selected' if tier.value == '1' }}>Tier 1 · objetivo</option>
+            <option value="2" {{ 'selected' if tier.value == '2' }}>Tier 2 · vigilancia</option>
+            <option value="seg" {{ 'selected' if tier.value == 'seg' }}>Tier 3</option>
+        </select>
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary text-nowrap" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="manageBtn" title="Rol, estado, avisos, listas y borrar">
+                <i class="bi bi-three-dots me-1"></i>Gestionar{% if muted %} <i class="bi bi-bell-slash-fill text-warning ms-1" title="Silenciada"></i>{% endif %}</button>
+            <div class="dropdown-menu dropdown-menu-end p-3 manage-menu" aria-labelledby="manageBtn">
+                <div class="manage-h">Rol en cartera</div>
+        {% set role_def = (portfolio_roles()|selectattr('key', 'equalto', db.get('portfolio_role'))|list or [none])[0] %}
+        <div class="input-group input-group-sm" id="roleCard" style="width: auto;{% if role_def %} box-shadow: inset 0 -2px 0 {{ role_def.color }};{% endif %}" title="Rol en el Portfolio ideal (solo empresas en seguimiento, favoritas o en cartera)">
+            <a class="input-group-text text-decoration-none" href="/ideal-portfolio" title="Ver el Portfolio ideal"><i class="bi bi-award"></i></a>
+            <select class="form-select form-select-sm" id="roleSelect" style="width: auto; font-size: 0.78rem;" aria-label="Rol en cartera de {{ ticker }}">
+                <option value="" {{ 'selected' if not role_def }}>Sin rol en cartera</option>
+                {% for r in portfolio_roles() %}<option value="{{ r.key }}" data-color="{{ r.color }}" {{ 'selected' if role_def and role_def.key == r.key }}>{{ r.emoji }} {{ r.name }}</option>{% endfor %}
+            </select>
+            <button class="btn btn-outline-secondary" type="button" id="roleAiBtn" onclick="getTickerRoleSuggestion('{{ ticker }}')" title="Proponer rol con IA"><i class="bi bi-robot"></i></button>
+        </div>
+                <div class="manage-h">Estado del análisis</div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+        <div class="btn-group btn-group-sm shadow-xs" role="group">
+            <button type="button" class="btn btn-outline-success {% if db.get('status') == 'ACCEPTED' %}active{% endif %} px-2.5" id="btn-accept" onclick="updateStatus('{{ ticker }}', 'ACCEPTED')">
+                <i class="bi bi-check-lg me-1"></i>Aceptar
+            </button>
+            <button type="button" class="btn btn-outline-secondary {% if db.get('status') not in ['ACCEPTED', 'REJECTED', 'STANDBY'] %}active{% endif %} px-2.5" id="btn-pending" onclick="updateStatus('{{ ticker }}', 'PENDING')">
+                <i class="bi bi-clock me-1"></i>Pendiente
+            </button>
+            <button type="button" class="btn btn-outline-warning text-dark {% if db.get('status') == 'STANDBY' %}active{% endif %} px-2.5" id="btn-standby" onclick="updateStatus('{{ ticker }}', 'STANDBY')">
+                <i class="bi bi-question-lg me-1"></i>Dudas
+            </button>
+            <button type="button" class="btn btn-outline-danger {% if db.get('status') == 'REJECTED' %}active{% endif %} px-2.5" id="btn-reject" onclick="updateStatus('{{ ticker }}', 'REJECTED')">
+                <i class="bi bi-x-lg me-1"></i>Descartar
+            </button>
+        </div>
+        <div id="status-badge-container">
+            {% if db.get('status') == 'ACCEPTED' %}
+                <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-check-circle-fill me-1"></i>Aceptada</span>
+            {% elif db.get('status') == 'REJECTED' %}
+                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-x-circle-fill me-1"></i>Descartada</span>
+            {% elif db.get('status') == 'STANDBY' %}
+                <span class="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-question-circle-fill me-1"></i>Dudas</span>
+            {% else %}
+                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2.5 py-1" style="font-size: 0.75rem;"><i class="bi bi-hourglass-split me-1"></i>Pendiente</span>
+            {% endif %}
+        </div>
+                </div>
+                <div class="manage-h">Avisos</div>
+                <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-sm {{ 'btn-warning' if muted else 'btn-outline-secondary' }} py-0 me-1" id="muteBtn" data-muted="{{ 'true' if muted else 'false' }}"
+                title="{{ 'Silenciada: no genera avisos. Pulsa para volver a activarlos' if muted else 'Silenciar todos los avisos de esta empresa' }}" aria-label="Silenciar avisos">
+            <i class="bi {{ 'bi-bell-slash-fill' if muted else 'bi-bell' }}"></i></button>
+                    <span class="small text-muted">{{ 'Silenciada: no genera avisos' if muted else 'Avisa con normalidad' }}</span></div>
+                <div class="manage-h">Listas</div>
+                <ul class="list-unstyled mb-0 small manage-lists" id="ticker-lists-dropdown"><li class="text-muted small">Cargando listas…</li></ul>
+                <hr class="my-2">
+                <button class="btn btn-sm btn-outline-danger w-100" onclick="deleteTicker('{{ ticker }}')" title="Eliminar Análisis"><i class="bi bi-trash me-1"></i>Eliminar el análisis</button>
+            </div>
+        </div>
+    </div>
+</div>

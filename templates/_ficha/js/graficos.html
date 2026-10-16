@@ -1,0 +1,271 @@
+    // «Análisis a fecha …» del comienzo del informe pasa a la cabecera, junto al título (deja sitio al texto)
+    const QA_MONTHS = {january: 'ene', february: 'feb', march: 'mar', april: 'abr', may: 'may', june: 'jun', july: 'jul',
+                       august: 'ago', september: 'sep', october: 'oct', november: 'nov', december: 'dic'};
+    function qaLiftDate(key) {
+        const content = document.getElementById(`content-${key}`), slot = document.getElementById(`report-date-${key}`);
+        if (!content || !slot) return;
+        const p = [...content.querySelectorAll('p')].slice(0, 4).find(el => /^\s*Análisis a fecha/i.test(el.textContent));
+        if (!p) return;
+        const raw = p.textContent.replace(/^\s*Análisis a fecha\s*/i, '').trim();
+        const m = raw.match(/(\d{1,2})\s+de\s+([A-Za-zÁ-ú]+)\s+de\s+(\d{4})/);
+        slot.textContent = '· ' + (m ? `${+m[1]} ${QA_MONTHS[m[2].toLowerCase()] || m[2].toLowerCase().slice(0, 3)} ${m[3]}` : raw);
+        const box = p.closest('blockquote');
+        (box && box.textContent.trim() === p.textContent.trim() ? box : p).remove();
+    }
+    document.querySelectorAll('.qa-preview').forEach(el => qaLiftDate(el.id.replace('collapse-', '')));
+
+    function toggleReportCollapse(subKey) {
+        const collapseDiv = document.getElementById(`collapse-${subKey}`);
+        if (!collapseDiv) return;
+        // Informes de calidad: siempre a la vista; «Ampliar» oculta fortalezas y debilidades y deja leerlo entero
+        if (collapseDiv.classList.contains('qa-preview')) {
+            const root = collapseDiv.closest('.qa-fill');
+            const open = !root.classList.contains('report-open');
+            root.classList.toggle('report-open', open);
+            const head = collapseDiv.previousElementSibling;
+            head.querySelector('.qa-toggle-txt').textContent = open ? 'Reducir' : 'Ampliar';
+            const ic = head.querySelector('.qa-chevron');
+            ic.classList.toggle('bi-arrows-angle-expand', !open);
+            ic.classList.toggle('bi-arrows-angle-contract', open);
+            collapseDiv.firstElementChild.scrollTop = 0;
+            return;
+        }
+        
+        const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseDiv, { toggle: false });
+        if (collapseDiv.classList.contains('show')) {
+            bsCollapse.hide();
+        } else {
+            bsCollapse.show();
+        }
+    }
+
+    // Gráfico de Plotly: Precio (Línea de Cotización)
+    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const textColor = isDark ? "#adb5bd" : "#2c3e50";
+    const gridColor = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+
+    // Serie diaria completa (10 años): los botones 1M…MAX y el navegador de abajo solo mueven la ventana visible
+    const PRICE_FULL = { x: {{ dates | tojson }}, y: {{ close | tojson }} };
+    let priceSeries = PRICE_FULL;
+    var trace1 = {
+        x: PRICE_FULL.x,
+        y: PRICE_FULL.y,
+        type: 'scatter',
+        mode: 'lines',
+        line: {
+            color: '#16a34a',
+            width: 1.6
+        },
+        fill: 'tozeroy',
+        fillcolor: isDark ? 'rgba(22, 163, 74, 0.08)' : 'rgba(22, 163, 74, 0.05)',
+        name: 'Precio'
+    };
+
+    var layout = {
+        dragmode: 'zoom',
+        margin: { r: 10, t: 25, b: 40, l: 40 },
+        showlegend: false,
+        xaxis: { 
+            autorange: true, 
+            type: 'date', 
+            rangeslider: rangeSliderStyle(),
+            gridcolor: gridColor,
+            tickfont: { color: textColor }
+        },
+        yaxis: { 
+            autorange: true, 
+            ticksuffix: ' {{ currency_symbol }}',
+            type: 'linear',
+            gridcolor: gridColor,
+            tickfont: { color: textColor }
+        },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { color: textColor }
+    };
+    layout.margin.b = 34;   // sitio para los años bajo el navegador
+    Plotly.newPlot('priceChart', [trace1], layout, {responsive: true, displayModeBar: false}).then(el => {
+        rangeSliderYears(el);
+        // al mover la ventana (navegador, zoom o botones): eje Y a lo visible y variación del tramo
+        el.on('plotly_relayout', ev => {
+            const rg = relayoutXRange(ev);
+            if (rg === undefined) return;
+            const xs = priceSeries.x, [i, j] = rg === 'all' ? [0, xs.length - 1] : rangeIndices(xs, rg[0], rg[1]);
+            const y = yRangeFor([priceSeries.y], i, j);
+            if (y) Plotly.relayout(el, {'yaxis.range': y, 'yaxis.autorange': false});
+            showPriceRangeChange(i, j);
+            if (!el._byButton) document.querySelectorAll('#priceChartCard [data-period]').forEach(b => b.classList.remove('active'));
+            el._byButton = false;
+        });
+        showPriceRangeChange(0, PRICE_FULL.x.length - 1);
+    });
+
+    // Variación del precio en el tramo visible, junto al título
+    function showPriceRangeChange(i, j) {
+        const box = document.getElementById('priceRangeChg'), ys = priceSeries.y;
+        if (!box || !ys.length || ys[i] == null || ys[j] == null) return;
+        const pct = (ys[j] / ys[i] - 1) * 100;
+        box.textContent = `${pct >= 0 ? '+' : ''}${fmtNum(pct, 1)}%`;
+        box.className = 'ms-2 fw-bold ' + (pct >= 0 ? 'text-success' : 'text-danger');
+        box.title = `Del ${String(priceSeries.x[i]).slice(0, 10)} al ${String(priceSeries.x[j]).slice(0, 10)}`;
+    }
+
+    // Datos financieros históricos
+    var finYears = {{ financials_hist['years'] | tojson }};
+    var revData = {{ financials_hist['revenue'] | tojson }};
+    var niData = {{ financials_hist['net_income'] | tojson }};
+    var epsData = {{ financials_hist['eps'] | tojson }};
+    var fcfData = {{ financials_hist['fcf'] | tojson }};
+
+    function drawGauge(id, scoreStr) {
+        // id es 'gauge-fin', 'gauge-audit', etc. Extraemos el tipo (fin, cap, moat, verdict, audit)
+        const type = id.replace('gauge-', '');
+        const scoreBadge = document.getElementById('score-badge-' + type);
+        const scoreValueSpan = document.getElementById('score-' + type);
+        
+        if (!scoreStr || scoreStr === 'N/A') {
+            if (scoreBadge) {
+                scoreBadge.className = 'score-badge-circle score-na';
+            }
+            if (scoreValueSpan) {
+                scoreValueSpan.innerText = 'N/A';
+            }
+            return;
+        }
+
+        // Extraer puntuación numérica
+        let match = scoreStr.match(/([0-9.]+)/);
+        if (!match) return;
+        let score = parseFloat(match[1]);
+        if (isNaN(score)) return;
+
+        // Aplicar clases de color según la puntuación
+        if (scoreBadge) {
+            scoreBadge.className = 'score-badge-circle';
+            if (score >= 8.5) {
+                scoreBadge.classList.add('score-high');
+            } else if (score >= 7.0) {
+                scoreBadge.classList.add('score-notable');
+            } else if (score >= 5.0) {
+                scoreBadge.classList.add('score-medium');
+            } else {
+                scoreBadge.classList.add('score-low');
+            }
+        }
+
+        if (scoreValueSpan) {
+            scoreValueSpan.innerText = fmtNum(score, 1);
+        }
+    }
+
+    function drawValuationGauge(id, signal) {
+        const signalBadge = document.getElementById('signal-badge-val');
+        const signalValueSpan = document.getElementById('signal-val');
+        
+        if (!signal || signal === 'N/A') {
+            if (signalBadge) {
+                signalBadge.className = 'px-4 py-2 font-monospace text-center w-auto rounded-pill fs-6 fw-bold border d-inline-block mx-auto score-na';
+            }
+            if (signalValueSpan) {
+                signalValueSpan.innerText = 'N/A';
+            }
+            return;
+        }
+
+        const sigUpper = signal.toUpperCase().trim();
+        let displayHTML = sigUpper;
+        let classToAdd = 'score-na';
+
+        if (sigUpper.includes('STRONG BUY')) {
+            displayHTML = '💥 STRONG BUY';
+            classToAdd = 'score-high';
+        } else if (sigUpper.includes('BUY')) {
+            displayHTML = '📈 BUY';
+            classToAdd = 'score-high';
+        } else if (sigUpper.includes('HOLD')) {
+            displayHTML = '⚖️ HOLD';
+            classToAdd = 'score-medium';
+        } else if (sigUpper.includes('STRONG SELL')) {
+            displayHTML = '🚨 STRONG SELL';
+            classToAdd = 'score-low';
+        } else if (sigUpper.includes('SELL')) {
+            displayHTML = '📉 SELL';
+            classToAdd = 'score-low';
+        }
+
+        if (signalBadge) {
+            signalBadge.className = 'px-4 py-2 font-monospace text-center w-auto rounded-pill fs-6 fw-bold border d-inline-block mx-auto ' + classToAdd;
+        }
+
+        if (signalValueSpan) {
+            signalValueSpan.innerHTML = displayHTML;
+        }
+    }
+
+    // Barras de Finanzas › Gráficos: como los minigráficos de Estadísticas. Importes en mil M / M, negativos en rojo, el
+    // último año de 12 meses (LTM) más claro y, encima de cada barra, cuánto creció frente al año anterior.
+    const FIN_BAR_INFO = {};
+    function createBarChart(id, xData, yData, title, color, perShare) {
+        const el = document.getElementById(id);
+        if (!el || !xData || !xData.length) return;
+        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const textColor = isDark ? '#94a3b8' : '#64748b';
+        const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+        const sym = '{{ currency_symbol }}';
+        const vals = yData.map(v => v == null || v === '' || isNaN(+v) ? null : +v);
+        const big = Math.max(...vals.map(v => Math.abs(v || 0)));
+        const [div, unit] = perShare ? [1, sym] : big >= 1e9 ? [1e9, 'mil M ' + sym] : big >= 1e6 ? [1e6, 'M ' + sym] : [1, sym];
+        const y = vals.map(v => v == null ? null : v / div);
+        const yoy = y.map((v, i) => i && v != null && y[i - 1] ? (v / y[i - 1] - 1) * 100 * Math.sign(y[i - 1]) : null);
+        const x = xData.map(v => String(v).toUpperCase() === 'LTM' ? 'Últ. 12 m' : String(v));
+        // tendencia: crecimiento anual del primer al último ejercicio completo (sin el LTM)
+        const full = vals.map((v, i) => [i, v]).filter(([i, v]) => v != null && String(xData[i]).toUpperCase() !== 'LTM');
+        if (full.length > 1) {
+            const [[i0, a], [i1, b]] = [full[0], full[full.length - 1]];
+            FIN_BAR_INFO[id] = a > 0 && b > 0 ? `${xData[i0]}–${xData[i1]}: <b class="${b >= a ? 'text-success' : 'text-danger'}">${fmtNum((Math.pow(b / a, 1 / (i1 - i0)) - 1) * 100, 1, true)} %/año</b>`
+                                             : `${xData[i0]}–${xData[i1]}: <b class="${b >= a ? 'text-success' : 'text-danger'}">${b >= a ? 'mejora' : 'empeora'}</b>`;
+        }
+        const trace = {x, y, type: 'bar', marker: {color: y.map(v => v != null && v < 0 ? '#dc2626' : color),
+                       opacity: xData.map(v => String(v).toUpperCase() === 'LTM' ? 0.5 : 0.9)},
+                       text: yoy.map(g => g == null || Math.abs(g) > 999 ? '' : (g >= 0 ? '+' : '') + fmtNum(g, 0) + ' %'),
+                       textposition: 'outside', cliponaxis: false, textfont: {size: 9, color: textColor},
+                       customdata: y.map(v => v == null ? '–' : fmtNum(v, perShare || Math.abs(v) < 100 ? 2 : 1) + ' ' + unit),
+                       hovertemplate: '%{x}: %{customdata}<extra></extra>'};
+        const layout = {
+            margin: {r: 10, t: 18, b: 28, l: 52}, bargap: 0.3, showlegend: false,
+            xaxis: {type: 'category', tickfont: {color: textColor, size: 10}, showgrid: false},
+            yaxis: {tickfont: {color: textColor, size: 10}, gridcolor: gridColor, zerolinecolor: gridColor, ticksuffix: ' ' + unit.replace(' ' + sym, '').replace(sym, ''),
+                    title: {text: perShare ? sym + ' por acción' : unit, font: {size: 10, color: textColor}}},
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: {color: textColor}, separators: ',.'
+        };
+        Plotly.newPlot(id, [trace], layout, {responsive: true, displayModeBar: false});
+    }
+    const showFinBarInfo = id => { const box = document.getElementById('finBarInfo'); if (box) box.innerHTML = FIN_BAR_INFO[id] || ''; };
+
+    createBarChart('revenueChart', finYears, revData, 'Ventas', '#16a34a');
+    createBarChart('netIncomeChart', finYears, niData, 'Beneficio neto', '#16a34a');
+    createBarChart('epsChart', finYears, epsData, 'BPA', '#16a34a', true);
+    createBarChart('fcfChart', finYears, fcfData, 'Flujo de caja libre', '#16a34a');
+    showFinBarInfo('revenueChart');
+    [['revenue-chart-tab', 'revenueChart'], ['net-income-chart-tab', 'netIncomeChart'], ['eps-chart-tab', 'epsChart'], ['fcf-chart-tab', 'fcfChart']]
+        .forEach(([tab, chart]) => document.getElementById(tab)?.addEventListener('shown.bs.tab', () => showFinBarInfo(chart)));
+
+    // Gráficos de Finanzas: el alto que queda en la ventana, sin scroll de página
+    function fitFinCharts() {
+        document.querySelectorAll('#nav-financials .fin-fit-chart').forEach(el => fitChartHeight(el.id, 260));
+    }
+    document.addEventListener('shown.bs.tab', () => setTimeout(fitFinCharts, 20));
+    window.addEventListener('resize', fitFinCharts);
+
+    // Al abrir Finanzas y gráficos sin estados financieros cargados: aviso (una vez por visita)
+    {% set fin_years = financials_hist.get('years') or [] %}
+    {% set fin_full = financials_hist.get('income_statement') or financials_hist.get('balance_sheet') or financials_hist.get('cash_flow') %}
+    {% if not fin_full %}
+    document.getElementById('nav-financials-tab')?.addEventListener('shown.bs.tab', () => {
+        showToast('{{ "Sin datos financieros cargados" if not fin_years else "Faltan los estados financieros" }}',
+            '{{ "No hay histórico para los gráficos ni las tablas." if not fin_years else "Solo hay cifras básicas (ingresos, beneficio, BPA y FCF): carga la cuenta de resultados, el balance y los flujos de caja." }}'
+            + '<br><button class="btn btn-light btn-sm fw-bold mt-2 py-0" onclick="switchToFinancialsAndOpenAuditData()"><i class="bi bi-database-add me-1"></i>Cargar datos</button>',
+            'info');
+    }, {once: true});
+    {% endif %}
+

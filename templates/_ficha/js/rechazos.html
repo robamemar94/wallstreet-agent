@@ -1,0 +1,158 @@
+    function disableRejectionButtons(key, action) {
+        const btnAccept = document.getElementById(`btn-accept-rejection-${key}`);
+        const btnIgnore = document.getElementById(`btn-ignore-rejection-${key}`);
+        const btnUndo = document.getElementById(`btn-undo-rejection-${key}`);
+
+        if (btnAccept && btnIgnore) {
+            btnAccept.disabled = true;
+            btnIgnore.disabled = true;
+            if (action === 'accept') {
+                btnAccept.innerText = '✅ Descartada';
+                btnIgnore.classList.add('d-none');
+            } else if (action === 'ignore') {
+                btnIgnore.innerText = '✅ Alerta Ignorada';
+                btnAccept.classList.add('d-none');
+            }
+        }
+        
+        if (btnUndo) btnUndo.classList.remove('d-none');
+
+        const ticker = "{{ ticker }}";
+        localStorage.setItem(`rejection_state_${ticker}_${key}`, action);
+    }
+
+    function undoRejectionAction(key) {
+        const btnAccept = document.getElementById(`btn-accept-rejection-${key}`);
+        const btnIgnore = document.getElementById(`btn-ignore-rejection-${key}`);
+        const btnUndo = document.getElementById(`btn-undo-rejection-${key}`);
+
+        if (btnAccept && btnIgnore) {
+            btnAccept.disabled = false;
+            btnAccept.innerText = 'Descartar Empresa';
+            btnAccept.classList.remove('d-none');
+            
+            btnIgnore.disabled = false;
+            btnIgnore.innerText = 'Ignorar Alerta';
+            btnIgnore.classList.remove('d-none');
+        }
+
+        if (btnUndo) btnUndo.classList.add('d-none');
+
+        const ticker = "{{ ticker }}";
+        localStorage.removeItem(`rejection_state_${ticker}_${key}`);
+    }
+
+    function toggleCommentBox(key) {
+        const container = document.getElementById(`comment-box-container-${key}`);
+        if (container) {
+            container.classList.toggle('d-none');
+        }
+    }
+
+    function syncCommentPreview(key) {
+        const ticker = "{{ ticker }}";
+        const savedComment = localStorage.getItem(`rejection_comment_${ticker}_${key}`) || "";
+        const commentTextarea = document.getElementById(`rejection-comment-${key}`);
+        const previewContainer = document.getElementById(`saved-comment-preview-container-${key}`);
+        const previewText = document.getElementById(`saved-comment-preview-${key}`);
+        const btnToggleComment = document.getElementById(`btn-toggle-comment-${key}`);
+
+        if (commentTextarea) {
+            commentTextarea.value = savedComment;
+        }
+
+        if (savedComment.trim()) {
+            if (previewText) previewText.innerText = savedComment;
+            if (previewContainer) previewContainer.classList.remove('d-none');
+            if (btnToggleComment) btnToggleComment.innerHTML = '<i class="bi bi-chat-text-fill me-1"></i> Editar Comentario';
+        } else {
+            if (previewContainer) previewContainer.classList.add('d-none');
+            if (btnToggleComment) btnToggleComment.innerHTML = '<i class="bi bi-chat-text me-1"></i> Comentar';
+        }
+    }
+
+    function dismissRejectionAlert(key) {
+        const ticker = "{{ ticker }}";
+        
+        const cardActive = document.getElementById(`rejection-card-active-${key}`);
+        const cardDismissed = document.getElementById(`rejection-card-dismissed-${key}`);
+        if (cardActive) cardActive.classList.add('d-none');
+        if (cardDismissed) cardDismissed.classList.remove('d-none');
+        
+        localStorage.setItem(`rejection_state_${ticker}_${key}`, 'ignore');
+        
+        syncCommentPreview(key);
+        
+        disableRejectionButtons(key, 'ignore');
+    }
+
+    function hideRejectionAlertPermanently(key) {
+        if (confirm('¿Seguro que quieres eliminar y ocultar completamente esta alerta de rechazo? No se volverá a mostrar en pantalla.')) {
+            const ticker = "{{ ticker }}";
+            localStorage.setItem(`rejection_state_${ticker}_${key}`, 'hidden');
+            const rejectionDiv = document.getElementById(`rejection-${key}`);
+            if (rejectionDiv) {
+                rejectionDiv.classList.add('d-none');
+            }
+        }
+    }
+
+    function restoreRejectionAlert(key) {
+        const ticker = "{{ ticker }}";
+        
+        const cardActive = document.getElementById(`rejection-card-active-${key}`);
+        const cardDismissed = document.getElementById(`rejection-card-dismissed-${key}`);
+        if (cardActive) cardActive.classList.remove('d-none');
+        if (cardDismissed) cardDismissed.classList.add('d-none');
+        
+        const commentBox = document.getElementById(`comment-box-container-${key}`);
+        if (commentBox) commentBox.classList.add('d-none');
+        
+        localStorage.removeItem(`rejection_state_${ticker}_${key}`);
+        
+        undoRejectionAction(key);
+    }
+
+    function saveRejectionComment(key) {
+        const ticker = "{{ ticker }}";
+        const commentTextarea = document.getElementById(`rejection-comment-${key}`);
+        
+        if (commentTextarea) {
+            const comment = commentTextarea.value.trim();
+            if (comment) {
+                localStorage.setItem(`rejection_comment_${ticker}_${key}`, comment);
+            } else {
+                localStorage.removeItem(`rejection_comment_${ticker}_${key}`);
+            }
+            
+            const commentBox = document.getElementById(`comment-box-container-${key}`);
+            if (commentBox) commentBox.classList.add('d-none');
+            
+            syncCommentPreview(key);
+        }
+    }
+
+    async function reevaluateWithComment(key) {
+        const ticker = "{{ ticker }}";
+        const commentTextarea = document.getElementById(`rejection-comment-${key}`);
+        
+        let comment = "";
+        if (commentTextarea) {
+            comment = commentTextarea.value.trim();
+            if (comment) {
+                localStorage.setItem(`rejection_comment_${ticker}_${key}`, comment);
+            } else {
+                localStorage.removeItem(`rejection_comment_${ticker}_${key}`);
+            }
+        }
+        
+        let fullPayload = "";
+        if (comment) {
+            fullPayload = `Justificación del usuario para ignorar la alerta de descarte anterior: "${comment}". Por favor, reevalúa el informe y los datos financieros teniendo en cuenta este contexto y criterio de la tesis del usuario para determinar si la línea roja es salvable.`;
+        } else {
+            fullPayload = "Por favor, reevalúa este informe detalladamente buscando si existe algún factor paliativo o justificación de mercado para el descarte/línea roja identificado anteriormente.";
+        }
+        
+        await generateReport(ticker, key, fullPayload);
+    }
+

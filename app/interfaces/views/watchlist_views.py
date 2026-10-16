@@ -18,7 +18,7 @@ from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlche
 from app.infrastructure.repositories.sqlalchemy_notice_repository import SqlAlchemyNoticeRepository
 from app.infrastructure.repositories.sqlalchemy_watchlist_repository import SqlAlchemyWatchlistRepository
 from app.infrastructure.templates import templates
-from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached, get_currency_symbol
+from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached, get_currency_symbol, price_decimals
 from utils.number_format import es
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,8 @@ from app.infrastructure.db.models import DBAsset
 router = APIRouter(tags=["Watchlist"])
 
 NOTE_KEY = "watchlist_note"
+# «Mi precio»: un precio de compra puesto a mano, aparte de la valoración. Avisa al alcanzarlo y pide revisarlo cada 90 días
+MY_PRICE_KEY, MY_PRICE_REVIEW_DAYS = "my_buy_price", 90
 # Cercanía al precio de compra: caída necesaria para llegar a él (como la antigua página de Oportunidades)
 NEAR_PCT, WATCH_PCT = 15, 30
 LIST_LIMIT = 6   # avisos visibles en cada lista del panel; el resto tras «Ver N más»
@@ -41,6 +43,10 @@ class WatchlistNote(BaseModel):
     note: Optional[str] = None
 
 
+class MyPricePayload(BaseModel):
+    price: Optional[float] = None   # vacío: lo quita
+
+
 def _price(ticker: str) -> Optional[Dict[str, float]]:
     d = INDEX_CACHE["data"].get(ticker)
     return d if d and d.get("price") else None
@@ -52,6 +58,22 @@ def proximity(val: Optional[Dict[str, Any]], price: Optional[float]) -> tuple:
         return "sin", None
     drop = round(100 * (1 - val["buy_price"] / price), 1)   # ≤0: ya cotiza por debajo
     return ("zona" if drop <= 0 else "cerca" if drop <= NEAR_PCT else "seguimiento" if drop <= WATCH_PCT else "lejos"), drop
+
+
+def my_price(ticker: str, d: Dict[str, Any], price: Optional[float], today: Optional[date] = None) -> Optional[Dict[str, Any]]:
+    """Tu precio de compra puesto a mano (ajustado por los splits posteriores), lo que falta para llegar y si toca revisarlo."""
+    mp = d.get(MY_PRICE_KEY)
+    if not mp or not mp.get("price"):
+        return None
+    set_at = mp.get("set_at") or ""
+    buy = mp["price"] / split_service.factor_since(split_service.fetch_splits(ticker), set_at) if set_at else mp["price"]
+    drop = round(100 * (1 - buy / price), 1) if price else None   # ≤0: ya cotiza por debajo
+    try:
+        age = ((today or date.today()) - date.fromisoformat(set_at[:10])).days
+    except ValueError:
+        age = None
+    return {"price": buy, "set_at": set_at, "drop": drop, "hit": drop is not None and drop <= 0,
+            "age_days": age, "review_due": age is not None and age >= MY_PRICE_REVIEW_DAYS}
 
 
 def watchlist_rows(repo: SqlAlchemyWatchlistRepository, asset_repo: SqlAlchemyAssetRepository,
@@ -93,7 +115,7 @@ def watchlist_rows(repo: SqlAlchemyWatchlistRepository, asset_repo: SqlAlchemyAs
         added_price = item.get("added_price")
         if added_price:
             added_price = added_price / split_service.factor_since(split_service.fetch_splits(t), item.get("added_at"))
-        return {"ticker": t, "name": d.get("company_name") or t, "cur": get_currency_symbol(d.get("currency", "USD"), t),
+        return {"ticker": t, "name": d.get("company_name") or t, "cur": get_currency_symbol(d.get("currency", "USD"), t), "dec": price_decimals(d.get("currency")),
                 "price": price, "held": t in held, "origins": origins, "tier": tier, "themes": [th["name"] for th in themes.get(t, []) if th["watch"] and not th["muted"]],
                 "silent": t in muted, "muted_self": bool(d.get(tier_service.MUTE_KEY)), "role": d.get("portfolio_role"), "note": d.get(NOTE_KEY) or "", "stats": st,
                 # solo si su mercado ha abierto hoy; si no, la última sesión va en el título
@@ -101,7 +123,7 @@ def watchlist_rows(repo: SqlAlchemyWatchlistRepository, asset_repo: SqlAlchemyAs
                 "last_session": st.get("date") if st else None, "last_day_pct": (st.get("change") or {}).get("1d") if st else None,
                 "from_high_pct": st.get("from_high_pct") if st else None,
                 "added_at": item.get("added_at"), "added_price": added_price,
-                "val": val, "group": group, "drop_pct": drop, "stale": stale,
+                "val": val, "group": group, "drop_pct": drop, "stale": stale, "mine": my_price(t, d, price),
                 # supuestos de la valoración frente a lo real: solo se enseña si son optimistas
                 "reality_warn": vr.warning(vr.for_ticker(t, d), "PER" if val["metric"] == "eps" else "P/FCF") if val else None}
 
@@ -138,6 +160,18 @@ def watchlist_attention(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         elif r["group"] == "cerca" and r.get("tier") == "1":   # cerca de compra: solo las Tier 1 (objetivo)
             warn = f" · {r['reality_warn']}" if r.get("reality_warn") else ""
             out.append({"prio": 1, "type": "cerca", "ticker": r["ticker"], "href": f"/ticker/{r['ticker']}#valoracion", "text": f"A un {es(r['drop_pct'], 1)}% de su precio de compra ({es(v['buy_price'], 2)}){cagr}{warn}"})
+    for r in rows:   # tu precio puesto a mano (no depende de la valoración)
+        m = r.get("mine")
+        if not m:
+            continue
+        when = f"{m['set_at'][8:10]}/{m['set_at'][5:7]}/{m['set_at'][2:4]}" if m["set_at"] else ""
+        if m["hit"]:
+            out.append({"prio": 0, "type": "mi_precio", "ticker": r["ticker"], "ref": f"{m['price']:.4f}", "href": f"/ticker/{r['ticker']}",
+                        "text": f"Cotiza a {es(r['price'], 2)}, por debajo de tu precio de compra ({es(m['price'], 2)}" + (f"; lo fijaste el {when})" if when else ")")})
+        if m["review_due"]:
+            out.append({"prio": 2, "type": "mi_precio_revisar", "ticker": r["ticker"], "ref": m["set_at"], "href": "/watchlist",
+                        "text": f"Fijaste tu precio de compra ({es(m['price'], 2)}) hace {m['age_days']} días: revisa si sigue valiendo "
+                                f"(guárdalo de nuevo en la Watchlist, aunque sea el mismo)"})
     for r in fresh:   # el año corregido a mano ya tiene dato real: la corrección ha dejado de aplicarse
         a = r["val"]["anchor"]
         if a and a["state"] == "expired":
@@ -214,7 +248,7 @@ def watchlist_fragment(
     return templates.TemplateResponse("_watchlist_table.html", {
         "request": request, "rows": rows, "attention": attention, "signals": signals, "signal_history": history,
         "seen_keys": [a["key"] for a in attention if a["seen"]], "dismissed_keys": notice_repo.dismissed_keys("watchlist"),
-        "target": bv.TARGET_RETURN_PCT, "metrics": bv.METRICS, "near": NEAR_PCT, "watch": WATCH_PCT, "list_limit": LIST_LIMIT,
+        "target": bv.TARGET_RETURN_PCT, "metrics": bv.METRICS, "near": NEAR_PCT, "watch": WATCH_PCT, "list_limit": LIST_LIMIT, "my_review": MY_PRICE_REVIEW_DAYS,
     })
 
 
@@ -246,6 +280,20 @@ def update_watchlist_note(
 ):
     asset_repo.save_asset_data(ticker.upper(), NOTE_KEY, (payload.note or "").strip() or None)
     return {"status": "success"}
+
+
+@router.put("/api/watchlist/{ticker}/mi-precio")
+def update_my_price(
+    ticker: str,
+    payload: MyPricePayload,
+    asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
+):
+    """Pone, confirma (mismo precio: vuelve a contar los 90 días) o quita tu precio de compra a mano."""
+    if payload.price is not None and payload.price <= 0:
+        raise HTTPException(status_code=400, detail="El precio tiene que ser mayor que cero")
+    value = {"price": payload.price, "set_at": date.today().isoformat()} if payload.price else None
+    asset_repo.save_asset_data(ticker.upper(), MY_PRICE_KEY, value)
+    return {"status": "success", "mine": value}
 
 
 @router.delete("/api/watchlist/{ticker}")

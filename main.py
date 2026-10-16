@@ -1,5 +1,6 @@
 import logging
 import uvicorn
+import utils.yf_guard  # noqa: F401  (yf.download de una en una: antes que cualquier vista o tarea que descargue)
 from fastapi import FastAPI
 from dotenv import load_dotenv
 

@@ -1,0 +1,219 @@
+    // Resize Plotly charts when any tab becomes visible and Persist active tabs
+    document.addEventListener("DOMContentLoaded", function() {
+        const ticker = "{{ ticker }}";
+
+        // Restore rejection buttons state dynamically for all rendered rejection blocks
+        const globalStatus = "{{ db.get('status') }}";
+        const allRejectionDivs = document.querySelectorAll('[id^="rejection-"]');
+        
+        allRejectionDivs.forEach(div => {
+            const key = div.id.replace('rejection-', '');
+            let state = localStorage.getItem(`rejection_state_${ticker}_${key}`);
+            
+            if (state === 'hidden') {
+                div.classList.add('d-none');
+                return;
+            }
+            
+            // Si la empresa ya está descartada globalmente y no hemos ignorado esta alerta, marcamos el botón como descartado
+            if (globalStatus === 'REJECTED' && state !== 'ignore') {
+                state = 'accept';
+            }
+
+            const btnAccept = document.getElementById(`btn-accept-rejection-${key}`);
+            const btnIgnore = document.getElementById(`btn-ignore-rejection-${key}`);
+            const btnUndo = document.getElementById(`btn-undo-rejection-${key}`);
+            
+            const cardActive = document.getElementById(`rejection-card-active-${key}`);
+            const cardDismissed = document.getElementById(`rejection-card-dismissed-${key}`);
+            const commentTextarea = document.getElementById(`rejection-comment-${key}`);
+
+            if (state) {
+                if (btnAccept && btnIgnore) {
+                    btnAccept.disabled = true;
+                    btnIgnore.disabled = true;
+                    if (state === 'accept') {
+                        btnAccept.innerText = '✅ Descartada';
+                        btnIgnore.classList.add('d-none');
+                    } else if (state === 'ignore') {
+                        btnIgnore.innerText = '✅ Alerta Ignorada';
+                        btnAccept.classList.add('d-none');
+                    }
+                }
+                if (btnUndo) {
+                    if (state === 'accept' && !localStorage.getItem(`rejection_state_${ticker}_${key}`)) {
+                        // Fue marcado automáticamente por el estado global, no mostramos deshacer
+                        btnUndo.classList.add('d-none');
+                    } else {
+                        btnUndo.classList.remove('d-none');
+                    }
+                }
+            }
+
+            // Sincronizar tarjetas y rastro
+            if (state === 'ignore') {
+                if (cardActive) cardActive.classList.add('d-none');
+                if (cardDismissed) cardDismissed.classList.remove('d-none');
+
+                syncCommentPreview(key);
+            } else {
+                if (cardActive) cardActive.classList.remove('d-none');
+                if (cardDismissed) cardDismissed.classList.add('d-none');
+            }
+        });
+        
+        // 1. Persistence Logic for Tab groups
+        function setupTabPersistence(tabGroupId) {
+            const storageKey = `activeTab_${tabGroupId}_${ticker}`;
+            const tabsContainer = document.getElementById(tabGroupId);
+            if (!tabsContainer) return;
+
+            // Determinar si debemos restaurar la pestaña guardada.
+            // Para el grupo principal ('mainTickerTabs'), solo restauramos si seguimos en el mismo ticker.
+            let shouldRestore = true;
+            if (tabGroupId === 'mainTickerTabs') {
+                const lastVisitedTicker = sessionStorage.getItem('last_visited_ticker');
+                if (lastVisitedTicker !== ticker) {
+                    shouldRestore = false;
+                }
+                // con #valoracion en el enlace manda el enlace, no la última pestaña que se abrió
+                if (['#valoracion', '#directivos', '#mi-cartera', '#finanzas', '#graficos', '#cuentas'].includes(location.hash)) shouldRestore = false;
+            }
+
+            // Load saved tab
+            if (shouldRestore) {
+                const savedTabId = sessionStorage.getItem(storageKey);
+                if (savedTabId) {
+                    const tabEl = document.getElementById(savedTabId);
+                    if (tabEl) {
+                        const tab = new bootstrap.Tab(tabEl);
+                        tab.show();
+                    }
+                }
+            }
+
+            // Save tab on change (soporta tanto data-bs-toggle="tab" como "pill")
+            const tabButtons = tabsContainer.querySelectorAll('button[data-bs-toggle="tab"], button[data-bs-toggle="pill"]');
+            tabButtons.forEach(button => {
+                button.addEventListener('shown.bs.tab', (event) => {
+                    sessionStorage.setItem(storageKey, event.target.id);
+                });
+            });
+        }
+
+        setupTabPersistence('chartTabs');
+        setupTabPersistence('reportTabs');
+        setupTabPersistence('mainTickerTabs');
+        setupTabPersistence('histTabs');
+        setupTabPersistence('auditSubTabs');
+
+        // Guardar el ticker actual como el último visitado
+        sessionStorage.setItem('last_visited_ticker', ticker);
+
+        // Normas de calidad: un solo pilar abierto a la vez (al abrir uno se cierran los demás)
+        document.querySelector('.rules-list')?.addEventListener('show.bs.collapse', e => {
+            if (!e.target.id.startsWith('collapse-rules_pilar')) return;
+            document.querySelectorAll('.rules-list .collapse.show[id^="collapse-rules_pilar"]').forEach(el => {
+                if (el !== e.target) bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).hide();
+            });
+        });
+
+        // Quality Rules Total Score Live Recalculation
+        function updateQualityTotalScore() {
+            let total = 0.0;
+            for (let i = 1; i <= 5; i++) {
+                const pilarEl = document.querySelector(`.pilar-score-val[data-pilar="${i}"]`);
+                let val = 0.0;
+                if (pilarEl) {
+                    val = parseFloat(pilarEl.innerText) || 0.0;
+                }
+                total += val;
+                
+                // barra de la nota del pilar
+                const bar = document.querySelector(`[data-pilar-bar="${i}"]`);
+                if (bar) {
+                    bar.style.width = Math.min(100, val / 2 * 100) + '%';
+                    bar.className = val >= 1.5 ? 'bg-success' : (val >= 1.0 ? 'bg-warning' : 'bg-danger');
+                }
+            }
+            
+            // La nota solo vale con los 5 pilares hechos (un pilar pendiente no es un 0)
+            const done = [...document.querySelectorAll('[id^="status-container-rules_pilar"]')].filter(c => !c.textContent.includes('Pendiente')).length;
+            const complete = done === 5;
+            const totalEl = document.getElementById('live-total-score');
+            if (totalEl) {
+                totalEl.innerText = complete ? fmtNum(total, 2) : '–';
+                totalEl.classList.toggle('text-muted', !complete);
+            }
+            
+            // Actualizar la clasificación estimada
+            const labelEl = document.getElementById('live-verdict-label');
+            if (labelEl) {
+                labelEl.className = 'fw-bold';
+                if (!complete) {
+                    labelEl.classList.add('text-muted');
+                    labelEl.innerText = `Pendiente · ${done} de 5 pilares`;
+                } else if (total >= 8.0) {
+                    labelEl.classList.add('text-success');
+                    labelEl.innerText = 'Calidad Élite (Core)';
+                } else if (total >= 5.0) {
+                    labelEl.classList.add('text-warning');
+                    labelEl.innerText = 'Calidad Sólida (Satélite)';
+                } else {
+                    labelEl.classList.add('text-danger');
+                    labelEl.innerText = 'Calidad Insuficiente (Descarte)';
+                }
+            }
+
+            // la misma nota en la matriz de calidad del Resumen ejecutivo
+            const matrixEl = document.getElementById('matrix-rules-score');
+            if (matrixEl && document.querySelector('#rules .pilar-score-val')) {
+                if (complete) {
+                    matrixEl.textContent = fmtNum(total, 1);
+                    matrixEl.className = 'fw-bold num-font ' + (total >= 8.5 ? 'text-success' : total >= 7.0 ? 'text-warning' : total >= 5.0 ? 'text-orange' : 'text-danger');
+                }
+            }
+        }
+
+        // Ejecutar inicialmente al cargar la página
+        window.updateQualityTotalScore = updateQualityTotalScore;   // generateReport (fuera de este bloque) la llama al terminar un pilar
+        updateQualityTotalScore();
+
+        // 2. Resize Plotly charts logic
+        var triggerTabList = [].slice.call(document.querySelectorAll('button[data-bs-toggle="tab"], button[data-bs-toggle="pill"]'));
+        triggerTabList.forEach(function (triggerEl) {
+            triggerEl.addEventListener('shown.bs.tab', function (event) {
+                var targetId = event.target.getAttribute('data-bs-target');
+                
+                // Si es una pestaña de reportes (gauges)
+                if (targetId && !targetId.includes('chart')) {
+                    var gaugeId = 'gauge-' + targetId.substring(1); 
+                    var gaugeEl = document.getElementById(gaugeId);
+                    if (gaugeEl && gaugeEl.data) {
+                        Plotly.Plots.resize(gaugeEl);
+                    }
+                }
+                
+                // Si es una pestaña de gráficos financieros o la pestaña principal de GRÁFICO
+                if (targetId && (targetId.includes('tab-pane') || targetId === '#nav-financials' || targetId === '#sub-charts-pane')) {
+                    var chartDivs = ['priceChart', 'revenueChart', 'netIncomeChart', 'epsChart', 'fcfChart'];
+                    chartDivs.forEach(function(id) {
+                        var el = document.getElementById(id);
+                        if (el && el.data) Plotly.Plots.resize(el);
+                    });
+                }
+            });
+        });
+        
+        // Inicializar gauges existentes
+        {% for key, label, desc in tabs %}
+        {% if db.get(key) and reports_meta and key in reports_meta and reports_meta[key].score != 'N/A' %}
+            {% if key == 'val' %}
+                drawValuationGauge("gauge-{{ key }}", "{{ reports_meta[key].score }}");
+            {% else %}
+                drawGauge("gauge-{{ key }}", "{{ reports_meta[key].score }}");
+            {% endif %}
+        {% endif %}
+        {% endfor %}
+    });
+

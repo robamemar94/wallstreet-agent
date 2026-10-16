@@ -23,7 +23,8 @@
                      'upcoming_results': ('resultados', 'info'), 'new_results': ('resultados', 'info'), 'review_ready': ('revisión', 'info'),
                      'decision_missing': ('decisión', 'warning'), 'decision_review': ('decisión', 'warning'), 'insider_buy': ('directivos', 'success'),
                      'news': ('noticia', 'secondary'), 'split': ('split', 'secondary'), 'split_manual': ('split', 'secondary'),
-                     'anchor_expired': ('valoración', 'warning'), 'portfolio_risk': ('riesgo', 'danger'), 'cash_deposit': ('liquidez', 'primary')} %}
+                     'anchor_expired': ('valoración', 'warning'), 'portfolio_risk': ('riesgo', 'danger'), 'cash_deposit': ('liquidez', 'primary'),
+                     'mi_precio': ('tu precio', 'success'), 'mi_precio_revisar': ('tu precio', 'warning')} %}
 {% macro attention_item(a, held=[]) %}
         <div class="att-item inbox-item p{{ [a.prio, 3]|min }} {{ 'att-seen' if a.seen }}" data-key="{{ a.key }}" data-ticker="{{ a.ticker or a.label or '' }}"{{ ' data-held=1' if a.ticker in held }}>
         <div class="d-flex gap-2 align-items-start">

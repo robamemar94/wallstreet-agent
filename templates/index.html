@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% from "_ui_macros.html" import ext_tag, ext_title %}
 {% block title %}Alpha-Flow · Inicio{% endblock %}
 {% block content %}
 {% macro mover_row(t, cls) %}
-                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="{{ cls }}"
+                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="{{ cls }}"
                                 data-ticker="{{ clean_ticker(t.name) }}"
                                 data-price="{{ t.price or 0 }}"
                                 data-pct="{{ t.pct or 0 }}"
@@ -11,16 +12,16 @@
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-end pe-3 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
                                         <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, t.dec|default(2)) }}{{ t.symbol }}
                                             <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
                                         </span>
                                     </div>
@@ -35,45 +36,84 @@
 {{ notice_scripts() }}
 <style>
     .slot-loading { min-height: 120px; }
-    /* Centro de mando: la bandeja (izquierda) y la columna de contexto (derecha) llenan la ventana: --centro-h lo calcula
-       sizeCentro(); lo que no cabe se desplaza dentro de cada tarjeta. En la columna, Hoy se lleva algo más que la agenda */
-    #home-centro .centro-main > .card { height: var(--centro-h, 640px) !important; display: flex; flex-direction: column; }
-    /* fila de arriba: Resumen y Agenda con el mismo alto fijo; la agenda se desplaza por dentro */
-    #home-centro .centro-top > div > .card { height: 12rem !important; display: flex; flex-direction: column; }
-    #home-centro .centro-top .agenda-window { flex: 1 1 auto; min-height: 0; overflow: hidden !important; }
+    /* Portada: la mitad de arriba con alto fijo (--top-h, sizeHome); la Actividad del día llena el resto */
+    .idx-tape { display: flex; flex-wrap: wrap; gap: .3rem 1.4rem; font-size: .74rem; padding: .35rem .8rem; border-radius: 8px; background: var(--fin-card-bg); }
+    .idx-tape .idx-item { display: inline-flex; gap: .45rem; align-items: baseline; white-space: nowrap; }
+    .idx-tape .idx-name { color: var(--bs-secondary-color); font-weight: 600; font-size: .68rem; text-transform: uppercase; letter-spacing: .03em; }
+    @media (min-width: 1200px) { .home-top { height: var(--top-h, 380px); }
+        .home-top > [class*="col-"] { height: calc(100% - var(--bs-gutter-y)); }   /* el contenido, con scroll por dentro */
+        .home-top > div > .card { height: 100% !important; } }
+    .home-top > div > .card { display: flex; flex-direction: column; min-height: 0; }
+    #slot-agenda > .card .agenda-window { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+    .mc-period .btn { font-size: .66rem; padding: .05rem .4rem; }
+    /* dos columnas del alto de la ventana: Resumen (fijo) + Bandeja (el resto) | Agenda (fija) + Noticias (el resto) */
+    /* Agenda: lo que viene en el periodo, en una línea; su periodo lo manda el del Resumen (sus botones no se ven) */
+    /* Agenda como plan: Esta semana (día a día) y Resto del mes (resumido), cartera y lo que sigues */
+    #agendaPlan .ap-body { overflow: hidden; padding-top: .35rem; }
+    #agendaPlan .ap-row { padding: .1rem 0; }
+    #agendaPlan .ap-row .ag-what { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #agendaPlan .ap-tabs .btn { font-size: .68rem; padding: .08rem .5rem; }
+    /* «+N más»: al pasar el ratón, todas las de esa semana (por encima de la tarjeta) */
+    #agendaPlan [data-ap-pane="mes"] { overflow: visible; }
+    #agendaPlan [data-ap-pane="mes"] .ap-row .ag-what { overflow: visible; }
+    #agendaPlan .ap-more { position: relative; color: var(--bs-link-color); cursor: pointer; margin-left: .2rem; }
+    #agendaPlan .ap-pop { display: none; position: absolute; right: 0; top: 1.2rem; z-index: 30; min-width: 14rem; max-height: 18rem; overflow-y: auto;
+                          padding: .4rem .6rem; border-radius: 8px; background: var(--fin-card-bg, var(--bs-body-bg)); border: 1px solid var(--bs-border-color);
+                          box-shadow: 0 6px 18px rgba(0, 0, 0, .45); white-space: normal; color: var(--bs-body-color); font-weight: 400; }
+    #agendaPlan .ap-pop > span { display: block; padding: .08rem 0; white-space: nowrap; }
+    #agendaPlan .ap-more:hover .ap-pop { display: block; }
+    #agendaPlan .ap-sub { font-size: .68rem; font-weight: 600; color: var(--bs-secondary-color); margin: .3rem 0 .1rem; }
+    #agendaPlan .ap-none { font-size: .74rem; padding-left: .2rem; }
+    /* lo ya pasado de esta semana, junto al título del bloque: apagado, para que se lea que ya ocurrió */
+    #agendaPlan .ap-sub:has(.ap-done) { display: flex; gap: .5rem; align-items: baseline; }
+    #agendaPlan .ap-done { opacity: .55; font-weight: 400; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #agendaPlan .ap-done:hover { opacity: .9; }
+    #slot-agenda .ag-coming { font-size: .76rem; color: var(--bs-secondary-color); padding-bottom: .3rem; margin-bottom: .2rem; border-bottom: 1px solid var(--bs-border-color); }
+    #slot-agenda .ag-coming b { color: var(--bs-body-color); }
+    /* Bandeja: una línea por grupo con las empresas como etiquetas */
+    #slot-attention .bj-body { padding: .3rem .9rem .6rem; }
+    #bandejaCard .card-header { flex-wrap: nowrap !important; padding-top: .45rem; padding-bottom: .45rem; }
+    #bandejaCard .card-header .btn { font-size: .7rem; padding: .1rem .45rem; }
+    #bandejaCard #bjAll { white-space: nowrap; font-size: .72rem; }
+    #slot-attention .bj-group { display: grid; grid-template-columns: 10.5rem minmax(0, 1fr); column-gap: .8rem; padding: .45rem 0; border-bottom: 1px solid var(--bs-border-color-translucent); }
+    #slot-attention .bj-group:last-of-type { border-bottom: 0; }
+    #slot-attention .bj-label { font-size: .74rem; font-weight: 700; color: var(--bs-secondary-color); padding-top: .2rem; white-space: nowrap; }
+    #slot-attention .bj-label .bi { margin-right: .4rem; }
+    #slot-attention .bj-group { --c: #94a3b8; }
+    #slot-attention .bj-comprar { --c: var(--fin-green, #16a34a); } #slot-attention .bj-analistas { --c: #a78bfa; } #slot-attention .bj-resultados { --c: #60a5fa; }
+    #slot-attention .bj-precio { --c: #2dd4bf; } #slot-attention .bj-cartera { --c: #f59e0b; }
+    #slot-attention .bj-pill { display: inline-flex; align-items: center; padding: .12rem .55rem; border-radius: 6px; color: var(--c);
+                               background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); }
+    #slot-attention .bj-chip.bj-good b { color: var(--fin-green, #16a34a); } #slot-attention .bj-chip.bj-bad b { color: var(--fin-red, #dc2626); }
+    #slot-attention .bj-detail { border-left-color: var(--c) !important; background: color-mix(in srgb, var(--c) 7%, transparent) !important; }
+    #slot-attention .bj-chips { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    #slot-attention .bj-chip { display: flex; align-items: baseline; gap: .55rem; padding: .18rem .45rem; border-radius: 6px; font-size: .78rem; cursor: pointer; min-width: 0; }
+    #slot-attention .bj-chip:hover, #slot-attention .bj-chip.active { background: rgba(127, 127, 127, .1); }
+    #slot-attention .bj-chip b { flex: 0 0 auto; min-width: 3.4rem; }
+    #slot-attention .bj-chip.unread b::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; margin: 0 .35rem .1rem 0; }
+    #slot-attention .bj-text { color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
+    #slot-attention .bj-chip.unread .bj-text { color: var(--bs-body-color); }
+    #slot-attention .bj-n { font-size: .66rem; font-weight: 700; border-radius: 4px; padding: 0 .3rem; background: var(--bs-secondary-bg); flex: 0 0 auto; }
+    #slot-attention .bj-acts { display: flex; gap: .45rem; opacity: 0; flex: 0 0 auto; }
+    #slot-attention .bj-chip:hover .bj-acts { opacity: 1; }
+    #slot-attention .bj-acts .btn { color: var(--bs-secondary-color); line-height: 1; font-size: .8rem; }
+    #slot-attention .bj-detail { margin: .1rem 0 .3rem; padding: .4rem .6rem; border-left: 2px solid #3b82f6; background: rgba(59, 130, 246, .06); border-radius: 0 6px 6px 0; }
+    #slot-attention .bj-line { display: grid; grid-template-columns: 2.8rem 8rem minmax(0, 1fr) auto; gap: .5rem; font-size: .76rem; padding: .15rem 0; }
+    #slot-attention .bj-when { color: var(--bs-secondary-color); font-variant-numeric: tabular-nums; }
+    #slot-attention .bj-kind { color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #slot-attention .bj-go { white-space: nowrap; text-decoration: none; font-size: .72rem; }
+    #slot-attention .av-live, #slot-attention .av-live { font-size: .62rem; font-weight: 700; border-radius: 4px; padding: 0 .35rem; color: #2dd4bf; background: rgba(45, 212, 191, .13); white-space: nowrap; cursor: default; }
+    #slot-attention .bj-group.d-none + .bj-group { border-top: 0; }
     #slot-agenda .agenda-window { padding-top: .35rem !important; padding-bottom: .35rem !important; }
     #slot-agenda .ag-more { font-size: .72rem; font-weight: 400; white-space: nowrap; }
     #slot-agenda .card-header .btn { white-space: nowrap; padding: .15rem .45rem; font-size: .75rem; }
-    /* Resumen en franja: cada apartado es un bloque en horizontal (con su propio scroll si crece en 7 / 30 días) */
-    #slot-summary .card-header { padding-top: .35rem; padding-bottom: .35rem; }
-    #slot-summary .agenda-window { padding-top: .5rem; padding-bottom: .5rem; }
-    #slot-summary .agenda-window { overflow: hidden !important; }
-    #slot-summary .agenda-window > .row { display: flex; flex-wrap: nowrap; margin: 0; height: 100%; }
-    #slot-summary .agenda-window > .row > [class*="col-"] { display: contents; }
-    #slot-summary .summary-section { flex: 1 1 0; min-width: 0; max-height: 100%; overflow-y: auto; padding: 0 1rem;
-                                     margin: 0 !important; border-top: 0 !important; border-left: 1px solid var(--bs-border-color); }
-    #slot-summary .summary-section:first-child { border-left: 0; padding-left: 0; }
-    #slot-summary [data-agenda-window="hoy"] .summary-section:first-child { flex-grow: 1.4; }
-    #slot-summary .summary-section { overflow-x: hidden; }
-    #slot-summary .summary-section li { overflow: hidden; text-overflow: ellipsis; }
-    @media (max-width: 1199.98px) { #slot-summary .agenda-window > .row { flex-wrap: wrap; } #slot-summary .summary-section { flex-basis: 45%; border-left: 0; margin-bottom: .5rem !important; } }
     #home-centro .fixed-body, #home-centro .agenda-window { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-    #slot-attention .news-sep { font-weight: 700; font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); padding-top: .25rem; padding-bottom: .25rem; }
     /* bandeja: Pendiente arriba y Monitor abajo a la izquierda; Noticias a la derecha, a toda la altura.
        Poco texto a la vista: avisos en dos líneas como mucho, noticias en una (el resto, al pasar el ratón) */
     #slot-attention .att-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .att-tag { display: inline-block; font-size: .62rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em;
                border: 1px solid; border-radius: .25rem; padding: 0 .3rem; margin: 0 .2rem; vertical-align: 1px; }
-    #slot-attention .centro-news .list-group-item { padding: .22rem 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #slot-attention .centro-news .news-sep { padding-top: .15rem; padding-bottom: .15rem; }
     #slot-attention .notice-list.card-body { padding-top: .4rem; padding-bottom: .4rem; }
-    #slot-attention .centro-news .list-group-item a { text-decoration: none; color: var(--bs-body-color); }
-    #slot-attention .centro-news .list-group-item a:hover { text-decoration: underline; color: var(--bs-link-hover-color); }
-    #slot-attention .centro-news .news-sep { white-space: normal; }
-    #slot-attention .inbox-grid { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
-    #slot-attention .inbox-sec { display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--bs-border-color); }
-    #slot-attention .inbox-pend { grid-column: 1; grid-row: 1; border-top: 0; }
-    #slot-attention .inbox-news { grid-column: 2; grid-row: 1; border-top: 0; border-left: 1px solid var(--bs-border-color); }
     /* grupos: una línea por tipo, las empresas como etiquetas (punto = sin leer; apagada = de hace más de 7 días) */
     .grouped .ng-block-h { display: flex; align-items: center; gap: .5rem; font-size: .66rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
                            color: var(--bs-secondary-color); margin: .35rem 0 .1rem; }
@@ -103,8 +143,6 @@
     #slot-attention .inbox-h { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color);
                                padding: .45rem 1rem; border-bottom: 1px solid var(--bs-border-color-translucent); }
     #slot-attention .inbox-h .btn { font-size: .68rem; padding: .05rem .45rem; text-transform: none; letter-spacing: 0; }
-    @media (max-width: 1199.98px) { #slot-attention .inbox-grid { grid-template-columns: 1fr; grid-template-rows: auto; }
-        #slot-attention .inbox-sec { grid-column: 1 !important; grid-row: auto !important; border-left: 0 !important; max-height: 420px; } }
     :is(#slot-agenda, #agendaFullBody) .ag-row { display: flex; gap: .6rem; padding: .17rem 0; border-bottom: 1px solid var(--bs-border-color-translucent); }
     :is(#slot-agenda, #agendaFullBody) .ag-row:last-child { border-bottom: 0; }
     :is(#slot-agenda, #agendaFullBody) .ag-day { flex: 0 0 5.6rem; color: var(--bs-secondary-color); }
@@ -112,7 +150,6 @@
     .summary-section + .summary-section { margin-top: .6rem; padding-top: .5rem; border-top: 1px solid var(--bs-border-color); }
     .summary-section .text-muted.fw-bold.mb-2 { margin-bottom: .3rem !important; }
     #slot-attention .why-result:not(:empty) { flex: 0 0 auto; max-height: 45%; overflow-y: auto; padding: 0 1rem .5rem; }
-    .home-tabs .nav-link { font-weight: 600; }
     /* «Actividad del día»: los valores cuyo mercado aún no ha abierto, con su sesión anterior, atenuados y con su etiqueta */
     tr[data-not-open] { opacity: .5; } tr[data-not-open]:hover { opacity: .85; }
     .mv-stale-tag { font-size: .58rem; font-weight: 600; text-transform: none; padding: 0 .3rem; margin-left: .3rem; border-radius: .25rem;
@@ -211,25 +248,6 @@
         color: var(--bs-primary) !important;
     }
 
-    /* Estilo para Heatmap en Pantalla Completa */
-    .heatmap-fullscreen-card {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        z-index: 1080 !important;
-        background-color: #11151f !important;
-        border-radius: 0 !important;
-        margin: 0 !important;
-        padding: 20px !important;
-        display: flex !important;
-        flex-direction: column !important;
-    }
-    .heatmap-fullscreen-card .card-body {
-        height: calc(100vh - 80px) !important;
-        border-radius: 0 !important;
-    }
     .table-caution {
         --bs-table-bg: #ffc107;
         --bs-table-border-color: #ffc107;
@@ -259,104 +277,67 @@
 
 {% include "_prices_banner.html" %}
 
-<!-- Portada en dos pestañas: Mercado y Centro de mando. Se eligen con los accesos de arriba a la izquierda (base.html);
-     estas pestañas quedan ocultas, solo como interruptor (#mercado / #centro). -->
-<ul class="nav nav-tabs home-tabs d-none" role="tablist">
-    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#home-mercado" type="button" data-hash="mercado"><i class="bi bi-globe2 me-1"></i>Mercado</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#home-centro" type="button" data-hash="centro"><i class="bi bi-grid-1x2 me-1"></i>Centro de mando
-        <span class="badge text-bg-primary d-none" id="centroTabCount" title="Sin leer de empresas en cartera"></span></button></li>
-</ul>
-<div class="tab-content">
-<div class="tab-pane fade show active" id="home-mercado">
-<!-- 1. Row: Portfolio, Global Indices, and Heatmap -->
-<div class="row mb-3 g-2">
-    <!-- Portfolio Summary KPI -->
+<!-- Portada en una sola vista: arriba la cinta de índices y el Centro de mando (Mi Cartera con su resumen, la Bandeja de
+     hoy y la Agenda); abajo, la Actividad del día. La mitad de arriba tiene un alto fijo (sizeHome) y la Actividad llena
+     el resto (data-fit). -->
+<div id="slot-notes"></div>
+{# Cinta de índices: una línea #}
+<div class="idx-tape mb-2">
+    {% for idx in market_indices if not idx.is_portfolio %}
+    <span class="idx-item"><span class="idx-name">{{ idx.name }}</span>
+        <span class="num-font text-white">{{ format_euro(idx.price, 0) if idx.price > 1000 else format_euro(idx.price, 2) }}</span>
+        <span class="num-font {{ 'text-success' if idx.pct > 0 else 'text-danger' if idx.pct < 0 else 'text-muted' }}">{{ '+' if idx.pct > 0 }}{{ format_euro(idx.pct, 2) }}%</span></span>
+    {% endfor %}
+</div>
+<div class="modal fade" id="agendaFullModal" tabindex="-1" aria-labelledby="agendaFullTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="agendaFullTitle">Agenda</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <div class="modal-body small" id="agendaFullBody"></div>
+    </div></div>
+</div>
+{% set portfolio_idx = market_indices[0] %}
+<div class="row g-2 mb-2 home-top" id="home-centro">
+    <!-- Mi Cartera: valor, el resultado de Hoy / 7 / 30 días (su propio selector), los avisos, resultados y cobros, y las noticias -->
     <div class="col-xl-3 col-lg-12">
-        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
+        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);" id="miCarteraCard">
             <div class="card-header border-0 pt-2 pb-0 d-flex align-items-center gap-2" style="background: transparent;">
                 <h6 class="fw-bold mb-0 text-white" style="font-size: 0.82rem;"><i class="bi bi-briefcase-fill text-primary"></i> Mi Cartera</h6>
+                <div class="btn-group btn-group-sm ms-auto mc-period" role="group" aria-label="Periodo">
+                    <button type="button" class="btn btn-outline-secondary active" data-mc="hoy">Hoy</button>
+                    <button type="button" class="btn btn-outline-secondary" data-mc="7d">7 d</button>
+                    <button type="button" class="btn btn-outline-secondary" data-mc="30d">30 d</button>
+                </div>
             </div>
-            {% set portfolio_idx = market_indices[0] %}
-            <div class="card-body p-2 px-3 d-flex flex-column gap-1">
-                <!-- Portfolio Summary Widget -->
+            <div class="card-body p-2 px-3 d-flex flex-column gap-1" style="min-height: 0; overflow-y: auto;">
                 <div class="p-2 mb-1 rounded border d-flex flex-column justify-content-center" style="background: linear-gradient(135deg, #161a24, #1b202e); border-color: rgba(255, 255, 255, 0.05) !important;">
-                    <div>
-                        {# posiciones y sesión, junto al valor (antes en una fila aparte abajo) #}
-                        <div class="d-flex justify-content-between align-items-baseline flex-wrap gap-1">
-                            <span class="text-muted small fw-semibold uppercase" style="font-size: 0.52rem; letter-spacing: 0.5px;">VALOR TOTAL</span>
-                            <span class="text-muted num-font text-nowrap" style="font-size: 0.6rem;">
-                                <a href="#" class="text-muted text-decoration-none" data-bs-toggle="modal" data-bs-target="#portfolioModal" title="Ver posiciones de mi cartera"><i class="bi bi-tag-fill opacity-50 text-primary"></i> {{ port_all|length }} posiciones</a>
-                                · <span title="Última sesión: {{ latest_market_date }}"><i class="bi bi-clock-history opacity-50"></i> sesión {{ latest_market_date.strftime('%d/%m') if latest_market_date else '–' }}</span></span>
-                        </div>
-                        <span class="fw-bold fs-5 num-font text-white d-block" style="line-height: 1.2;">{{ format_euro(portfolio_idx.price, 2) }} €</span>
+                    <div class="d-flex justify-content-between align-items-baseline flex-wrap gap-1">
+                        <span class="text-muted small fw-semibold uppercase" style="font-size: 0.52rem; letter-spacing: 0.5px;">VALOR TOTAL</span>
+                        <span class="text-muted num-font text-nowrap" style="font-size: 0.6rem;">
+                            <a href="#" class="text-muted text-decoration-none" data-bs-toggle="modal" data-bs-target="#portfolioModal" title="Ver posiciones de mi cartera"><i class="bi bi-tag-fill opacity-50 text-primary"></i> {{ port_all|length }} posiciones</a>
+                            · <span title="Última sesión: {{ latest_market_date }}"><i class="bi bi-clock-history opacity-50"></i> sesión {{ latest_market_date.strftime('%d/%m') if latest_market_date else '–' }}</span></span>
                     </div>
-                    <div class="mt-1 pt-1 border-top" style="border-color: rgba(255,255,255,0.05) !important;">
-                        <span class="fw-bold num-font {% if portfolio_idx.pct >= 0 %}text-success{% else %}text-danger{% endif %}" style="font-size: 0.78rem;">
+                    <span class="fw-bold fs-5 num-font text-white d-block" style="line-height: 1.2;">{{ format_euro(portfolio_idx.price, 2) }} €</span>
+                    {# el resultado del periodo elegido: hoy, aquí; 7 y 30 días, del pulso (frente al índice) #}
+                    <div class="mt-1 pt-1 border-top num-font" id="mcResult" style="border-color: rgba(255,255,255,0.05) !important; font-size: 0.78rem;"
+                         data-hoy-abs="{{ portfolio_idx.change }}" data-hoy-pct="{{ portfolio_idx.pct }}">
+                        <span class="fw-bold {% if portfolio_idx.pct >= 0 %}text-success{% else %}text-danger{% endif %}">
                             {% if portfolio_idx.change >= 0 %}+{% endif %}{{ format_euro(portfolio_idx.change, 2) }}€
-                            <span class="opacity-75 small ms-1" style="font-size: 0.68rem;">
-                                ({% if portfolio_idx.pct >= 0 %}+{% endif %}{{ num(portfolio_idx.pct, 2) }}%)
-                            </span>
-                        </span>
+                            <span class="opacity-75 small ms-1" style="font-size: 0.68rem;">({% if portfolio_idx.pct >= 0 %}+{% endif %}{{ num(portfolio_idx.pct, 2) }}%)</span></span>
+                        <span class="text-muted small ms-1">hoy</span>
                     </div>
                 </div>
-                
-                <!-- Resumen del Centro de mando (se pide aparte para no frenar la página) -->
+                <!-- Resumen: avisos, resultados y cobro (/api/centro/pulso) y las noticias de esta semana (también junto al calendario) -->
                 <div id="centroPulse" class="small d-flex flex-column gap-1 py-1" style="font-size: 0.7rem;">
-                    <a href="#centro" class="pulse-line text-decoration-none text-muted"><i class="bi bi-hourglass-split me-1"></i>Cargando el Centro de mando…</a>
+                    <span class="pulse-line text-muted"><i class="bi bi-hourglass-split me-1"></i>Cargando el resumen…</span>
                 </div>
+                {# noticias de esta semana: abre una ventana centrada con la lista y «Ir a Noticias» (lo rellena base.html) #}
+                <div id="mcNews" class="small" style="font-size: 0.7rem;"></div>
             </div>
         </div>
     </div>
-
-    <!-- Global Indices Grid -->
-    <div class="col-xl-3 col-lg-12">
-        <div class="card border-0 h-100" style="background-color: var(--fin-card-bg);">
-            <div class="card-header border-0 pt-2 pb-0" style="background: transparent;">
-                <h6 class="fw-bold mb-0 text-white" style="font-size: 0.82rem;"><i class="bi bi-globe text-primary"></i> Índices de Mercado</h6>
-            </div>
-            <div class="card-body p-2">
-                <div class="row g-2">
-                    {% for idx in market_indices if not idx.is_portfolio %}
-                    <div class="col-6">
-                        <div class="p-1 px-2 d-flex flex-column justify-content-between rounded" style="background: rgba(255,255,255,0.015); height: 50px; border: 1px solid var(--fin-border);">
-                            <span class="text-muted fw-bold uppercase" style="font-size: 0.58rem; letter-spacing: 0.2px;">{{ idx.name }}</span>
-                            <div class="d-flex justify-content-between align-items-baseline">
-                                <span class="fw-bold text-white num-font" style="font-size: 0.74rem;">
-                                    {{ format_euro(idx.price, 0) if idx.price > 1000 else format_euro(idx.price, 2) }}
-                                </span>
-                                <span class="fw-bold num-font {% if idx.pct > 0 %}text-success{% elif idx.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.68rem; white-space: nowrap;">
-                                    {% if idx.change > 0 %}+{% endif %}{{ format_euro(idx.change, 0) if idx.change|abs > 1000 else format_euro(idx.change, 1) }}
-                                    <span class="small" style="font-size: 0.58rem;">({% if idx.pct > 0 %}+{% endif %}{{ format_euro(idx.pct, 1) }}%)</span>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Heatmap Tracked -->
-    <div class="col-xl-6 col-lg-12">
-        <div class="card border-0 h-100 bg-transparent" id="heatmapCard">
-            <div class="card-header border-0 pb-0 pt-2 px-2 bg-transparent d-flex justify-content-between align-items-center">
-                <small class="text-muted fw-bold" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.3px;">Distribución: Mercado vs Cartera</small>
-                <div class="d-flex align-items-center gap-1">
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Alternar Heatmap">
-                        <button type="button" class="btn btn-outline-secondary active py-0.5 px-2" id="btnHeatmapMarket" onclick="setHeatmapMode('market')" style="font-size: 0.62rem; line-height: 1; border-color: rgba(255,255,255,0.15);">🌐 Mercado</button>
-                        <button type="button" class="btn btn-outline-secondary py-0.5 px-2" id="btnHeatmapPortfolio" onclick="setHeatmapMode('portfolio')" style="font-size: 0.62rem; line-height: 1; border-color: rgba(255,255,255,0.15);">💼 Cartera</button>
-                    </div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary py-0.5 px-2" id="btnHeatmapFullscreen" onclick="toggleHeatmapFullscreen()" style="font-size: 0.62rem; line-height: 1; border-color: rgba(255,255,255,0.15); color: #6c757d;" title="Pantalla Completa">
-                        <i class="bi bi-arrows-angle-expand"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="card-body p-1" style="background-color: var(--fin-card-bg); border-radius: 8px; height: 205px;">
-                <div id="heatmapTracked" style="height: 195px;"></div>
-            </div>
-        </div>
-    </div>
+    <div class="col-xl-6 col-lg-12" id="slot-attention"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la bandeja…</div></div></div>
+    <div class="col-xl-3 col-lg-12" id="slot-agenda"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la agenda…</div></div></div>
 </div>
 
 <!-- 2. Row: Movers (Ganadores, Perdedores, Mi Cartera) -->
@@ -458,20 +439,20 @@
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <tbody id="gainerListMarket">
                             {% for t in top_gainers %}
-                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="gainer-item-market" data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }} data-status="{{ t.status }}">
+                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="gainer-item-market" data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }} data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-end pe-3 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
                                         <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, t.dec|default(2)) }}{{ t.symbol }}
                                             <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
                                         </span>
                                     </div>
@@ -499,20 +480,20 @@
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <tbody id="loserListMarket">
                             {% for t in top_losers %}
-                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="loser-item-market" data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }} data-status="{{ t.status }}">
+                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="loser-item-market" data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }} data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-end pe-3 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
                                         <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, t.dec|default(2)) }}{{ t.symbol }}
                                             <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
                                         </span>
                                     </div>
@@ -580,7 +561,7 @@
                         <!-- Cerca de compra: favoritas y cartera en zona o a ≤15 % del precio de compra -->
                         <tbody id="list-body-buyzone" class="dashboard-list-body" style="display: none;">
                             {% for t in buy_zone %}
-                            <tr onclick="window.location='/ticker/{{ t.name }}#valoracion'" style="cursor: pointer; display: none;" class="buyzone-item"
+                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}#valoracion'" style="cursor: pointer; display: none;" class="buyzone-item"
                                 data-ticker="{{ clean_ticker(t.name) }}"
                                 data-price="{{ t.price or 0 }}"
                                 data-pct="{{ t.pct or 0 }}"
@@ -590,7 +571,7 @@
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
                                             {% if t.held %}<i class="bi bi-briefcase-fill text-primary ms-1" style="font-size: .65rem;" title="En cartera"></i>{% endif %}
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 80px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
@@ -598,7 +579,7 @@
                                 </td>
                                 <td class="text-end pe-3 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold text-white" style="font-size: 0.78rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
                                         <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.72rem; white-space: nowrap;" title="Variación de hoy">{% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 1) }}%</span>
                                         {% if t.drop_pct <= 0 %}
                                         <span class="badge text-bg-success" style="font-size: .66rem; min-width: 4.4rem;" title="Cotiza un {{ num(-t.drop_pct, 1) }}% por debajo de su precio de compra">✓ en zona</span>
@@ -616,7 +597,7 @@
                         {% for clist in custom_lists %}
                         <tbody id="list-body-list-{{ clist.id }}" class="dashboard-list-body" style="display: none;">
                             {% for t in clist.movers %}
-                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="list-{{ clist.id }}-item"
+                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="list-{{ clist.id }}-item"
                                 data-ticker="{{ clean_ticker(t.name) }}"
                                 data-price="{{ t.price or 0 }}"
                                 data-pct="{{ t.pct or 0 }}"
@@ -625,16 +606,16 @@
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-end pe-3 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
                                         <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, t.dec|default(2)) }}{{ t.symbol }}
                                             <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
                                         </span>
                                     </div>
@@ -671,7 +652,7 @@
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <tbody id="portListMarket">
                             {% for t in port_all %}
-                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="port-item-market"
+                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="port-item-market"
                                 data-ticker="{{ clean_ticker(t.name) }}"
                                 data-price="{{ t.price or 0 }}"
                                 data-pct="{{ t.pct or 0 }}"
@@ -679,16 +660,16 @@
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-end pe-3 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
                                         <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, t.dec|default(2)) }}{{ t.symbol }}
                                             <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
                                         </span>
                                     </div>
@@ -704,27 +685,6 @@
             </div>
         </div>
     </div>
-</div>
-</div>
-
-<div class="tab-pane fade" id="home-centro">
-<div id="slot-notes"></div>
-{# Arriba el Resumen (franja: Hoy / 7 / 30 días, un bloque por tema) y la Agenda; debajo, casi todo el alto para la
-   bandeja: Pendiente (la más ancha) y Noticias de las tesis #}
-<div class="row g-3 mb-3 centro-top">
-    <div class="col-12 col-xl-9" id="slot-summary"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando el resumen…</div></div></div>
-    <div class="col-12 col-xl-3 centro-agenda" id="slot-agenda"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la agenda…</div></div></div>
-</div>
-<div class="modal fade" id="agendaFullModal" tabindex="-1" aria-labelledby="agendaFullTitle" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
-        <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="agendaFullTitle">Agenda</h6>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
-        <div class="modal-body small" id="agendaFullBody"></div>
-    </div></div>
-</div>
-<div class="row g-3 mb-3 centro-grid">
-    <div class="col-12 centro-main" id="slot-attention"><div class="card h-100 slot-loading"><div class="card-body small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando la bandeja…</div></div></div>
-</div>
 </div>
 
 
@@ -1125,128 +1085,37 @@
         setupSimplePagination('dropAlertList', 'drop-alert-item', 'dropAlertPagination', Infinity);
         window.applyAlertSeenState();
 
-        // --- FINVIZ Style Treemap ---
-        const heatmapRaw = {{ heatmap_data | tojson }};
-        
-        window.renderHeatmap = function(mode) {
-            let filteredData = heatmapRaw;
-            if (mode === 'portfolio') {
-                filteredData = heatmapRaw.filter(d => d.is_portfolio && d.value_eur > 0);
-            }
-            
-            if (filteredData.length === 0) {
-                Plotly.purge('heatmapTracked');
-                document.getElementById('heatmapTracked').innerHTML = '<div class="text-center text-muted py-5 small" style="margin-top: 30px;">No hay activos en cartera con saldo.</div>';
-                return;
-            }
-
-            const ids = ["MERCADO"];
-            const labels = ["MERCADO"];
-            const parents = [""];
-            const values = [0];
-            const colors = [0];
-            const texts = [""];
-
-            const sectors = [...new Set(filteredData.map(d => d.sector))];
-            sectors.forEach(s => {
-                ids.push(s); labels.push(s); parents.push("MERCADO"); values.push(0); colors.push(0); texts.push("");
-                const industries = [...new Set(filteredData.filter(d => d.sector === s).map(d => d.industry))];
-                industries.forEach(ind => {
-                    const id = s + "_" + ind;
-                    if (ind !== s) {
-                        ids.push(id); labels.push(ind); parents.push(s); values.push(0); colors.push(0); texts.push("");
-                        sectorData = filteredData.filter(d => d.sector === s && d.industry === ind);
-                        sectorData.forEach(d => {
-                            ids.push(d.ticker); labels.push(d.ticker); parents.push(id); 
-                            const valSize = mode === 'portfolio' ? d.value_eur : 1;
-                            values.push(valSize); 
-                            colors.push(d.pct);
-                            texts.push(fmtNum(d.pct, 2) + '%');
-                        });
-                    } else {
-                        filteredData.filter(d => d.sector === s && d.industry === ind).forEach(d => {
-                            ids.push(d.ticker); labels.push(d.ticker); parents.push(s); 
-                            const valSize = mode === 'portfolio' ? d.value_eur : 1;
-                            values.push(valSize); 
-                            colors.push(d.pct);
-                            texts.push(fmtNum(d.pct, 2) + '%');
-                        });
-                    }
-                });
-            });
-
-            const data = [{
-                type: 'treemap',
-                ids: ids,
-                labels: labels,
-                parents: parents,
-                values: values,
-                text: texts,
-                textinfo: "label+text",
-                marker: {
-                    colors: colors,
-                    cmid: 0,
-                    cmin: -3,
-                    cmax: 3,
-                    colorscale: [
-                        [0, '#f23645'], [0.35, '#a32932'], [0.48, '#21242e'], [0.5, '#161a24'], [0.52, '#21242e'], [0.65, '#066e5c'], [1, '#089981']
-                    ],
-                    line: { width: 1.5, color: '#11131b' }
-                },
-                pathbar: { visible: false }
-            }];
-
-            Plotly.newPlot('heatmapTracked', data, {
-                margin: { t: 5, l: 5, r: 5, b: 5 },
-                paper_bgcolor: '#11131b',
-                plot_bgcolor: '#11131b',
-                font: { color: '#f0f3fa', size: 10, family: 'Arial' }
-            }, { responsive: true, displayModeBar: false });
-        }
-
-        window.setHeatmapMode = function(mode) {
-            const btnMarket = document.getElementById('btnHeatmapMarket');
-            const btnPortfolio = document.getElementById('btnHeatmapPortfolio');
-            if (btnMarket && btnPortfolio) {
-                if (mode === 'market') {
-                    btnMarket.classList.add('active');
-                    btnPortfolio.classList.remove('active');
-                } else {
-                    btnMarket.classList.remove('active');
-                    btnPortfolio.classList.add('active');
-                }
-            }
-            renderHeatmap(mode);
-        }
-
-        window.toggleHeatmapFullscreen = function() {
-            const card = document.getElementById('heatmapCard');
-            const innerDiv = document.getElementById('heatmapTracked');
-            const icon = document.querySelector('#btnHeatmapFullscreen i');
-            
-            card.classList.toggle('heatmap-fullscreen-card');
-            
-            if (card.classList.contains('heatmap-fullscreen-card')) {
-                icon.className = 'bi bi-arrows-angle-contract';
-                innerDiv.style.height = 'calc(100vh - 100px)';
-            } else {
-                icon.className = 'bi bi-arrows-angle-expand';
-                innerDiv.style.height = '235px';
-            }
-            Plotly.Plots.resize('heatmapTracked');
-        };
-
-        // Renderizado inicial en modo mercado
-        if (heatmapRaw.length > 0) {
-            renderHeatmap('market');
-        }
-
         // Sincronizar el estado inicial del filtro de estado de actividad
         toggleActivityStatus();
     });
 
 // Resumen del Centro de mando en la tarjeta «Mi Cartera»
 // (se vuelve a pedir al cambiar leído/no leído: refreshNotificationBadges en base.html)
+// Mi Cartera: el resultado de Hoy (en la página) o de 7 / 30 días (del pulso, frente al índice). Se recuerda el elegido.
+let mcData = null;
+function mcPeriods(p) { mcData = p; mcPaint(); }
+function mcPaint() {
+    const box = document.getElementById('mcResult');
+    if (!box) return;
+    let k = 'hoy';
+    try { k = localStorage.getItem('miCarteraPeriodo') || 'hoy'; } catch (e) {}
+    document.querySelectorAll('#miCarteraCard [data-mc]').forEach(b => b.classList.toggle('active', b.dataset.mc === k));
+    const signed = (v, d = 2) => `${v > 0 ? '+' : ''}${fmtNum(v, d)}`, tone = v => v > 0 ? 'text-success' : v < 0 ? 'text-danger' : 'text-muted';
+    const show = (abs, pct, label, bench) => box.innerHTML =
+        `<span class="fw-bold ${tone(pct)}">${signed(abs, 2)}€ <span class="opacity-75 small ms-1" style="font-size: .68rem;">(${signed(pct)}%)</span></span>` +
+        `<span class="text-muted small ms-1">${label}</span>` + (bench != null ? `<span class="text-muted small ms-1">· ${mcData.benchmark || 'índice'} ${signed(bench)}%</span>` : '');
+    if (k === 'hoy') return show(+box.dataset.hoyAbs, +box.dataset.hoyPct, 'hoy', null);
+    const p = mcData && mcData.periods && mcData.periods[k];
+    if (!p) { box.innerHTML = `<span class="text-muted small">${mcData ? 'Sin datos de ' + (k === '7d' ? '7' : '30') + ' días' : 'Calculando…'}</span>`; return; }
+    show(p.abs_eur, p.pct, k === '7d' ? 'en 7 días' : 'en 30 días', p.benchmark_pct);
+}
+document.addEventListener('click', e => {
+    const b = e.target.closest('#miCarteraCard [data-mc]');
+    if (!b) return;
+    try { localStorage.setItem('miCarteraPeriodo', b.dataset.mc); } catch (err) {}
+    mcPaint();
+});
+document.addEventListener('DOMContentLoaded', mcPaint);
 window.loadCentroPulse = async function loadCentroPulse() {
     const box = document.getElementById('centroPulse');
     if (!box || Date.now() - (loadCentroPulse.at || 0) < 2000) return;   // al cargar la página llegan dos llamadas seguidas
@@ -1265,20 +1134,20 @@ window.loadCentroPulse = async function loadCentroPulse() {
         const out = [];
         if (p.unread) {
             const n = p.top_notice;
-            out.push(line(n ? n.href : '#centro', 'bi-bell-fill',
+            out.push(line(n ? n.href : '/avisos', 'bi-bell-fill',
                 `<span class="text-warning fw-bold">${p.unread} aviso${p.unread > 1 ? 's' : ''} sin leer</span>${n ? ` · <span class="text-white">${esc(tk(n.ticker || ''))}</span> ${esc(n.kind)}` : ''}`,
                 n ? n.text : ''));
         } else {
-            out.push(line('#centro', 'bi-bell', 'Sin avisos pendientes'));
+            out.push(line('/avisos', 'bi-bell', 'Sin avisos pendientes'));
         }
         if (p.results) {
             const names = p.results.first_tickers.map(tk);
             const who = names.length > 2 ? `${names.slice(0, 2).join(', ')} y ${names.length - 2} más` : names.join(' y ');
             const when = p.results.days === 0 ? 'hoy' : (p.results.days === 1 ? 'mañana' : `en ${p.results.days} d`);
-            out.push(line('#centro', 'bi-clipboard-data',
+            out.push(line('#slot-agenda', 'bi-clipboard-data',
                 `Resultados: <span class="text-white">${esc(who)}</span> ${when}${p.results.count > names.length ? ` · ${p.results.count} en 30 d` : ''}`));
         } else {
-            out.push(line('#centro', 'bi-clipboard-data', 'Sin resultados en 30 días'));
+            out.push(line('#slot-agenda', 'bi-clipboard-data', 'Sin resultados en 30 días'));
         }
         if (p.dividend) {
             const d = p.dividend;
@@ -1286,15 +1155,10 @@ window.loadCentroPulse = async function loadCentroPulse() {
                 `${d.estimated ? 'Próximo dividendo' : 'Próximo cobro'}: <span class="text-white">${esc(tk(d.ticker))}</span> ${dm(d.date)} · <span class="text-success">≈${fmtNum(d.gross_eur, 0)} €</span>${d.estimated ? ' <span class="opacity-75">(estimado)</span>' : ''}`,
                 d.kind === 'ex' ? 'Fecha ex-dividendo; aún no se sabe el día de cobro' : 'Bruto, al cambio de hoy'));
         }
-        if (p.period) {
-            out.push(line('#centro', 'bi-graph-up',
-                `30 días: <span class="${tone(p.period.pct)} fw-bold">${signed(p.period.pct)}%</span> <span class="${tone(p.period.abs_eur)}">(${signed(p.period.abs_eur, 0)} €)</span>${p.period.benchmark_pct != null ? ` · ${esc(p.benchmark)} ${signed(p.period.benchmark_pct)}%` : ''}${p.period.incomplete && p.period.incomplete.length ? ' <i class="bi bi-exclamation-triangle text-warning"></i>' : ''}`,
-                'Últimos 30 días naturales; las compras y ventas no cuentan como ganancia'
-                + (p.period.incomplete && p.period.incomplete.length ? `. Sin precio de ${p.period.incomplete.map(tk).join(', ')} hace 30 días: quedan fuera` : '')));
-        }
+        mcPeriods(p);
         box.innerHTML = out.join('');
     } catch (e) {
-        box.innerHTML = line('#centro', 'bi-grid-1x2', 'Abrir el Centro de mando');
+        box.innerHTML = line('/avisos', 'bi-bell', 'Ver los avisos');
     }
 };
 loadCentroPulse();
@@ -1326,33 +1190,26 @@ function markVisitNew() {
     });
     document.querySelectorAll('#slot-attention [data-news]').forEach(el => { if (news.has(el.dataset.news)) el.classList.add('visit-new'); });
 }
-// Pestaña Centro de mando: una sola petición (descarga históricos) y cada parte a su hueco
-(async function loadCentro() {
-    const slots = ['notes', 'summary', 'agenda', 'attention'];
-    try {
-        const since = centroVisitSince();
-        const r = await fetch('/mercado/centro' + (since ? '?since=' + encodeURIComponent(since) : ''));
-        if (!r.ok) throw new Error(r.statusText);
-        const tpl = document.createElement('template');
-        tpl.innerHTML = await r.text();
-        slots.forEach(k => {
-            const part = tpl.content.querySelector(`[data-slot="${k}"]`), slot = document.getElementById('slot-' + k);
-            if (part && slot) slot.replaceChildren(...part.childNodes);
-        });
-        document.querySelectorAll('#home-centro [data-collapse]').forEach(el => el.dataset.scroll = '');   // todo, con scroll
-        initNoticeLists(document);
-        markVisitNew();
-        initSwitchCard(document.getElementById('agendaCard'));
-        initSwitchCard(document.getElementById('summaryCard'));
-        sizeCentro();
-        const att = document.getElementById('attCount'), tab = document.getElementById('centroTabCount');
-        if (att && tab && +att.textContent) { tab.textContent = att.textContent; tab.classList.remove('d-none'); }
-    } catch (e) {
-        slots.slice(1).forEach(k => {
-            const slot = document.getElementById('slot-' + k);
-            if (slot) slot.innerHTML = `<div class="card h-100"><div class="card-body small text-danger">No se pudo cargar: ${e.message}</div></div>`;
-        });
-    }
+// Portada: cada bloque por su cuenta. La Bandeja (avisos ya guardados) y la Agenda llegan solas y enseguida; la
+// sincronización de avisos (precios, tesis, monitor: lo lento) va en segundo plano y, al terminar, refresca la Bandeja.
+(function loadHome() {
+    const fill = (id, html) => { const slot = document.getElementById(id); if (slot) slot.innerHTML = html; return slot; };
+    const fail = (id, e) => fill(id, `<div class="card h-100"><div class="card-body small text-danger">No se pudo cargar: ${e.message}</div></div>`);
+    const loadBandeja = () => fetch('/portada/bandeja').then(r => { if (!r.ok) throw new Error(r.statusText); return r.text(); })
+        .then(html => { fill('slot-attention', html); initBandeja(); sizeHome(); }).catch(e => fail('slot-attention', e));
+    loadBandeja();
+    fetch('/portada/agenda').then(r => { if (!r.ok) throw new Error(r.statusText); return r.text(); })
+        .then(html => { fill('slot-agenda', html); initAgendaPlan(); sizeHome(); })
+        .catch(e => fail('slot-agenda', e));
+    const since = centroVisitSince();
+    fetch('/mercado/centro' + (since ? '?since=' + encodeURIComponent(since) : '')).then(r => r.ok ? r.text() : '')
+        .then(html => {
+            const tpl = document.createElement('template'); tpl.innerHTML = html;
+            const notes = tpl.content.querySelector('[data-slot="notes"]');
+            if (notes) document.getElementById('slot-notes')?.replaceChildren(...notes.childNodes);
+            loadBandeja();   // con los avisos recién calculados
+            window.refreshNotificationBadges && refreshNotificationBadges();
+        }).catch(() => {});
 })();
 
 // Agenda (Cartera / Resto y 7 / 30 días) y Resumen (hoy / 7 / 30 días): se recuerda la última elección de cada tarjeta
@@ -1402,42 +1259,108 @@ function initSwitchCard(card) {
     card.querySelectorAll('[data-agenda]').forEach(b => b.addEventListener('click', () => { state.window = b.dataset.agenda; paint(); save('Window', state.window); }));
     paint();
 }
-// Alto del Centro de mando: la bandeja y la columna de contexto llenan la ventana (en pantallas anchas; en estrechas,
-// una debajo de otra)
-const CENTRO_MIN = 240;
-function sizeCentro() {
-    const pane = document.getElementById('home-centro'), main = document.getElementById('slot-attention');
-    if (!pane || !pane.offsetParent || !main || !main.querySelector('.card')) return;
-    if (innerWidth < 1200) { pane.style.removeProperty('--centro-h'); return; }
-    const container = pane.closest('.container-fluid');
-    const below = parseFloat(getComputedStyle(main.parentElement).marginBottom) + parseFloat(getComputedStyle(container).paddingBottom);
-    const total = Math.max(2 * CENTRO_MIN, innerHeight - (main.getBoundingClientRect().top + scrollY) - below);
-    pane.style.setProperty('--centro-h', total + 'px');
-    // márgenes que no se ven en el cálculo: si aún sobra página, se quita
-    const extra = document.documentElement.scrollHeight - innerHeight;
-    if (extra > 0) pane.style.setProperty('--centro-h', Math.max(2 * CENTRO_MIN, total - extra) + 'px');
+// Agenda (plan): pestañas «Esta semana» / «30 días» (se recuerda la elegida)
+function initAgendaPlan() {
+    const card = document.getElementById('agendaPlan');
+    if (!card) return;
+    let k = 'semana';
+    try { k = localStorage.getItem('agendaPlanTab') || 'semana'; } catch (e) {}
+    const show = key => {
+        card.querySelectorAll('[data-ap]').forEach(b => b.classList.toggle('active', b.dataset.ap === key));
+        card.querySelectorAll('[data-ap-pane]').forEach(p => p.classList.toggle('d-none', p.dataset.apPane !== key));
+    };
+    card.querySelectorAll('[data-ap]').forEach(b => b.addEventListener('click', () => {
+        show(b.dataset.ap); try { localStorage.setItem('agendaPlanTab', b.dataset.ap); } catch (e) {}
+    }));
+    show(k);
+}
+// Bandeja del Centro: filtro Todo / Cartera / Seguimiento (se recuerda) y el periodo del Resumen (lo vigente, siempre;
+// lo demás, si pasó en el periodo). Pulsar una empresa abre su detalle debajo de su grupo; leído y descartar en cada una.
+function initBandeja() {
+    const card = document.getElementById('bandejaCard');
+    if (!card) return;
+    const st = {origin: ''};   // solo lo que ha pasado hoy (lo de antes, en Avisos)
+    // lo que quitas con la ✕: solo de la bandeja de hoy (mañana empieza limpia). En Avisos sigue igual. Se guarda en la BBDD
+    // (/api/portada/bandeja/quitar), por grupo y empresa: no vuelve al recargar ni en otro navegador
+    let hidden = new Set();
+    try { hidden = new Set(JSON.parse(card.dataset.hidden || '[]')); } catch (e) {}
+    const saveHidden = keys => fetch('/api/portada/bandeja/quitar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({keys})}).catch(() => {});
+    try {   // lo que se quitó hoy cuando se guardaba en el navegador pasa a la BBDD (una vez)
+        const h = JSON.parse(localStorage.getItem('bandejaQuitados2') || '{}');
+        if (h.day === new Date().toDateString() && (h.keys || []).some(k => !hidden.has(k))) { h.keys.forEach(k => hidden.add(k)); saveHidden(h.keys); }
+        localStorage.removeItem('bandejaQuitados2'); localStorage.removeItem('bandejaQuitados');
+    } catch (e) {}
+    try { st.origin = localStorage.getItem('centroBandejaOrigin') || ''; } catch (e) {}
+    const chips = () => [...card.querySelectorAll('.bj-chip')];
+    const iso = n => { const d = new Date(); d.setDate(d.getDate() - n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+    const apply = () => {
+        const from = iso(0);
+        chips().forEach(c => {
+            const okOrigin = !st.origin || c.dataset.origin === st.origin || (st.origin === 'cartera' && c.dataset.origin === 'general');
+            c.classList.toggle('d-none', !(okOrigin && (c.dataset.date || '') >= from) || hidden.has(c.dataset.hide));   // solo lo de hoy
+        });
+        card.querySelectorAll('.bj-group').forEach(g => {
+            const vis = g.querySelector('.bj-chip:not(.d-none)');
+            g.classList.toggle('d-none', !vis);
+            if (!vis) { g.querySelector('.bj-detail').classList.add('d-none'); g.querySelectorAll('.bj-chip.active').forEach(c => c.classList.remove('active')); }
+        });
+        card.querySelector('.bj-empty').classList.toggle('d-none', !!card.querySelector('.bj-group:not(.d-none)'));
+        const n = chips().filter(c => !c.classList.contains('d-none') && c.classList.contains('unread')).length, badge = document.getElementById('attCount');
+        badge.textContent = n; badge.classList.toggle('d-none', !n);
+        card.querySelectorAll('#bjOrigin [data-origin]').forEach(b => b.classList.toggle('active', b.dataset.origin === st.origin));
+        document.getElementById('bjAll').href = '/avisos' + (st.origin ? '?empresas=' + st.origin : '');
+    };
+    card.querySelector('#bjOrigin').addEventListener('click', e => {
+        const b = e.target.closest('[data-origin]'); if (!b) return;
+        st.origin = b.dataset.origin; try { localStorage.setItem('centroBandejaOrigin', st.origin); } catch (err) {} apply();
+    });
+    const setRead = (c, read) => { c.classList.toggle('unread', !read); const b = c.querySelector('[data-act="read"]');
+        b.title = read ? 'Marcar como no leído' : 'Marcar como leído'; b.innerHTML = `<i class="bi ${read ? 'bi-envelope' : 'bi-check2'}"></i>`; };
+    card.addEventListener('click', async e => {
+        const c = e.target.closest('.bj-chip'); if (!c) return;
+        const act = e.target.closest('[data-act]'), keys = JSON.parse(c.dataset.keys || '[]');
+        if (act && act.dataset.act === 'read') {
+            const read = c.classList.contains('unread'); setRead(c, read); window.markNotificationsRead({keys, read}); apply(); return;
+        }
+        if (act && act.dataset.act === 'hide') {   // quitar de la bandeja de hoy: sigue en Avisos, sin descartar
+            hidden.add(c.dataset.hide); saveHidden([c.dataset.hide]); apply(); return;
+        }
+        if (e.target.closest('.bj-go')) return;   // el enlace «abrir →»
+        const g = c.closest('.bj-group'), det = g.querySelector('.bj-detail'), open = c.classList.contains('active');
+        card.querySelectorAll('.bj-detail').forEach(d => d.classList.add('d-none'));
+        card.querySelectorAll('.bj-chip.active').forEach(x => x.classList.remove('active'));
+        if (open) return;
+        c.after(det);   // justo debajo de la línea pulsada
+        det.innerHTML = c.querySelector('template').innerHTML; det.classList.remove('d-none'); c.classList.add('active');
+        if (c.classList.contains('unread')) { setRead(c, true); window.markNotificationsRead({keys, read: true}); apply(); }
+    });
+    card._sync = (keys, read) => {   // leído desde la campana, Avisos u otra pestaña
+        chips().forEach(c => { if (JSON.parse(c.dataset.keys || '[]').some(k => keys.includes(k)) && c.classList.contains('unread') === read) setRead(c, read); });
+        apply();
+    };
+    apply();
+}
+// una sola escucha: la bandeja se vuelve a cargar y cada carga deja su _sync en la tarjeta nueva
+document.addEventListener('notif-read', e => document.getElementById('bandejaCard')?._sync?.(e.detail.keys, e.detail.read));
+// Alto de la parte de arriba (Mi Cartera, Bandeja, Agenda): el 40 % de lo que queda en la ventana (mínimo 300 px);
+// la Actividad del día llena el resto con su scroll (data-fit). En pantallas estrechas, una debajo de otra.
+function sizeHome() {
+    const top = document.querySelector('.home-top');
+    if (!top) return;
+    if (innerWidth < 1200) { top.style.removeProperty('--top-h'); return; }
+    const avail = innerHeight - (top.getBoundingClientRect().top + scrollY) - 16;
+    top.style.setProperty('--top-h', Math.max(300, Math.round(avail * 0.4)) + 'px');
+    window.fitAll && fitAll();
 }
 let fitTimer;
-addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(sizeCentro, 150); });
+addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(sizeHome, 150); });
+document.addEventListener('DOMContentLoaded', sizeHome);
 document.addEventListener('click', e => {   // activos / histórico: cada uno empieza arriba
     if (e.target.closest('#slot-attention .mon-tabs')) document.querySelectorAll('#slot-attention .fixed-body').forEach(b => b.scrollTop = 0);
 });
 
-// Pestañas de la portada: #centro abre el Centro de mando (también desde los enlaces del resumen de «Mi Cartera»)
-function showHomeTab(hash) {
-    const btn = document.querySelector(`.home-tabs [data-hash="${hash}"]`);
-    if (btn) bootstrap.Tab.getOrCreateInstance(btn).show();
-}
-document.querySelectorAll('.home-tabs [data-hash]').forEach(btn => btn.addEventListener('shown.bs.tab', () => {
-    history.replaceState(null, '', location.pathname + location.search + (btn.dataset.hash === 'mercado' ? '' : '#' + btn.dataset.hash));
-    if (btn.dataset.hash === 'mercado' && window.Plotly && document.getElementById('heatmapTracked')) Plotly.Plots.resize('heatmapTracked');
-    if (btn.dataset.hash === 'centro') sizeCentro();   // oculta no se puede medir
-    window.syncHomeNav && window.syncHomeNav();        // los accesos directos de arriba
-}));
-window.addEventListener('hashchange', () => showHomeTab(location.hash.slice(1) || 'mercado'));
 // enlaces antiguos a la pestaña Watchlist del Centro de mando
 if (location.hash === '#watchlist') location.replace('/watchlist');
-else if (location.hash === '#centro') document.addEventListener('DOMContentLoaded', () => showHomeTab('centro'));
 </script>
 
 <!-- Modal de Mi Cartera -->
@@ -1455,20 +1378,20 @@ else if (location.hash === '#centro') document.addEventListener('DOMContentLoade
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.75rem;">
                         <tbody id="portAllList">
                             {% for t in port_all %}
-                            <tr onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="port-all-item">
+                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="port-all-item">
                                 <td class="ps-3 py-2">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="fw-bold ticker-name text-white" style="font-size: 0.8rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.8rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 150px; font-size: 0.68rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-end pe-3 py-2 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.8rem;">{{ format_euro(t.price, 2) }}</span>
+                                        <span class="fw-bold text-white me-1" style="font-size: 0.8rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
                                         <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.76rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, 2) }}{{ t.symbol }}
+                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, t.dec|default(2)) }}{{ t.symbol }}
                                             <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
                                         </span>
                                     </div>

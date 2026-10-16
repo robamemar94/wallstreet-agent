@@ -21,7 +21,7 @@ from app.infrastructure.dependencies import (
     get_settings_from_db,
 )
 from app.infrastructure.templates import templates
-from app.interfaces.views.market_views import get_currency_symbol, is_reload_request, INDEX_CACHE, ensure_prices_cached, prices_banner_context
+from app.interfaces.views.market_views import get_currency_symbol, is_reload_request, INDEX_CACHE, ensure_prices_cached, prices_banner_context, ext_day
 from app.infrastructure.db.models import DBAsset
 from app.interfaces.views.thesis_views import portfolio_exposure
 from app.interfaces.views.watchlist_views import proximity
@@ -74,6 +74,19 @@ def day_change(shares: float, price: Optional[float], prev: Optional[float], las
     return {"closed": closed, "last_date": last_date, "rate": rate, "rate_prev": rate_prev, "prev": prev,
             "last_pct": last_pct, "last_abs": last_abs,
             "eur": shares * (price * rate - prev * rate_prev), "pct": ((price / prev) - 1) * 100 if prev else 0.0}
+
+def ext_day_eur(shares: float, ext: Optional[Dict[str, Any]], day: Dict[str, Any], rate: float) -> Optional[Dict[str, Any]]:
+    """Var. día € con el horario extendido (EE. UU.): el pre-market, solo (su mercado aún no ha abierto hoy), o la sesión
+    corregida con su post-market (de la del cierre anterior al precio del post-market). No entra en las cifras de hoy."""
+    if not ext:
+        return None
+    eur = shares * ext["chg"] * rate
+    if ext["kind"] == "pre":
+        return {**ext, "eur": eur, "session": None, "total": eur}
+    # post-market: la sesión es la de hoy (abierta) o la última, de madrugada (su mercado ya «no ha abierto hoy»)
+    session = day["eur"] if not day["closed"] else shares * (day["last_abs"] or 0.0) * rate
+    return {**ext, "eur": eur, "session": session, "total": session + eur}
+
 
 DROP_FROM_HIGH_PCT = 30.0   # Resumen: posiciones que caen al menos esto desde su máximo de 52 semanas
 
@@ -527,6 +540,7 @@ def portfolio_page(
             'total_fees_eur': round(total_fees_eur, 2),
         })
         item['total_profit_closed_eur'] = item['total_profit_closed'] * rate
+        item['ext_day'] = ext_day_eur(item['shares'], ext_day(ticker), day, rate) if item['shares'] > 0 else None
         item['return_pct'] = (current_value / invested_value - 1) * 100 if invested_value > 0 else 0
         
         ledger_entries = portfolio_service.get_ledger(ticker)

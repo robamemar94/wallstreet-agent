@@ -1,0 +1,102 @@
+    // Nivel: la estrella es el atajo de Tier 1; el selector, todos los niveles
+    async function setTier(ticker, tier) {
+        const r = await fetch(`/api/ticker/${encodeURIComponent(ticker)}/nivel`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({tier})});
+        if (!r.ok) return null;
+        const d = await r.json();
+        const icon = document.querySelector('.favorite-star i');
+        icon.classList.toggle('bi-star-fill', tier === '1'); icon.classList.toggle('text-warning', tier === '1');
+        icon.classList.toggle('bi-star', tier !== '1'); icon.classList.toggle('text-muted', tier !== '1');
+        document.getElementById('tierSelect').value = tier;
+        if (d.warning && typeof showToast === 'function') showToast('Tier 1', d.warning, 'info');   // aviso que no bloquea
+        return d;
+    }
+    document.getElementById('tierSelect')?.addEventListener('change', e => setTier({{ ticker|tojson }}, e.target.value));
+    // silenciar (o no) todos los avisos de la empresa
+    document.getElementById('muteBtn')?.addEventListener('click', async e => {
+        const b = e.currentTarget, muted = b.dataset.muted !== 'true';
+        const r = await fetch(`/api/ticker/${encodeURIComponent({{ ticker|tojson }})}/silencio`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({muted})});
+        if (!r.ok) return;
+        b.dataset.muted = String(muted);
+        b.className = `btn btn-sm ${muted ? 'btn-warning' : 'btn-outline-secondary'} py-0 me-1`;
+        b.innerHTML = `<i class="bi ${muted ? 'bi-bell-slash-fill' : 'bi-bell'}"></i>`;
+        b.title = muted ? 'Silenciada: no genera avisos. Pulsa para volver a activarlos' : 'Silenciar todos los avisos de esta empresa';
+        window.refreshNotificationBadges && window.refreshNotificationBadges();
+    });
+    async function toggleFavorite(ticker, element) {
+        const sel = document.getElementById('tierSelect');
+        if (sel) return setTier(ticker, sel.value === '1' ? 'seg' : '1');   // quitar la estrella la deja en Tier 3
+        try {
+            const res = await fetch(`/api/favorite/${ticker}/toggle`, { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                const icon = element.querySelector('i');
+                if (data.is_favorite) {
+                    icon.classList.remove('bi-star', 'text-muted');
+                    icon.classList.add('bi-star-fill', 'text-warning');
+                } else {
+                    icon.classList.remove('bi-star-fill', 'text-warning');
+                    icon.classList.add('bi-star', 'text-muted');
+                }
+            }
+        } catch (e) { console.error("Error toggling favorite", e); }
+    }
+
+    // Listas personalizadas: Cargar pertenencia asíncronamente
+    // las listas se cargan al abrir «⋯ Gestionar» (antes, al abrir su desplegable)
+    document.getElementById('manageBtn')?.addEventListener('shown.bs.dropdown', () => loadTickerLists({{ ticker|tojson }}));
+    async function loadTickerLists(ticker) {
+        const dropdownMenu = document.getElementById('ticker-lists-dropdown');
+        if (!dropdownMenu) return;
+
+        try {
+            const response = await fetch(`/api/ticker/${ticker}/lists`);
+            if (!response.ok) throw new Error('Error al consultar listas');
+            const data = await response.json();
+
+            if (data.length === 0) {
+                dropdownMenu.innerHTML = `<li class="text-center py-2 text-muted small">Sin listas. <a href="/lists" class="text-warning text-decoration-none fw-bold">Crear una</a></li>`;
+                return;
+            }
+
+            let htmlContent = '';
+            data.forEach(item => {
+                htmlContent += `
+                    <li class="px-2 py-1">
+                        <div class="form-check d-flex align-items-center gap-2 m-0">
+                            <input class="form-check-input cursor-pointer" type="checkbox" id="list-chk-${item.id}" ${item.is_member ? 'checked' : ''} onchange="toggleTickerListMembership(${item.id}, '${ticker}', this)" style="margin-top: 0;">
+                            <label class="form-check-label text-white cursor-pointer select-none" for="list-chk-${item.id}" style="font-size: 0.76rem;">${item.name}</label>
+                        </div>
+                    </li>
+                `;
+            });
+            dropdownMenu.innerHTML = htmlContent;
+        } catch (error) {
+            console.error('Error:', error);
+            dropdownMenu.innerHTML = `<li class="text-center py-2 text-danger small">Error al cargar</li>`;
+        }
+    }
+
+    // Listas personalizadas: Alternar pertenencia asíncronamente
+    async function toggleTickerListMembership(listId, ticker, checkboxEl) {
+        const isChecked = checkboxEl.checked;
+        const actionUrl = `/api/lists/${listId}/${isChecked ? 'add' : 'remove'}`;
+
+        try {
+            const response = await fetch(actionUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ticker })
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                checkboxEl.checked = !isChecked; // Revertir checkbox si falló
+                alert(data.detail || 'Error al cambiar la pertenencia a la lista');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            checkboxEl.checked = !isChecked; // Revertir checkbox si falló
+            alert('Error al comunicarse con el servidor');
+        }
+    }
+

@@ -1,0 +1,165 @@
+  <div class="tab-pane fade" id="perf-pane" role="tabpanel" aria-labelledby="perf-tab">
+
+    <!-- BARRA DE CONTROL GLOBAL (UNIFICADA AL INICIO) -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <span class="fw-bold me-1" style="font-size:0.85rem;">Ver como:</span>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-primary active" id="btnNav" onclick="setMode('nav')">Índice (TWR)</button>
+          <button type="button" class="btn btn-outline-primary" id="btnReal" onclick="setMode('real')">€ Real</button>
+        </div>
+        <span class="small text-muted d-none d-lg-inline" id="perfModeHint" style="font-size:.72rem;">Índice que empieza en 10: las aportaciones no cuentan como rentabilidad</span>
+        <button id="refreshPerfBtn" class="btn btn-outline-secondary btn-sm" onclick="refreshPerformance()" title="Recalcular">
+          <i class="bi bi-arrow-clockwise"></i>
+        </button>
+        <div class="dropdown">
+          <button class="btn btn-sm border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="Ajustes de cálculo" style="opacity:0.4;">
+            <i class="bi bi-three-dots-vertical"></i>
+          </button>
+          <div class="dropdown-menu p-3" style="min-width: 260px;">
+            <label class="form-label small fw-semibold mb-1" for="perfStartDateInput">Fecha de inicio del cálculo</label>
+            <input type="date" class="form-control form-control-sm mb-2" id="perfStartDateInput" value="{{ perf_start_date or '' }}">
+            <div class="d-flex gap-2">
+              <button class="btn btn-primary btn-sm flex-fill" onclick="applyPerfStartDate()">Aplicar</button>
+              {% if perf_start_date %}
+              <button class="btn btn-outline-secondary btn-sm" onclick="clearPerfStartDate()" title="Quitar corte">
+                <i class="bi bi-x-lg"></i>
+              </button>
+              {% endif %}
+            </div>
+            <div class="form-text mt-2" style="font-size:0.68rem; line-height:1.3;">
+              Ignora las operaciones anteriores a esta fecha en el gráfico de rendimiento (índice y % desde inicio).
+              {% if perf_start_date %}<br><span class="text-primary fw-semibold">Activo desde {{ perf_start_date }}</span>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="small text-muted d-none d-sm-inline fw-semibold me-1" style="font-size:0.8rem;">Histórico:</span>
+        <div class="d-flex gap-1 flex-wrap" id="periodTabs">
+          {% for p, label in [('1d','1D'),('7d','7D'),('1m','1M'),('3m','3M'),('6m','6M'),('ytd','YTD'),('1y','1A'),('3y','3A'),('5y','5A'),('10y','10A'),('all','Todo')] %}
+          <button class="btn btn-sm {% if p == 'all' %}btn-dark{% else %}btn-outline-secondary{% endif %}"
+                  onclick="setPeriod('{{ p }}')" id="period-{{ p }}" style="font-size:0.75rem; min-width:38px; padding: 0.25rem 0.45rem;">{{ label }}</button>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- CIFRAS: una línea de fichas (los valores los rellena updateKPIs) -->
+    <div class="perf-kpis mb-2">
+      <div class="perf-kpi"><span class="lbl" id="kpiTotalLabel">Rentabilidad total</span><span id="kpiTotal">—</span></div>
+      <div class="perf-kpi"><span class="lbl" id="kpiCagrLabel">CAGR</span><span id="kpiCagr">—</span><span id="kpiBenchCagr" class="sub"></span></div>
+      <div class="perf-kpi"><span class="lbl" id="kpiDDLabel">Máx. drawdown</span><span class="fw-bold text-danger" id="kpiDD">—</span></div>
+      <div class="perf-kpi d-none" id="kpiCashWrap" title="Lo que ha restado (o sumado) tener efectivo sin invertir: rentabilidad del patrimonio con la liquidez menos la de la cartera, en la ventana visible desde que llevas la liquidez"><span class="lbl">Coste de la liquidez</span><span class="fw-bold" id="kpiCash">—</span><span class="sub" id="kpiCashSub"></span></div>
+      <div class="perf-kpi"><span class="lbl">Mejor mes</span><span id="kpiBestMonth" class="fw-bold text-success">—</span><span id="kpiBestMonthLabel" class="sub"></span></div>
+      <div class="perf-kpi"><span class="lbl">Peor mes</span><span id="kpiWorstMonth" class="fw-bold text-danger">—</span><span id="kpiWorstMonthLabel" class="sub"></span></div>
+      <div class="perf-kpi" title="Volatilidad anual: desviación de los retornos mensuales × √12"><span class="lbl">Volatilidad</span><span id="kpiVol" class="fw-bold">—</span></div>
+      <div class="perf-kpi"><span class="lbl">Meses positivos</span><span id="kpiPosMths" class="fw-bold text-success">—</span><span id="kpiPosMthsSub" class="sub"></span></div>
+    </div>
+
+    <div class="row g-3">
+    <div class="col-12 col-xl-8">
+    <!-- Gráfico + drawdown, con el mismo eje de fechas -->
+    <div class="card shadow-sm border-0" id="perfChartCard">
+      <div class="card-body py-2 d-flex flex-column">
+        <div id="perf-chart"></div>
+        <div id="custom-legend" class="d-flex flex-wrap gap-2 justify-content-center my-1"></div>
+        <div class="text-muted" style="font-size:0.66rem;letter-spacing:.05em;text-transform:uppercase;">Drawdown desde máximo</div>
+        <div id="drawdown-chart"></div>
+      </div>
+    </div>
+    </div>
+    <div class="col-12 col-xl-4">
+    <!-- Por año / por mes (mapa de calor), a la derecha; con scroll propio si no cabe -->
+    <div class="card shadow-sm border-0" id="perfTableCard">
+      <div class="card-header bg-transparent border-0 pt-2 pb-0">
+        <button class="btn btn-sm btn-outline-secondary float-end py-0 mt-1" id="perfTableExpand" onclick="togglePerfTable()" title="Ampliar la tabla a todo el ancho"><i class="bi bi-arrows-angle-expand"></i></button>
+        <ul class="nav nav-pills nav-sm gap-1 pb-1" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-semibold" id="tab-annual-btn"
+                    data-bs-toggle="tab" data-bs-target="#pane-annual" type="button" role="tab">Por año</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link fw-semibold" id="tab-monthly-btn"
+                    data-bs-toggle="tab" data-bs-target="#pane-monthly" type="button" role="tab">Por mes</button>
+          </li>
+        </ul>
+      </div>
+      <div class="tab-content perf-table-body">
+        <!-- Sub-tab: Por año -->
+        <div class="tab-pane fade show active" id="pane-annual" role="tabpanel">
+          {% if annual_returns %}
+          <div class="px-3 pt-3 pb-1 d-flex justify-content-between align-items-center">
+            <small class="text-muted" style="font-size:0.72rem;">% anual. En modo € = retorno% × valor al inicio del año.</small>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-primary active" id="btnAnnualPct" onclick="setAnnualMode('pct')">%</button>
+              <button class="btn btn-outline-primary" id="btnAnnualEur" onclick="setAnnualMode('eur')">€</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 text-center" style="font-size:0.88rem;" id="annualTable">
+              <thead>
+                <tr>
+                  <th class="ps-4 text-start">Año</th>
+                  <th>Mi Cartera</th>
+                  {% for bench_name in perf_benchmarks.keys() %}
+                  <th class="bench-col">{{ bench_name }}</th>
+                  {% endfor %}
+                  <th class="pe-4 alfa-col">Alfa vs {{ perf_ref_bench }}</th>
+                </tr>
+              </thead>
+              <tbody id="annualTableBody">
+                {% for row in annual_returns %}
+                {% set msci_ret = row.get("MSCI World") %}
+                {% set ref_ret = row.get(perf_ref_bench) %}
+                {% set alfa = (row.portfolio - ref_ret) if ref_ret is not none else none %}
+                <tr data-year="{{ row.year }}" data-port="{{ row.portfolio }}"
+                    data-msci="{{ msci_ret if msci_ret is not none else '' }}"
+                    data-sp="{{ row.get('S&P 500') if row.get('S&P 500') is not none else '' }}"
+                    data-alfa="{{ alfa if alfa is not none else '' }}">
+                  <td class="ps-4 text-start fw-bold">{{ row.year }}</td>
+                  <td class="fw-bold cell-port {% if row.portfolio >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    {% if row.portfolio >= 0 %}+{% endif %}{{ num(row.portfolio, 2) }}%
+                  </td>
+                  {% for bench_name in perf_benchmarks.keys() %}
+                  {% set bret = row.get(bench_name) %}
+                  <td class="bench-col {% if bret is not none and bret >= 0 %}text-success{% elif bret is not none %}text-danger{% else %}text-muted{% endif %}">
+                    {% if bret is not none %}{% if bret >= 0 %}+{% endif %}{{ num(bret, 2) }}%{% else %}—{% endif %}
+                  </td>
+                  {% endfor %}
+                  <td class="pe-4 fw-bold alfa-col {% if alfa is not none and alfa >= 0 %}text-success{% elif alfa is not none %}text-danger{% else %}text-muted{% endif %}">
+                    {% if alfa is not none %}{% if alfa >= 0 %}+{% endif %}{{ num(alfa, 2) }}%{% else %}—{% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-center text-muted py-4 small">Sin datos de rentabilidad anual disponibles.</div>
+          {% endif %}
+        </div>
+        <!-- Sub-tab: Por mes -->
+        <div class="tab-pane fade" id="pane-monthly" role="tabpanel">
+          <div class="px-3 pt-3 pb-1 d-flex justify-content-between align-items-center">
+            <small class="text-muted" style="font-size:0.72rem;">TWR mensual sin efecto de aportaciones.</small>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-primary active" id="btnMonthlyPct" onclick="setMonthlyMode('pct')">%</button>
+              <button class="btn btn-outline-primary" id="btnMonthlyEur" onclick="setMonthlyMode('eur')">€</button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size:0.82rem;" id="monthlyTable">
+              <thead class="table-light" id="monthlyTableHead"><tr></tr></thead>
+              <tbody id="monthlyTableBody">
+                <tr><td colspan="10" class="text-center text-muted py-3 small">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+    </div>
+
+  </div>

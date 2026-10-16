@@ -1,0 +1,56 @@
+{# Agenda de la portada (la pide index.html a /portada/agenda) como plan, en dos pestañas sin scroll: «Esta semana»,
+   día a día, y «30 días», por fecha; en cada una, tu cartera (resultados y dividendos) separada de lo que sigues
+   (resultados). En la semana, cada día es una línea (recortada si no cabe; entera al pasar el ratón); en 30 días, una línea
+   por semana con «+N más» (al pasar el ratón, todas). En «Esta semana», lo ya pasado desde el lunes va resumido y apagado
+   junto al título de cada bloque (done_line). #}
+{% from "_agenda.html" import day_label %}
+{% macro tickers(items) %}{% for i in items %}{{ clean_ticker(i.ticker) }}{{ ', ' if not loop.last }}{% endfor %}{% endmacro %}
+{% macro by_day(items, divs=[]) %}
+    {% set days = (items|map(attribute='date')|list + divs|map(attribute='date')|list)|unique|sort %}
+    {% for d in days %}{% set res = items|selectattr('date', 'equalto', d)|list %}{% set dv = divs|selectattr('date', 'equalto', d)|list %}
+    <div class="ag-row ap-row" title="{{ d.strftime('%d/%m') }}: {% if res %}{{ tickers(res) }} resultados{% endif %}{% for i in dv %} · {{ clean_ticker(i.ticker) }} {{ 'ex-dividendo' if i.kind == 'ex' else 'cobro' }} ≈{{ num(i.gross_eur, 0) }} €{% endfor %}">{{ day_label(d, (res or dv)[0].days) }}
+        <span class="ag-what">{% if res %}<i class="bi bi-clipboard-data text-primary me-1"></i>{% for i in res %}<a href="{{ '/tesis/' ~ (theses_ids.get(i.ticker) or i.thesis_id) if (theses_ids.get(i.ticker) or i.thesis_id) else '/ticker/' ~ i.ticker }}" class="text-decoration-none fw-bold">{{ clean_ticker(i.ticker) }}</a>{{ ', ' if not loop.last }}{% endfor %}{% endif %}
+        {% for i in dv %}{{ ' · ' if res or not loop.first }}<i class="bi {{ 'bi-calendar-x' if i.kind == 'ex' else 'bi-cash-coin' }} text-success me-1"></i><strong>{{ clean_ticker(i.ticker) }}</strong> <span class="{{ 'text-muted' if i.kind == 'ex' else 'text-success' }}">≈{{ num(i.gross_eur, 0) }} €</span>{% endfor %}</span>
+    </div>
+    {% endfor %}
+{% endmacro %}
+{# 30 días, por semanas: una línea por semana con las primeras empresas y «+N más»; al pasar el ratón, todas #}
+{% macro by_week(weeks, empty) %}
+    {% for w in weeks %}{% set names = w['items']|map(attribute='ticker')|map('string')|unique|list %}
+    <div class="ag-row ap-row"><span class="ag-day text-nowrap" title="{{ w.span }}">{{ w.label }}</span>
+        <span class="ag-what">{% for t in names[:4] %}<b>{{ clean_ticker(t) }}</b>{{ ', ' if not loop.last }}{% endfor %}
+        {% if names|length > 4 %}<span class="ap-more">+{{ names|length - 4 }} más
+            <span class="ap-pop">{% for i in w['items'] %}<span><span class="text-muted">{{ i.date.strftime('%d/%m') }}</span> <b>{{ clean_ticker(i.ticker) }}</b>
+                {% if i.kind == 'pago' or i.gross_eur is defined and i.kind != 'results' %}<span class="text-success">cobro ≈{{ num(i.gross_eur, 0) }} €</span>{% else %}<span class="text-muted">resultados</span>{% endif %}</span>{% endfor %}</span></span>{% endif %}
+        {% set pays = w['items']|selectattr('gross_eur', 'defined')|rejectattr('kind', 'equalto', 'results')|list %}{% if pays %} · <i class="bi bi-cash-coin text-success"></i> <span class="text-success">≈{{ num(pays|sum(attribute='gross_eur'), 0) }} €</span>{% endif %}</span>
+    </div>
+    {% else %}<div class="text-muted ap-none">{{ empty }}</div>{% endfor %}
+{% endmacro %}
+{# Lo de esta semana que ya ha pasado (del lunes a ayer), resumido y apagado en la misma línea del título del bloque (no
+   gasta fila): quién presentó (con la sorpresa del BPA en color) y qué se cobró; el detalle, al pasar el ratón. #}
+{% macro done_line(items) %}{% if items %}{% set DS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'] %}
+    {% set first, last = items[0].date, items[-1].date %}
+    <span class="ap-done" title="Ya ha pasado esta semana:{% for i in items %}&#10;{{ DS[i.date.weekday()] }} {{ i.date.strftime('%d/%m') }} · {{ clean_ticker(i.ticker) }} {% if i.kind == 'results' %}presentó resultados{% if i.surprise_pct is not none %} (BPA {{ num(i.surprise_pct, 1, sign=True) }} % frente a lo esperado){% endif %}{% else %}cobro ≈{{ num(i.gross_eur, 0) }} €{% endif %}{% endfor %}"><i class="bi bi-check2"></i> {{ DS[first.weekday()] }}{{ '–' ~ DS[last.weekday()] if last != first }}: {% for i in items %}{{ ' · ' if not loop.first }}<b>{{ clean_ticker(i.ticker) }}</b>{% if i.kind == 'results' %}{% if i.surprise_pct is not none %} <span class="{{ 'text-success' if i.surprise_pct > 0 else ('text-danger' if i.surprise_pct < 0 else '') }}">{{ num(i.surprise_pct, 1, sign=True) }}%</span>{% endif %}{% else %} <span class="text-success">≈{{ num(i.gross_eur, 0) }} €</span>{% endif %}{% endfor %}</span>
+{% endif %}{% endmacro %}
+{% macro plan(c, o, label) %}
+    <div class="ap-sub"><span class="text-nowrap"><i class="bi bi-briefcase me-1"></i>Tu cartera</span>{{ done_line(c.done) }}</div>
+    {% if c.upcoming or c.dividends %}{{ by_day(c.upcoming, c.dividends) }}{% else %}<div class="text-muted ap-none">Nada de tu cartera {{ label }}.</div>{% endif %}
+    <div class="ap-sub"><span class="text-nowrap"><i class="bi bi-binoculars me-1"></i>Lo que sigues</span>{{ done_line(o.done) }}</div>
+    {% if o.upcoming %}{{ by_day(o.upcoming) }}{% else %}<div class="text-muted ap-none">Ninguna de las que sigues presenta resultados {{ label }}.</div>{% endif %}
+{% endmacro %}
+<div class="card h-100" id="agendaPlan">
+    <div class="card-header bg-transparent fw-bold d-flex align-items-center gap-2">
+        <span><i class="bi bi-calendar-week me-1"></i>Agenda</span>
+        <div class="btn-group btn-group-sm ms-auto ap-tabs" role="group" aria-label="Periodo">
+            <button type="button" class="btn btn-outline-secondary active" data-ap="semana">Esta semana</button>
+            <button type="button" class="btn btn-outline-secondary" data-ap="mes">30 días</button>
+        </div>
+    </div>
+    <div class="card-body small ap-body" data-ap-pane="semana">{{ plan(agenda.semana, other.semana, 'esta semana') }}</div>
+    <div class="card-body small ap-body d-none" data-ap-pane="mes">
+        <div class="ap-sub"><i class="bi bi-briefcase me-1"></i>Tu cartera</div>
+        {{ by_week(weeks_mine, 'Nada de tu cartera en 30 días.') }}
+        <div class="ap-sub"><i class="bi bi-binoculars me-1"></i>Lo que sigues</div>
+        {{ by_week(weeks_other, 'Ninguna de las que sigues presenta resultados en 30 días.') }}
+    </div>
+</div>

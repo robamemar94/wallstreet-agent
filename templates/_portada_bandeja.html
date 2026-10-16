@@ -1,0 +1,49 @@
+{# Bandeja de hoy de la portada (la pide index.html a /portada/bandeja; se pinta sola, sin esperar al resto) #}
+{# Bandeja de hoy: los avisos de Avisos (mismo leído), por grupos (Comprar, Directivos y analistas, Resultados, Precio,
+   Tu cartera): una línea por grupo con las empresas como etiquetas; al pulsar una, su detalle; cada grupo enlaza a Avisos
+   con ese grupo. Arriba, Todo / Cartera / Seguimiento. Solo lo de hoy (lo de antes y lo vigente, en Avisos). El
+   filtrado y las acciones, en el JS de la portada (initBandeja). #}
+{% macro bj_origin(i) %}{{ 'general' if i.type in ('report', 'ia_budget', 'cash_deposit', 'news_weekly') or i.ticker in (none, '', 'Watchlist', 'Informe', 'Liquidez', 'IA', 'Noticias') else ('cartera' if i.portfolio else 'seguimiento') }}{% endmacro %}
+<div class="card h-100" id="bandejaCard" data-hidden="{{ hidden|tojson|forceescape }}">
+    <div class="card-header bg-transparent fw-bold d-flex align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-inbox me-1"></i>Bandeja de hoy <span class="badge text-bg-primary d-none" id="attCount" title="Sin leer con estos filtros"></span></span>
+        <i class="bi bi-info-circle small text-muted fw-normal" title="Solo lo que ha pasado hoy; lo de días anteriores y lo que sigue vigente, en Avisos"></i>
+        <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Empresas" id="bjOrigin">
+            <button type="button" class="btn btn-outline-secondary active" data-origin="">Todo</button>
+            <button type="button" class="btn btn-outline-secondary" data-origin="cartera" title="Las que tienes en cartera (y los avisos generales)"><i class="bi bi-briefcase me-1"></i>Cartera</button>
+            <button type="button" class="btn btn-outline-secondary" data-origin="seguimiento" title="Watchlist, Tier 1-3 y listas que sigues"><i class="bi bi-binoculars me-1"></i>Seguimiento</button>
+        </div>
+        <a href="/avisos" class="small fw-normal text-decoration-none" id="bjAll" title="Ver todos en Avisos">Avisos →</a>
+    </div>
+    <div class="fixed-body bj-body">
+    {% for f in inbox_filters %}{% set mine = inbox|selectattr('filter', 'equalto', f.key)|list %}
+        <div class="bj-group bj-{{ f.key }}" data-filter="{{ f.key }}">
+            <div class="bj-label"><a class="bj-pill text-decoration-none" href="/avisos?tipo={{ f.key }}" title="Ver todos en Avisos: {{ f.label|lower }}"><i class="bi {{ f.icon }}"></i>{{ f.label }}</a></div>
+            <div class="bj-chips">
+            {% for t, its in mine|groupby('ticker') %}{% set first = its[0] %}{% set keys = its|map(attribute='keys')|sum(start=[]) %}{% set dkeys = its|map(attribute='dismiss_keys')|sum(start=[]) %}
+                {% set unread = its|rejectattr('read')|list|length > 0 %}{% set live = its|selectattr('vigente')|list|length > 0 %}{% set last = its|map(attribute='date')|map('string')|max %}
+                {# buena o mala noticia: el código de la empresa en verde o en rojo #}
+                {% set bad = its|selectattr('kind', 'equalto', 'caída')|list or its|selectattr('tone', 'equalto', 'down')|list or its|selectattr('type', 'in', ['estimate_cut', 'portfolio_risk', 'concentración', 'cara'])|list %}
+                {% set good = f.key == 'comprar' or its|selectattr('tone', 'equalto', 'up')|list or its|selectattr('type', 'in', ['insider_buy', 'estimate_rise'])|list %}
+                <div class="bj-chip {{ 'unread' if unread }} {{ 'bj-bad' if bad else 'bj-good' if good }}" role="button" tabindex="0" data-keys="{{ keys|tojson|forceescape }}" data-dismiss="{{ dkeys|tojson|forceescape }}" data-hide="{{ f.key }}|{{ t }}"
+                     data-origin="{{ bj_origin(first)|trim }}" data-vigente="{{ '1' if live }}" data-date="{{ last[:10] }}"
+                     title="{{ its|map(attribute='text')|join(' · ') }}">
+                    <b>{{ clean_ticker(t) if t and bj_origin(first)|trim != 'general' else (t or first.kind) }}</b>
+                    <span class="bj-text">{{ first.text }}</span>{% if its|length > 1 %}<span class="bj-n">+{{ its|length - 1 }}</span>{% endif %}
+                    <span class="bj-acts"><button type="button" class="btn btn-link btn-sm p-0" data-act="read" title="Marcar como leído"><i class="bi bi-check2"></i></button><button type="button" class="btn btn-link btn-sm p-0" data-act="hide" title="Quitar de la bandeja de hoy (sigue en Avisos)"><i class="bi bi-x-lg"></i></button></span>
+                    <template>{% for i in its %}<div class="bj-line">
+                        <span class="bj-when">{{ (i.date or '')[8:10] }}/{{ (i.date or '')[5:7] }}</span>
+                        <span class="bj-kind">{{ i.kind }}</span>
+                        <span class="bj-what">{{ i.text }}{% if i.vigente %} <span class="av-live" title="{{ i.rule }}">vigente{% if i.since %} desde el {{ i.since[8:10] }}/{{ i.since[5:7] }}{% endif %}</span>{% endif %}
+                            {% for o in i.older %}<span class="d-block text-muted">{{ (o.date or '')[8:10] }}/{{ (o.date or '')[5:7] }} · {{ o.text }}</span>{% endfor %}</span>
+                        <a class="bj-go" href="{{ i.url or i.href or '#' }}"{% if i.url %} target="_blank" rel="noopener"{% endif %}>abrir →</a>
+                    </div>{% endfor %}</template>
+                </div>
+            {% endfor %}
+            </div>
+            <div class="bj-detail d-none"></div>
+        </div>
+    {% endfor %}
+        <div class="bj-empty text-muted small d-none"><i class="bi bi-check2-circle st-green me-1"></i>Nada pendiente hoy con estos filtros. <a href="/avisos" class="text-decoration-none">Ver Avisos →</a></div>
+    </div>
+</div>

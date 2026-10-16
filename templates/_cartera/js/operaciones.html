@@ -1,0 +1,164 @@
+    // Actualizar labels de moneda en el formulario
+    document.getElementById('add-currency').addEventListener('change', function() {
+        const sym = {'USD':'$','EUR':'€','GBP':'£','SEK':'kr','JPY':'¥','DKK':'kr','PLN':'zł','CHF':'Fr','MXN':'$'};
+        const cur = this.value;
+        document.getElementById('fee-currency-label').textContent = sym[cur] || cur;
+        document.getElementById('fx-currency-label').textContent = cur;
+        if (cur === 'EUR') {
+            document.getElementById('add-fx-rate').value = '1';
+            document.getElementById('fx-rate-hint').textContent = 'EUR → sin conversión';
+        } else {
+            document.getElementById('add-fx-rate').value = '';
+            document.getElementById('fx-rate-hint').textContent = 'Se obtiene automáticamente de Yahoo Finance';
+        }
+    });
+
+    // Formulario de añadir
+    document.getElementById('add-portfolio-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('submit-btn');
+        const originalText = btn.innerHTML;
+
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...`;
+
+        try {
+            const fxRawVal = document.getElementById('add-fx-rate').value;
+            const fxRate = fxRawVal ? parseFloat(fxRawVal) : null;
+            const feeVal = parseFloat(document.getElementById('add-fee').value) || 0;
+
+            const res = await fetch('/api/portfolio/add', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date: document.getElementById('add-date').value,
+                    type: document.getElementById('add-type').value,
+                    ticker: document.getElementById('add-ticker').value.toUpperCase(),
+                    shares: parseFloat(document.getElementById('add-shares').value),
+                    price: parseFloat(document.getElementById('add-price').value),
+                    currency: document.getElementById('add-currency').value,
+                    fee: feeVal,
+                    fx_rate_at_purchase: fxRate,
+                    broker: document.getElementById('add-broker').value,
+                    comment: document.getElementById('add-comment').value.trim() || null
+                })
+            });
+            
+            const data = await res.json();
+            if (data.status === 'success') {
+                if (typeof showToast === 'function') {
+                    showToast('✅ Éxito', 'Transacción guardada correctamente. Recargando...', 'success');
+                }
+                setTimeout(() => location.reload(), 400);
+            } else {
+                throw new Error(data.detail || 'Error al guardar la transacción');
+            }
+        } catch (err) {
+            console.error(err);
+            if (typeof showToast === 'function') {
+                showToast('❌ Error', err.message, 'error');
+            } else {
+                alert(err.message);
+            }
+            // Desbloquear si hay error
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    });
+
+    async function deletePosition(ticker) {
+        if (confirm(`¿Eliminar todo el histórico de ${ticker}?`)) {
+            if (typeof showToast === 'function') {
+                showToast('⏳ Procesando', `Eliminando ${ticker} y recalculando portfolio...`, 'info');
+            }
+            try {
+                const res = await fetch(`/api/portfolio/${ticker}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    showToast('❌ Error', 'No se pudo eliminar la posición', 'error');
+                }
+            } catch (err) {
+                showToast('❌ Error', 'Error de conexión', 'error');
+            }
+        }
+    }
+
+    // Sorting
+    let sortDirections = {};
+    function sortTable(tableId, columnIndex, isNumeric = false) {
+        const table = document.getElementById(tableId);
+        if (!table) return;
+        const tbody = table.querySelector("tbody");
+        const rows = Array.from(tbody.querySelectorAll("tr.portfolio-row, tr"));
+
+        if (rows.length === 0) return;
+
+        const sortKey = tableId + "-" + columnIndex;
+        if (sortDirections[sortKey] === undefined) {
+            sortDirections[sortKey] = true;
+        }
+        const ascending = sortDirections[sortKey];
+
+        // Filter out rows without enough cells (e.g. empty messages)
+        const validRows = rows.filter(r => r.cells.length > columnIndex);
+
+        validRows.sort((a, b) => {
+            let valA = a.cells[columnIndex].innerText.trim();
+            let valB = b.cells[columnIndex].innerText.trim();
+
+            if (a.cells[columnIndex].hasAttribute('data-sort-value')) {
+                valA = a.cells[columnIndex].getAttribute('data-sort-value');
+                valB = b.cells[columnIndex].getAttribute('data-sort-value');
+            }
+
+            if (isNumeric) {
+                let numA = parseFloat(valA);
+                let numB = parseFloat(valB);
+
+                // sin dato (p. ej. la variación del día de un mercado que aún no ha abierto): al final, se ordene como se ordene
+                // primero los que han abierto hoy y luego los que no (data-sort-group="1"), cada grupo ordenado por su cuenta
+                const ga = +(a.cells[columnIndex].dataset.sortGroup || 0), gb = +(b.cells[columnIndex].dataset.sortGroup || 0);
+                if (ga !== gb) return ga - gb;
+                if (isNaN(numA) || isNaN(numB)) return isNaN(numA) ? (isNaN(numB) ? 0 : 1) : -1;
+
+                return ascending ? numA - numB : numB - numA;
+            } else {
+                return ascending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            }
+        });
+
+        sortDirections[sortKey] = !ascending;
+        validRows.forEach(row => tbody.appendChild(row));
+
+        // Re-aplicar filtros/paginado si es una de nuestras tablas paginadas
+        if (tableId === 'closedPositionsTable') {
+            if (typeof filterClosedPositions === 'function') {
+                filterClosedPositions();
+            }
+        } else if (tableId === 'closedTable') {
+            if (typeof applyHistFilters === 'function') {
+                applyHistFilters(false); // Mantener página actual de operaciones detalladas
+            }
+        }
+
+        // Actualizar visualmente la cabecera (iconos y clases de Bootstrap)
+        const headers = table.querySelectorAll("thead th");
+        headers.forEach((th, idx) => {
+            const icon = th.querySelector("i.bi");
+            if (icon) {
+                if (idx === columnIndex) {
+                    // Columna ordenada activa
+                    icon.className = ascending ? "bi bi-sort-down text-primary fw-bold" : "bi bi-sort-up text-primary fw-bold";
+                    icon.style.opacity = "1";
+                    th.classList.add("text-primary");
+                } else {
+                    // Columnas inactivas
+                    icon.className = "bi bi-arrow-down-up text-muted";
+                    icon.style.opacity = "0.5";
+                    th.classList.remove("text-primary");
+                }
+            }
+        });
+    }

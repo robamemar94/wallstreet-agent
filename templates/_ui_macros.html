@@ -10,9 +10,35 @@
    relleno, con borde discontinuo, la luna y el día («ayer», «vie»), para que no se confunda con la de hoy. Formato
    estándar en Cartera, Seguimiento, Watchlist y Base de datos (en JS: stalePill de base.html). day=false: sin el día
    (columnas estrechas; va en el título). #}
-{% macro stale_pill(pct, last_date=none, day=true) -%}
-{%- set lab = session_label(last_date) if last_date else '' -%}
+{# ext (ext_quote(ticker)): si es de EE. UU. y hay pre-market o post-market, va además, al lado y en la misma línea (al
+   estilo de Google): solo el icono y el cambio (las filas no cambian de alto). #}
+{% macro stale_pill(pct, last_date=none, day=true, ext=none) -%}
+{%- set lab = session_label(last_date) if last_date else '' -%}{%- if ext and ext.pct %}<span class="text-nowrap">{{ ext_tag(ext, last_date) }}{% endif -%}
 {%- if pct is not defined or pct is none -%}<span class="chg-pill chg-stale chg-flat" title="Su mercado aún no ha abierto hoy"><i class="bi bi-moon-fill"></i> –</span>
 {%- else -%}<span class="chg-pill chg-stale {{ 'chg-up' if pct > 0 else ('chg-down' if pct < 0 else 'chg-flat') }}" title="Su mercado aún no ha abierto hoy: es la variación de su última sesión{{ ' (' ~ lab ~ ')' if lab }}"><i class="bi bi-moon-fill"></i> {{ '+' if pct > 0 }}{{ num(pct, 2) }}%{% if lab and day %}<span class="chg-stale-day">{{ lab }}</span>{% endif %}</span>
+{%- endif -%}{% if ext and ext.pct %}</span>{% endif %}
+{%- endmacro %}
+
+{# Pre-market / post-market de un valor de EE. UU. (ext_quote): solo el icono (en las tablas, a la izquierda de la píldora,
+   para que las píldoras queden alineadas) (amanecer = pre-market de hoy, luna con
+   estrellas = post-market de su última sesión) y el dato al pasar el ratón; si se mueve ±2 % o más (EXT_BIG_PCT), además
+   el valor, destacado. En JS, extTag de base.html. #}
+{# Texto del pre/post-market para un title (el de la fila entera en la Actividad del día) #}
+{% macro ext_title(ext) -%}
+{{ 'Pre-market' if ext.kind == 'pre' else 'Post-market' }}: {{ num(ext.price, 2) if ext.price }} ({{ num(ext.pct, 2, sign=True) }} %){{ ' · ' ~ ext.time if ext.time }}
+{%- endmacro %}
+{% macro ext_tag(ext, last_date=none) -%}
+{%- if ext and ext.pct -%}{%- set e = ext.pct -%}
+{%- set big = e|abs >= EXT_BIG_PCT -%}
+<span class="ext-tag {{ 'text-success' if e > 0 else ('text-danger' if e < 0 else 'text-body-secondary') }}{{ ' ext-big' if big }}" data-ext-tip="{{ ext_title(ext) }}" data-ext-tone="{{ 'up' if e > 0 else 'down' }}"><i class="bi {{ 'bi-sunrise-fill' if ext.kind == 'pre' else 'bi-moon-stars-fill' }}"></i>{% if big %} {{ num(e, 1, sign=True) }}%{% endif %}</span>
 {%- endif -%}
+{%- endmacro %}
+
+{# Var. día € con el horario extendido (EE. UU.; ext_day_eur de portfolio_views): estilo propio, con borde discontinuo, para
+   que no se confunda con lo de mercado abierto (apagado, en cursiva y con su icono). Pre-market: lo que llevas antes de abrir; post-market: la sesión corregida. #}
+{% macro ext_eur(x, cur='') -%}
+{%- set v = x.total -%}
+{%- set quote = num(x.price, 2) ~ ' ' ~ cur ~ ' (' ~ num(x.pct, 2, sign=True) ~ ' %)' ~ (' · ' ~ x.time if x.time) -%}
+<span class="ext-eur {{ 'text-success' if v > 0 else ('text-danger' if v < 0 else 'text-body-secondary') }}"
+      data-ext-tone="{{ 'up' if v > 0 else 'down' }}" data-ext-tip="{% if x.kind == 'pre' %}Pre-market {{ quote }}: lo que llevas antes de que abra su mercado{% else %}Sesión {{ 'de hoy' if x.today else 'anterior' }}: {{ num(x.session, 2, sign=True) }} € · post-market {{ quote }}: {{ num(x.eur, 2, sign=True) }} €. Con el post-market: {{ num(v, 2, sign=True) }} €{% endif %}. No cuenta en las cifras de hoy"><i class="bi {{ 'bi-sunrise-fill' if x.kind == 'pre' else 'bi-moon-stars-fill' }}"></i>{{ num(v, 2, sign=True) }} €</span>
 {%- endmacro %}

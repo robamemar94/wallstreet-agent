@@ -1,0 +1,74 @@
+    <!-- Sidebar -->
+    <nav id="sidebarMenu" class="sidebar collapse d-lg-flex">
+        {# el logo lleva a la portada (pestañas Mercado y Centro de mando); se resalta cuando estás en ella #}
+        <a class="sidebar-brand d-flex align-items-center justify-content-center mb-3 mt-2{{ ' active' if request.url.path.startswith('/mercado') }}" href="/" title="Inicio: Mercado y Centro de mando" aria-label="Inicio">📈</a>
+        
+        <div class="w-100 d-flex flex-column align-items-center">
+            
+            <ul class="nav flex-column w-100 mb-2">
+                <li class="nav-group-title" aria-hidden="true">Seguimiento</li>
+                <li class="nav-item">
+                    <a id="sidebarThesisLink" class="nav-link {% if _path.startswith('/tesis') or _path.startswith('/noticias') %} active{% endif %}" href="/tesis" title="Tesis y noticias">
+                        <span class="nav-icon-wrap position-relative d-inline-block">
+                            <i class="bi bi-clipboard2-pulse"></i>
+                            <span id="sidebarThesisBadge" class="sidebar-notif-badge d-none">0</span>
+                        </span>
+                        <span>Tesis</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/watchlist') %} active{% endif %}" href="/watchlist" title="Watchlist: candidatas y precios de compra">
+                        <i class="bi bi-eye"></i>
+                        <span>Watchlist</span>
+                    </a>
+</li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/alerts') or _path.startswith('/avisos') %} active{% endif %}" href="/avisos" title="Avisos: todo lo que sale en la app (cartera y seguimiento), con filtros por tipo">
+                        <span class="nav-icon-wrap position-relative d-inline-block">
+                            <i class="bi bi-bell"></i>
+                            <span id="sidebarAlertBadge" class="sidebar-notif-badge d-none">0</span>
+                        </span>
+                        <span>Avisos</span>
+                    </a>
+                </li>
+                <li class="nav-group-title" aria-hidden="true">Cartera</li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/portfolio') or _path.startswith('/ticker') %} active{% endif %}" href="/portfolio" title="Cartera: posiciones, rendimiento y dividendos">
+                        <i class="bi bi-briefcase"></i>
+                        <span>Cartera</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/ideal-portfolio') %} active{% endif %}" href="/ideal-portfolio" title="Portfolio ideal: reparto por roles (Core, Growth, Quality, Optionality)">
+                        <i class="bi bi-award"></i>
+                        <span>Ideal</span>
+                    </a>
+                </li>
+                <li class="nav-group-title" aria-hidden="true">Análisis</li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/database') or _path.startswith('/comparar') %} active{% endif %}" href="/database" title="Base de datos y comparador">
+                        <i class="bi bi-database"></i>
+                        <span>BBDD</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/lists') %} active{% endif %}" href="/lists" title="Listas: grupos de empresas parecidas; tú eliges cuáles sigues en la watchlist">
+                        <i class="bi bi-collection"></i>
+                        <span>Listas</span>
+                    </a>
+                </li>
+            </ul>
+
+            <div class="mt-auto mb-3 w-100 d-flex flex-column align-items-center gap-3">
+                <button onclick="toggleDarkMode()" class="btn btn-link p-0 text-muted border-0" title="Modo Oscuro/Claro">
+                    <i class="bi {% if settings and settings.ui.dark_mode %}bi-sun-fill{% else %}bi-moon-stars-fill{% endif %}" style="font-size:1.3rem;"></i>
+                </button>
+                <a href="/ia" class="btn btn-link p-0 border-0 {{ 'text-primary' if _path.startswith('/ia') else 'text-muted' }}" title="Uso de IA: costes y presupuesto">
+                    <i class="bi bi-cpu" style="font-size:1.3rem;"></i>
+                </a>
+                <a href="/settings" class="btn btn-link p-0 border-0 {{ 'text-primary' if _path.startswith('/settings') else 'text-muted' }}" title="Configuración">
+                    <i class="bi bi-gear-fill" style="font-size:1.3rem;"></i>
+                </a>
+            </div>
+        </div>
+    </nav>

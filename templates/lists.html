@@ -162,8 +162,8 @@
                                      data-name="{{ asset.company_name|lower }}"
                                      {% set ciso = country_iso(asset.country) %}data-country="{{ ciso[1]|lower }}"
                                      data-price="{{ asset.price }}"
-                                     data-pct="{{ '' if asset.not_open else asset.pct }}"
-                                     data-chg="{{ '' if asset.not_open else asset.change_abs }}"
+                                     data-pct="{{ asset.pct if asset.pct is not none else '' }}"
+                                     data-chg="{{ asset.change_abs if asset.change_abs is not none else '' }}"{{ ' data-not-open=1' if asset.not_open }}
                                      data-media="{{ asset.media if asset.media is not none else -1 }}"
                                      data-cagr="{{ asset.cagr if asset.cagr is not none else -999 }}"
                                      data-drop="{{ asset.drop_pct if asset.drop_pct is not none else 999 }}">
@@ -184,13 +184,13 @@
                                      <td class="py-1 text-muted text-nowrap" style="font-size: 0.76rem;">{{ ciso[1] }}</td>
                                      <!-- Precio -->
                                      <td class="text-end py-1 align-middle num-font font-monospace fw-bold text-white">
-                                         {{ num(asset.price, 2) }}{{ asset.symbol }}
+                                         {{ num(asset.price, asset.dec) }}{{ asset.symbol }}
                                      </td>
                                      <!-- Var. día (en su moneda) y Var. día % (píldora, como en Cartera) -->
                                      <td class="text-end py-1 align-middle num-font small text-nowrap {% if asset.change_abs > 0 %}text-success{% elif asset.change_abs < 0 %}text-danger{% else %}text-muted{% endif %}{{ ' opacity-50' if asset.not_open }}"{% if asset.not_open %} title="Su mercado aún no ha abierto hoy: es su última sesión"{% endif %}>
-                                         {% if asset.change_abs > 0 %}+{% endif %}{{ num(asset.change_abs, 2) }}{{ asset.symbol }}
+                                         {% if asset.change_abs > 0 %}+{% endif %}{{ num(asset.change_abs, asset.dec) }}{{ asset.symbol }}
                                      </td>
-                                     <td class="text-end py-1 align-middle">{{ stale_pill(asset.pct, asset.last_date) if asset.not_open else chg_pill(asset.pct) }}</td>
+                                     <td class="text-end py-1 align-middle">{{ stale_pill(asset.pct, asset.last_date, ext=ext_quote(asset.ticker)) if asset.not_open else chg_pill(asset.pct) }}</td>
                                      {# color = zona de la valoración base (como en Seguimiento y la Watchlist) #}
                                      {% set band = none if asset.cagr is none else ('green' if asset.cagr >= ZONE.ganga else ('amber' if asset.cagr >= ZONE.barata else ('orange' if asset.cagr >= ZONE.justo else 'red'))) %}
                                      <td class="text-end py-1 align-middle num-font fw-bold {{ 'cagr-' ~ band if band else 'text-muted' }}"
@@ -630,7 +630,12 @@
                 return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
             } else { // 'price', 'chg', 'pct' o 'media'
                 const ra = a.getAttribute(`data-${criteria}`), rb = b.getAttribute(`data-${criteria}`);
-                if (ra === '' || rb === '') return ra === '' ? (rb === '' ? 0 : 1) : -1;   // sin abrir: al final
+                // variación del día: primero los que han abierto hoy y luego los que no (con su última sesión), cada grupo por su cuenta
+                if (criteria === 'chg' || criteria === 'pct') {
+                    const ga = a.hasAttribute('data-not-open') ? 1 : 0, gb = b.hasAttribute('data-not-open') ? 1 : 0;
+                    if (ga !== gb) return ga - gb;
+                }
+                if (ra === '' || rb === '') return ra === '' ? (rb === '' ? 0 : 1) : -1;   // sin dato: al final
                 valA = parseFloat(ra) || 0;
                 valB = parseFloat(b.getAttribute(`data-${criteria}`)) || 0;
                 return isAscending ? valA - valB : valB - valA;

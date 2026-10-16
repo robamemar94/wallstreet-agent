@@ -1,0 +1,281 @@
+    function switchChartTab(type) {
+        // 1. Finanzas y gráficos › Gráficos de tendencia
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-financials-tab')).show();
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('sub-charts-tab')).show();
+
+        // 2. Cambiar al subtab de gráfico correspondiente
+        const tabMap = {
+            'revenue': 'revenue-chart-tab',
+            'net-income': 'net-income-chart-tab',
+            'eps': 'eps-chart-tab',
+            'fcf': 'fcf-chart-tab'
+        };
+        const tabId = tabMap[type];
+        if (tabId) {
+            const tabEl = document.getElementById(tabId);
+            if (tabEl) {
+                const tab = new bootstrap.Tab(tabEl);
+                tab.show();
+                // Scroll suave hasta el gráfico con un pequeño delay para permitir el renderizado
+                setTimeout(() => {
+                    const chartTabsEl = document.getElementById('chartTabs');
+                    if (chartTabsEl) {
+                        chartTabsEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 150);
+            }
+        }
+    }
+
+    function switchToFinancialsAndOpenAuditData() {
+        // 1. Finanzas y gráficos › Tablas históricas, donde está el formulario de carga
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-financials-tab')).show();
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('sub-tables-tab')).show();
+        // 2. Abrir el colapsable de datos de auditoría
+        setTimeout(() => {
+            const collapseEl = document.getElementById('feedback-collapse-audit');
+            if (collapseEl) {
+                bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
+                // Scroll suave hasta el colapsable
+                collapseEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 150);
+    }
+
+    // Estado global de selección para gráficos comparativos locales (inicialmente ocultos)
+    let selectedHistMetrics = {};
+    let selectedAuditMetrics = {};
+
+    function toggleInteractiveMetric(rowElement, metricName, values, years, source) {
+        const selectionMap = source === 'hist' ? selectedHistMetrics : selectedAuditMetrics;
+        const cardElementId = source === 'hist' ? 'financials-chart-card-hist' : 'financials-chart-card-audit';
+        
+        // Alternar clase CSS para marcar visualmente la fila seleccionada
+        if (rowElement.classList.contains('row-selected')) {
+            rowElement.classList.remove('row-selected');
+            delete selectionMap[metricName];
+        } else {
+            rowElement.classList.add('row-selected');
+            selectionMap[metricName] = {
+                name: metricName,
+                values: values,
+                years: years
+            };
+        }
+        
+        // Actualizar el gráfico multidimensional correspondiente
+        updateLocalInteractiveChart(source);
+    }
+
+    function updateLocalInteractiveChart(source) {
+        const selectionMap = source === 'hist' ? selectedHistMetrics : selectedAuditMetrics;
+        const cardElement = document.getElementById(source === 'hist' ? 'financials-chart-card-hist' : 'financials-chart-card-audit');
+        const chartDivId = source === 'hist' ? 'interactiveChartHist' : 'interactiveChartAudit';
+        
+        if (!cardElement) return;
+        
+        const keys = Object.keys(selectionMap);
+        
+        if (keys.length === 0) {
+            // Si no hay métricas seleccionadas, ocultamos la tarjeta del gráfico
+            cardElement.classList.add('d-none');
+            return;
+        }
+        
+        // Mostrar la tarjeta del gráfico (elimina d-none)
+        cardElement.classList.remove('d-none');
+        
+        // Esperar 50ms para que el navegador refleje el cambio de visibilidad y calcule el ancho real disponible
+        setTimeout(() => {
+            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            const textColor = isDark ? '#adb5bd' : '#495057';
+            const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
+            
+            // Paleta de colores profesionales para múltiples líneas
+            const colors = [
+                '#0dcaf0', // cyan
+                '#0d6efd', // blue
+                '#198754', // green
+                '#ffc107', // yellow
+                '#6f42c1', // purple
+                '#fd7e14', // orange
+                '#dc3545', // red
+                '#20c997'  // teal
+            ];
+            
+            // Encontrar el valor máximo absoluto de cada métrica seleccionada para detectar discrepancias gigantescas de escala
+            let maxValues = {};
+            keys.forEach(key => {
+                const vals = selectionMap[key].values.map(v => Math.abs(parseFloat(v)) || 0);
+                maxValues[key] = Math.max(...vals, 0);
+            });
+            
+            const absoluteMax = Math.max(...Object.values(maxValues), 1);
+            
+            // Una métrica va al eje secundario (Y2) si es un ratio (porcentaje, EPS, etc.) o si tiene una escala radicalmente distinta
+            let hasSecondaryAxis = false;
+            const useSecondaryAxis = {};
+            
+            keys.forEach(key => {
+                const nameLower = key.toLowerCase();
+                const isLowMagnitudeType = nameLower.includes('eps') || 
+                                          nameLower.includes('bpa') || 
+                                          nameLower.includes('margin') || 
+                                          nameLower.includes('margen') || 
+                                          nameLower.includes('%') || 
+                                          nameLower.includes('ratio') || 
+                                          nameLower.includes('payout') ||
+                                          nameLower.includes('price') ||
+                                          nameLower.includes('precio') ||
+                                          nameLower.includes('book') ||
+                                          nameLower.includes('valor contable');
+                                          
+                const isGiganticDifference = (absoluteMax > 500 && maxValues[key] < (absoluteMax / 50));
+                
+                if (isLowMagnitudeType || isGiganticDifference) {
+                    useSecondaryAxis[key] = true;
+                    hasSecondaryAxis = true;
+                } else {
+                    useSecondaryAxis[key] = false;
+                }
+            });
+
+            const traces = keys.map((key, index) => {
+                const metric = selectionMap[key];
+                const color = colors[index % colors.length];
+                const onSecondary = useSecondaryAxis[key];
+                
+                // Formateo financiero abreviado para las etiquetas sobre las barras
+                const barLabels = metric.values.map(v => {
+                    if (v === null || v === undefined || isNaN(parseFloat(v))) return '';
+                    const val = parseFloat(v);
+                    const absVal = Math.abs(val);
+                    if (absVal >= 1e9) {
+                        return fmtNum((val / 1e9), 1) + 'B';
+                    } else if (absVal >= 1e6) {
+                        return fmtNum((val / 1e6), 1) + 'M';
+                    } else if (absVal >= 1e3) {
+                        return fmtNum((val / 1e3), 1) + 'K';
+                    } else {
+                        return fmtNum(val, 1);
+                    }
+                });
+                
+                return {
+                    x: metric.years,
+                    y: metric.values,
+                    type: 'bar',
+                    name: onSecondary ? `${metric.name} (Eje Der.)` : metric.name,
+                    yaxis: onSecondary ? 'y2' : 'y',
+                    marker: { color: color },
+                    text: barLabels,
+                    textposition: 'outside'
+                };
+            });
+            
+            const layout = {
+                title: { 
+                    text: keys.length === 1 ? `Tendencia Histórica: ${selectionMap[keys[0]].name}` : `Análisis Comparativo de Métricas`, 
+                    font: { size: 14, color: textColor } 
+                },
+                barmode: 'group',
+                bargap: 0.45,       // Gap between adjacent year clusters (makes bars thinner)
+                bargroupgap: 0.15,  // Gap between individual bars in the same year cluster (makes individual bars thinner)
+                margin: { t: 40, b: 40, l: 60, r: hasSecondaryAxis ? 60 : 20 }, // Reduced margins to maximize plot area
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                xaxis: { gridcolor: gridColor, tickfont: { color: textColor }, type: 'category' },
+                yaxis: { 
+                    gridcolor: gridColor, 
+                    tickfont: { color: textColor },
+                    title: { text: hasSecondaryAxis ? 'Eje Principal' : '', font: { size: 11, color: textColor } }
+                },
+                hovermode: 'closest',
+                showlegend: true,
+                legend: { 
+                    font: { color: textColor },
+                    orientation: 'h',
+                    y: -0.15
+                }
+            };
+
+            if (hasSecondaryAxis) {
+                layout.yaxis2 = {
+                    title: { text: 'Eje Secundario (Ratios / EPS)', font: { size: 11, color: textColor } },
+                    overlaying: 'y',
+                    side: 'right',
+                    gridcolor: 'rgba(0,0,0,0)', // Evita colisiones de rejillas
+                    tickfont: { color: textColor }
+                };
+            }
+            
+            Plotly.newPlot(chartDivId, traces, layout, {responsive: true, displayModeBar: false});
+            Plotly.Plots.resize(chartDivId);
+
+            // Permitir deseleccionar métricas haciendo clic directamente en la leyenda de la gráfica
+            const chartDiv = document.getElementById(chartDivId);
+            if (chartDiv) {
+                chartDiv.on('plotly_legendclick', function(data) {
+                    const clickedCurveNumber = data.curveNumber;
+                    const clickedMetricName = data.data[clickedCurveNumber].name;
+                    
+                    // 1. Eliminar de la selección
+                    delete selectionMap[clickedMetricName];
+                    
+                    // 2. Desmarcar la fila visualmente en la tabla
+                    const rows = document.querySelectorAll(source === 'hist' ? '#nav-financials .row-selected' : '.tab-pane .row-selected');
+                    rows.forEach(row => {
+                        const firstCell = row.querySelector('td');
+                        if (firstCell && firstCell.innerText.trim() === clickedMetricName.trim()) {
+                            row.classList.remove('row-selected');
+                        }
+                    });
+                    
+                    // 3. Re-renderizar el gráfico
+                    updateLocalInteractiveChart(source);
+                    
+                    return false; // Cancela el comportamiento nativo de ocultación parcial de Plotly
+                });
+            }
+            
+            // Scroll suave hasta el gráfico local
+            cardElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 50);
+    }
+
+    function clearInteractiveMetrics(source) {
+        if (source === 'hist') {
+            selectedHistMetrics = {};
+            // Desmarcar visualmente todas las filas de la sección hist
+            document.querySelectorAll('#nav-financials .row-selected').forEach(el => el.classList.remove('row-selected'));
+        } else {
+            selectedAuditMetrics = {};
+            // Desmarcar visualmente todas las filas de la sección audit
+            document.querySelectorAll('#full-audit-details .row-selected').forEach(el => el.classList.remove('row-selected'));
+        }
+        updateLocalInteractiveChart(source);
+    }
+
+    function closeInteractiveChart(source) {
+        const cardElement = document.getElementById(source === 'hist' ? 'financials-chart-card-hist' : 'financials-chart-card-audit');
+        if (cardElement) {
+            cardElement.classList.add('d-none');
+        }
+    }
+
+    // Mantener la función original para compatibilidad con llamadas tradicionales si las hubiera
+    function plotDynamicMetric(name, dataValues) {
+        const years = {{ financials_hist['years'] | tojson }};
+        
+        selectedHistMetrics = {};
+        document.querySelectorAll('#nav-financials .row-selected').forEach(el => el.classList.remove('row-selected'));
+        
+        selectedHistMetrics[name] = {
+            name: name,
+            values: dataValues,
+            years: years
+        };
+        
+        updateLocalInteractiveChart('hist');
+    }
+

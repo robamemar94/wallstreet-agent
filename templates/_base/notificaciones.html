@@ -1,0 +1,35 @@
+    <!-- Contenedor para Notificaciones (Toasts) -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer" style="z-index: 1055;"></div>
+
+    <!-- Panel de notificaciones: alertas, noticias de las tesis y avisos, con un único estado de leído -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="notifPanel" aria-labelledby="notifPanelLabel" style="width: min(440px, 100vw);">
+        <div class="offcanvas-header border-bottom py-2">
+            <h6 class="offcanvas-title fw-bold mb-0" id="notifPanelLabel"><i class="bi bi-bell me-1"></i>Notificaciones</h6>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" onclick="notifMarkAll()" title="Marcar como leídas las que se ven"><i class="bi bi-check2-all me-1"></i>Marcar todo como leído</button>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+            </div>
+        </div>
+        <div class="px-3 pt-2 pb-1 d-flex flex-wrap gap-2 align-items-center border-bottom notif-filters">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Tipo">
+                <button type="button" class="btn btn-outline-secondary active" data-notif-group="">Todas <span class="badge text-bg-secondary" data-notif-count="total"></span></button>
+                <button type="button" class="btn btn-outline-secondary" data-notif-group="alertas">Alertas <span class="badge text-bg-secondary" data-notif-count="alertas"></span></button>
+                <button type="button" class="btn btn-outline-secondary" data-notif-group="noticias">Noticias <span class="badge text-bg-secondary" data-notif-count="noticias"></span></button>
+                <button type="button" class="btn btn-outline-secondary" data-notif-group="avisos">Avisos <span class="badge text-bg-secondary" data-notif-count="avisos"></span></button>
+                <button type="button" class="btn btn-outline-secondary" data-notif-group="monitor">Monitor <span class="badge text-bg-secondary" data-notif-count="monitor"></span></button>
+            </div>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Empresas">
+                <button type="button" class="btn btn-outline-secondary active" data-notif-scope="">Todas las empresas</button>
+                <button type="button" class="btn btn-outline-secondary" data-notif-scope="held" title="Solo empresas que tienes en cartera"><i class="bi bi-briefcase me-1"></i>En cartera</button>
+                <button type="button" class="btn btn-outline-secondary" data-notif-scope="other" title="Watchlist, favoritas y resto">Fuera de cartera</button>
+            </div>
+            <div class="form-check form-switch small mb-0">
+                <input class="form-check-input" type="checkbox" id="notifUnreadOnly" checked>
+                <label class="form-check-label" for="notifUnreadOnly">Solo no leídas</label>
+            </div>
+        </div>
+        <div class="px-3 py-1 small text-muted border-bottom d-flex align-items-center gap-2">Puedes marcar como leída cualquiera; el globo solo cuenta las de empresas en cartera.
+            <a href="/avisos" class="ms-auto text-nowrap fw-semibold text-decoration-none">Ver todos en Avisos <i class="bi bi-arrow-right"></i></a></div>
+        <div class="offcanvas-body p-0" id="notifList"><div class="p-3 small text-muted">Cargando…</div></div>
+    </div>
+    

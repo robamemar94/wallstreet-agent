@@ -89,3 +89,16 @@ def test_drop_again_soon_reopens_without_alert_unless_worse(monkeypatch):
     (ep,) = _drops(db)
     assert ep["status"] == "abierta"
     assert al.run_alerts_scan({"AAA": 78.0}, repo, db, {}) == 1      # −22 %: peor que antes, ahora sí avisa
+
+
+def test_limpia_cambios_de_zona_repetidos_en_30_dias():
+    from app.application.services.alerts_service import drop_repeated_zone_changes
+    z = lambda t, old, new, d: {"type": "VALORACIÓN", "ticker": t, "old_status": old, "new_status": new, "date": f"{d} 10:00:00"}
+    hist = [z("SPGI", "PRECIO JUSTO", "BARATA", "2026-07-05"), z("SPGI", "PRECIO JUSTO", "BARATA", "2026-07-07"),   # repetida
+            z("SPGI", "PRECIO JUSTO", "BARATA", "2026-07-21"),                                                    # repetida (16 d)
+            z("SPGI", "BARATA", "PRECIO JUSTO", "2026-07-08"),                                                    # otro cambio: se queda
+            z("SPGI", "PRECIO JUSTO", "BARATA", "2026-09-16"),                                                    # más de 30 d: se queda
+            {"type": "CAÍDA", "ticker": "SPGI", "date": "2026-07-06 10:00:00"}]
+    out = drop_repeated_zone_changes(hist)
+    assert [h["date"][:10] for h in out if h["type"] == "VALORACIÓN"] == ["2026-07-05", "2026-07-08", "2026-09-16"]
+    assert any(h["type"] == "CAÍDA" for h in out)

@@ -48,6 +48,20 @@ def upcoming_items(today: datetime.date, days: int, results: List[Dict[str, Any]
     return items
 
 
+def week_done(today: datetime.date, reported: List[Dict[str, Any]],
+              collected: List[Dict[str, Any]] = ()) -> List[Dict[str, Any]]:
+    """Lo de esta semana que ya ha pasado (del lunes a ayer), para la línea resumida de «Esta semana»: resultados
+    presentados (reported: [{ticker, date, surprise_pct, thesis_id}]) y dividendos cobrados (collected: [{ticker, date,
+    gross_eur}]), por fecha. El lunes, nada."""
+    monday = today - datetime.timedelta(days=today.weekday())
+    within = lambda v: _d(v) is not None and monday <= _d(v) < today
+    items = [{"date": _d(r["date"]), "ticker": r["ticker"], "kind": "results", "surprise_pct": r.get("surprise_pct"),
+              "thesis_id": r.get("thesis_id")} for r in reported if within(r["date"])]
+    items += [{"date": _d(c["date"]), "ticker": c["ticker"], "kind": "pay", "gross_eur": c.get("gross_eur")}
+              for c in collected if within(c["date"])]
+    return sorted(items, key=lambda i: (i["date"], i["kind"] != "results", i["ticker"]))
+
+
 def group_transactions(transactions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Una línea por empresa y sentido (compra / venta): acciones en total, precio medio ponderado, cuántas operaciones
     y entre qué fechas. La más reciente primero."""

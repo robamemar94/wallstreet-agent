@@ -109,6 +109,13 @@ class SqlAlchemyNoticeRepository:
         q = self.db.query(DBNotice).filter_by(category="attention", active=True).filter(DBNotice.dismissed_at.is_(None)).order_by(DBNotice.first_seen.desc())
         return [_dict(n) for n in q]
 
+    def closed_signals_since(self, since_iso: str) -> List[Dict[str, Any]]:
+        """Señales del monitor que saltaron desde since_iso (hoy) y ya se han cerrado (p. ej. una caída que rebota): lo que
+        pasó hoy sigue en la Bandeja de hoy y en Avisos aunque deje de cumplirse. Sin las descartadas."""
+        q = (self.db.query(DBNotice).filter_by(category="signal", active=False).filter(DBNotice.dismissed_at.is_(None))
+             .filter(DBNotice.first_seen >= since_iso).order_by(DBNotice.first_seen.desc()))
+        return [_dict(n) for n in q]
+
     def active_signals(self) -> List[Dict[str, Any]]:
         """Señales del monitor de precios vigentes y no descartadas (Resumen y watchlist)."""
         q = self.db.query(DBNotice).filter_by(category="signal", active=True).filter(DBNotice.dismissed_at.is_(None)).order_by(DBNotice.first_seen.desc())

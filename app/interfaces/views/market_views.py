@@ -59,6 +59,14 @@ def get_currency_symbol(currency_code, ticker=""):
     # una moneda sin símbolo conocido: su código (PLN, DKK…) mejor que un «$» que no es
     return currency_code if currency_code and currency_code != 'USD' else '$'
 
+NO_CENTS = {"JPY", "KRW", "HUF", "CLP", "IDR", "ISK", "VND"}   # monedas que se cotizan sin decimales (81.230 ¥)
+
+
+def price_decimals(currency_code) -> int:
+    """Decimales con los que se enseña un precio: 0 en yenes, wones… (como Google); 2 en el resto."""
+    return 0 if (currency_code or "").upper() in NO_CENTS else 2
+
+
 def get_region_for_asset(ticker, country):
     country_lower = country.lower() if country else ""
     europe = ["united kingdom", "germany", "france", "italy", "spain", "netherlands", "switzerland", "sweden", "poland", "belgium", "austria", "denmark", "finland", "ireland", "norway", "portugal", "greece", "czech republic", "hungary"]
@@ -263,14 +271,148 @@ def refresh_index_prices(symbols: list, alert_tickers: list) -> None:
         if real_prev.get(t):
             prev = real_prev[t]
         fresh[t] = {"price": price, "prev": prev, "last_date": last_date}
+        old = INDEX_CACHE["data"].get(t) or {}
+        if old.get("ext") and old.get("last_date") == last_date:
+            fresh[t]["ext"] = old["ext"]   # el pre/post-market se actualiza aparte (start_extended_refresh)
     INDEX_CACHE["data"].update(fresh)
     INDEX_CACHE["unavailable"] = (set(INDEX_CACHE.get("unavailable", ())) - set(fresh)) | (set(symbols) - set(fresh))
     INDEX_CACHE["prices_update"] = time.time()
     market_cache.save_snapshot({"updated": INDEX_CACHE["prices_update"], "data": {
         t: {**d, "last_date": d["last_date"].isoformat() if d.get("last_date") else None} for t, d in INDEX_CACHE["data"].items()}})
+    start_extended_refresh()
     # alertas con los precios recién descargados (en segundo plano: descarga histórico)
     if alert_tickers:
         scan_in_background({t: INDEX_CACHE["data"][t]["price"] for t in alert_tickers if t in INDEX_CACHE["data"]})
+
+
+EXT_REFRESH_SECONDS = 240   # cada cuánto, como mucho, se vuelve a pedir el pre/post-market
+from zoneinfo import ZoneInfo
+_NY, _MADRID, _SYDNEY = ZoneInfo("America/New_York"), ZoneInfo("Europe/Madrid"), ZoneInfo("Australia/Sydney")
+_ext_lock = threading.Lock()
+
+
+def is_us_listing(ticker: str) -> bool:
+    """Cotiza en EE. UU. (sin sufijo de bolsa): los únicos con pre-market y post-market en Yahoo."""
+    return bool(ticker) and not any(c in ticker for c in ".^=-")
+
+
+def extended_from_bars(closes: pd.DataFrame, data: dict) -> dict:
+    """Último precio fuera de horario (pre-market antes de las 9:30 o post-market desde las 16:00, hora de Nueva York) de
+    cada valor, frente a su último cierre: {ticker: {price, pct, kind 'pre'|'post', time 'HH:MM' en hora de aquí}}.
+    El post-market cuenta si es de su última sesión; el pre-market, si es de después (el de hoy)."""
+    out = {}
+    for t in closes.columns:
+        d, col = data.get(t) or {}, closes[t].dropna()
+        if col.empty or not d.get("price") or not d.get("last_date"):
+            continue
+        ts = col.index[-1]
+        ts = (ts.tz_localize("UTC") if ts.tzinfo is None else ts).tz_convert("America/New_York")
+        minutes = ts.hour * 60 + ts.minute
+        kind = "pre" if minutes < 570 else ("post" if minutes >= 960 else None)
+        if not kind or ts.date() < d["last_date"] or (kind == "pre" and ts.date() == d["last_date"]):
+            continue
+        px = float(col.iloc[-1])
+        out[t] = {"price": px, "chg": px - d["price"],
+                  "pct": round((px / d["price"] - 1) * 100, 2) + 0.0, "kind": kind,   # + 0.0: sin «−0,00 %»
+                  "time": ts.tz_convert("Europe/Madrid").strftime("%H:%M"), "date": ts.date().isoformat()}   # día en Nueva York
+    return out
+
+
+def _wants_ext(last_date, today: datetime.date, now: datetime.datetime) -> bool:
+    """Si toca pedir el horario extendido: su mercado aún no ha abierto hoy (pre-market; de madrugada, el post-market de
+    ayer, también en la madrugada del sábado) o ya ha cerrado hoy en Nueva York (post-market de hoy)."""
+    if last_date != today:
+        return today.weekday() < 5 or now.hour < 3   # el post-market del viernes acaba a las 2:00 del sábado
+    ny = now.astimezone(_NY)
+    return ny.hour * 60 + ny.minute >= 960
+
+
+def refresh_extended_prices(today: Optional[datetime.date] = None) -> None:
+    """Pre-market / post-market de los valores de EE. UU. (una descarga de barras de 5 min con horario extendido)
+    → INDEX_CACHE[t]['ext']: el pre-market y el post-market de su última sesión cuando aún no ha abierto hoy (se enseña
+    junto a la variación de su última sesión) y el post-market de hoy (corrige la variación del día de la cartera)."""
+    today = today or datetime.date.today()
+    now = datetime.datetime.now(_MADRID)
+    data = INDEX_CACHE["data"]
+    tickers = sorted(t for t, d in data.items() if is_us_listing(t) and d.get("price") and d.get("last_date")
+                     and _wants_ext(d["last_date"], today, now))
+    INDEX_CACHE["ext_update"] = time.time()
+    if not tickers:
+        return
+    # valor a valor con Ticker.history: yf.download no aguanta dos descargas a la vez (comparten un almacén interno) y
+    # esta, en segundo plano, se cruzaba con la del histórico (las posiciones se quedaban sin precio al inicio del periodo)
+    def bars(t):
+        try:
+            h = yf.Ticker(t).history(period="2d", interval="5m", prepost=True)
+            return t, h["Close"] if not h.empty else None
+        except Exception:
+            return t, None
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+        series = {t: c for t, c in pool.map(bars, tickers) if c is not None}
+    if not series:
+        return
+    closes = pd.DataFrame({t: c.tz_convert("UTC") if c.index.tz is not None else c for t, c in series.items()})
+    quotes = extended_from_bars(closes, data)
+    for t in tickers:
+        if t in data:
+            data[t]["ext"] = quotes.get(t)
+    market_cache.save_snapshot({"updated": INDEX_CACHE.get("prices_update", 0), "data": {
+        t: {**d, "last_date": d["last_date"].isoformat() if d.get("last_date") else None} for t, d in data.items()}})
+
+
+def start_extended_refresh() -> None:
+    """refresh_extended_prices en segundo plano, como mucho cada EXT_REFRESH_SECONDS (no retrasa la carga de precios)."""
+    if time.time() - INDEX_CACHE.get("ext_update", 0) < EXT_REFRESH_SECONDS or not _ext_lock.acquire(blocking=False):
+        return
+
+    def run():
+        try:
+            refresh_extended_prices()
+        except Exception as e:
+            logging.warning("Mercado: fallo al pedir el pre/post-market: %s", e)
+        finally:
+            _ext_lock.release()
+    threading.Thread(target=run, daemon=True, name="ext-refresh").start()
+
+
+def ext_quote(ticker: str, today: Optional[datetime.date] = None) -> Optional[dict]:
+    """El pre/post-market de un valor cuyo mercado aún no ha abierto hoy (o None): sustituye a la luna (stale_pill)."""
+    today = today or datetime.date.today()
+    d = INDEX_CACHE["data"].get(ticker) or {}
+    if not d.get("ext") or today.weekday() >= 5 or not d.get("last_date") or d["last_date"] == today:
+        return None
+    return d["ext"]
+
+
+def asia_open_after(session: datetime.date) -> datetime.datetime:
+    """La primera apertura de Australia (10:00 en Sídney, día laborable) tras el cierre de una sesión de Nueva York:
+    ahí empieza el día siguiente de la bolsa y el post-market deja de contar en la cartera."""
+    close = datetime.datetime.combine(session, datetime.time(16, 0), _NY).astimezone(_SYDNEY)
+    opening = close.replace(hour=10, minute=0, second=0, microsecond=0)
+    if opening <= close:
+        opening += datetime.timedelta(days=1)
+    while opening.weekday() >= 5:
+        opening += datetime.timedelta(days=1)
+    return opening
+
+
+def ext_day(ticker: str, now: Optional[datetime.datetime] = None) -> Optional[dict]:
+    """Lo que mueve el horario extendido la variación del día de una posición (Var. día € de Contable), o None:
+    · «pre»: su mercado aún no ha abierto hoy y hay pre-market (lo que llevas ganado antes de abrir);
+    · «post»: post-market de su última sesión, que corrige la variación de esa sesión hasta que abre Asia (Australia).
+    {kind, chg (por acción, en su moneda), pct, price, time, today (la sesión corregida es la de hoy)}"""
+    now = now or datetime.datetime.now(_MADRID)
+    today = now.astimezone(_MADRID).date()
+    d = INDEX_CACHE["data"].get(ticker) or {}
+    ext, last = d.get("ext"), d.get("last_date")
+    if not ext or not ext.get("pct") or not last:
+        return None
+    if ext["kind"] == "pre":
+        return {**ext, "today": False} if last != today and today.weekday() < 5 else None
+    # el post-market tiene que ser de esa sesión (el de ayer, guardado, no corrige la de hoy)
+    if ext.get("date") == last.isoformat() and now < asia_open_after(last):
+        return {**ext, "today": last == today}
+    return None
 
 
 MARKET_INDICES = {"^GSPC": "S&P 500", "^IXIC": "NASDAQ", "URTH": "MSCI World", "^IBEX": "IBEX 35", "^STOXX50E": "Eurostoxx 50", "BTC-USD": "Bitcoin"}
@@ -534,7 +676,7 @@ def index(
             market_indices.append({"name": name, "price": p_price, "change": change, "pct": pct, "is_portfolio": False})
 
     # 4. Movers y mapa de calor
-    all_daily_movers, fav_movers, heatmap_data = [], [], []
+    all_daily_movers, fav_movers = [], []
     port_daily_movers, port_fav_movers = [], []
     portfolio_tickers = {p.ticker for p in active_portfolio}
     portfolio_shares = {p.ticker: p.shares for p in active_portfolio}
@@ -554,15 +696,16 @@ def index(
             # calor y las cifras del día siguen siendo solo de hoy (0)
             change = p_price - p_prev
             pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
-            pct_today = 0.0 if not_open else pct
+            ext = ext_quote(t, today) if not_open else None   # EE. UU.: su pre/post-market, como dato secundario
 
             mover_item = {
                 "name": t, "company_name": db_d.get("company_name", "-"),
                 "pct": pct, "price": p_price, "change_abs": change,
-                "symbol": get_currency_symbol(db_d.get("currency", "USD"), t),
+                "symbol": get_currency_symbol(db_d.get("currency", "USD"), t), "dec": price_decimals(db_d.get("currency")),
                 "region": get_region_for_asset(t, db_d.get("country", "-")),
                 "market": get_market_group(t, db_d.get("country", "-")), "not_open": not_open,
                 "session_label": session_label(p_last_date, today) if not_open else None,
+                "ext": ext,
                 # para el filtro de «Actividad del día»: Tier 1 y Tier 2 aparte; el resto, su estado (Seguimiento = ACCEPTED)
                 "status": "T1" if is_fav else ("T2" if str(db_d.get("watch_tier") or "") == "2" else (db_d.get("status") or "NONE"))
             }
@@ -573,21 +716,6 @@ def index(
                     # Incluimos también si el activo es favorito
                     mover_item["is_favorite"] = asset_obj.is_favorite
 
-            if db_d.get("status") in ["ACCEPTED", "STANDBY"] or t in portfolio_tickers:
-                shares = portfolio_shares.get(t, 0)
-                curr = db_d.get("currency", "USD")
-                fx = INDEX_CACHE["data"].get(f"{curr}EUR=X", {}).get("price", 1.0) if curr != "EUR" else 1.0
-                val_eur = d["price"] * shares * fx if t in portfolio_tickers else 0.0
-
-                heatmap_data.append({
-                    "ticker": t,
-                    "pct": pct_today,
-                    "sector": db_d.get("sector", "Otros"),
-                    "industry": db_d.get("industry", db_d.get("sector", "Otros")),
-                    "is_portfolio": t in portfolio_tickers,
-                    "value_eur": val_eur
-                })
-                
             all_daily_movers.append(mover_item)
             
             if is_fav and pct != 0.0:
@@ -629,7 +757,8 @@ def index(
                     not_open = bool(is_weekday and p_last_date and p_last_date != today)   # su sesión anterior, atenuada
                     change = p_price - p_prev
                     pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
-                    
+                    ext = ext_quote(asset.ticker, today) if not_open else None
+
                     db_d = asset_repo.get_asset_data(asset.ticker)
                     
                     mover_item = {
@@ -637,9 +766,11 @@ def index(
                         "company_name": db_d.get("company_name", asset.company_name or "-"),
                         "pct": pct, "price": p_price, "change_abs": change,
                         "symbol": get_currency_symbol(db_d.get("currency", "USD"), asset.ticker),
+                        "dec": price_decimals(db_d.get("currency")),
                         "region": get_region_for_asset(asset.ticker, db_d.get("country", "-")),
                         "market": get_market_group(asset.ticker, db_d.get("country", "-")), "not_open": not_open,
                         "session_label": session_label(p_last_date, today) if not_open else None,
+                "ext": ext,
                         "status": db_d.get("status") or "NONE",
                         "is_favorite": asset.is_favorite
                     }
@@ -665,7 +796,6 @@ def index(
         "custom_lists": custom_lists_movers,
         "port_all": sorted_port_movers,
         "market_indices": market_indices,
-        "heatmap_data": heatmap_data,
         "latest_market_date": latest_market_date,   # «sesión» en la tarjeta Mi Cartera (antes salía vacío)
         "settings": settings,
         **prices_banner_context(),

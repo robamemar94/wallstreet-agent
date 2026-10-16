@@ -1,0 +1,119 @@
+
+<!-- Nueva operación (compra o venta): ventana emergente desde el botón «+ Operación» de la cabecera -->
+<!-- Liquidez del bróker: saldo, desglose desde el saldo de partida, apuntar aportación/retirada o ajustar el saldo -->
+<div class="modal fade" id="cashModal" tabindex="-1" aria-labelledby="cashModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-bold" id="cashModalLabel"><i class="bi bi-wallet2 me-1"></i>Liquidez en el bróker</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="cashSummary" class="mb-3 small text-muted">Cargando…</div>
+        <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Qué apuntar">
+          <input type="radio" class="btn-check" name="cashKind" id="cashKindDeposit" value="deposit" checked>
+          <label class="btn btn-outline-success" for="cashKindDeposit"><i class="bi bi-plus-circle me-1"></i>Aportación</label>
+          <input type="radio" class="btn-check" name="cashKind" id="cashKindWithdrawal" value="withdrawal">
+          <label class="btn btn-outline-danger" for="cashKindWithdrawal"><i class="bi bi-dash-circle me-1"></i>Retirada</label>
+          <input type="radio" class="btn-check" name="cashKind" id="cashKindBalance" value="balance">
+          <label class="btn btn-outline-secondary" for="cashKindBalance" title="Escribe el saldo que te dice el bróker: desde ese día se lleva solo"><i class="bi bi-sliders me-1"></i>Ajustar saldo</label>
+        </div>
+        <div class="row g-2 align-items-end">
+          <div class="col-5"><label class="form-label small mb-1" for="cashAmount" id="cashAmountLabel">Importe (€)</label>
+            <input type="number" step="0.01" min="0" class="form-control form-control-sm" id="cashAmount" placeholder="0,00"></div>
+          <div class="col-4"><label class="form-label small mb-1" for="cashDate">Fecha</label>
+            <input type="date" class="form-control form-control-sm" id="cashDate"></div>
+          <div class="col-3"><button type="button" class="btn btn-sm btn-primary w-100" id="cashSave">Guardar</button></div>
+        </div>
+        <input type="text" class="form-control form-control-sm mt-2" id="cashNote" placeholder="Nota (opcional): nómina, extra…">
+        <div class="small text-danger mt-1 d-none" id="cashError"></div>
+        <div class="small text-muted mt-2" id="cashHint"></div>
+        <hr class="my-2">
+        <div class="small fw-bold text-muted mb-1">Últimos movimientos</div>
+        <div class="cash-recent" id="cashRecent"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="addOpModal" tabindex="-1" aria-labelledby="addOpModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold" id="addOpModalLabel"><i class="bi bi-plus-lg me-1"></i>Nueva operación</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+            <form id="add-portfolio-form" class="row g-3">
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small fw-bold">Fecha</label>
+                    <input type="date" class="form-control" id="add-date" required>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small fw-bold">Tipo</label>
+                    <select class="form-select" id="add-type" required>
+                        <option value="BUY">Compra</option>
+                        <option value="SELL">Venta</option>
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small fw-bold">Ticker</label>
+                    <input type="text" class="form-control" id="add-ticker" placeholder="Ej. AAPL" required>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small fw-bold">Acciones</label>
+                    <input type="number" class="form-control" id="add-shares" step="0.01" oninput="calculateEstimatedFee()" required>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small fw-bold">Precio Unitario</label>
+                    <input type="number" class="form-control" id="add-price" step="0.0001" oninput="calculateEstimatedFee()" required>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small fw-bold">Moneda</label>
+                    <select class="form-select" id="add-currency" onchange="calculateEstimatedFee()" required>
+                        <option value="USD">USD ($)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="GBP">GBP (£)</option>
+                        <option value="SEK">SEK (kr)</option>
+                        <option value="JPY">JPY (¥)</option>
+                        <option value="DKK">DKK (kr)</option>
+                        <option value="PLN">PLN (zł)</option>
+                        <option value="CHF">CHF (Fr)</option>
+                        <option value="MXN">MXN ($)</option>
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small fw-bold">Comisión <span class="text-muted fw-normal">(opcional)</span></label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" id="add-fee" step="0.01" min="0" value="0" placeholder="0.00">
+                        <span class="input-group-text" id="fee-currency-label">$</span>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small fw-bold">Broker</label>
+                    <select class="form-select" id="add-broker" onchange="calculateEstimatedFee()" required>
+                        <option value="IBKR" selected>🟢 Interactive Brokers (IBKR)</option>
+                        <option value="DEGIRO">🟠 DEGIRO</option>
+                    </select>
+                </div>
+                <div class="col-sm-6 col-lg-3">
+                    <label class="form-label small fw-bold">
+                        Tipo de cambio EUR/<span id="fx-currency-label">USD</span>
+                        <span class="text-muted fw-normal small">(auto)</span>
+                    </label>
+                    <input type="number" class="form-control" id="add-fx-rate" step="0.0001" min="0" placeholder="Auto">
+                    <div class="form-text text-muted" id="fx-rate-hint">Se obtiene automáticamente</div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label small fw-bold" for="add-comment">Por qué <span class="text-muted fw-normal">(opcional; sale en la pestaña Decisiones)</span></label>
+                    <textarea class="form-control" id="add-comment" rows="2" maxlength="1000"
+                              placeholder="Por qué compras o vendes: tesis, precio, señal… Si la empresa tiene tesis, se anota también en su diario de decisiones."></textarea>
+                </div>
+                <div class="col-12 d-flex align-items-end">
+                    <button type="submit" id="submit-btn" class="btn btn-primary fw-bold px-4">➕ Guardar Transacción</button>
+                </div>
+            </form>
+      </div>
+    </div>
+  </div>
+</div>

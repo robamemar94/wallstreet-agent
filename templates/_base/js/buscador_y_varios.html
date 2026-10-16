@@ -1,0 +1,247 @@
+        async function loadGlobalSuggestions() {
+            try {
+                const [resSug, resRec] = await Promise.all([
+                    fetch('/api/search_suggestions'),
+                    fetch('/api/recent_searches')
+                ]);
+                analyzedCompanies = await resSug.json();
+                recentSearches = await resRec.json();
+                
+                setupAutocomplete('#nav-search-input', '#nav-search-suggestions');
+            } catch (e) { console.error("Error loading suggestions", e); }
+        }
+        
+        function setupAutocomplete(inputSelector, suggestionsSelector) {
+            const input = document.querySelector(inputSelector);
+            const suggestions = document.querySelector(suggestionsSelector);
+            if (!input || !suggestions) return;
+
+            let selectedIndex = -1;
+
+            const updateView = () => {
+                selectedIndex = -1;
+                const text = input.value.toLowerCase().trim();
+                let html = "";
+                
+                if (text === "") {
+                    if (recentSearches.length > 0) {
+                        recentSearches.forEach(ticker => {
+                            const company = analyzedCompanies.find(c => c.ticker === ticker);
+                            html += `
+                                <div class="suggestion-item" data-ticker="${ticker}">
+                                    <span class="name">${company ? company.name : ""}</span>
+                                    <span class="ticker"><i class="bi bi-clock-history me-2 opacity-50"></i>${ticker}</span>
+                                </div>
+                            `;
+                        });
+                    }
+                } else {
+                    const matches = analyzedCompanies.filter(c => 
+                        c.ticker.toLowerCase().includes(text) || 
+                        c.name.toLowerCase().includes(text)
+                    ).slice(0, 10);
+
+                    if (matches.length > 0) {
+                        matches.forEach(m => {
+                            html += `
+                                <div class="suggestion-item" data-ticker="${m.ticker}">
+                                    <span class="name">${m.name}</span>
+                                    <span class="ticker">${m.ticker}</span>
+                                </div>
+                            `;
+                        });
+                    }
+                }
+
+                if (html) {
+                    suggestions.innerHTML = html;
+                    suggestions.style.display = 'block';
+                } else {
+                    suggestions.style.display = 'none';
+                }
+            };
+
+            const highlightItem = (index) => {
+                const items = suggestions.querySelectorAll('.suggestion-item');
+                items.forEach((item, i) => {
+                    if (i === index) {
+                        item.classList.add('active');
+                        item.scrollIntoView({ block: 'nearest' });
+                    } else {
+                        item.classList.remove('active');
+                    }
+                });
+            };
+
+            input.addEventListener('focus', updateView);
+            input.addEventListener('input', updateView);
+            input.addEventListener('click', updateView);
+
+            // keyboard navigation
+            input.addEventListener('keydown', (e) => {
+                const items = suggestions.querySelectorAll('.suggestion-item');
+                if (suggestions.style.display === 'none' || items.length === 0) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (selectedIndex < items.length - 1) {
+                        selectedIndex++;
+                        highlightItem(selectedIndex);
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (selectedIndex > 0) {
+                        selectedIndex--;
+                        highlightItem(selectedIndex);
+                    } else if (selectedIndex === -1) {
+                        selectedIndex = items.length - 1;
+                        highlightItem(selectedIndex);
+                    }
+                } else if (e.key === 'Enter') {
+                    if (selectedIndex >= 0 && selectedIndex < items.length) {
+                        e.preventDefault();
+                        const ticker = items[selectedIndex].getAttribute('data-ticker');
+                        input.value = ticker;
+                        suggestions.style.display = 'none';
+                        if (input.form) input.form.submit();
+                    }
+                } else if (e.key === 'Escape') {
+                    suggestions.style.display = 'none';
+                }
+            });
+
+            suggestions.addEventListener('mousedown', (e) => {
+                const item = e.target.closest('.suggestion-item');
+                if (item) {
+                    const ticker = item.getAttribute('data-ticker');
+                    input.value = ticker;
+                    suggestions.style.display = 'none';
+                    if (input.form) input.form.submit();
+                }
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+                    suggestions.style.display = 'none';
+                }
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', loadGlobalSuggestions);
+
+        async function toggleDarkMode() {
+            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            const ui = (__appSettings && __appSettings.ui) || {};
+            try {
+                await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ui: { dark_mode: !isDark, items_per_page: ui.items_per_page || 10 } })
+                });
+            } catch(e) {}
+            location.reload();
+        }
+
+        function showToast(title, message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toastId = 'toast-' + Date.now();
+            const bgClass = type === 'success' ? 'bg-success' : (type === 'error' ? 'bg-danger' : 'bg-primary');
+            const toastHTML = `
+                <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+                  <div class="d-flex">
+                    <div class="toast-body"><strong>${title}</strong><br>${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                  </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', toastHTML);
+            const toastEl = document.getElementById(toastId);
+            // duración según importancia: lo informativo se va pronto, un error da tiempo a leerlo
+            const delay = type === 'error' ? 7000 : (type === 'success' ? 3500 : 2500);
+            const toast = new bootstrap.Toast(toastEl, { delay });
+            toast.show();
+            toastEl.addEventListener('hidden.bs.toast', () => { toastEl.remove(); });
+        }
+
+        // Aviso de tokens y coste de cada consulta a Gemini.
+        // El backend lo envía en la cabecera X-LLM-Usage (peticiones síncronas)
+        // o en el campo "usage" de /api/generate_status (agentes en background).
+        function showUsageToast(u) {
+            if (!u || !u.calls) return;
+            const fmt = n => Number(n || 0).toLocaleString('de-DE');
+            const cost = Number(u.cost_usd || 0);
+            const costStr = cost < 0.01 ? fmtNum(cost, 4) : fmtNum(cost, 2);
+            const models = (u.models || []).join(', ');
+            let html = `<div class="small">${models} · ${fmt(u.calls)} llamadas</div>
+                <div class="font-monospace small mt-1">
+                    Entrada: ${fmt(u.input_tokens)}${u.cached_tokens ? ` (+${fmt(u.cached_tokens)} caché)` : ''}<br>
+                    Salida: ${fmt(u.output_tokens)} · Thinking: ${fmt(u.thinking_tokens)}<br>
+                    Total: <strong>${fmt(u.total_tokens)}</strong> tokens
+                    ${u.search_queries ? `<br>Búsquedas Google: ${fmt(u.search_queries)} (mes: ${fmt(u.search_queries_month)}/5.000 gratis)` : ''}
+                </div>
+                <div class="mt-1 fw-bold">Coste: $${costStr}</div>`;
+            if (u.unpriced_models && u.unpriced_models.length) {
+                html += `<div class="small opacity-75">Sin precio para: ${u.unpriced_models.join(', ')}</div>`;
+            }
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+            const toastId = 'usage-toast-' + Date.now();
+            container.insertAdjacentHTML('beforeend', `
+                <div id="${toastId}" class="toast text-white border-0 shadow" role="status" aria-live="polite" aria-atomic="true" style="background-color: #343a40;">
+                  <div class="d-flex">
+                    <div class="toast-body"><strong><i class="bi bi-cpu me-1 text-warning"></i>Consumo IA</strong>${html}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                  </div>
+                </div>`);
+            const toastEl = document.getElementById(toastId);
+            new bootstrap.Toast(toastEl, { delay: 8000 }).show();
+            toastEl.addEventListener('hidden.bs.toast', () => { toastEl.remove(); });
+            console.info('[Consumo IA]', u);
+        }
+
+        (function () {
+            const originalFetch = window.fetch;
+            window.fetch = async function (...args) {
+                const response = await originalFetch.apply(this, args);
+                try {
+                    const header = response.headers.get('X-LLM-Usage');
+                    if (header) {
+                        showUsageToast(JSON.parse(header));
+                    } else if (String(args[0]).includes('/api/generate_status/')) {
+                        response.clone().json().then(d => {
+                            if (d && d.status === 'success') showUsageToast(d.usage);
+                        }).catch(() => {});
+                    }
+                } catch (e) {}
+                return response;
+            };
+        })();
+
+        // Persistencia Automática de Pestañas (Tabs) en sessionStorage
+        document.addEventListener('DOMContentLoaded', () => {
+            // Guardar estado al cambiar de pestaña (Delegación de eventos en body)
+            document.body.addEventListener('shown.bs.tab', (event) => {
+                const tabList = event.target.closest('[role="tablist"]');
+                if (tabList) {
+                    const storageKey = 'active_tab_' + (tabList.id || 'tablist_index_' + Array.from(document.querySelectorAll('[role="tablist"]')).indexOf(tabList));
+                    sessionStorage.setItem(storageKey, event.target.id);
+                }
+            });
+
+            // Restaurar estado de pestañas al cargar la página
+            document.querySelectorAll('[role="tablist"]').forEach(tabList => {
+                const storageKey = 'active_tab_' + (tabList.id || 'tablist_index_' + Array.from(document.querySelectorAll('[role="tablist"]')).indexOf(tabList));
+                const savedTabId = sessionStorage.getItem(storageKey);
+                if (savedTabId) {
+                    const tabButton = document.getElementById(savedTabId);
+                    if (tabButton && window.bootstrap) {
+                        try {
+                            const tab = new bootstrap.Tab(tabButton);
+                            tab.show();
+                        } catch (e) {
+                            console.warn("No se pudo restaurar la pestaña:", savedTabId, e);
+                        }
+                    }
+                }
+            });
+        });

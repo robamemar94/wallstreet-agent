@@ -1,0 +1,237 @@
+<script>
+// «Más» de las cifras clave: Finanzas y gráficos › Estadísticas
+function openStats() {
+    bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-financials-tab')).show();
+    bootstrap.Tab.getOrCreateInstance(document.getElementById('sub-stats-tab')).show();
+}
+// Precio y valoración (columna derecha del Resumen): los números, el gráfico con periodos como Google (1D, 5D, 1M, 6M,
+// YTD, 1A, 5A, MÁX; 1D y 5D, intradía) y, debajo, las cifras clave. Se mueve arrastrando y hace zoom con la rueda.
+// Líneas: el precio de compra de la valoración base (verde) y tu precio medio (ámbar); tus compras y ventas, marcadas.
+(() => {
+    const T = {{ ticker|tojson }};
+    let data = null;
+    const intraday = {};   // '1d' / '5d' → {x, y}, pedidos una vez
+    const PERIODS = [['1D', '1d'], ['5D', '5d'], ['1M', 'm1'], ['6M', 'm6'], ['YTD', 'ytd'], ['1A', 'y1'], ['5A', 'y5'], ['MÁX', 'max']];
+    const period = {pvChart: 'y1', pvModalChart: 'y1'};
+    const ZONES = {ganga: ['Ganga', 'success'], barata: ['Barata', 'success'], justo: ['Precio justo', 'secondary'], cara: ['Cara', 'warning'], burbuja: ['Burbuja', 'danger']};
+    const summary = d => {
+        const v = d.valuation, cur = d.currency;
+        let html = '';
+        if (v) {
+            const [zl, zc] = ZONES[v.zone] || [v.zone || '', 'secondary'];
+            const gap = 100 * (v.buy_price / d.price - 1);
+            html += `<span title="Precio de compra: al que la valoración base da un ${fmtNum(v.target, 0)} % anual">Compra <b class="num-font text-success">${fmtNum(v.buy_price, 2)} ${cur}</b></span>`
+                + `<span>${gap >= 0 ? '<b class="text-success">en zona de compra</b>' : `falta caer <b class="num-font">${fmtNum(-gap, 1)} %</b>`}</span>`
+                + `<span title="Rentabilidad anual estimada comprando hoy (valoración base, ${v.years} años, ${v.metric === 'fcf' ? 'FCF' : 'BPA'})">CAGR est. <b class="num-font">${v.cagr != null ? fmtNum(v.cagr, 1) + ' %' : '–'}</b></span>`;
+            document.getElementById('pvZone').innerHTML = zl ? `<span class="badge text-bg-${zc}" style="text-transform: none; letter-spacing: 0;">${zl}</span>` : '';
+            // insignia de la cabecera: zona y rentabilidad estimada (lleva a la Valoración)
+            const hz = document.getElementById('hdrZone');
+            if (hz && zl) hz.innerHTML = `<a href="#valoracion" class="badge text-decoration-none bg-${zc} bg-opacity-10 text-${zc} border border-${zc}-subtle px-2 py-1" style="font-size: .75rem;" title="Zona de la valoración base y rentabilidad anual estimada comprando hoy" onclick="document.getElementById('nav-projection-tab').click(); return false;"><i class="bi bi-bullseye me-1"></i>${zl}${v.cagr != null ? ' · ' + fmtNum(v.cagr, 1) + ' %' : ''}</a>`;
+        } else {
+            html += '<span class="text-muted">Sin valoración base</span><a href="#valoracion" onclick="document.getElementById(\'nav-projection-tab\').click(); return false;">Valorar →</a>';
+        }
+        if (d.avg_cost) html += `<span title="Tu precio medio de compra">Tu precio medio <b class="num-font" style="color: #f59e0b;">${fmtNum(d.avg_cost, 2)} ${cur}</b></span>`;
+        document.getElementById('pvSummary').innerHTML = html;
+    };
+    // Casillas del Resumen: distancia a compra (de la valoración base) y técnico en directo (del histórico de precios)
+    // Señales: cuántas a favor, a vigilar y en contra (se recuenta al llegar las que se calculan aquí y las de directivos)
+    window.BV_REALITY_WARN = {{ bval_reality_warn|tojson }};   // supuestos de la valoración optimistas (o null)
+    window.sigCount = () => {
+        const box = document.getElementById('sigCount');
+        if (!box) return;
+        const n = t => document.querySelectorAll(`.sig-rows .sig-row[data-tone="${t}"]`).length;
+        const part = (t, c, l) => n(t) ? `<span class="sc" style="color: ${c}"><i class="bi bi-circle-fill"></i>${n(t)} ${l}</span>` : '';
+        box.innerHTML = part('good', 'var(--fin-green, #16a34a)', 'a favor') + part('mid', '#f59e0b', 'a vigilar') + part('bad', 'var(--fin-red, #dc2626)', 'en contra');
+    };
+    const sig = (id, tone, word, detail) => {
+        const row = document.getElementById(id);
+        if (!row) return;
+        row.dataset.tone = tone;
+        document.getElementById(id + 'Word').textContent = word;
+        document.getElementById(id + 'Detail').innerHTML = detail;
+    };
+    const indicators = d => {
+        const v = d.valuation;
+        if (v && d.price) {
+            const drop = 100 * (1 - v.buy_price / d.price);   // lo que tendría que caer; ≤ 0: ya en zona
+            const [zl] = ZONES[v.zone] || [v.zone || ''];
+            sig('sigVal', drop <= 0 ? 'good' : drop <= 15 ? 'mid' : 'bad', drop <= 0 ? 'En zona' : zl || 'Fuera',
+                (window.BV_REALITY_WARN ? `<span class="text-danger" title="${BV_REALITY_WARN}"><i class="bi bi-exclamation-triangle-fill"></i> supuestos optimistas</span> · ` : '')
+                + (drop <= 0 ? `bajo el precio de compra (${fmtNum(v.buy_price, 2)} ${d.currency})` : `<b>−${fmtNum(drop, 1)} %</b> hasta ${fmtNum(v.buy_price, 2)} ${d.currency}`)
+                + (v.cagr != null ? ` · CAGR ${fmtNum(v.cagr, 1)} %` : ''));
+        }
+        const closes = (d.history || []).map(p => p[1]).filter(x => x != null);
+        if (closes.length < 30) { sig('sigTech', 'none', '–', 'sin histórico suficiente'); sigCount(); return; }
+        const last = closes[closes.length - 1];
+        const ma = closes.length >= 200 ? closes.slice(-200).reduce((a, b) => a + b, 0) / 200 : null;
+        let gain = 0, loss = 0;   // RSI de 14 sesiones (media simple)
+        for (let k = closes.length - 14; k < closes.length; k++) { const ch = closes[k] - closes[k - 1]; if (ch > 0) gain += ch; else loss -= ch; }
+        const rsi = loss === 0 ? 100 : 100 - 100 / (1 + gain / loss);
+        const hi = Math.max(...closes.slice(-252)), fromHi = 100 * (last / hi - 1);
+        const vsMa = ma ? 100 * (last / ma - 1) : null;
+        const [word, tone] = rsi < 30 ? ['Sobreventa', 'mid'] : rsi > 70 ? ['Sobrecompra', 'mid'] : vsMa != null && vsMa < 0 ? ['Bajista', 'bad'] : ['Alcista', 'good'];
+        sig('sigTech', tone, word, `${vsMa != null ? (vsMa >= 0 ? '+' : '') + fmtNum(vsMa, 1) + ' % vs media 200 · ' : ''}RSI ${fmtNum(rsi, 0)} · ${fmtNum(fromHi, 1)} % desde máx.`);
+        sigCount();
+    };
+    const startOf = (key, last) => {
+        const d = new Date(last);
+        if (key === 'm1') d.setMonth(d.getMonth() - 1);
+        else if (key === 'm6') d.setMonth(d.getMonth() - 6);
+        else if (key === 'ytd') return `${last.slice(0, 4)}-01-01`;
+        else if (key === 'y1') d.setFullYear(d.getFullYear() - 1);
+        else if (key === 'y5') d.setFullYear(d.getFullYear() - 5);
+        else return null;   // max
+        return d.toISOString().slice(0, 10);
+    };
+    const levels = () => [data.valuation && data.valuation.buy_price, data.avg_cost].filter(Boolean);
+    const yRange = (y, i, j) => { const r = yRangeFor([y], i, j, 0.08); if (r) levels().forEach(v => { r[0] = Math.min(r[0], v * 0.97); r[1] = Math.max(r[1], v * 1.03); }); return r; };
+    const showChange = (id, y, i, j) => {
+        const el = document.getElementById(id + 'Change');
+        if (!el || i == null || j == null || !y[i]) return;
+        const pct = 100 * (y[j] / y[i] - 1);
+        el.className = 'ms-auto num-font fw-bold ' + (pct >= 0 ? 'text-success' : 'text-danger');
+        el.textContent = `${pct >= 0 ? '+' : ''}${fmtNum(pct, 2)} %`;
+    };
+    const draw = async (el, height) => {
+        const key = period[el.id], d = data, dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const text = dark ? '#adb5bd' : '#495057', grid = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+        let x, y, intra = key === '1d' || key === '5d';
+        if (intra) {
+            if (!intraday[key]) {
+                const r = await fetch(`/api/history/${encodeURIComponent(T)}?period=${key}`).then(r => r.json()).catch(() => null);
+                intraday[key] = r && r.status === 'success' ? {x: r.dates, y: r.prices} : {x: [], y: []};
+            }
+            ({x, y} = intraday[key]);
+        } else {
+            x = d.history.map(p => p[0]); y = d.history.map(p => p[1]);
+        }
+        if (!x.length) return;
+        const last = x[x.length - 1], from = intra ? x[0] : (startOf(key, last) || x[0]);
+        const [i, j] = rangeIndices(x, from, last);
+        const up = y[j] >= y[i], color = up ? '#16a34a' : '#dc2626';
+        const traces = [{x, y, type: 'scatter', mode: 'lines', name: 'Precio', line: {color, width: 1.6},
+                         hovertemplate: (intra ? '%{x|%d/%m %H:%M}' : '%{x|%d/%m/%Y}') + ': %{y:,.2f} ' + d.currency + '<extra></extra>'}];
+        if (!intra) {   // tus compras y ventas
+            const mark = (list, sym, c, label) => list.length && traces.push({x: list.map(t => t.date), y: list.map(t => t.price), type: 'scatter', mode: 'markers', name: label,
+                marker: {symbol: sym, size: 10, color: c, line: {width: 1, color: dark ? '#000' : '#fff'}},
+                text: list.map(t => `${label}: ${fmtNum(t.shares, 0)} acc. a ${fmtNum(t.price, 2)} ${d.currency}`), hovertemplate: '%{x|%d/%m/%Y} · %{text}<extra></extra>'});
+            mark(d.trades.filter(t => t.type === 'BUY'), 'triangle-up', '#22c55e', 'Compra');
+            mark(d.trades.filter(t => t.type === 'SELL'), 'triangle-down', '#ef4444', 'Venta');
+        }
+        // líneas sobre el gráfico (sin sombrear el fondo): precio de compra de la valoración y tu precio medio
+        const shapes = [], annotations = [], small = el.id === 'pvChart';
+        const line = (v, c, dash, label, right) => {
+            shapes.push({type: 'line', xref: 'paper', x0: 0, x1: 1, y0: v, y1: v, line: {color: c, width: 1.4, dash}});
+            annotations.push({xref: 'paper', x: right ? 0.995 : 0.005, y: v, xanchor: right ? 'right' : 'left', yanchor: 'bottom', showarrow: false,
+                              text: `${label} ${fmtNum(v, 2)}`, font: {size: small ? 9 : 11, color: c}});
+        };
+        if (d.valuation) line(d.valuation.buy_price, '#22c55e', 'dash', 'Precio de compra', false);
+        if (d.avg_cost) line(d.avg_cost, '#f59e0b', 'dot', 'Tu precio medio', true);
+        const layout = {height, margin: small ? {l: 34, r: 4, t: 4, b: 20} : {l: 45, r: 10, t: 8, b: 28}, showlegend: false, dragmode: 'pan', hovermode: 'x unified',
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', shapes, annotations,
+            xaxis: {type: intra ? 'category' : 'date', range: intra ? undefined : [from, last], gridcolor: grid, tickfont: {color: text, size: small ? 9 : 10}, nticks: 6,
+                    showticklabels: true},
+            yaxis: {gridcolor: grid, tickfont: {color: text, size: small ? 9 : 10}, range: yRange(y, i, j), fixedrange: false}};
+        await Plotly.react(el, traces, layout, {responsive: true, displayModeBar: false, scrollZoom: true, locale: 'es'});
+        showChange(el.id, y, i, j);
+        if (!el._pvHooked) {   // el eje Y y el cambio se ajustan a lo que se ve al moverse
+            el._pvHooked = true;
+            el.on('plotly_relayout', ev => {
+                const r = relayoutXRange(ev);
+                if (!r || ev['yaxis.range[0]'] !== undefined) return;
+                const xs = el.data[0].x, ys = el.data[0].y;
+                const [a, b] = r === 'all' ? [xs[0], xs[xs.length - 1]] : r;
+                const [i2, j2] = el.layout.xaxis.type === 'category' ? [Math.max(0, Math.round(a)), Math.min(xs.length - 1, Math.round(b))] : rangeIndices(xs, a, b);
+                const yr2 = yRange(ys, i2, j2);
+                if (yr2) Plotly.relayout(el, {'yaxis.range': yr2});
+                showChange(el.id, ys, i2, j2);
+            });
+        }
+    };
+    const buttons = () => document.querySelectorAll('.pv-periods').forEach(g => {
+        g.innerHTML = PERIODS.map(([label, key]) => `<button type="button" class="btn btn-outline-secondary ${period[g.dataset.chart] === key ? 'active' : ''}" data-period="${key}">${label}</button>`).join('');
+        g.querySelectorAll('[data-period]').forEach(b => b.addEventListener('click', () => {
+            period[g.dataset.chart] = b.dataset.period;
+            g.querySelectorAll('[data-period]').forEach(x => x.classList.toggle('active', x === b));
+            const el = document.getElementById(g.dataset.chart);
+            draw(el, el.clientHeight || el.parentElement.clientHeight);
+        }));
+    });
+    // el panel ocupa el alto que queda en la ventana: en pantallas altas la tesis llega hasta abajo (sin hueco)
+    const fitRow = () => {
+        const row = document.querySelector('#nav-dashboard > .row');
+        if (!row || !row.offsetParent) return;
+        // el Resumen llena la ventana: la columna izquierda estira su última fila y el gráfico de la derecha, el resto
+        const top = row.getBoundingClientRect().top + scrollY;
+        const avail = innerHeight - top - 16;
+        row.style.minHeight = avail > 420 ? avail + 'px' : '';
+        const extra = document.documentElement.scrollHeight - innerHeight;   // márgenes que no se ven en el cálculo
+        if (extra > 0 && avail - extra > 420) row.style.minHeight = (avail - extra) + 'px';
+    };
+    // el gráfico: el alto que le deje su caja (llena el recuadro entre los números y las cifras clave)
+    // Si el hueco aún no tiene tamaño (pestaña oculta, página sin colocar), se espera: dibujado con ancho 0 se quedaba en
+    // blanco hasta pulsar un periodo. Y si el hueco cambia de tamaño después, el gráfico se reajusta solo.
+    let pvTries = 0;
+    const fitPv = () => {
+        fitRow();
+        const el = document.getElementById('pvChart'), box = document.getElementById('pvChartBox');
+        if (!data || !data.history.length) return;
+        if (!document.getElementById('nav-dashboard')?.classList.contains('active') || box.clientWidth < 50) {
+            if (pvTries++ < 40) setTimeout(fitPv, 150);
+            return;
+        }
+        pvTries = 0;
+        const h = Math.max(140, box.clientHeight);
+        if (!el.data) draw(el, h); else Plotly.relayout(el, {height: h, width: box.clientWidth});
+    };
+    if (window.ResizeObserver) {
+        let pvRt = null;
+        new ResizeObserver(() => { clearTimeout(pvRt); pvRt = setTimeout(() => { if (data) fitPv(); }, 120); })
+            .observe(document.getElementById('pvChartBox') || document.body);
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+        buttons();
+        fetch(`/api/ticker/${encodeURIComponent(T)}/precio-valoracion`).then(r => r.json()).then(d => {
+            data = d; summary(d); indicators(d);
+            if (!d.history.length) { document.getElementById('pvChartBox').classList.add('d-none'); return; }
+            fitPv();
+            document.getElementById('pvModal').addEventListener('shown.bs.modal', () => draw(document.getElementById('pvModalChart'), document.getElementById('pvModalChart').clientHeight));
+        }).catch(() => { document.getElementById('pvSummary').innerHTML = '<span class="text-muted">No se pudo cargar</span>'; });
+        let rt = null;
+        window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(fitPv, 200); });
+        window.fitPv = fitPv;   // también al cargar los directivos (cambia la altura de la columna izquierda)
+        document.getElementById('pvOpen').addEventListener('click', e => { e.preventDefault(); bootstrap.Modal.getOrCreateInstance(document.getElementById('pvModal')).show(); });
+        // pintado con la pestaña oculta, Plotly no sabe el ancho: al volver al Resumen, se reajusta
+        // (y si la ficha se abrió en otra pestaña y el gráfico aún no se pintó, se pinta ahora)
+        document.getElementById('nav-dashboard-tab')?.addEventListener('shown.bs.tab', () => {
+            const el = document.getElementById('pvChart');
+            pvTries = 0;
+            if (el.data) Plotly.Plots.resize(el);
+            fitPv();
+        });
+    });
+})();
+// Directivos y acciones (las dos últimas líneas de Señales, aparte del análisis de la IA): se piden aparte
+// porque Yahoo puede tardar. La lista completa va en un desplegable con su propio scroll.
+(() => {
+    const T = {{ ticker|tojson }};
+    const load = () => {
+        const box = document.getElementById('insSummary');
+        if (!box) return;
+        fetch(`/ticker/${encodeURIComponent(T)}/directivos`).then(r => r.text()).then(html => {
+            box.innerHTML = html;
+            window.sigCount && sigCount();
+            window.fitAll && fitAll();
+            window.fitPv && fitPv();
+            // la lista de operaciones: una ventana centrada (como el calendario), fuera de la tarjeta para que quede por encima
+            const modal = box.querySelector('#insModal');
+            if (modal) {
+                document.querySelectorAll('body > #insModal').forEach(m => m.remove());
+                document.body.appendChild(modal);
+                if (location.hash === '#directivos') bootstrap.Modal.getOrCreateInstance(modal).show();   // enlace del aviso
+            }
+        }).catch(() => { box.innerHTML = '<div class="sig-row" data-tone="none"><span class="sig-dot"></span><span class="sig-name">Directivos</span><span class="sig-word">–</span><span class="sig-detail">no se pudieron cargar</span></div>'; });
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load); else load();
+})();
+</script>

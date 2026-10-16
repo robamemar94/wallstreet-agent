@@ -1,0 +1,161 @@
+    <div class="tab-pane fade" id="nav-analysis" role="tabpanel">
+        {# Menú de informes y contenido con scroll propio: la página no se alarga #}
+        <div class="row g-2 mb-0">
+    <!-- Navegación Lateral (Sidebar) -->
+    <div class="col-xl-2 col-lg-3">
+        <div data-fit="200" data-fit-fill>
+        <div class="nav flex-column nav-pills sidebar-nav gap-1" id="reportTabs" role="tablist" aria-orientation="vertical">
+            <!-- SECCIÓN 1: ESTUDIO DE CALIDAD (FILTRO) (COLAPSIBLE) -->
+            <button class="btn sidebar-category-header fw-bold text-uppercase text-primary small px-3 mt-2 mb-1 text-start d-flex justify-content-between align-items-center w-100" 
+                    type="button" data-bs-toggle="collapse" data-bs-target="#collapseEstudio" aria-expanded="true" aria-controls="collapseEstudio"
+                    style="font-size: 0.72rem; letter-spacing: 0.5px; background: transparent; border: none; box-shadow: none;">
+                <span><i class="bi bi-clipboard-pulse me-1"></i> 1. Estudio de Calidad</span>
+                <i class="bi bi-chevron-down" style="font-size: 0.6rem;"></i>
+            </button>
+            
+            <div class="collapse show" id="collapseEstudio">
+                <div class="d-flex flex-column gap-1 border-start ms-3 ps-1 mb-2">
+                    <button class="nav-link active d-flex align-items-center justify-content-between py-1.5 w-100 text-start" 
+                            id="franchise-tab" data-bs-toggle="tab" data-bs-target="#franchise" type="button" role="tab" style="font-size: 0.82rem; border-radius: 4px;">
+                        <span>🛡️ Franquicia y Moat</span>
+                        {% if reports_meta and 'franchise' in reports_meta and reports_meta['franchise'].is_legacy %}
+                            <i class="bi bi-clock-history text-warning opacity-75" id="legacy-icon-franchise" 
+                               data-bs-toggle="tooltip" title="Informe legacy. Se recomienda regenerar."></i>
+                        {% endif %}
+                    </button>
+                    
+                    <button class="nav-link d-flex align-items-center justify-content-between py-1.5 w-100 text-start" 
+                            id="audit-tab" data-bs-toggle="tab" data-bs-target="#audit" type="button" role="tab" style="font-size: 0.82rem; border-radius: 4px;">
+                        <span>📊 Auditoría Financiera Forense</span>
+                        {% if reports_meta and 'audit' in reports_meta and reports_meta['audit'].is_legacy %}
+                            <i class="bi bi-clock-history text-warning opacity-75" id="legacy-icon-audit" 
+                               data-bs-toggle="tooltip" title="Informe legacy. Se recomienda regenerar."></i>
+                        {% endif %}
+                    </button>
+                    
+                    <button class="nav-link d-flex align-items-center justify-content-between py-1.5 w-100 text-start" 
+                            id="mgmt_alloc-tab" data-bs-toggle="tab" data-bs-target="#mgmt_alloc" type="button" role="tab" style="font-size: 0.82rem; border-radius: 4px;">
+                        <span>👔 Dirección y Capital Allocation</span>
+                        {% if reports_meta and 'mgmt_alloc' in reports_meta and reports_meta['mgmt_alloc'].is_legacy %}
+                            <i class="bi bi-clock-history text-warning opacity-75" id="legacy-icon-mgmt_alloc" 
+                               data-bs-toggle="tooltip" title="Informe legacy. Se recomienda regenerar."></i>
+                        {% endif %}
+                    </button>
+                    
+                    <button class="nav-link d-flex align-items-center justify-content-between py-1.5 text-primary border-primary-subtle w-100 text-start" 
+                            id="verdict-tab" data-bs-toggle="tab" data-bs-target="#verdict" type="button" role="tab" style="font-size: 0.82rem; font-weight: 600; border-radius: 4px;">
+                        <span>⚖️ Veredicto de Inversión</span>
+                        {% if reports_meta and 'verdict' in reports_meta and reports_meta['verdict'].is_legacy %}
+                            <i class="bi bi-clock-history text-warning opacity-75" id="legacy-icon-verdict" 
+                               data-bs-toggle="tooltip" title="Informe legacy. Se recomienda regenerar."></i>
+                        {% endif %}
+                    </button>
+                </div>
+            </div>
+
+            <!-- SECCIÓN 2: VALORACIÓN Y TESIS (COLAPSIBLE Y ENCIMA DE NORMAS) -->
+            <div class="border-top my-1 opacity-50"></div>
+            
+            <button class="btn sidebar-category-header fw-bold text-uppercase text-warning-emphasis small px-3 mt-1 mb-1 text-start d-flex justify-content-between align-items-center w-100" 
+                    type="button" data-bs-toggle="collapse" data-bs-target="#collapseValThesis" aria-expanded="false" aria-controls="collapseValThesis"
+                    style="font-size: 0.72rem; letter-spacing: 0.5px; background: transparent; border: none; box-shadow: none;">
+                <span><i class="bi bi-calculator-fill me-1"></i> 2. Valoración y Tesis</span>
+                <i class="bi bi-chevron-down" style="font-size: 0.6rem;"></i>
+            </button>
+            
+            <div class="collapse" id="collapseValThesis">
+                <div class="d-flex flex-column gap-1 border-start ms-3 ps-1 mb-2">
+                    <button class="nav-link d-flex align-items-center justify-content-between py-1.5 w-100 text-start" 
+                            id="val-tab" data-bs-toggle="tab" data-bs-target="#val" type="button" role="tab" style="font-size: 0.82rem; border-radius: 4px;">
+                        <span>🧮 Modelado de Valoración (TIR)</span>
+                        {% if reports_meta and 'val' in reports_meta and reports_meta['val'].is_legacy %}
+                            <i class="bi bi-clock-history text-warning opacity-75" id="legacy-icon-val" 
+                               data-bs-toggle="tooltip" title="Informe legacy. Se recomienda regenerar."></i>
+                        {% endif %}
+                    </button>
+                    
+                    <button class="nav-link d-flex align-items-center justify-content-between py-1.5 w-100 text-start" 
+                            id="thesis-tab" data-bs-toggle="tab" data-bs-target="#thesis" type="button" role="tab" style="font-size: 0.82rem; border-radius: 4px;">
+                        <span>📑 Tesis y Vigilancia (KPIs)</span>
+                        {% if reports_meta and 'thesis' in reports_meta and reports_meta['thesis'].is_legacy %}
+                            <i class="bi bi-clock-history text-warning opacity-75" id="legacy-icon-thesis" 
+                               data-bs-toggle="tooltip" title="Informe legacy. Se recomienda regenerar."></i>
+                        {% endif %}
+                    </button>
+                </div>
+            </div>
+
+            <!-- INDEPENDIENTE: NORMAS DE CALIDAD -->
+            <div class="border-top my-1 opacity-50"></div>
+            
+            <button class="nav-link d-flex align-items-center justify-content-between py-2 fw-bold" 
+                    id="rules-tab" data-bs-toggle="tab" data-bs-target="#rules" type="button" role="tab" style="font-size: 0.85rem;">
+                <span><i class="bi bi-patch-check-fill me-2 text-success"></i> Normas de Calidad</span>
+                {% if reports_meta and 'rules' in reports_meta and reports_meta['rules'].is_legacy %}
+                    <i class="bi bi-clock-history text-warning opacity-75" id="legacy-icon-rules" 
+                       data-bs-toggle="tooltip" title="Informe legacy. Se recomienda regenerar."></i>
+                {% endif %}
+            </button>
+
+            <!-- INDEPENDIENTE: PE FORENSIC -->
+            <div class="border-top my-1 opacity-50"></div>
+            
+            <button class="nav-link d-flex align-items-center justify-content-between py-2" 
+                    id="pe_forensic-tab" data-bs-toggle="tab" data-bs-target="#pe_forensic" type="button" role="tab" style="font-size: 0.85rem;">
+                <span><i class="bi bi-clipboard2-pulse me-2"></i> Auditoría VC/PE</span>
+                {% if reports_meta and 'pe_forensic' in reports_meta and reports_meta['pe_forensic'].is_legacy %}
+                    <i class="bi bi-clock-history text-warning opacity-75" id="legacy-icon-pe_forensic" 
+                       data-bs-toggle="tooltip" title="Informe legacy. Se recomienda regenerar."></i>
+                {% endif %}
+            </button>
+        </div>
+
+        <div class="mt-2 p-2 bg-light rounded border small text-muted" style="font-size: .72rem;">
+            <i class="bi bi-info-circle me-1"></i> 
+            Los agentes analizan secuencialmente. Empieza por la <strong>Auditoría</strong> para mejores resultados.
+        </div>
+        </div>
+    </div>
+
+    <!-- Contenido de los Informes -->
+    <div class="col-xl-10 col-lg-9">
+        <div class="tab-content bg-white rounded border p-2" id="reportTabsContent" data-fit="300" data-fit-fill>
+
+
+
+
+
+            {% for key, label_full, icon in tabs %}
+            <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="{{ key }}" role="tabpanel">
+                <div class="card border shadow-sm">
+                    <div class="card-header bg-light py-1 border-bottom d-flex align-items-center justify-content-between {% if key == 'verdict' %}bg-primary bg-opacity-10 text-primary{% endif %}">
+                        <h5 class="fw-bold mb-0 text-uppercase {% if key == 'verdict' %}text-primary{% else %}text-dark{% endif %}" style="font-size: .78rem; letter-spacing: .4px;">
+                            <i class="bi {{ icon }} me-1"></i> {{ label_full }}
+                            {% if tabs_desc[key] %}<i class="bi bi-info-circle text-muted ms-1 fw-normal" role="button" tabindex="0" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{{ tabs_desc[key] }}" style="font-size: .8rem; cursor: help;"></i>{% endif %}
+                        </h5>
+                        {% if key in ['franchise', 'audit', 'mgmt_alloc'] %}
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary">Estudio de Calidad</span>
+                        {% elif key == 'rules' %}
+                            <span class="badge bg-success bg-opacity-10 text-success">Normas de Calidad</span>
+                        {% elif key == 'verdict' %}
+                            <span class="badge bg-primary text-white">Veredicto de Calidad</span>
+                        {% elif key == 'val' %}
+                            <span class="badge bg-warning bg-opacity-10 text-warning-emphasis">Valoración</span>
+                        {% elif key == 'thesis' %}
+                            <span class="badge bg-primary bg-opacity-10 text-primary">Tesis</span>
+                        {% elif key == 'thesis_destroyer' %}
+                            <span class="badge bg-danger bg-opacity-10 text-danger">Stress-Test</span>
+                        {% elif key == 'technical' %}
+                            <span class="badge bg-info bg-opacity-10 text-info">Análisis Técnico</span>
+                        {% endif %}
+                    </div>
+                    <div class="card-body p-3 bg-white">
+                        {{ render_report_card(key, label_full) }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    </div> <!-- Cierre de row análisis -->
+    </div> <!-- Cierre de tab-pane nav-analysis -->

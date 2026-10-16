@@ -24,7 +24,7 @@ from app.infrastructure.repositories.sqlalchemy_notice_repository import SqlAlch
 from app.infrastructure.repositories.sqlalchemy_thesis_repository import SqlAlchemyThesisRepository
 from app.infrastructure.repositories.sqlalchemy_watchlist_repository import SqlAlchemyWatchlistRepository
 from app.infrastructure.templates import templates
-from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached, get_currency_symbol
+from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached, get_currency_symbol, ext_quote, ext_day
 
 logger = logging.getLogger(__name__)
 
@@ -251,7 +251,7 @@ def thesis_detail_page(
 
 
 NEWS_OPEN_WEEKS = 4   # semanas del radar a la vista; las anteriores, plegadas en «Anteriores»
-NEWS_PAGE_WEEKS = 12  # semanas que carga /noticias de cada vez («Cargar 12 semanas más»)
+
 
 
 def news_weeks(items: List[Dict[str, Any]], now: Optional[datetime.datetime] = None) -> List[Dict[str, Any]]:
@@ -270,34 +270,49 @@ def news_weeks(items: List[Dict[str, Any]], now: Optional[datetime.datetime] = N
     return out
 
 
+MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+
+
+def week_label(days) -> str:
+    """«del 5 al 9 oct» (o «del 29 sep al 3 oct»): la semana hábil que repasa el radar."""
+    a, b = days
+    return (f"del {a.day} al {b.day} {MESES_CORTOS[b.month - 1]}" if a.month == b.month
+            else f"del {a.day} {MESES_CORTOS[a.month - 1]} al {b.day} {MESES_CORTOS[b.month - 1]}")
+
+
 @router.get("/noticias", response_class=HTMLResponse)
 def news_page(
     request: Request,
     ticker: Optional[str] = None,
-    semanas: int = NEWS_PAGE_WEEKS,
+    semana: Optional[str] = None,
     repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository),
     db_session: Session = Depends(get_db),
 ):
+    """Noticias de las tesis de UNA semana del radar (de serie, la última; ?semana=AAAA-MM-DD elige otra) y, al lado, el
+    resumen semanal (solo se guarda el de la última semana) o el radar de la empresa elegida."""
     thesis_news_runner.trigger_due_news()
     theses = repo.list_theses()
     selected = next((t for t in theses if t["ticker"] == (ticker or "").upper()), None)
-    # noticias: todas o las de la empresa elegida; a la derecha, el resumen semanal o el del radar de esa empresa
-    # por semanas del radar: las últimas `semanas` (nunca parte una semana); lo anterior se carga a petición
-    semanas = max(NEWS_PAGE_WEEKS, min(semanas, 520))
-    since = (radar_week_start() - datetime.timedelta(days=7 * (semanas - 1))).isoformat(timespec="seconds")
     thesis_id = selected["id"] if selected else None
-    items = repo.list_news(thesis_id=thesis_id, since=since, limit=None)
+    weeks = news_weeks(repo.list_news(thesis_id=thesis_id, limit=None))   # todas, por semanas (de la más reciente)
+    if not any(w["current"] for w in weeks):   # la última semana siempre se puede elegir, aunque no tenga noticias
+        start = radar_week_start().date()
+        weeks.insert(0, {"start": start, "days": business_week(start), "current": True, "folded": False, "news": [], "unread": 0})
+    options = [{"key": w["start"].isoformat(), "label": week_label(w["days"]), "current": w["current"], "count": len(w["news"]),
+                "unread": w["unread"]} for w in weeks]
+    chosen = next((w for w in weeks if w["start"].isoformat() == semana), weeks[0] if weeks else None)
+    items = chosen["news"] if chosen else []
     unread_by_ticker = {}
     for n in repo.list_news(unread_only=True, limit=500):
         unread_by_ticker[n["ticker"]] = unread_by_ticker.get(n["ticker"], 0) + 1
     radars = [{"ticker": t["ticker"], "id": t["id"], **_news_context(t)} for t in theses]
+    summary = news_summary_service.load(db_session)
     return templates.TemplateResponse("news.html", {
         "request": request,
         "items": items,
-        "weeks": news_weeks(items),
-        "semanas": semanas,
-        "page_weeks": NEWS_PAGE_WEEKS,
-        "older": repo.count_news(thesis_id, before=since),
+        "week": chosen, "week_key": chosen["start"].isoformat() if chosen else None,
+        "week_text": week_label(chosen["days"]) if chosen else "",
+        "week_options": options,
         "unread_ids": [n["id"] for n in items if not n["seen"]],
         "tickers": [t["ticker"] for t in theses],
         "selected": selected["ticker"] if selected else None,
@@ -305,7 +320,7 @@ def news_page(
         "radar_running": thesis_news_runner.is_running(),
         "radar_progress": thesis_news_runner.status()["radar_progress"],
         "min_materiality": NEWS_MIN_MATERIALITY,
-        "summary": news_summary_service.load(db_session),
+        "summary": summary,
         "summary_running": news_summary_service.is_running(),
         "unread_by_ticker": unread_by_ticker,
         "settings": get_settings_from_db(db_session),
@@ -435,7 +450,7 @@ def chart_rows(rows):
 def live_day(chart, periods, portfolio_service: PortfolioService, asset_repo: SqlAlchemyAssetRepository) -> Dict[str, Any]:
     """El día con los precios en directo y el mismo cálculo que Contable y su tarjeta (el histórico va con 30 min de
     caché y cuenta la divisa de los mercados que aún no han abierto). Corrige chart en sitio; devuelve los periodos."""
-    from app.interfaces.views.portfolio_views import day_change
+    from app.interfaces.views.portfolio_views import day_change, ext_day_eur
     shares = {i.ticker: i.shares for i in portfolio_service.get_active_portfolio() if i.shares > 0}
     ensure_prices_cached(list(shares), asset_repo)
     days = {}
@@ -454,6 +469,8 @@ def live_day(chart, periods, portfolio_service: PortfolioService, asset_repo: Sq
                 c["last_session"] = d["last_date"].isoformat() if hasattr(d["last_date"], "isoformat") else str(d["last_date"])
             c["change"]["1d"], c["pnl_eur"]["1d"] = (None if d["closed"] else d["pct"]), d["eur"]
             c["last_pct"] = d["last_pct"]
+            c["ext"] = ext_quote(c["ticker"]) if d["closed"] else None   # EE. UU.: pre/post-market
+            c["ext_day"] = ext_day_eur(shares[c["ticker"]], ext_day(c["ticker"]), d, d["rate"])   # Var. día € fuera de horario
             c["contribution"]["1d"] = 100 * d["eur"] / prev_total if prev_total else None
     periods = dict(periods)
     if days:
@@ -532,6 +549,7 @@ def portfolio_agenda(pt: Dict[str, Any], portfolio_service: PortfolioService, as
                  for t, p in (pt["changes"].get("positions") or {}).items()}
     agenda = agenda_service.build_agenda(today, results, forecast["events"], periods, positions, collected, pt["txs"], reported,
                                          symbol=lambda cur, t: get_currency_symbol(cur or "USD", t))
+    agenda["semana"]["done"] = agenda_service.week_done(today, reported, collected)   # lo ya pasado de esta semana
     today_past = agenda["hoy"]["past"]
     today_past["closed"] = sorted(c["ticker"] for c in chart if c["closed_today"] and c["ticker"] in held)
     # el índice, también en directo: antes de que abra su bolsa el histórico repite el cierre de ayer (0,00 %)
@@ -577,18 +595,21 @@ def centro_pulse(
             results.append({"ticker": t, "date": nxt["date"][:10]})
     ensure_prices_cached(held, asset_repo)
     forecast = dividend_forecast.portfolio_forecast(portfolio_service, asset_repo, INDEX_CACHE["data"], portfolio_raw, today)
-    period = None
+    period, periods = None, {}
     try:   # mismos valores que el Centro de mando: comparte su caché de históricos
         settings = get_settings_from_db(db_session)
         benchmark = (settings.get("performance") or {}).get("benchmark_ticker") or "URTH"
         txs, splits = pm.load_transactions(portfolio_service, db_session)
         df = pm.download_history(history_symbols(txs, {t["ticker"] for t in repo.list_theses()}, benchmark))
-        period = pm.portfolio_changes(df, txs, splits, benchmark, rolling_days=(agenda_service.PULSE_RESULTS_DAYS,))["periods"].get(
-            f"{agenda_service.PULSE_RESULTS_DAYS}d")
+        periods = pm.portfolio_changes(df, txs, splits, benchmark, rolling_days=(7, agenda_service.PULSE_RESULTS_DAYS))["periods"]
+        period = periods.get(f"{agenda_service.PULSE_RESULTS_DAYS}d")
     except Exception as e:
         logger.warning("Resumen del Centro: sin variación de 30 días: %s", e)
     out = agenda_service.pulse(today, notifications, results, forecast["events"], period)
     out["benchmark"] = benchmark if period else None
+    # el selector 7 / 30 días de la tarjeta «Mi Cartera»: lo ganado en cada periodo frente al índice
+    out["periods"] = {k: {"pct": p.get("pct"), "abs_eur": p.get("abs_eur"), "benchmark_pct": p.get("benchmark_pct")}
+                      for k, p in (periods or {}).items() if k in ("7d", "30d") and p and p.get("pct") is not None}
     return out
 
 
@@ -607,10 +628,13 @@ def other_agenda(open_tickers, theses: Dict[str, Any], asset_repo: SqlAlchemyAss
     watch = favs | {i["ticker"] for i in watch_repo.list_items()}
     tickers = sorted((favs | following | watch | set(theses)) - set(open_tickers))
     cache_warmer.prefetch(earnings=tickers)   # caché en disco de 12 h: solo descarga lo que falte
-    results, meta = [], {}
+    results, meta, reported = [], {}, []
     for t in tickers:
         data, info = asset_repo.get_asset_data(t), _earnings_info(t)
         tid = (theses.get(t) or {}).get("id")
+        last = info.get("last") or {}
+        if last.get("date"):
+            reported.append({"ticker": t, "date": last["date"], "surprise_pct": last.get("surprise_pct"), "thesis_id": tid})
         nxt = results_calendar.next_results(t, data.get("company_name") or t, info.get("next"))
         if nxt and nxt.get("date"):
             results.append({"ticker": t, "date": nxt["date"][:10], "thesis_id": tid})
@@ -620,7 +644,9 @@ def other_agenda(open_tickers, theses: Dict[str, Any], asset_repo: SqlAlchemyAss
             group, drop = proximity(base_valuation_service.live(t, data, price), price)
             zone = {"group": group, "drop": drop} if group != "sin" else None
         meta[t] = {"fav": t in favs, "watch": t in watch, "following": t in following, "zone": zone}
-    return {**agenda_service.build_other_agenda(datetime.date.today(), results), "meta": meta}
+    out = {**agenda_service.build_other_agenda(datetime.date.today(), results), "meta": meta}
+    out["semana"]["done"] = agenda_service.week_done(datetime.date.today(), reported)   # lo ya pasado de esta semana
+    return out
 
 
 def watchlist_day(open_tickers, theses: Dict[str, Any], asset_repo: SqlAlchemyAssetRepository,
@@ -697,20 +723,107 @@ def centro_context(repo: SqlAlchemyThesisRepository, notice_repo: SqlAlchemyNoti
                      key=lambda s: (s.get("date") or "", s["ticker"]), reverse=True)
     no_data = {r["ticker"] for r in rows if not r["stats"]}   # Yahoo no devolvió su precio: sus señales siguen activas
     attention, monitor, signal_history = notice_service.track(notice_repo, "resumen", attention, monitor, no_data=no_data)
-    agenda = portfolio_agenda(pt, portfolio_service, asset_repo)
-    news_since = repo.list_news(since=since[:19], limit=None) if since else []
-    visit = agenda_service.since_last_visit(since, attention + monitor, news_since, agenda["hoy"]["past"]["reported"]
-                                            + agenda["semana"]["past"]["reported"])
     return {
         "settings": settings, "error": error, "benchmark": benchmark, "stale_note": stale_note,
-        "changes": changes, "signals": monitor, "signal_history": signal_history,
-        "attention": attention, **centro_news(repo, db_session),
-        "agenda": agenda, "visit": visit,
-        "other": other_agenda(open_tickers, theses, asset_repo, watch_repo, db_session),
-        "watch_day": watchlist_day(open_tickers, theses, asset_repo, watch_repo),
-        "theses_ids": {t: th["id"] for t, th in theses.items()},
-        "held": sorted(open_tickers),   # solo sus avisos funcionan como bandeja (leído / no leído)
+        "changes": changes, "signals": monitor, "signal_history": signal_history, "attention": attention,
+        "held": sorted(open_tickers),
     }
+
+
+@router.get("/portada/bandeja", response_class=HTMLResponse)
+def home_inbox_fragment(request: Request, db_session: Session = Depends(get_db)):
+    """Bandeja de hoy de la portada, con los avisos ya guardados (rápida). Se refresca cuando termina la sincronización."""
+    return templates.TemplateResponse("_portada_bandeja.html", {"request": request, **centro_inbox(db_session),
+                                                                "hidden": bandeja_hidden(db_session)})
+
+
+BANDEJA_HIDDEN_KEY = "bandeja_hidden"   # {"day": "AAAA-MM-DD", "keys": ["grupo|TICKER", …]}: lo quitado con la ✕ hoy
+
+
+def bandeja_hidden(db: Session) -> List[str]:
+    """Lo que se ha quitado hoy de la Bandeja (grupo|empresa). En BBDD, no en el navegador: vale en cualquier navegador o
+    dirección (localhost / 127.0.0.1) y no se pierde al recargar. Al día siguiente empieza limpia."""
+    from app.infrastructure.db.models import DBSetting
+    row = db.get(DBSetting, BANDEJA_HIDDEN_KEY)
+    v = row.value if row and isinstance(row.value, dict) else {}
+    return list(v.get("keys") or []) if v.get("day") == datetime.date.today().isoformat() else []
+
+
+@router.post("/api/portada/bandeja/quitar")
+def bandeja_hide(body: Dict[str, Any], db_session: Session = Depends(get_db)):
+    """Quita líneas de la Bandeja de hoy ({keys: ["precio|ANET", …]}). Siguen en Avisos y sin descartar."""
+    from app.infrastructure.db.models import DBSetting
+    keys = sorted(set(bandeja_hidden(db_session)) | {str(k) for k in body.get("keys") or []})
+    row = db_session.get(DBSetting, BANDEJA_HIDDEN_KEY)
+    value = {"day": datetime.date.today().isoformat(), "keys": keys}
+    if row:
+        row.value = value
+    else:
+        db_session.add(DBSetting(key=BANDEJA_HIDDEN_KEY, value=value))
+    db_session.commit()
+    return {"keys": keys}
+
+
+def agenda_weeks(results: List[Dict[str, Any]], dividends: Optional[List[Dict[str, Any]]] = None,
+                 today: Optional[datetime.date] = None) -> List[Dict[str, Any]]:
+    """La agenda de 30 días por semanas (lunes a domingo): [{label «Esta semana» / «La próxima» / «En 2 semanas»,
+    span «del lun 26 oct al dom 1 nov», items: [{ticker, date, kind, gross_eur}]}]."""
+    weeks: Dict[datetime.date, List[Dict[str, Any]]] = {}
+    for i in list(results) + list(dividends or []):
+        d = i["date"] if isinstance(i["date"], datetime.date) else datetime.date.fromisoformat(str(i["date"])[:10])
+        weeks.setdefault(d - datetime.timedelta(days=d.weekday()), []).append({**i, "date": d})
+    meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+    this_monday = (today or datetime.date.today()) - datetime.timedelta(days=(today or datetime.date.today()).weekday())
+    out = []
+    for monday in sorted(weeks):
+        sunday = monday + datetime.timedelta(days=6)
+        n = (monday - this_monday).days // 7   # 0 esta semana, 1 la próxima…
+        label = "Esta semana" if n <= 0 else "La próxima" if n == 1 else f"En {n} semanas"
+        span = f"del lun {monday.day} {meses[monday.month - 1]} al dom {sunday.day} {meses[sunday.month - 1]}"
+        out.append({"label": label, "span": span, "items": sorted(weeks[monday], key=lambda x: x["date"])})
+    return out
+
+
+@router.get("/portada/agenda", response_class=HTMLResponse)
+def home_agenda_fragment(request: Request,
+                         repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository),
+                         asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
+                         watch_repo: SqlAlchemyWatchlistRepository = Depends(get_watchlist_repository),
+                         portfolio_service: PortfolioService = Depends(get_portfolio_service),
+                         db_session: Session = Depends(get_db)):
+    """Agenda de la portada (cartera y resto, 7 y 30 días), aparte de la Bandeja y de la sincronización de avisos."""
+    pt = positions_tracking(repo, asset_repo, portfolio_service, db_session)
+    agenda = portfolio_agenda(pt, portfolio_service, asset_repo)
+    other = other_agenda(pt["open_tickers"], pt["theses"], asset_repo, watch_repo, db_session)
+    return templates.TemplateResponse("_portada_agenda.html", {
+        "request": request, "agenda": agenda, "other": other,
+        # 30 días, por semanas (tu cartera con los cobros; lo que sigues, resultados)
+        "weeks_mine": agenda_weeks(agenda["mes"]["upcoming"], [d for d in agenda["mes"]["dividends"] if d.get("kind") != "ex"]),
+        "weeks_other": agenda_weeks(other["mes"]["upcoming"]),
+        "theses_ids": {t: th["id"] for t, th in pt["theses"].items()}})
+
+
+def centro_inbox(db_session: Session) -> Dict[str, Any]:
+    """Bandeja del Centro: los mismos avisos que la página Avisos (mismo leído), sin «Otros» ni noticias (las noticias
+    van en su columna), por grupos. Se calcula después de sincronizar los avisos de esta carga."""
+    from app.interfaces.views.alerts_views import notices_context
+    ctx = notices_context(db_session)
+    items = [i for i in ctx["items"] if i["filter"] != "otros"]
+    return {"inbox": items, "inbox_filters": [f for f in ctx["filters"] if f["key"] != "otros"],
+            "inbox_today": ctx["today"]}
+
+
+@router.get("/api/noticias/semana")
+def week_news_api(repo: SqlAlchemyThesisRepository = Depends(get_thesis_repository), db_session: Session = Depends(get_db)):
+    """Noticias de la barra de arriba (botón junto al calendario): las de esta semana del radar y, de antes, las que siguen
+    sin leer; con el titular del resumen semanal. Sin IA: lo ya guardado."""
+    c = centro_news(repo, db_session)
+    week = next((w for w in c["news_weeks"] if w["current"]), None)
+    pick = lambda n: {k: n.get(k) for k in ("id", "ticker", "date", "title", "url", "materiality", "seen")}
+    items = [pick(n) for n in (week["news"] if week else [])]
+    old = [pick(n) for n in c["news_old_unread"]]
+    return {"headline": c["news_headline"], "week": items, "old_unread": old,
+            "unread": sum(1 for n in items + old if not n["seen"])}
 
 
 def centro_news(repo: SqlAlchemyThesisRepository, db_session: Session) -> Dict[str, Any]:
@@ -738,13 +851,13 @@ def mercado_centro_fragment(
     db_session: Session = Depends(get_db),
     since: Optional[str] = None,
 ):
-    """Pestaña «Centro de mando» de la portada (se pide aparte: descarga históricos y no frena la página).
-    since: última visita, para marcar lo nuevo desde entonces."""
+    """Sincronización del Centro de mando: recalcula los avisos de la cartera (la pide la portada en segundo plano y
+    Avisos al abrirse). Devuelve solo las notas; la Bandeja y la Agenda van en /portada/bandeja y /portada/agenda."""
     return templates.TemplateResponse("_mercado_centro.html", {
         "request": request, **centro_context(repo, notice_repo, asset_repo, watch_repo, portfolio_service, db_session, since)})
 
 
 @router.get("/centro")
 def command_center_page():
-    # el Centro de mando es una pestaña de la portada; la watchlist, las tesis y las noticias van en el menú
-    return RedirectResponse("/mercado#centro")
+    # el Centro de mando es la mitad de arriba de la portada; la watchlist, las tesis y las noticias van en el menú
+    return RedirectResponse("/mercado")

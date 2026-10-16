@@ -1,0 +1,109 @@
+  <!-- Pestaña Resumen: la cartera de un vistazo, con lo que ya calcula esta página (sin pedir nada más). No repite el Centro
+       de mando: de lo que pide atención solo da el recuento y lleva allí. -->
+  <div class="tab-pane fade" id="res-pane" role="tabpanel" aria-labelledby="res-tab">
+    {% set ov = overview or {} %}
+    {% macro sgn(v, d=2) %}{{ '+' if v and v > 0 }}{{ num(v, d) }}{% endmacro %}
+    {% macro cls(v) %}{{ 'text-success' if v and v > 0 else ('text-danger' if v and v < 0 else 'text-muted') }}{% endmacro %}
+    <a href="/mercado#centro" class="res-attention text-decoration-none">
+      <i class="bi bi-bell me-1"></i><b class="text-nowrap">Requiere atención</b><span class="res-att-items" title="{{ (ov.cuts|length ~ ' recortes de previsiones: ' ~ ov.cuts|join(', ') ~ '. ') if ov.cuts }}{{ (ov.theses|length ~ ' tesis no intactas: ' ~ ov.theses|map(attribute='ticker')|join(', ') ~ '. ') if ov.theses }}{{ (ov.drops|length ~ ' caen más de un 30 % desde su máximo: ' ~ ov.drops|map(attribute='ticker')|join(', ') ~ '.') if ov.drops }}">
+      {% if ov.cuts %}<span class="ms-3"><span class="text-danger fw-bold">{{ ov.cuts|length }}</span> recorte{{ 's' if ov.cuts|length > 1 }} de previsiones ({% for t in ov.cuts %}{{ clean_ticker(t) }}{{ ', ' if not loop.last }}{% endfor %})</span>{% endif %}
+      {% for verdict, items in ov.theses|groupby('verdict') %}<span class="ms-3"><span class="{{ 'text-danger' if verdict in ('ROTA', 'DEBILITADA') else 'text-warning' }} fw-bold">{{ items|length }}</span> tesis {{ {'ROTA': 'rota', 'DEBILITADA': 'debilitada', 'VIGILANCIA': 'en vigilancia'}[verdict] }}{{ 's' if items|length > 1 and verdict != 'VIGILANCIA' }} ({% for t in items %}{{ clean_ticker(t.ticker) }}{{ ', ' if not loop.last }}{% endfor %})</span>{% endfor %}
+      {% if ov.drops %}<span class="ms-3"><span class="text-danger fw-bold">{{ ov.drops|length }}</span> cae{{ 'n' if ov.drops|length > 1 }} más de un {{ 30 }} % desde su máximo ({% for d in ov.drops %}{{ clean_ticker(d.ticker) }} {{ num(d.pct, 0) }} %{{ ', ' if not loop.last }}{% endfor %})</span>{% endif %}
+      {% if not ov.cuts and not ov.theses and not ov.drops %}<span class="ms-3 text-muted">Nada de tus posiciones</span>{% endif %}</span>
+      <span class="ms-auto small text-nowrap ps-3">Centro de mando →</span>
+    </a>
+    <div class="res-grid">
+      <div class="res-card res-value">
+        <div class="res-h"><i class="bi bi-wallet2 me-1"></i>Tu cartera</div>
+        <div class="d-flex align-items-baseline gap-3 flex-wrap">
+          <span class="res-big num-font">{{ num(total_current_value, 2) }} €</span>
+          <span class="num-font fw-bold {{ cls(total_daily_abs) }}" title="Hoy, desde el cierre anterior">hoy {{ sgn(total_daily_abs) }} € ({{ sgn(total_daily_pct) }} %)</span>
+        </div>
+        <div class="res-kv mt-2">
+          <span>Invertido</span><b class="num-font">{{ num(total_invested, 2) }} €</b>
+          <span>Rentabilidad latente</span><b class="num-font {{ cls(total_return_abs) }}">{{ sgn(total_return_abs) }} € <small>({{ sgn(total_return_pct) }} %)</small></b>
+          <span title="Todo lo ganado desde el principio: latente + realizado + dividendos − comisiones">Ganancia neta total</span><b class="num-font {{ cls(global_total_profits) }}">{{ sgn(global_total_profits) }} € <small>({{ sgn(100 * global_total_profits / total_invested if total_invested else 0) }} %)</small></b>
+          <span class="ps-2 small" title="Lo que ganaron las acciones en su moneda, lo que movió el cambio a euros y los dividendos cobrados (abiertas y vendidas; las comisiones ya van dentro)">acciones · divisa · dividendos</span><b class="num-font small fw-normal"><span class="{{ cls(global_total_price_pnl) }}">{{ sgn(global_total_price_pnl, 0) }}</span> · <span class="{{ cls(global_total_fx_pnl) }}">{{ sgn(global_total_fx_pnl, 0) }}</span> · <span class="text-success">+{{ num(global_total_dividends, 0) }}</span> €</b>
+          <span class="ps-2 small" title="Ventas cerradas y dividendos (lo ya cobrado)">de ello, realizado</span><b class="num-font small fw-normal {{ cls(total_realized_pnl) }}">{{ sgn(total_realized_pnl, 0) }} €</b>
+          <span>Dividendos previstos (12 m)</span><b class="num-font">{{ num((div_forecast or {}).get('total_gross') or 0, 0) }} €</b>
+          {% set cash = ov.cash or {} %}
+          {% if cash.configured %}<span title="Cartera + liquidez del bróker (la liquidez es aparte: no suma al valor ni a la rentabilidad)">Patrimonio · liquidez</span><b class="num-font">{{ num(total_current_value + cash.balance, 0) }} € · <a href="#liquidez" class="text-decoration-none" data-bs-toggle="modal" data-bs-target="#cashModal" title="Liquidez en el bróker ({{ num(100 * cash.balance / (total_current_value + cash.balance), 1) if (total_current_value + cash.balance) > 0 else 0 }} % del patrimonio). Pulsa para apuntar una aportación" data-cash-balance>{{ num(cash.balance, 2) }} €</a></b>
+          {% else %}<span>Liquidez en el bróker</span><b><a href="#liquidez" class="text-decoration-none" data-bs-toggle="modal" data-bs-target="#cashModal">apuntar</a></b>{% endif %}
+        </div>
+      </div>
+      <div class="res-card res-bench">
+        <div class="res-h d-flex"><span><i class="bi bi-graph-up-arrow me-1"></i>Frente al {{ perf_ref_bench }}</span>
+          <a href="#rendimiento" class="ms-auto text-decoration-none small" onclick="event.preventDefault(); document.querySelector('[data-pf-group=perf]').click();">Rendimiento →</a></div>
+        <div class="d-flex gap-3 h-100">
+          <table class="table table-sm mb-0 res-table align-middle">
+            <thead><tr><th></th><th class="text-end" title="Lo ganado o perdido en el periodo, sin contar lo que metiste o sacaste">Ganancia</th><th class="text-end">Cartera</th><th class="text-end">{{ perf_ref_bench }}</th><th class="text-end" title="Lo que movió el cambio a euros (ya está dentro de la rentabilidad de la cartera)">Divisa</th></tr></thead>
+            <tbody>
+            {% for k, label in [('1m', '1 mes'), ('ytd', 'Este año'), ('1y', '1 año')] %}{% set pc = period_changes.get(k) or {} %}
+              <tr><td class="text-muted">{{ label }}</td>
+                <td class="text-end num-font {{ cls(pc.get('abs_eur')) }}">{{ sgn(pc.get('abs_eur'), 0) ~ ' €' if pc.get('abs_eur') is not none else '–' }}</td>
+                <td class="text-end num-font fw-bold {{ cls(pc.get('pct')) }}">{{ sgn(pc.get('pct')) ~ ' %' if pc.get('pct') is not none else '–' }}</td>
+                <td class="text-end num-font">{{ sgn(pc.get('benchmark_pct')) ~ ' %' if pc.get('benchmark_pct') is not none else '–' }}</td>
+                <td class="text-end num-font {{ cls(pc.get('fx_eur')) }}">{{ sgn(pc.get('fx_eur'), 0) ~ ' €' if pc.get('fx_eur') is not none else '–' }}</td></tr>
+            {% endfor %}
+            {% set ss = ov.since_start or {} %}
+              <tr title="Desde el {{ ss.start[8:10] ~ '/' ~ ss.start[5:7] ~ '/' ~ ss.start[:4] if ss.start }} (inicio del Rendimiento), por índice (las aportaciones no cuentan como rentabilidad)"><td class="text-muted">Desde el inicio</td>
+                <td class="text-end text-muted">–</td>
+                <td class="text-end num-font fw-bold {{ cls(ss.pct) }}">{{ sgn(ss.pct) ~ ' %' if ss.pct is not none else '–' }}</td>
+                <td class="text-end num-font">{{ sgn(ss.bench) ~ ' %' if ss.bench is not none else '–' }}</td>
+                <td class="text-end text-muted">–</td></tr>
+            </tbody>
+          </table>
+          <div id="resChart" class="flex-grow-1" style="min-width: 0; min-height: 120px;"></div>
+        </div>
+      </div>
+      <div class="res-card">
+        <div class="res-h"><i class="bi bi-arrow-down-up me-1"></i>Qué ha movido el último mes</div>
+        {% for t, v in ov.up %}<div class="res-row"><a href="/portfolio/ticker/{{ t }}" class="fw-bold text-decoration-none">{{ clean_ticker(t) }}</a><span class="num-font text-success">{{ sgn(v, 0) }} €</span></div>{% endfor %}
+        {% if ov.up and ov.down %}<hr class="my-1 opacity-25">{% endif %}
+        {% for t, v in ov.down %}<div class="res-row"><a href="/portfolio/ticker/{{ t }}" class="fw-bold text-decoration-none">{{ clean_ticker(t) }}</a><span class="num-font text-danger">{{ sgn(v, 0) }} €</span></div>{% endfor %}
+        {% if not ov.up and not ov.down %}<div class="text-muted small">Sin datos del mes.</div>{% endif %}
+      </div>
+      <div class="res-card">
+        <div class="res-h"><i class="bi bi-shield-exclamation me-1"></i>Riesgo</div>
+        {% if distribution %}{% set cz = distribution.concentration %}
+        <div class="res-row"><span class="text-muted">Mayor posición</span><b>{{ clean_ticker(cz.max_ticker) }} {{ num(cz.max_pct, 1) }} %</b></div>
+        <div class="res-row"><span class="text-muted">Las 5 mayores</span><b>{{ num(cz.top5_pct, 1) }} %</b></div>
+        <div class="res-row" title="Equivale a tantas posiciones del mismo tamaño"><span class="text-muted">Diversificación real</span><b>{{ num(cz.effective_n, 1) }} de {{ cz.positions }}</b></div>
+        <div class="res-row"><span class="text-muted">Divisa principal</span><b>{{ cz.main_currency }} {{ num(cz.main_currency_pct, 1) }} %</b></div>
+        {% if ov.sector %}<div class="res-row"><span class="text-muted">Sector principal</span><b>{{ ov.sector.label }} {{ num(ov.sector.pct, 1) }} %</b></div>{% endif %}
+        <div class="res-row"><span class="text-muted">Caída máxima</span><b class="text-danger">{{ num(max_drawdown, 1) }} %</b></div>
+        {% endif %}
+      </div>
+      <div class="res-card">
+        <div class="res-h"><i class="bi bi-calendar-event me-1"></i>Lo que viene (30 días)</div>
+        {% for r in ov.results %}<div class="res-row"><span><i class="bi bi-clipboard-data text-warning me-1"></i><b>{{ clean_ticker(r.ticker) }}</b> presenta resultados</span><span class="num-font text-muted">{{ r.date[8:10] }}/{{ r.date[5:7] }} · {{ r.days }} d</span></div>{% endfor %}
+        {% for e in ov.payments %}<div class="res-row"><span><i class="bi bi-cash-coin text-success me-1"></i><b>{{ clean_ticker(e.ticker) }}</b> {{ 'paga' if not e.estimated else 'pagaría' }} ≈{{ num(e.gross_eur, 0) }} €</span><span class="num-font text-muted">{{ e.date.strftime('%d/%m') }}{{ ' · estimado' if e.estimated }}</span></div>{% endfor %}
+        {% if not ov.results and not ov.payments %}<div class="text-muted small">Nada en los próximos 30 días.</div>{% endif %}
+      </div>
+      <div class="res-card">
+        <div class="res-h d-flex"><span><i class="bi bi-cpu me-1"></i>Calidad y precio</span>
+          <a href="#fundamentales" class="ms-auto text-decoration-none" onclick="event.preventDefault(); document.querySelector('[data-pf-show=fund-tab]').click();">Fundamentales →</a></div>
+        <div class="res-row" title="Rentabilidad sobre el capital invertido (últimos 12 meses), media ponderada por peso"><span class="text-muted">ROIC</span><b>{{ num(port_roic, 1) }} %</b></div>
+        <div class="res-row" title="Crecimiento esperado de las ventas en los próximos 12 meses (analistas), ponderado"><span class="text-muted">Crecimiento (12 m)</span><b>{{ num(port_growth, 1) }} %</b></div>
+        <div class="res-row" title="PER con el beneficio de los próximos 12 meses, ponderado"><span class="text-muted">PER forward (NTM)</span><b>{{ num(port_forward_pe, 1) }}x</b></div>
+        <div class="res-row" title="Flujo de caja libre / capitalización, ponderado"><span class="text-muted">Rentabilidad FCF</span><b>{{ num(port_fcf_yield, 2) }} %</b></div>
+      </div>
+      <div class="res-card" id="resDecisions">
+        <div class="res-h d-flex"><span><i class="bi bi-clipboard-data me-1"></i>Tus decisiones</span>
+          <a href="#decisiones" class="ms-auto text-decoration-none" onclick="event.preventDefault(); document.querySelector('[data-pf-show=dec-tab]').click();">Decisiones →</a></div>
+        <div class="small text-muted" data-res-dec><span class="spinner-border spinner-border-sm me-1"></span>Calculando…</div>
+      </div>
+      <div class="res-card">
+        <div class="res-h d-flex"><span><i class="bi bi-file-earmark-bar-graph me-1"></i>Últimos informes</span>
+          <a href="#informes" class="ms-auto text-decoration-none" onclick="event.preventDefault(); document.querySelector('[data-pf-show=rep-tab]').click();">Informes →</a></div>
+        {% for kind in ('W', 'M') %}{% set r = (ov.reports or {}).get(kind) %}{% if r %}
+        {% set vs = (r.pct - r.bench_pct) if r.pct is not none and r.bench_pct is not none else none %}
+        <a href="/portfolio#informes-{{ r.key }}" class="res-row text-decoration-none" style="color: inherit;" onclick="if (location.pathname === '/portfolio') { event.preventDefault(); history.replaceState(null, '', '#informes-{{ r.key }}'); document.querySelector('[data-pf-show=rep-tab]').click(); }">
+          <span><span class="text-muted">{{ 'Semana' if kind == 'W' else 'Mes' }}</span> {{ r.label|replace('Semana del ', '') }}</span>
+          <span class="num-font text-nowrap"><b class="{{ cls(r.pct) }}">{{ sgn(r.pct) ~ ' %' if r.pct is not none else '–' }}</b>{% if vs is not none %} <small class="{{ cls(vs) }}">{{ sgn(vs, 1) }} pp</small>{% endif %}{% if r.has_ai %} <i class="bi bi-stars text-info" title="Con comentario de IA"></i>{% endif %}</span></a>
+        {% endif %}{% endfor %}
+        {% if not (ov.reports or {}).get('W') and not (ov.reports or {}).get('M') %}<div class="text-muted small">Aún no hay informes.</div>{% endif %}
+        <div class="small text-muted mt-auto">pp: frente al {{ perf_ref_bench }} en el mismo periodo</div>
+      </div>
+    </div>
+  </div>

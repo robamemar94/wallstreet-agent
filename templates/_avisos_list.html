@@ -1,0 +1,38 @@
+{# Lista de Avisos (por días): la incluye avisos.html y la devuelve /avisos/lista para refrescarla.
+   Cada línea lleva su tipo (data-filter: el interruptor de la izquierda), su origen y el texto de búsqueda ya normalizado
+   (código, nombre de la empresa, tipo y texto, sin tildes). #}
+{% set day = namespace(cur=none) %}
+{% set tone = {'comprar': 'av-green', 'analistas': 'av-purple', 'resultados': 'av-blue', 'precio': 'av-teal', 'cartera': 'av-amber',
+               'otros': 'av-slate', 'noticias': 'av-blue'} %}
+{% for i in items %}
+    {% set d = (i.date or '')[:10] %}
+    {% set bucket = 'Hoy' if d == today else 'Ayer' if d == yesterday else 'Esta semana' if d >= week_ago else 'Este mes' if d >= month_ago else 'Antes' %}
+    {% if bucket != day.cur %}{% set day.cur = bucket %}<div class="av-day" data-day="{{ bucket }}">{{ bucket }}</div>{% endif %}
+    {% set general = i.type in ('report', 'ia_budget', 'cash_deposit', 'news_weekly') or i.ticker in (none, '', 'Watchlist', 'Informe', 'Liquidez', 'IA', 'Noticias') %}
+    {% set origin = 'general' if general else ('cartera' if i.portfolio else 'seguimiento') %}
+    {% set f = filter_info[i.filter] %}
+    {% set bad = i.tone == 'down' or i.kind == 'caída' or i.type in ('estimate_cut', 'portfolio_risk') %}
+    <div class="av-row {{ 'av-unread' if not i.read }}" data-key="{{ i.key }}" data-keys="{{ i['keys']|tojson|forceescape }}" data-dismiss="{{ i.dismiss_keys|tojson|forceescape }}"
+         data-filter="{{ i.filter }}" data-origin="{{ origin }}" data-read="{{ '1' if i.read else '' }}" data-vigente="{{ '1' if i.vigente }}" data-day="{{ bucket }}" data-date="{{ d }}" data-q="{{ i.q }}">
+        <span class="av-dot" title="Sin leer"></span>
+        <span class="av-icon {{ 'av-red' if bad else tone[i.filter] }}" title="{{ f.label }}"><i class="bi {{ f.icon }}"></i></span>
+        <a class="av-main" href="{{ i.url or i.href or '#' }}"{% if i.url %} target="_blank" rel="noopener"{% endif %} data-open>
+            <span class="av-head">
+                {% if i.ticker and not general %}<span class="av-ticker">{{ clean_ticker(i.ticker) }}</span>{% if i.name %}<span class="av-name">{{ i.name }}</span>{% endif %}
+                {% elif i.ticker %}<span class="av-ticker av-ticker-gen">{{ i.ticker }}</span>{% endif %}
+                {% if origin != 'general' %}<span class="av-origin av-origin-{{ origin }}">{{ 'Cartera' if origin == 'cartera' else 'Seguimiento' }}</span>{% endif %}
+                <span class="av-kind">{{ i.kind }}</span>
+                {% if i.vigente %}<span class="av-live" title="{{ i.rule }}">vigente{% if i.since %} desde el {{ i.since[8:10] }}/{{ i.since[5:7] }}{% endif %}</span>{% endif %}
+                {% if i.older %}<button type="button" class="av-more" data-act="more" title="Ver los {{ i.older|length }} anteriores de esta empresa">×{{ i.older|length + 1 }}</button>{% endif %}
+            </span>
+            <span class="av-text">{{ i.text }}</span>
+            {% if i.older %}<span class="av-older d-none">{% for o in i.older %}<span><b>{{ (o.date or '')[8:10] }}/{{ (o.date or '')[5:7] }}</b> {{ o.text }}</span>{% endfor %}</span>{% endif %}
+        </a>
+        <span class="av-date" title="{{ i.date }}">{{ (i.date or '')[11:16] if d == today and (i.date or '')|length > 11 else (d[8:10] ~ '/' ~ d[5:7] if d else '') }}</span>
+        <span class="av-actions">
+            <button type="button" class="btn btn-link btn-sm p-0" data-act="read" title="{{ 'Marcar como no leído' if i.read else 'Marcar como leído' }}"><i class="bi {{ 'bi-envelope' if i.read else 'bi-check2' }}"></i></button>
+            {% if i.dismissable %}<button type="button" class="btn btn-link btn-sm p-0" data-act="dismiss" title="Descartar: deja de salir mientras dure"><i class="bi bi-x-lg"></i></button>{% endif %}
+        </span>
+    </div>
+{% endfor %}
+<div class="av-empty d-none"><i class="bi bi-check2-circle"></i><strong>Nada por aquí</strong><span>No hay avisos con estos filtros.</span></div>

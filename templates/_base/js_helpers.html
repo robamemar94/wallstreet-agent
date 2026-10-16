@@ -1,0 +1,223 @@
+    <script>
+        // Números en formato español (1.234,56), como num() en las plantillas. sign: «+» delante de los positivos.
+        // 'de-DE' agrupa también los de 4 cifras (es-ES deja 1234 sin punto).
+        window.fmtNum = (v, d = 2, sign = false) => {
+            if (v === null || v === undefined || v === '' || isNaN(v)) return '–';
+            v = Number(v);
+            return (sign && v > 0 ? '+' : '') + v.toLocaleString('de-DE', {minimumFractionDigits: d, maximumFractionDigits: d});
+        };
+        // Variación en % como píldora (igual que la macro chg_pill de _ui_macros.html): más intensa cuanto mayor el movimiento
+        window.chgPill = p => {
+            if (p === null || p === undefined || isNaN(p)) return '<span class="text-muted">–</span>';
+            const a = (0.12 + Math.min(Math.abs(p) / 3, 1) * 0.6).toFixed(2), k = p > 0 ? 'chg-up' : (p < 0 ? 'chg-down' : 'chg-flat');
+            return `<span class="chg-pill ${k}${Math.abs(p) >= 2 ? ' chg-strong' : ''}" style="--a: ${a}">${fmtNum(p, 2, true)}%</span>`;
+        };
+        // La de la última sesión de un valor cuyo mercado aún no ha abierto hoy (igual que la macro stale_pill): mismo color,
+        // sin relleno, borde discontinuo, luna y el día; así no se confunde con la de hoy
+        window.sessionLabel = iso => {
+            if (!iso) return '';
+            const d = new Date(String(iso).slice(0, 10) + 'T12:00:00'), t = new Date(); t.setHours(12, 0, 0, 0);
+            const days = Math.round((t - d) / 864e5);
+            return days === 1 ? 'ayer' : days <= 6 ? ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][d.getDay()] : `${String(iso).slice(8, 10)}/${String(iso).slice(5, 7)}`;
+        };
+        // Pre-market / post-market de EE. UU. (ext {price, pct, kind 'pre'|'post', time}): dato secundario (igual que la macro ext_tag)
+        window.extTag = (ext, iso = null) => {
+            if (!ext || !ext.pct) return '';   // sin dato o sin moverse fuera de horario (0,00 %): nada
+            const e = ext.pct, k = e > 0 ? 'text-success' : (e < 0 ? 'text-danger' : 'text-body-secondary');
+            const big = Math.abs(e) >= {{ EXT_BIG_PCT }};   // ±2 % o más: el valor, destacado; si no, solo el icono
+            return `<span class="ext-tag ${k}${big ? ' ext-big' : ''}" data-ext-tone="${e > 0 ? 'up' : 'down'}" data-ext-tip="${ext.kind === 'pre' ? 'Pre-market' : 'Post-market'}: ${ext.price ? fmtNum(ext.price, 2) + ' ' : ''}(${fmtNum(e, 2, true)} %)${ext.time ? ' · ' + ext.time : ''}"><i class="bi ${ext.kind === 'pre' ? 'bi-sunrise-fill' : 'bi-moon-stars-fill'}"></i>${big ? ' ' + fmtNum(e, 1, true) + '%' : ''}</span>`;
+        };
+        // Var. día € fuera de horario (igual que la macro ext_eur; x de ext_day_eur)
+        window.extEur = (x, cur = '') => {
+            const v = x.total, k = v > 0 ? 'text-success' : (v < 0 ? 'text-danger' : 'text-body-secondary');
+            const quote = `${fmtNum(x.price, 2)} ${cur} (${fmtNum(x.pct, 2, true)} %)${x.time ? ' · ' + x.time : ''}`;
+            const tip = (x.kind === 'pre' ? `Pre-market ${quote}: lo que llevas antes de que abra su mercado`
+                : `Sesión ${x.today ? 'de hoy' : 'anterior'}: ${fmtNum(x.session, 2, true)} € · post-market ${quote}: ${fmtNum(x.eur, 2, true)} €. Con el post-market: ${fmtNum(v, 2, true)} €`) + '. No cuenta en las cifras de hoy';
+            return `<span class="ext-eur ${k}" data-ext-tone="${v > 0 ? 'up' : 'down'}" data-ext-tip="${tip.replace(/"/g, '&quot;')}"><i class="bi ${x.kind === 'pre' ? 'bi-sunrise-fill' : 'bi-moon-stars-fill'}"></i>${fmtNum(v, 2, true)} €</span>`;
+        };
+        window.stalePill = (p, iso, showDay = true, ext = null) => {
+            const more = extTag(ext, iso);
+            if (more) return `<span class="text-nowrap">${more}${stalePill(p, iso, showDay)}</span>`;   // icono a la izquierda: píldoras alineadas
+            const lab = sessionLabel(iso), day = lab && showDay ? `<span class="chg-stale-day">${lab}</span>` : '';
+            if (p === null || p === undefined || isNaN(p)) return `<span class="chg-pill chg-stale chg-flat" title="Su mercado aún no ha abierto hoy"><i class="bi bi-moon-fill"></i> –</span>` + more;
+            const k = p > 0 ? 'chg-up' : (p < 0 ? 'chg-down' : 'chg-flat');
+            return `<span class="chg-pill chg-stale ${k}" title="Su mercado aún no ha abierto hoy: es la variación de su última sesión${lab ? ' (' + lab + ')' : ''}"><i class="bi bi-moon-fill"></i> ${fmtNum(p, 2, true)}%${day}</span>` + more;
+        };
+        // Alto de un gráfico para que la página quepa en la ventana: se mide lo que queda por debajo con el gráfico muy alto
+        // (así la página siempre es más larga que la ventana) y se le da el resto.
+        window.fitChartHeight = (id, min = 240) => {
+            const el = document.getElementById(id);
+            if (!el || !el.offsetParent) return;
+            el.style.height = (window.innerHeight * 2) + 'px';
+            const below = document.documentElement.scrollHeight - (el.getBoundingClientRect().bottom + window.scrollY);
+            el.style.height = Math.max(min, Math.floor(window.innerHeight - el.getBoundingClientRect().top - below)) + 'px';
+            if (el.data) Plotly.Plots.resize(el);
+        };
+        // Navegador de rango bajo el gráfico (como Fiscal.ai): un mini-gráfico de toda la serie con una ventana que se
+        // arrastra o se estira. Plotly no reajusta el eje Y al mover el X: yRangeFor da el de lo que se ve.
+        window.rangeSliderStyle = () => {
+            const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            return { visible: true, thickness: 0.1, borderwidth: 1, yaxis: { rangemode: 'auto' },   // el mini-gráfico, con toda la serie
+                     bgcolor: dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', bordercolor: dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)' };
+        };
+        // Años bajo el navegador (como Fiscal.ai): Plotly no rotula el mini-gráfico; se superpone una fila de años
+        // alineada con su fondo. Se recoloca en cada repintado (plotly_afterplot) y al cambiar el tamaño.
+        window.rangeSliderYears = el => {
+            if (typeof el === 'string') el = document.getElementById(el);
+            if (!el || el._rsYears) return;
+            el._rsYears = true;
+            const draw = () => {
+                const bg = el.querySelector('.rangeslider-bg'), xs = (el.data || []).flatMap(t => t.x || []);
+                let box = el.querySelector('.rs-years');
+                if (!bg || !xs.length) { if (box) box.innerHTML = ''; return; }
+                if (!box) { box = document.createElement('div'); box.className = 'rs-years'; el.appendChild(box); }
+                if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+                const t = d => new Date(String(d).replace(' ', 'T')).getTime();
+                const ts = xs.map(t).filter(isFinite), t0 = Math.min(...ts), t1 = Math.max(...ts);
+                const r = bg.getBoundingClientRect(), host = el.getBoundingClientRect();
+                box.style.left = (r.left - host.left) + 'px'; box.style.width = r.width + 'px';
+                box.style.top = (r.bottom - host.top + 2) + 'px';
+                const y0 = new Date(t0).getFullYear(), y1 = new Date(t1).getFullYear(), span = y1 - y0 + 1;
+                const step = span > 24 ? 5 : span > 12 ? 2 : 1;
+                const marks = [];
+                for (let y = y0; y <= y1; y++) {
+                    if ((y - y0) % step) continue;
+                    const at = Math.max(t0, new Date(y, 0, 1).getTime());
+                    const pct = (at - t0) / ((t1 - t0) || 1) * 100;
+                    if (pct <= 97) marks.push([pct, y]);   // no pegado al borde derecho
+                }
+                // el primer año empezado a mitad, si queda encima del siguiente, fuera
+                if (marks.length > 1 && marks[1][0] - marks[0][0] < 6) marks.shift();
+                let html = marks.map(([pct, y]) => `<span style="left:${pct}%">${y}</span>`).join('');
+                // menos de un año de datos: los meses
+                if (span <= 1 || (t1 - t0) < 400 * 864e5) {
+                    html = '';
+                    const d = new Date(t0); d.setDate(1);
+                    for (d.setMonth(d.getMonth() + 1); d.getTime() <= t1; d.setMonth(d.getMonth() + 1)) {
+                        const pct = (d.getTime() - t0) / ((t1 - t0) || 1) * 100;
+                        if (pct <= 97) html += `<span style="left:${pct}%">${d.toLocaleDateString('es-ES', {month: 'short'})}${d.getMonth() === 0 ? ' ' + d.getFullYear() : ''}</span>`;
+                    }
+                }
+                box.innerHTML = html;
+            };
+            el.on('plotly_afterplot', draw);
+            window.addEventListener('resize', () => setTimeout(draw, 50));
+            draw();
+        };
+        // Rango del eje X de un evento plotly_relayout: [inicio, fin], 'all' (vuelve a todo) o undefined (no es del eje X)
+        window.relayoutXRange = ev => {
+            if (ev['xaxis.range']) return ev['xaxis.range'];
+            if (ev['xaxis.range[0]'] !== undefined) return [ev['xaxis.range[0]'], ev['xaxis.range[1]']];
+            if (ev['xaxis.autorange']) return 'all';
+            return undefined;
+        };
+        const _t = d => new Date(String(d).replace(' ', 'T')).getTime();
+        // Primer y último índice de dates dentro de [a, b]
+        window.rangeIndices = (dates, a, b) => {
+            const ta = _t(a), tb = _t(b);
+            let i = dates.findIndex(d => _t(d) >= ta), j = -1;
+            for (let k = dates.length - 1; k >= 0; k--) if (_t(dates[k]) <= tb) { j = k; break; }
+            if (i < 0) i = 0;
+            if (j < i) j = Math.min(dates.length - 1, i + 1);
+            return [i, j];
+        };
+        window.yRangeFor = (arrays, i, j, pad = 0.06) => {
+            let lo = Infinity, hi = -Infinity;
+            arrays.forEach(a => { for (let k = i; k <= j; k++) { const v = a[k]; if (v != null && isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } } });
+            if (!isFinite(lo)) return null;
+            const span = (hi - lo) || Math.abs(hi) * 0.02 || 1;
+            return [lo - span * pad, hi + span * pad];
+        };
+        // Tabla con scroll propio: se le da el alto que queda en la ventana (mismo método que fitChartHeight) y su
+        // cabecera queda fija (.fit-scroll). Si cabe entera, no aparece scroll.
+        window.fitScroll = (el, min = 200, trim = true) => {
+            if (typeof el === 'string') el = document.getElementById(el) || document.querySelector(el);
+            if (!el || !el.offsetParent) return;
+            el.classList.add('fit-scroll');
+            const keep = el.scrollTop;   // al medir se pierde la posición: se conserva (p. ej. al abrir «Ver pasos»)
+            el.style.maxHeight = 'none'; el.style.height = (window.innerHeight * 2) + 'px';
+            const below = document.documentElement.scrollHeight - (el.getBoundingClientRect().bottom + window.scrollY);
+            el.style.height = '';
+            let max = Math.max(min, Math.floor(window.innerHeight - el.getBoundingClientRect().top - below));
+            // data-fit-snap="selector": que lo visible al abrir acabe en el borde de un elemento completo (p. ej. una fila
+            // de tarjetas) y no corte ninguno por la mitad; al desplazarse, ya sí
+            if (el.dataset.fitSnap && el.scrollHeight > max) {
+                const top = el.getBoundingClientRect().top - el.scrollTop;
+                const ends = [...el.querySelectorAll(el.dataset.fitSnap)].filter(x => x.offsetParent)
+                    .map(x => Math.ceil(x.getBoundingClientRect().bottom - top)).filter(b => b <= max);
+                if (ends.length) max = Math.max(...ends) + 2;
+            }
+            el.style.maxHeight = max + 'px';
+            // comprobación final (solo cuando ya están ajustados todos los bloques, si no culparía a este del desborde
+            // de otro aún sin ajustar): si la página aún se sale, se recorta eso
+            if (trim) {
+                const extra = document.documentElement.scrollHeight - window.innerHeight;
+                if (extra > 0 && el.scrollHeight > el.clientHeight - 1) max = Math.max(min, max - extra);
+                el.style.maxHeight = max + 'px';
+            }
+            // data-fit-fill: además ocupa todo ese alto (p. ej. una columna de tarjetas junto a una tabla)
+            if ('fitFill' in el.dataset) el.style.height = el.style.maxHeight;
+            el.scrollTop = keep;
+            if (el.dataset.fitSnap) fitMoreHint(el);
+        };
+        // Tablas con paginación: sin scroll; cuántas filas caben para que la página entre en la ventana. Se mide con la
+        // tabla muy alta lo que queda debajo (paginador, márgenes) y se usa la fila visible más alta como medida.
+        window.rowsPerPage = (table, fallback = 10, minRows = 4) => {
+            if (typeof table === 'string') table = document.getElementById(table) || document.querySelector(table);
+            if (!table || !table.offsetParent) return fallback;
+            const body = table.tBodies[0] || table;
+            const rows = [...body.rows].filter(r => r.offsetParent && r.offsetHeight);
+            if (!rows.length) return fallback;
+            const rowH = Math.max(...rows.map(r => r.offsetHeight));
+            const keep = table.style.height;
+            table.style.height = (window.innerHeight * 2) + 'px';
+            const below = document.documentElement.scrollHeight - (table.getBoundingClientRect().bottom + window.scrollY);
+            table.style.height = keep;
+            const top = (body.getBoundingClientRect ? body : table).getBoundingClientRect().top;
+            return Math.max(minRows, Math.floor((window.innerHeight - top - below) / rowH));
+        };
+        // Tras paginar: cuántas filas sobran si la página aún se sale (el paginador puede crecer después de medir)
+        window.pageOverflowRows = (table) => {
+            if (typeof table === 'string') table = document.getElementById(table);
+            const extra = document.documentElement.scrollHeight - window.innerHeight;
+            const rows = table ? [...(table.tBodies[0] || table).rows].filter(r => r.offsetParent && r.offsetHeight) : [];
+            if (extra <= 0 || !rows.length) return 0;
+            return Math.ceil(extra / Math.min(...rows.map(r => r.offsetHeight)));
+        };
+        // Bajo un bloque que acaba en un elemento completo, «↓ N más» mientras quede algo por ver al desplazarse
+        window.fitMoreHint = el => {
+            let hint = el.nextElementSibling && el.nextElementSibling.classList.contains('fit-more-hint') ? el.nextElementSibling : null;
+            if (!hint) {
+                hint = document.createElement('div');
+                hint.className = 'fit-more-hint';
+                hint.onclick = () => el.scrollBy({top: el.clientHeight * 0.8, behavior: 'smooth'});
+                el.after(hint);
+                el.addEventListener('scroll', () => fitMoreHint(el), {passive: true});
+            }
+            const items = [...el.querySelectorAll(el.dataset.fitSnap)].filter(x => x.offsetParent);
+            const box = el.getBoundingClientRect();
+            const below = items.filter(x => x.getBoundingClientRect().bottom > box.bottom + 2).length;
+            hint.textContent = below ? `↓ ${below} más` : '';
+            hint.style.display = below ? '' : 'none';
+        };
+        // Todo en una pantalla: los bloques con data-fit (tablas, listas, rejillas de tarjetas) hacen scroll por
+        // dentro en vez de alargar la página. data-fit="140" fija el alto mínimo. Se reajustan al cargar, al cambiar
+        // el tamaño de la ventana, al cambiar de pestaña y al abrir o cerrar un desplegable (<details>).
+        window.fitAll = () => {
+            const els = [...document.querySelectorAll('[data-fit]')];
+            els.forEach(el => fitScroll(el, +el.dataset.fit || 200, false));   // primero, todos
+            els.forEach(el => fitScroll(el, +el.dataset.fit || 200, true));    // luego, con la comprobación final
+            // el aviso «↓ N más» va fuera de su bloque: si el bloque está oculto (otra pestaña), también el aviso
+            document.querySelectorAll('.fit-more-hint').forEach(h => { if (!h.previousElementSibling || !h.previousElementSibling.offsetParent) h.style.display = 'none'; });
+        };
+        window.addEventListener('load', () => {
+            fitAll();
+            if (window.ResizeObserver) {
+                let pending = null;
+                new ResizeObserver(() => { clearTimeout(pending); pending = setTimeout(fitAll, 120); }).observe(document.body);
+            }
+        });
+        window.addEventListener('resize', fitAll);
+        document.addEventListener('shown.bs.tab', () => fitAll());
+        document.addEventListener('toggle', () => fitAll(), true);
+    </script>

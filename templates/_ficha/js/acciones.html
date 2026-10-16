@@ -1,0 +1,219 @@
+    async function updateStatus(ticker, status) {
+        try {
+            const response = await fetch(`/api/status/${ticker}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ status: status })
+            });
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                // Update Badge
+                const badgeContainer = document.getElementById('status-badge-container');
+                document.getElementById('btn-accept').classList.remove('active');
+                document.getElementById('btn-pending').classList.remove('active');
+                document.getElementById('btn-standby').classList.remove('active');
+                document.getElementById('btn-reject').classList.remove('active');
+
+                if (status === 'ACCEPTED') {
+                    badgeContainer.innerHTML = '<span class="badge bg-success fs-6">Aceptada ✅</span>';
+                    document.getElementById('btn-accept').classList.add('active');
+                } else if (status === 'REJECTED') {
+                    badgeContainer.innerHTML = '<span class="badge bg-danger fs-6">Descartada ❌</span>';
+                    document.getElementById('btn-reject').classList.add('active');
+                    const roleSel = document.getElementById('roleSelect');   // al descartarla pierde el rol
+                    if (roleSel) { roleSel.value = ''; roleSel.dataset.prev = ''; document.getElementById('roleCard').style.boxShadow = ''; }
+                } else if (status === 'STANDBY') {
+                    badgeContainer.innerHTML = '<span class="badge bg-warning text-dark fs-6">Dudas 🤔</span>';
+                    document.getElementById('btn-standby').classList.add('active');
+                } else {
+                    badgeContainer.innerHTML = '<span class="badge bg-secondary fs-6">Pendiente ⏳</span>';
+                    document.getElementById('btn-pending').classList.add('active');
+                }
+            } else {
+                const errorMsg = data.message || data.detail || "Error desconocido";
+                alert("Error actualizando el estado: " + errorMsg);
+            }
+        } catch (err) {
+            alert("Error de conexión al actualizar el estado.");
+        }
+    }
+
+    async function deleteTicker(ticker) {
+        if (confirm(`¿Estás seguro de que quieres eliminar completamente el análisis de ${ticker}?`)) {
+            try {
+                const response = await fetch(`/api/ticker/${ticker}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.status === 'success') {
+                        window.location.href = '/';
+                    } else {
+                        alert("Error eliminando el ticker: " + data.message);
+                    }
+                } else {
+                    alert("Error de red al eliminar el ticker");
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                alert("Error al eliminar el ticker");
+            }
+        }
+    }
+
+    function toggleEditPE() {
+        const display = document.getElementById('pe-display-container');
+        const edit = document.getElementById('pe-edit-container');
+        if (display && edit) {
+            display.classList.toggle('d-none');
+            edit.classList.toggle('d-none');
+            if (!edit.classList.contains('d-none')) {
+                document.getElementById('input-manual-pe').focus();
+            }
+        }
+    }
+
+    async function saveManualPE(ticker) {
+        const input = document.getElementById('input-manual-pe');
+        const newVal = input.value;
+        if (!newVal || isNaN(newVal)) return;
+
+        try {
+            const response = await fetch(`/api/fair_pe_manual/${ticker}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fair_forward_pe: parseFloat(newVal) })
+            });
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                location.reload();
+            } else {
+                alert("Error al guardar: " + data.message);
+            }
+        } catch (err) {
+            alert("Error de conexión al guardar.");
+        }
+    }
+
+    async function fetchFairPE(ticker) {
+        const btn = document.getElementById('btn-fetch-fair-pe');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '🔄 Calculando...';
+        }
+        
+        try {
+            const response = await fetch(`/api/fair_pe/${ticker}`, { method: 'POST' });
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                location.reload();
+            } else {
+                alert("Error al calcular el PER Justo: " + data.message);
+                if (btn) {
+                    btn.innerHTML = '🎯 Calcular PER Justo (IA)';
+                    btn.disabled = false;
+                }
+            }
+        } catch (err) {
+            alert("Error de red. Asegúrate de que el servidor está corriendo.");
+            if (btn) {
+                btn.innerHTML = '🎯 Calcular PER Justo (IA)';
+                btn.disabled = false;
+            }
+        }
+    }
+
+    function toggleEditCardPE() {
+        const container = document.getElementById('card-pe-edit-container');
+        if (container) {
+            container.classList.toggle('d-none');
+            if (!container.classList.contains('d-none')) {
+                document.getElementById('input-card-pe').focus();
+            }
+        }
+    }
+
+    async function saveCardPE(ticker) {
+        const input = document.getElementById('input-card-pe');
+        const newVal = input.value;
+        if (!newVal || isNaN(newVal)) return;
+
+        try {
+            const response = await fetch(`/api/fair_pe_manual/${ticker}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fair_forward_pe: parseFloat(newVal) })
+            });
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                location.reload();
+            } else {
+                alert("Error al guardar: " + data.message);
+            }
+        } catch (err) {
+            alert("Error de conexión al guardar.");
+        }
+    }
+
+    async function fetch15yData(ticker) {
+        const btn = document.getElementById('btn-fetch-15y');
+        btn.disabled = true;
+        btn.innerHTML = '🔄 Buscando...';
+        
+        try {
+            const response = await fetch(`/api/fetch_15y/${ticker}`, { method: 'POST' });
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                location.reload();
+            } else {
+                alert("Error al obtener los datos de 15 años: " + data.message);
+            }
+        } catch (err) {
+            alert("Error de red. Asegúrate de que el servidor está corriendo.");
+        } finally {
+            btn.innerHTML = '🤖 Obtener 15 Años (IA)';
+            btn.disabled = false;
+        }
+    }
+
+    async function updatePriceChart(el, ticker) {
+        const period = el.getAttribute('data-period');
+        const chart = document.getElementById('priceChart');
+        if (!period || !chart || !chart.data) return;
+        el.parentElement.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === el));
+        // 1D y 5D: intradía (otra serie); el resto: la diaria de 10 años con la ventana del periodo
+        let series = PRICE_FULL;
+        if (period === '1d' || period === '5d') {
+            try {
+                const d = await (await fetch(`/api/history/${encodeURIComponent(ticker)}?period=${period}`)).json();
+                if (d.status !== 'success') throw new Error(d.message);
+                series = { x: d.dates, y: d.prices };
+            } catch (e) { showToast('❌ Gráfico', 'No se pudo cargar el intradía: ' + e.message, 'error'); return; }
+        }
+        if (series !== priceSeries) {
+            priceSeries = series;
+            await Plotly.restyle(chart, {x: [series.x], y: [series.y]});
+        }
+        const xs = series.x, last = new Date(String(xs[xs.length - 1]).replace(' ', 'T'));
+        let start = new Date(last);
+        if (period === '1mo') start.setMonth(start.getMonth() - 1);
+        else if (period === '6mo') start.setMonth(start.getMonth() - 6);
+        else if (period === 'ytd') start = new Date(last.getFullYear(), 0, 1);
+        else if (period === '1y') start.setFullYear(start.getFullYear() - 1);
+        else if (period === '5y') start.setFullYear(start.getFullYear() - 5);
+        else start = new Date(String(xs[0]).replace(' ', 'T'));
+        chart._byButton = true;
+        const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const from = start.getTime() < new Date(String(xs[0]).replace(' ', 'T')).getTime() ? xs[0] : iso(start);
+        await Plotly.relayout(chart, {'xaxis.range': [from, xs[xs.length - 1]],
+                                      'xaxis.rangeslider.range': [xs[0], xs[xs.length - 1]]});
+    }
+

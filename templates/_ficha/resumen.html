@@ -1,0 +1,213 @@
+    <div class="tab-pane fade show active" id="nav-dashboard" role="tabpanel">
+        {% set th = thesis_link %}
+        {% set vd_bg = {'REFORZADA': 'success', 'INTACTA': 'primary', 'VIGILANCIA': 'warning', 'DEBILITADA': 'danger', 'ROTA': 'dark'} %}
+
+        {# Arriba: la calidad (análisis de IA), las cifras clave en dos filas y los directivos (datos de mercado).
+           Abajo, a todo el ancho, la tesis: factores clave. Todo cabe en la ventana (la tesis, con scroll propio si hace falta). #}
+        {% set has_ai = db.get('verdict') or db.get('franchise') or db.get('audit') %}
+        {# Cifras clave: franja de arriba, a todo el ancho (key_figures_service). Cada una, su valor en color (verde bien, ámbar
+           normal, rojo flojo), una línea de contexto y su evolución anual (minigráfico de las cuentas). El detalle, en Finanzas. #}
+        {% if kfigs %}
+        <div class="kf-strip mb-3">
+            {% for k in kfigs %}{% set v = k.value %}
+            <div class="kf kf-{{ k.tone }}" title="{{ k.label }}: {{ k.tip }}">
+                <div class="kf-label">{{ k.label }}</div>
+                <div class="d-flex align-items-end gap-2">
+                    <span class="kf-val num-font">{% if v is none %}<span class="text-muted">–</span>{% else %}{{ num(v, k.dec or (2 if k.fmt == 'x' and v|abs < 10 else 1)) }}{{ 'x' if k.fmt == 'x' else ' %' }}{% endif %}</span>
+                    {% if k.spark_pts %}<svg class="kf-spark ms-auto" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ k.spark_pts }}" fill="none" vector-effect="non-scaling-stroke"/></svg>{% endif %}
+                </div>
+                <div class="kf-ctx">{{ k.context or ' ' }}</div>
+            </div>
+            {% endfor %}
+            <a class="kf kf-more text-decoration-none" href="#" onclick="openStats(); return false;" title="Todas las estadísticas y las cuentas de la empresa">
+                <span class="kf-label">Todo</span><i class="bi bi-arrow-right"></i><span class="kf-ctx">Finanzas</span></a>
+        </div>
+        {% endif %}
+        <div class="row g-3">
+            {# izquierda: la calidad; el seguimiento de la tesis y los directivos, lado a lado; y la tesis de inversión hasta abajo #}
+            <div class="col-lg-6 col-xxl-5 d-flex flex-column">
+                <div class="card border-0 shadow-sm mb-3 dash-card dash-blue dash-quality"><div class="card-body py-2 px-3 d-flex flex-column">
+                    {% if has_ai %}
+                    {# Pre-calcular puntuación de Normas de Calidad (rules) #}
+                                    {% set rp1 = db.get("rules_pilar1_score") %}
+                                    {% set rp2 = db.get("rules_pilar2_score") %}
+                                    {% set rp3 = db.get("rules_pilar3_score") %}
+                                    {% set rp4 = db.get("rules_pilar4_score") %}
+                                    {% set rp5 = db.get("rules_pilar5_score") %}
+                                    
+                                    {% set rp1_v = rp1.split('/')[0]|trim|float(0.0) if (rp1 and rp1 != 'N/A') else none %}
+                                    {% set rp2_v = rp2.split('/')[0]|trim|float(0.0) if (rp2 and rp2 != 'N/A') else none %}
+                                    {% set rp3_v = rp3.split('/')[0]|trim|float(0.0) if (rp3 and rp3 != 'N/A') else none %}
+                                    {% set rp4_v = rp4.split('/')[0]|trim|float(0.0) if (rp4 and rp4 != 'N/A') else none %}
+                                    {% set rp5_v = rp5.split('/')[0]|trim|float(0.0) if (rp5 and rp5 != 'N/A') else none %}
+                                    
+                                    {# solo con los 5 pilares: una suma parcial no es una nota #}
+                                    {% set has_any_rule = (rp1_v is not none) and (rp2_v is not none) and (rp3_v is not none) and (rp4_v is not none) and (rp5_v is not none) %}
+                                    {% if has_any_rule %}
+                                        {% set rules_calc_score = (rp1_v or 0.0) + (rp2_v or 0.0) + (rp3_v or 0.0) + (rp4_v or 0.0) + (rp5_v or 0.0) %}
+                                        {% set rules_score_str = "%.1f"|format(rules_calc_score) %}
+                                    {% else %}
+                                        {% set rules_score_str = "N/A" %}
+                                    {% endif %}
+                    {# cabecera: el título y, a la derecha, las cuatro notas #}
+                    <div class="dash-label d-flex align-items-center gap-2"><span class="text-nowrap"><i class="bi bi-award me-1"></i>Calidad <span class="fw-normal text-lowercase">· análisis de IA</span></span>
+                    <div class="dash-scores ms-auto" style="text-transform: none; letter-spacing: 0; font-weight: 400;">
+                    {% for key, label, full in [('franchise', 'Moat', 'Negocio y moat'), ('audit', 'Auditoría', 'Auditoría financiera'), ('mgmt_alloc', 'Dirección', 'Dirección y capital'), ('rules', 'Normas', 'Normas de calidad')] %}
+                        {% set score = rules_score_str if key == 'rules' else db.get(key + '_score', 'N/A') %}
+                        {% set s_num = score.split('/')[0]|trim|float(-1.0) if (score and score != 'N/A') else -1.0 %}
+                        <div class="d-flex justify-content-center align-items-baseline gap-1 rounded px-1" style="background: var(--bs-secondary-bg);" title="{{ full }}">
+                            <span class="text-muted text-truncate" style="font-size: .68rem;">{{ label }}</span>
+                            <span {% if key == 'rules' %}id="matrix-rules-score"{% endif %} class="fw-bold num-font {{ 'text-muted' if s_num < 0 else 'text-success' if s_num >= 8.5 else 'text-warning' if s_num >= 7.0 else 'text-orange' if s_num >= 5.0 else 'text-danger' }}">{{ num(s_num, 1) if s_num >= 0 else '–' }}</span>
+                        </div>
+                    {% endfor %}
+                    </div>
+                    </div>
+                    {% set v_score_str = db.get('verdict_score') or 'N/A' %}
+                    {% set v_score_num = v_score_str.split('/')[0]|trim|float(-1.0) if v_score_str != 'N/A' else -1.0 %}
+                    {% set tone = 'text-success' if v_score_num >= 8.5 else 'text-warning' if v_score_num >= 7.0 else 'text-orange' if v_score_num >= 5.0 else 'text-danger' if v_score_num >= 0 else 'text-muted' %}
+                    {# la nota y el perfil en una línea; debajo, por qué (entero) #}
+                    <div class="d-flex align-items-baseline gap-2 flex-wrap" title="Nota ponderada de calidad del veredicto de inversión">
+                        <span class="fs-3 fw-bold num-font lh-1 {{ tone }}">{{ num(v_score_num, 1) if v_score_num >= 0 else 'N/A' }}</span><span class="text-muted small text-nowrap">/ 10</span>
+                        {% if profile %}<span class="fw-semibold ms-1" title="Perfil de inversión según el veredicto">{{ profile.name }}</span>{% endif %}
+                    </div>
+                    {% if profile and profile.why %}<div class="text-muted lh-sm mt-1 dash-why">{{ profile.why }}</div>{% endif %}
+                    {# los factores clave (pros, riesgos y la línea roja), plegados: solo si los abres #}
+                    {% set verdict_pros = reports_meta.get('verdict', {}).get('pros', []) %}
+                    {% set verdict_cons = reports_meta.get('verdict', {}).get('cons', []) %}
+                    {% set red_line = db.get('verdict_rejection') or reports_meta.get('verdict', {}).get('rejection') %}
+                    {% if verdict_pros or verdict_cons or red_line %}
+                    <a class="small text-decoration-none d-inline-block mt-1" data-bs-toggle="modal" href="#factorsModal" role="button">
+                        <i class="bi bi-list-check me-1"></i>Ver factores clave ({{ verdict_pros|length }} a favor · {{ verdict_cons|length }} en contra){% if red_line %} · <span class="text-danger">línea roja</span>{% endif %}</a>
+                    <div class="modal fade" id="factorsModal" tabindex="-1" aria-labelledby="factorsTitle" aria-hidden="true">
+                    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+                    <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="factorsTitle"><i class="bi bi-list-check me-1"></i>{{ clean_ticker(ticker) }} · factores clave</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                    <div class="modal-body factors-box">
+                        {% if red_line %}<div class="alert alert-danger py-1 px-2 mb-2 border-0 bg-danger bg-opacity-10 text-danger-emphasis small"><i class="bi bi-exclamation-octagon-fill me-1"></i><strong>Línea roja:</strong> {{ red_line }}</div>{% endif %}
+                        <div class="row g-2">
+                            {% if verdict_pros %}<div class="col-md-6"><div class="small fw-bold text-success text-uppercase mb-1" style="font-size: .65rem;"><i class="bi bi-check-circle-fill me-1"></i>A favor</div>
+                                <ul class="list-unstyled mb-0 small">{% for pro in verdict_pros %}<li class="mb-1 d-flex gap-1"><span class="text-success fw-bold">✓</span><span>{{ pro }}</span></li>{% endfor %}</ul></div>{% endif %}
+                            {% if verdict_cons %}<div class="col-md-6"><div class="small fw-bold text-danger text-uppercase mb-1" style="font-size: .65rem;"><i class="bi bi-exclamation-triangle-fill me-1"></i>En contra</div>
+                                <ul class="list-unstyled mb-0 small">{% for con in verdict_cons %}<li class="mb-1 d-flex gap-1"><span class="text-danger fw-bold">✗</span><span>{{ con }}</span></li>{% endfor %}</ul></div>{% endif %}
+                        </div>
+                    </div></div></div></div>
+                    {% endif %}
+                    {% else %}
+                    <div class="dash-label"><i class="bi bi-award me-1"></i>Calidad <span class="fw-normal text-lowercase">· análisis de IA</span></div>
+                    <div class="small text-muted mb-2">Aún no hay análisis de calidad de esta empresa.</div>
+                    <button class="btn btn-primary btn-sm fw-bold" onclick="document.getElementById('nav-analysis-tab').click();"><i class="bi bi-shield-check me-1"></i>Analizar con IA</button>
+                    {% endif %}
+                </div></div>
+                {# Señales: una línea por tema, todas iguales (semáforo · tema · conclusión · detalle · ir al detalle), con el
+                   recuento arriba. Valoración y técnico se calculan en el navegador con los datos del gráfico; tesis y
+                   previsiones, del servidor; directivos y acciones llegan aparte (_insiders.html, Yahoo puede tardar).
+                   Debajo, los próximos eventos y las noticias de la tesis. #}
+                {% set vd_tone = {'REFORZADA': 'good', 'INTACTA': 'good', 'VIGILANCIA': 'mid', 'DEBILITADA': 'bad', 'ROTA': 'bad'} %}
+                <div class="card border-0 shadow-sm dash-card dash-slate flex-grow-1 mb-0 sig-card">
+                <div class="card-body py-2 px-3 d-flex flex-column" style="min-height: 0;">
+                    <div class="dash-label d-flex align-items-center mb-1"><i class="bi bi-stoplights me-1"></i>Señales
+                        <span class="ms-auto sig-count" id="sigCount" style="text-transform: none; letter-spacing: 0;"></span></div>
+                    <div class="sig-rows">
+                        <a href="#valoracion" class="sig-row" id="sigVal" data-tone="none" onclick="document.getElementById('nav-projection-tab').click(); return false;"
+                           title="Lo que tendría que caer el precio para llegar al de compra de tu valoración base. Verde: en zona de compra; ámbar: a menos de un 15 %">
+                            <span class="sig-dot"></span><span class="sig-name">Valoración</span><span class="sig-word" id="sigValWord">–</span>
+                            <span class="sig-detail" id="sigValDetail">sin valoración base</span><i class="bi bi-chevron-right sig-go"></i></a>
+                        {% if th %}{% set tt = 'bad' if th.killed else vd_tone.get(th.verdict, 'none') %}
+                        <a href="/tesis/{{ th.id }}" class="sig-row" data-tone="{{ tt }}" title="Veredicto y salud de la tesis (media de los KPIs medidos)">
+                            <span class="sig-dot"></span><span class="sig-name">Tesis</span><span class="sig-word">{{ 'Ruptura' if th.killed else th.verdict|capitalize }}</span>
+                            <span class="sig-detail">{% if th.health is not none %}salud <b>{{ th.health }}</b> · {% endif %}{% if th.killed %}<span class="text-danger">{{ th.killed|join(', ') }}</span>{% elif th.reds %}<span class="text-danger">{{ th.reds|length }} KPI en rojo: {{ th.reds[:2]|join(', ') }}</span>{% else %}sin KPI en rojo{% endif %}</span>
+                            <i class="bi bi-chevron-right sig-go"></i></a>
+                        {% else %}
+                        <div class="sig-row" data-tone="none"><span class="sig-dot"></span><span class="sig-name">Tesis</span><span class="sig-word text-muted">Sin tesis</span><span class="sig-detail">puedes crearla desde Tesis</span></div>
+                        {% endif %}
+                        {% set c90 = (rev.chg or {}).get('90d') if rev else none %}
+                        {% set pt = 'none' if c90 is none else ('bad' if (rev.cut or c90 <= -2) else 'good' if c90 >= 2 else 'mid') %}
+                        <div class="sig-row" data-tone="{{ pt }}" title="{% if rev %}BPA que esperan los analistas para {{ rev.label }}: {{ num(rev.current, 2) }}. Cambio en 7 días {{ num(rev.chg.get('7d'), 1, sign=True) if rev.chg.get('7d') is not none else '–' }} % · 30 días {{ num(rev.chg.get('30d'), 1, sign=True) if rev.chg.get('30d') is not none else '–' }} % · 90 días {{ num(c90, 1, sign=True) if c90 is not none else '–' }} %. Verde si suben más de un 2 % en 90 días; rojo si bajan más de un 2 %.{% else %}Sin previsiones de analistas en caché{% endif %}">
+                            <span class="sig-dot"></span><span class="sig-name">Previsiones</span>
+                            <span class="sig-word">{{ '–' if c90 is none else 'Suben' if c90 >= 2 else 'Bajan' if c90 <= -2 else 'Estables' }}</span>
+                            <span class="sig-detail">{% if rev and c90 is not none %}BPA {{ num(c90, 1, sign=True) }} % en 90 días{% if rev.up_30 is not none %} · 30 d: <span class="text-success">{{ rev.up_30 }}↑</span> <span class="{{ 'text-danger' if rev.down_30 }}">{{ rev.down_30 or 0 }}↓</span>{% endif %}{% else %}sin datos de los analistas{% endif %}</span></div>
+                        <a href="#" class="sig-row" id="sigTech" data-tone="none" onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-technical-top-tab')).show(); return false;"
+                           title="Calculado al momento con el histórico de precios: distancia a la media de 200 sesiones, RSI de 14 sesiones (por debajo de 30, sobreventa; por encima de 70, sobrecompra) y caída desde el máximo de 52 semanas. Pulsa para el informe técnico de IA">
+                            <span class="sig-dot"></span><span class="sig-name">Técnico</span><span class="sig-word" id="sigTechWord">–</span>
+                            <span class="sig-detail" id="sigTechDetail">calculando…</span><i class="bi bi-chevron-right sig-go"></i></a>
+                        {# directivos y acciones en circulación: llegan aparte #}
+                        <div id="insSummary" class="sig-async">
+                            <div class="sig-row" data-tone="none"><span class="sig-dot"></span><span class="sig-name">Directivos</span><span class="sig-word text-muted"><span class="spinner-border spinner-border-sm"></span></span><span class="sig-detail">cargando…</span></div>
+                            <div class="sig-row" data-tone="none"><span class="sig-dot"></span><span class="sig-name">Acciones</span><span class="sig-word text-muted">–</span><span class="sig-detail">cargando…</span></div>
+                        </div>
+                    </div>
+                    {# próximos eventos, destacados #}
+                    {% if events %}
+                    <div class="d-flex flex-wrap gap-1 mt-2">{% for e in events %}
+                        <span class="badge {{ 'text-bg-danger' if e.days <= 1 else 'text-bg-warning' if e.days <= 14 else 'text-bg-primary' }} px-2 py-1" style="font-size: .76rem;"
+                              title="{{ e.detail }}: {{ e.date[8:10] }}/{{ e.date[5:7] }}/{{ e.date[:4] }}">
+                            <i class="bi {{ 'bi-calendar-event' if e.label == 'Resultados' else 'bi-cash-coin' }} me-1"></i>{{ e.label }} {{ e.date[8:10] }}/{{ e.date[5:7] }}
+                            · {{ 'hoy' if e.days == 0 else 'mañana' if e.days == 1 else 'en ' ~ e.days ~ ' días' }}</span>
+                    {% endfor %}</div>
+                    {% endif %}
+                    {# las noticias de la tesis (las más relevantes): lo que quede de alto, con scroll propio #}
+                    {% if th and th.news %}
+                    <div class="sig-news mt-2">
+                        <div class="sig-news-h">Noticias de la tesis{% if th.unread %} · <span class="text-primary">{{ th.unread }} nueva{{ 's' if th.unread > 1 }}</span>{% endif %}</div>
+                        {% for n in th.news[:6] %}
+                        <div class="d-flex gap-2 py-1 border-top" title="{{ n.title }}">
+                            <span class="fw-bold text-nowrap {{ 'text-danger' if n.materiality and n.materiality >= 5 else 'text-warning' }}">{{ n.materiality }}/5</span>
+                            <span class="text-muted text-nowrap">{{ (n.date or '')[8:10] }}/{{ (n.date or '')[5:7] }}</span>
+                            <span class="text-truncate">{% if not n.seen %}<span class="badge text-bg-primary me-1">nueva</span>{% endif %}{% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" class="text-decoration-none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                </div>
+            </div>
+            {# derecha: toda para precio y valoración, con el gráfico tan alto como la columna #}
+            <div class="col-lg-6 col-xxl-7 d-flex flex-column">
+            {# Precio y valoración: los números y un gráfico pequeño (interactivo); «Ampliar» lo abre en grande en una ventana #}
+            <div class="card border-0 shadow-sm mb-0 dash-card dash-green flex-grow-1 dash-fill" id="pvCard">
+                <div class="card-body py-2 px-3 d-flex flex-column" style="font-size: .76rem; min-height: 0;">
+                    <div class="dash-label d-flex align-items-center gap-2"><span><i class="bi bi-graph-up me-1"></i>Precio y valoración</span>
+                        <span id="pvZone"></span>
+
+
+                        <a href="#" class="ms-auto text-decoration-none fw-bold" style="text-transform: none; letter-spacing: 0;" id="pvOpen">Ampliar <i class="bi bi-box-arrow-up-right"></i></a></div>
+{# el rango de 52 semanas, dibujado #}
+                    {% set lo, hi, px = info.get('fiftyTwoWeekLow'), info.get('fiftyTwoWeekHigh'), custom_metrics.currentPrice %}
+                    {% if lo and hi and px and hi > lo %}{% set pos = [[100 * (px - lo) / (hi - lo), 0]|max, 100]|min %}
+                    <span class="d-inline-flex align-items-center gap-1" title="Rango de 52 semanas: mínimo {{ num(lo, 2) }} · máximo {{ num(hi, 2) }}. El punto es el precio de hoy ({{ num(pos, 0) }} % del camino; a un {{ num(100 * (1 - px / hi), 1) }} % del máximo)">
+                    <span class="text-muted">52 sem.</span>
+                    <span class="num-font">{{ num(lo, 2) }}</span>
+                    <span class="position-relative d-inline-block rounded" style="width: 70px; height: 5px; background: var(--bs-secondary-bg);">
+                    <span class="position-absolute top-50 translate-middle rounded-circle bg-primary" style="left: {{ pos }}%; width: 9px; height: 9px;"></span></span>
+                    <span class="num-font">{{ num(hi, 2) }}</span>
+                    </span>
+                    {% endif %}
+                    <div class="d-flex flex-wrap align-items-center column-gap-3 row-gap-0 mt-1" id="pvSummary"><span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando…</span></div>
+                    {# periodos, como en Google; a la derecha, lo que ha cambiado el precio en el periodo elegido #}
+                    <div class="d-flex align-items-center gap-2 mt-2">
+                        <div class="btn-group btn-group-sm pv-periods" data-chart="pvChart"></div>
+                        <span class="ms-auto num-font fw-bold" id="pvChartChange"></span>
+                    </div>
+                    <div class="mt-1 position-relative" id="pvChartBox" style="flex: 1 1 0; min-height: 140px;"><div id="pvChart" class="position-absolute top-0 start-0 w-100 h-100"></div></div>
+                </div>
+            </div>
+            </div>
+        </div>
+
+
+        <div class="modal fade" id="pvModal" tabindex="-1" aria-labelledby="pvModalTitle" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header py-2">
+                        <h6 class="modal-title fw-bold" id="pvModalTitle"><i class="bi bi-graph-up me-1"></i>{{ clean_ticker(ticker) }} · precio y valoración</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body p-2">
+                        <div class="d-flex align-items-center gap-2 mb-1"><div class="btn-group btn-group-sm pv-periods" data-chart="pvModalChart"></div>
+                            <span class="ms-auto num-font fw-bold" id="pvModalChartChange"></span></div>
+                        <div id="pvModalChart" style="height: 62vh;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div> <!-- Cierre de tab-pane nav-dashboard -->

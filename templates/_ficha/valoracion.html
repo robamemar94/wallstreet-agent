@@ -1,0 +1,238 @@
+    <style>
+        .text-orange { color: #f0883e !important; }
+        /* Valoración: todo en una pantalla */
+        .val-card .key-fig-val { font-size: 1.15rem; }
+        .val-note { font-size: .66rem; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .val-panel { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: .5rem; padding: .4rem .6rem; font-size: .76rem; }
+        .val-panel-title { font-size: .65rem; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--bs-secondary-color); margin-bottom: .25rem; }
+        .val-panel-title .text-none { text-transform: none; letter-spacing: 0; }
+        .val-line { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .3rem; }
+        .val-lbl { font-size: .72rem; color: var(--bs-secondary-color); margin: 0; white-space: nowrap; }
+        .val-num { width: 8.5rem; flex: 0 0 auto; }
+        .val-num-sm { width: 5.6rem; }
+        .val-num .form-control, .val-num .input-group-text { padding-top: .1rem; padding-bottom: .1rem; font-size: .76rem; }
+        .val-sub { font-size: .68rem; margin-bottom: .2rem; }
+        .val-real { font-size: .66rem; color: var(--bs-secondary-color); line-height: 1.3; margin: -.1rem 0 .35rem; }
+        .val-real b { color: var(--bs-body-color); font-weight: 600; }
+        .val-slider { margin-bottom: .15rem; }
+        .val-slider .val-line { margin-bottom: 0; }
+        .val-slider .form-range { height: 1rem; }
+        .val-fairpe { border-top: 1px solid var(--bs-border-color); padding-top: .3rem; }
+        .val-years th { font-size: .66rem; text-transform: uppercase; letter-spacing: .3px; color: var(--bs-secondary-color); font-weight: 700; }
+        .val-years td, .val-years th { padding-top: .2rem; padding-bottom: .2rem; }
+        .val-ai-note { flex: 0 0 38%; font-size: .72rem; line-height: 1.35; overflow: hidden; }
+        .val-ai-note #eps-explanation-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    </style>
+    <div class="tab-pane fade" id="nav-projection" role="tabpanel">
+        <div class="card shadow-sm border-0 mb-0 val-card">
+            <div class="card-header bg-dark text-white py-1 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span class="text-uppercase fw-bold" style="font-size: 0.74rem; letter-spacing: 0.5px;"><i class="bi bi-graph-up-arrow me-1 text-warning"></i> Valoración base</span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary" id="proj-status-badge">
+                        {% if bval and bval.get('legacy') %}Antigua proyección: revísala y guarda
+                        {% elif bval and bval.get('is_manual') %}Manual (guardado el {{ bval.get('last_updated') }})
+                        {% elif bval %}IA (generado el {{ bval.get('last_updated') }})
+                        {% else %}Sin guardar: valores por defecto{% endif %}
+                    </span>
+                    <button class="btn btn-sm btn-outline-light fw-bold py-0" id="btn-generate-proj-ia" onclick="generateValuationWithAI('{{ ticker }}')" title="La IA propone crecimiento, múltiplo, dividendo y razones (consume tokens)">
+                        <span id="proj-ia-spinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                        <i class="bi bi-robot me-1" id="proj-ia-icon"></i>Proponer con IA
+                    </button>
+                    <button class="btn btn-sm btn-success fw-bold py-0" onclick="saveValuation('{{ ticker }}')" title="Se autoguarda al cambiar cualquier dato"><i class="bi bi-save me-1"></i>Guardar</button>
+                    {% if watch_auto and not in_watchlist %}
+                    <a class="btn btn-sm btn-outline-light fw-bold py-0" href="/watchlist" title="Entra sola en la watchlist por ser {{ watch_auto|join(' y ') }}">
+                        <i class="bi bi-eye-fill me-1"></i>En la watchlist ({{ watch_auto|join(', ') }})</a>
+                    {% else %}
+                    <button class="btn btn-sm {{ 'btn-outline-light' if in_watchlist else 'btn-warning text-dark' }} fw-bold py-0" id="btn-watchlist" onclick="toggleWatchlist('{{ ticker }}')" data-in="{{ 'true' if in_watchlist else 'false' }}">
+                        <i class="bi {{ 'bi-eye-fill' if in_watchlist else 'bi-eye' }} me-1"></i><span>{{ 'En la watchlist' if in_watchlist else 'Añadir a watchlist' }}</span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body bg-light-subtle p-2">
+                {% set st = bval_stale %}
+                {% macro dmy(d) %}{{ d[8:10] }}/{{ d[5:7] }}/{{ d[2:4] }}{% endmacro %}
+                {% if st and (st.stale or st.results_since) %}
+                <div class="alert {{ 'alert-danger' if st.stale else 'alert-secondary' }} d-flex align-items-center gap-2 py-1 px-2 small mb-2" id="val-stale-box">
+                    <i class="bi bi-clock-history"></i>
+                    <div class="flex-grow-1">
+                        {% if st.stale and st.by_calendar %}<strong>Valoración anticuada.</strong> Revisada el {{ dmy(st.reviewed) }}; desde entonces ha presentado resultados {{ st.results_since|length }} veces ({% for d in st.results_since %}{{ dmy(d) }}{{ ', ' if not loop.last }}{% endfor %}). Repasa crecimiento, múltiplo y dividendo.
+                        {% elif st.stale %}<strong>Valoración anticuada.</strong> Sin revisar desde el {{ dmy(st.reviewed) }} (más de 7 meses; no hay calendario de resultados).
+                        {% else %}Ha presentado resultados el {{ dmy(st.results_since[-1]) }}, después de tu revisión del {{ dmy(st.reviewed) }}. Pasará a anticuada con la siguiente presentación.{% endif %}
+                    </div>
+                    <button class="btn btn-sm py-0 {{ 'btn-danger' if st.stale else 'btn-outline-secondary' }} text-nowrap" onclick="markValuationReviewed('{{ ticker }}', this)">
+                        <i class="bi bi-check2 me-1"></i>Revisada, sin cambios</button>
+                </div>
+                {% endif %}
+
+                <!-- RESULTADO: una franja, como las cifras clave del resumen -->
+                <div class="card border-0 shadow-sm mb-2 key-figs">
+                    <div class="d-flex key-figs-row">
+                        <div class="key-fig"><span class="key-fig-label">Rentabilidad estimada</span>
+                            <span class="key-fig-val num-font" id="res-cagr">–</span>
+                            <span class="val-note" id="res-cagr-note">anual comprando hoy, con dividendos</span></div>
+                        <div class="key-fig"><span class="key-fig-label">Precio de compra al {{ num(bval_target, 0) }}%</span>
+                            <span class="key-fig-val num-font text-primary" id="res-buy">–</span>
+                            <span class="val-note" id="res-margin">–</span></div>
+                        <div class="key-fig"><span class="key-fig-label" id="lbl-res-target">Precio objetivo</span>
+                            <span class="key-fig-val num-font" id="res-target">–</span>
+                            <span class="val-note" id="res-divs">–</span></div>
+                        <div class="key-fig" title="Según la rentabilidad estimada: ganga ≥{{ num(ZONE.ganga, 0) }}% · barata ≥{{ num(ZONE.barata, 0) }}% · justo ≥{{ num(ZONE.justo, 0) }}% · cara por debajo">
+                            <span class="key-fig-label">Zona <i class="bi bi-info-circle"></i></span>
+                            <span class="key-fig-val text-uppercase" id="res-zone">–</span>
+                            <span class="val-note">ganga ≥{{ num(ZONE.ganga, 0) }}% · barata ≥{{ num(ZONE.barata, 0) }}% · justo ≥{{ num(ZONE.justo, 0) }}%</span></div>
+                        <div class="key-fig" title="Tus supuestos frente a lo que ha hecho de verdad la empresa (cuentas anuales y precios): crecimiento de la métrica por acción a 5 años y múltiplo medio de 5 años. Conservador: pides lo mismo o menos; ajustado: hasta 5 puntos de crecimiento o un 20 % de múltiplo por encima; optimista: más. Manda el peor de los dos">
+                            <span class="key-fig-label">Supuestos <i class="bi bi-info-circle"></i></span>
+                            <span class="key-fig-val" id="res-reality">–</span>
+                            <span class="val-note" id="res-reality-note">frente a lo real</span></div>
+                    </div>
+                </div>
+
+                <div class="row g-2 val-form">
+                    <!-- PUNTO DE PARTIDA -->
+                    <div class="col-xl-3 col-md-6">
+                        <div class="val-panel h-100">
+                            <div class="val-panel-title">Punto de partida</div>
+                            <div class="val-line">
+                                <span class="val-lbl">Métrica</span>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    {% for key, m in bval_metrics.items() %}
+                                    <input type="radio" class="btn-check" name="val-metric" id="val-metric-{{ key }}" value="{{ key }}" {{ 'checked' if key == bv_metric }}>
+                                    <label class="btn btn-outline-primary fw-bold py-0" for="val-metric-{{ key }}">{{ m.label }}</label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="val-line">
+                                <label class="val-lbl" for="proj-current-price">Precio actual</label>
+                                <div class="input-group input-group-sm val-num">
+                                    <span class="input-group-text">{{ currency_symbol }}</span>
+                                    <input type="number" step="0.01" class="form-control font-monospace-data fw-bold" id="proj-current-price" value="{{ "{:.2f}".format(current_price) }}">
+                                </div>
+                            </div>
+                            <div class="val-line">
+                                <label class="val-lbl" for="val-metric-value"><span class="lbl-metric">BPA</span> de partida</label>
+                                <div class="input-group input-group-sm val-num">
+                                    <span class="input-group-text">{{ currency_symbol }}</span>
+                                    <input type="number" step="0.01" class="form-control font-monospace-data fw-bold text-primary" id="val-metric-value" value="{{ "{:.2f}".format(bv.get('metric_value')) if bv.get('metric_value') else '' }}">
+                                </div>
+                            </div>
+                            <div class="form-check form-switch small mb-0 val-sub">
+                                <input class="form-check-input" type="checkbox" id="val-auto" {{ 'checked' if not bv.get('metric_value') }}>
+                                <label class="form-check-label" for="val-auto" title="Usa el de los últimos 12 meses y se actualiza solo con cada resultado">Automático (últimos 12 meses)</label>
+                            </div>
+                            <div class="val-sub text-muted text-truncate" id="val-ttm-label"></div>
+                            <div class="d-flex flex-wrap gap-1 val-sub" id="val-quick-eps">
+                                {% if official_eps %}<button class="btn btn-xs btn-outline-primary py-0 px-1" style="font-size: .65rem;" onclick="setMetricValue({{ official_eps }})">Histórico ({{ official_year }}): {{ num(official_eps, 2) }}</button>{% endif %}
+                            </div>
+                            <div class="text-warning val-sub d-none" id="val-fixed-warning" title="Fijado a mano: no se actualiza con los resultados. Úsalo solo si el TTM está distorsionado."><i class="bi bi-exclamation-triangle me-1"></i>Fijado a mano: no se actualiza solo</div>
+                            <div class="val-line mt-1">
+                                <label class="val-lbl" for="val-dps" title="Importe anual, no rentabilidad: así el precio de compra no depende de la cotización">Dividendo / acción <i class="bi bi-info-circle"></i></label>
+                                <div class="input-group input-group-sm val-num">
+                                    <span class="input-group-text">{{ currency_symbol }}</span>
+                                    <input type="number" step="0.01" class="form-control font-monospace-data" id="val-dps" value="{{ "{:.2f}".format(bv_dps) }}">
+                                </div>
+                            </div>
+                            {% if div_rate %}<div class="val-sub text-end"><button class="btn btn-link btn-sm p-0" style="font-size: .68rem;" onclick="document.getElementById('val-dps').value = {{ div_rate }}; onValChange();">usar el actual ({{ num(div_rate, 2) }})</button></div>{% endif %}
+                        </div>
+                    </div>
+
+                    <!-- SUPUESTOS -->
+                    <div class="col-xl-3 col-md-6">
+                        <div class="val-panel h-100">
+                            <div class="val-panel-title d-flex justify-content-between"><span>Supuestos</span><span class="text-muted fw-normal text-none" id="val-horizon">5 años</span></div>
+                            {% for id, label, val, mn, mx, st, unit in [
+                                ('growth', 'Crec. anual del <span class="lbl-metric">BPA</span>', bv_growth * 100, -10, 40, 0.5, '%'),
+                                ('div-growth', 'Crec. anual del dividendo', bv_div_growth * 100, -10, 30, 0.5, '%'),
+                                ('multiple', 'Múltiplo de salida (<span class="lbl-multiple">PER</span>)', bv_multiple, 3, 80, 0.5, 'x')] %}
+                            <div class="val-slider">
+                                <div class="val-line">
+                                    <label class="val-lbl" for="input-{{ id }}">{{ label|safe }}</label>
+                                    <div class="input-group input-group-sm val-num val-num-sm">
+                                        <input type="number" step="0.1" class="form-control text-center font-monospace-data" id="input-{{ id }}" value="{{ "{:.1f}".format(val) }}">
+                                        <span class="input-group-text px-1">{{ unit }}</span>
+                                    </div>
+                                </div>
+                                <input type="range" class="form-range custom-range" id="slider-{{ id }}" min="{{ mn }}" max="{{ mx }}" step="{{ st }}" value="{{ "{:.1f}".format(val) }}">
+                                {% if id in ('growth', 'multiple') %}<div class="val-real" id="real-{{ id }}"></div>{% endif %}
+                            </div>
+                            {% endfor %}
+                            <div class="val-sub text-muted" id="val-multiple-now"></div>
+
+                            {# PER forward justo (IA o a mano): referencia para el múltiplo de salida #}
+                            {% set pe_data = db.get("fair_pe_data") or {} %}
+                            <div class="val-fairpe mt-1">
+                                {% if pe_data %}
+                                <div class="d-flex align-items-center flex-wrap gap-1">
+                                    <span class="text-muted" title="{{ pe_data.get('rationale') or '' }}&#10;&#10;{{ 'Fijado a mano' if pe_data.get('is_manual') else 'Calculado por la IA' }} · {{ pe_data.get('analysis_date', '—') }}">PER justo <i class="bi bi-info-circle"></i></span>
+                                    <strong class="num-font text-primary" id="val-fair-pe-display">{{ num(pe_data.get('fair_forward_pe', 0), 1) }}x</strong>
+                                    <button class="btn btn-link btn-sm p-0 eps-only" style="font-size: .68rem;" onclick="useFairPE({{ pe_data.get('fair_forward_pe') or 0 }})" title="Usarlo como múltiplo de salida">usar</button>
+                                    <span class="ms-auto d-flex gap-1">
+                                        <button class="btn btn-link btn-sm p-0 text-muted" onclick="toggleEditCardPE()" title="Fijarlo a mano"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-link btn-sm p-0 text-muted" id="btn-fetch-fair-pe" onclick="fetchFairPE('{{ ticker }}')" title="Recalcular con IA (consume tokens)"><i class="bi bi-arrow-clockwise"></i></button>
+                                    </span>
+                                </div>
+                                {% set hp = pe_data.get('historical_pe') %}{% set sp = pe_data.get('sector_pe') %}
+                                <div class="text-muted" style="font-size: .66rem;">media histórica {{ (num(hp, 1) ~ 'x') if hp is number else (hp or '—') }} · competidores {{ (num(sp, 1) ~ 'x') if sp is number else (sp or '—') }}</div>
+                                {% else %}
+                                <div class="d-flex align-items-center gap-1">
+                                    <span class="text-muted">PER justo: sin calcular</span>
+                                    <span class="ms-auto d-flex gap-1">
+                                        <button class="btn btn-link btn-sm p-0 text-muted" onclick="toggleEditCardPE()" title="Fijarlo a mano"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-warning btn-sm py-0 px-1 fw-bold" style="font-size: .66rem;" id="btn-fetch-fair-pe" onclick="fetchFairPE('{{ ticker }}')" title="La IA estima un múltiplo prudente por calidad, histórico y competidores (consume tokens)"><i class="bi bi-robot me-1"></i>Calcular</button>
+                                    </span>
+                                </div>
+                                {% endif %}
+                                <div id="card-pe-edit-container" class="d-none mt-1">
+                                    <div class="input-group input-group-sm">
+                                        <input type="number" step="0.1" class="form-control font-monospace-data text-center fw-bold py-0" id="input-card-pe" value="{{ pe_data.get('fair_forward_pe') or '' }}" placeholder="PER justo">
+                                        <button class="btn btn-success py-0" type="button" onclick="saveCardPE('{{ ticker }}')"><i class="bi bi-check-lg"></i></button>
+                                        <button class="btn btn-outline-secondary py-0" type="button" onclick="toggleEditCardPE()"><i class="bi bi-x"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AÑO A AÑO -->
+                    <div class="col-xl-6">
+                        <div class="val-panel h-100 p-0 d-flex flex-column">
+                            <div class="val-panel-title px-2 pt-1" title="Pulsa el lápiz para corregir el valor de un año distorsionado: desde ese año sigue con tu crecimiento, y al pasar el año se reproyecta solo.">
+                                Año a año <i class="bi bi-info-circle fw-normal"></i></div>
+                            <div class="alert alert-info d-flex align-items-center gap-2 py-1 px-2 small m-1 d-none" id="val-anchor-expired">
+                                <i class="bi bi-calendar-check"></i>
+                                <div class="flex-grow-1" id="val-anchor-expired-text"></div>
+                                <button class="btn btn-sm py-0 btn-outline-secondary text-nowrap" onclick="setAnchor(null)"><i class="bi bi-x-lg me-1"></i>Quitar</button>
+                            </div>
+                            <div class="small px-2 pb-1 d-none" id="val-estimates"></div>
+                            <div class="table-responsive" data-fit="160">
+                                <table class="table table-sm table-striped text-center mb-0 align-middle font-monospace-data val-years" style="font-size: .78rem;">
+                                    <thead><tr>
+                                        <th class="text-start ps-2">Año</th><th><span class="lbl-metric">BPA</span></th>
+                                        <th>Dividendo</th><th>Precio a ese múltiplo</th>
+                                    </tr></thead>
+                                    <tbody id="val-years-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RAZONES (y la explicación del valor de partida de la IA, si la hay) -->
+                    <div class="col-12">
+                        <div class="val-panel d-flex gap-2 align-items-stretch">
+                            <div class="flex-grow-1">
+                                <label class="val-panel-title d-block" for="proj-rationale">Por qué estos supuestos</label>
+                                <textarea class="form-control font-monospace-data p-1 px-2" id="proj-rationale" rows="2" style="font-size: .74rem; line-height: 1.35; resize: vertical;" placeholder="Tus razones para el crecimiento y el múltiplo, o las de la IA…">{{ bv.get('rationale') or '' }}</textarea>
+                            </div>
+                            <div class="val-ai-note {% if not bv.get('metric_explanation') %}d-none{% endif %}" id="eps-explanation-box">
+                                <span class="val-panel-title d-block"><i class="bi bi-robot me-1 text-primary"></i>Valor de partida según la IA</span>
+                                <span id="eps-explanation-text" class="text-muted" title="{{ bv.get('metric_explanation') or '' }}">{{ bv.get('metric_explanation') or '' }}</span>
+                                <button class="btn btn-link btn-sm p-0 {{ '' if bv.get('metric_suggested') else 'd-none' }}" style="font-size: .68rem;" id="btn-use-suggested"
+                                        data-value="{{ bv.get('metric_suggested') or '' }}" onclick="setMetricValue(this.dataset.value)">
+                                    usar el normalizado (<span id="suggested-value">{{ num(bv.get('metric_suggested'), 2) if bv.get('metric_suggested') else '' }}</span>, queda fijo)</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>

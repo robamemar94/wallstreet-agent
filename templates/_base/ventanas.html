@@ -1,0 +1,161 @@
+    <!-- Calendario de resultados y dividendos (se abre desde el icono junto a la campana; los eventos se piden al abrirlo) -->
+    <div class="modal fade" id="newsModal" tabindex="-1" aria-labelledby="newsModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg"><div class="modal-content">
+        <div class="modal-header py-2"><h6 class="modal-title fw-bold" id="newsModalTitle"><i class="bi bi-broadcast me-1"></i>Noticias de esta semana</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+        <div class="modal-body p-0 news-menu-body"><div class="p-3 small text-muted">Cargando…</div></div>
+        <div class="modal-footer py-1"><a href="/noticias" class="fw-semibold text-decoration-none">Ir a Noticias →</a></div>
+    </div></div>
+</div>
+<div class="modal fade" id="calModal" tabindex="-1" aria-labelledby="calModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header py-2 flex-wrap gap-2">
+                    <h6 class="modal-title fw-bold mb-0" id="calModalLabel"><i class="bi bi-calendar3 text-primary me-1"></i>Calendario</h6>
+                    <div class="d-flex gap-2 flex-wrap cal-legend">
+                        <span class="badge chip-portfolio"><i class="bi bi-briefcase-fill"></i> Cartera</span>
+                        <span class="badge chip-favorite"><i class="bi bi-star-fill"></i> Favorito</span>
+                        <span class="badge chip-seguimiento"><i class="bi bi-eye-fill"></i> Seguimiento</span>
+                        <span class="badge chip-dividend"><i class="bi bi-cash-stack"></i> Dividendo</span>
+                        <span class="badge cal-chip-past chip-more" style="font-style: normal;" title="Lo que ya ha ocurrido (resultados presentados, dividendos cobrados) sale apagado y tachado"><span>Ya ocurrido</span></span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 ms-auto">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="calMove(-1)" aria-label="Mes anterior"><i class="bi bi-chevron-left"></i></button>
+                        <span id="calMonthLabel" class="fw-bold text-center" style="min-width:140px;"></span>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="calMove(1)" aria-label="Mes siguiente"><i class="bi bi-chevron-right"></i></button>
+                        <button class="btn btn-outline-primary btn-sm" onclick="calMove(0)">Hoy</button>
+                        <button type="button" class="btn-close ms-1" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                </div>
+                <div class="modal-body p-2">
+                    <div class="cal-grid mb-1">{% for d in ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'] %}<div class="text-center text-muted fw-bold py-1" style="font-size:0.72rem;">{{ d }}</div>{% endfor %}</div>
+                    <div class="cal-grid" id="calGrid"><div class="text-muted small p-3" style="grid-column: 1 / -1;"><span class="spinner-border spinner-border-sm me-1"></span>Cargando eventos…</div></div>
+                    <div id="calDay" class="mt-2 d-none border rounded p-2">
+                        <div class="fw-bold small mb-1" id="calDayTitle"></div>
+                        <div id="calDayBody"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <style>
+        .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+        .cal-cell { min-height: 84px; border: 1px solid var(--bs-border-color); border-radius: 6px; padding: 4px 5px; background: var(--bs-body-bg); }
+        .cal-cell.other-month { opacity: 0.35; }
+        .cal-cell.today { border-color: #0d6efd; border-width: 2px; background: rgba(13,110,253,0.04); }
+        .cal-cell.has-events { cursor: pointer; }
+        .cal-cell.has-events:hover, .cal-cell.selected { background: rgba(13,110,253,0.08); }
+        .cal-day-num { font-size: 0.78rem; font-weight: 600; line-height: 1; margin-bottom: 4px; }
+        .cal-cell.today .cal-day-num { background: #0d6efd; color: #fff; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; }
+        .cal-chips { display: flex; flex-direction: column; gap: 2px; }
+        .cal-chip { display: flex; align-items: center; gap: 3px; border-radius: 4px; padding: 1px 4px; font-size: 0.65rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; line-height: 1.4; }
+        .chip-portfolio  { background:#0d6efd22; color:#0d6efd; border:1px solid #0d6efd44; }
+        .chip-favorite   { background:#ffc10733; color:#b8860b; border:1px solid #ffc10766; }
+        .chip-seguimiento{ background:#19875422; color:#198754; border:1px solid #19875455; }
+        .chip-dividend   { background:#6f42c122; color:#6f42c1; border:1px solid #6f42c155; }
+        /* lo que ya ha ocurrido: apagado y tachado (el día entero, si todo lo de ese día ya pasó) */
+        .cal-chip-past { opacity: .45; }
+        .cal-chip-past span { text-decoration: line-through; }
+        .cal-cell.past-day .cal-day-num { opacity: .5; }
+        .cal-ev-row.past { opacity: .55; }
+        .chip-more       { background:var(--bs-secondary-bg); color:var(--bs-secondary-color); border:1px solid var(--bs-border-color); font-style:italic; }
+        .cal-legend .badge { font-size: 0.68rem; font-weight: 600; }
+        .cal-ev-row { display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom:1px solid var(--bs-border-color); }
+        .cal-ev-row:last-child { border-bottom:none; }
+        [data-bs-theme="dark"] .cal-cell { background:#1e2328; border-color:#373d44; }
+        [data-bs-theme="dark"] .cal-cell.today { background:rgba(13,110,253,0.1); }
+        @media (max-width: 576px) { .cal-cell { min-height: 56px; padding: 2px; } .cal-chip span { display: none; } }
+    </style>
+    <script>
+    (function () {
+        const MONTH_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        const CAT = {
+            portfolio:   {cls: 'chip-portfolio',   dot: '#0d6efd', icon: 'bi-briefcase-fill', label: 'Cartera'},
+            favorite:    {cls: 'chip-favorite',    dot: '#ffc107', icon: 'bi-star-fill',      label: 'Favorito'},
+            seguimiento: {cls: 'chip-seguimiento', dot: '#198754', icon: 'bi-eye-fill',       label: 'Seguimiento'},
+            dividend:    {cls: 'chip-dividend',    dot: '#6f42c1', icon: 'bi-cash-stack',     label: 'Dividendo'},
+        };
+        let events = null, today = null, cur = null;
+        const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+        function render() {
+            const year = cur.getFullYear(), month = cur.getMonth();
+            document.getElementById('calMonthLabel').textContent = `${MONTH_ES[month]} ${year}`;
+            const grid = document.getElementById('calGrid');
+            grid.innerHTML = '';
+            document.getElementById('calDay').classList.add('d-none');
+            const startDow = (new Date(year, month, 1).getDay() + 6) % 7;   // lunes = 0
+            const days = new Date(year, month + 1, 0).getDate();
+            const total = Math.ceil((startDow + days) / 7) * 7;
+            for (let i = 0; i < total; i++) {
+                const d = new Date(year, month, i - startDow + 1), ds = iso(d);
+                // primero lo que aún no ha pasado; lo ya ocurrido, debajo, apagado y tachado
+                const evs = events.filter(e => e.date === ds).sort((a, b) => (a.past ? 1 : 0) - (b.past ? 1 : 0));
+                const cell = document.createElement('div');
+                cell.className = 'cal-cell' + (d.getMonth() !== month ? ' other-month' : '') + (ds === today ? ' today' : '') + (evs.length ? ' has-events' : '') + (ds < today ? ' past-day' : '');
+                cell.innerHTML = `<div class="cal-day-num">${d.getDate()}</div>`;
+                if (evs.length) {
+                    const chips = document.createElement('div');
+                    chips.className = 'cal-chips';
+                    evs.slice(0, 3).forEach(ev => {
+                        const m = CAT[ev.category];
+                        chips.insertAdjacentHTML('beforeend', `<div class="cal-chip ${m.cls}${ev.past ? ' cal-chip-past' : ''}" title="${ev.ticker} · ${ev.type}${ev.past ? ' (ya ocurrido)' : ''}"><i class="bi ${m.icon}" style="font-size:0.6rem;"></i><span>${ev.ticker}</span></div>`);
+                    });
+                    if (evs.length > 3) chips.insertAdjacentHTML('beforeend', `<div class="cal-chip chip-more">+${evs.length - 3} más</div>`);
+                    cell.appendChild(chips);
+                    cell.addEventListener('click', () => showDay(ds, evs, cell));
+                }
+                grid.appendChild(cell);
+            }
+        }
+        function showDay(ds, evs, cell) {
+            document.querySelectorAll('#calGrid .cal-cell.selected').forEach(c => c.classList.remove('selected'));
+            cell.classList.add('selected');
+            const [y, m, d] = ds.split('-').map(Number);
+            document.getElementById('calDayTitle').textContent = `${d} de ${MONTH_ES[m - 1]} de ${y}`;
+            document.getElementById('calDayBody').innerHTML = evs.map(ev => {
+                const c = CAT[ev.category];
+                let detail = '<small class="text-muted">Resultados</small>';
+                if (ev.type === 'Resultados' && ev.past) {
+                    const s = ev.surprise_pct;
+                    detail = '<small class="text-muted">Presentó</small>' + (s === null || s === undefined ? '' :
+                        ` <small class="fw-bold ${s > 0 ? 'text-success' : s < 0 ? 'text-danger' : ''}" title="BPA frente a lo esperado">BPA ${fmtNum(s, 1, true)} %</small>`);
+                } else if (ev.collected) {
+                    detail = ev.amount ? `<small class="text-success fw-bold">Cobrado ${fmtNum(ev.amount, 2)} €</small>` : '<small class="text-muted">Cobrado</small>';
+                } else if (ev.type === 'Dividendo') {
+                    detail = ev.amount > 0 ? `<small class="text-success fw-bold">+${fmtNum(ev.amount, 2)}€</small>` : '';
+                    if (ev.pay_date) detail += `<small class="text-muted ms-2">Cobro: ${ev.pay_date.split('-').reverse().join('/')}</small>`;
+                }
+                return `<div class="cal-ev-row${ev.past ? ' past' : ''}"><span style="width:10px;height:10px;border-radius:3px;background:${c.dot};flex-shrink:0;"></span>
+                    <div class="flex-grow-1"><a href="/ticker/${encodeURIComponent(ev.ticker)}" class="fw-bold text-decoration-none small">${ev.ticker}</a>
+                    <span class="badge ms-1" style="font-size:0.6rem;background:${c.dot}22;color:${c.dot};border:1px solid ${c.dot}44;"><i class="bi ${c.icon}"></i> ${c.label}</span></div>
+                    <div class="text-end">${detail}</div></div>`;
+            }).join('');
+            document.getElementById('calDay').classList.remove('d-none');
+        }
+        window.calMove = dir => {
+            if (!events) return;
+            if (dir === 0) { cur = new Date(today + 'T00:00:00'); cur.setDate(1); } else cur.setMonth(cur.getMonth() + dir);
+            render();
+        };
+        const modal = document.getElementById('calModal');
+        modal.addEventListener('show.bs.modal', async () => {
+            if (events) return;
+            try {
+                const r = await fetch('/api/calendario');
+                if (!r.ok) throw new Error(r.statusText);
+                const d = await r.json();
+                events = d.events; today = d.today;
+                cur = new Date(today + 'T00:00:00'); cur.setDate(1);
+                render();
+            } catch (e) {
+                document.getElementById('calGrid').innerHTML = `<div class="text-danger small p-3" style="grid-column: 1 / -1;">No se pudo cargar el calendario: ${e.message}</div>`;
+            }
+        });
+        // enlaces antiguos a /calendario llegan como /mercado#calendario
+        if (location.hash === '#calendario') {
+            history.replaceState(null, '', location.pathname + location.search);
+            document.addEventListener('DOMContentLoaded', () => bootstrap.Modal.getOrCreateInstance(modal).show());
+        }
+    })();
+    </script>

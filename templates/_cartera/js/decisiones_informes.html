@@ -1,0 +1,193 @@
+    // --- Decisiones: balance de cada operación frente al índice (se carga al abrir la pestaña) ---
+    // sin scroll de página: las filas por página son las que caben en la ventana (se recalcula al cambiar el tamaño).
+    // Dos vistas: decisiones (#decTable) y entradas por tramos (#decEntries); mismo filtro, orden y paginado.
+    let decLoading = null, decSort = null, decFilter = '', decPage = 0, decPerPage = 12, decView = 'ops';
+    const decTable = () => document.getElementById(decView === 'ops' ? 'decTable' : 'decEntries');
+    function decRender() {
+        const body = document.getElementById('decBody'), table = decTable();
+        if (!table) return;
+        body.querySelector('#decTable').classList.toggle('d-none', decView !== 'ops');
+        body.querySelector('#decEntries').classList.toggle('d-none', decView === 'ops');
+        const rows = [...table.tBodies[0].rows];
+        const shown = rows.filter(tr => decFilter === 'nonote' ? tr.dataset.note !== '1' : !decFilter || tr.dataset.type === decFilter);
+        const paint = () => {
+            const pages = Math.max(1, Math.ceil(shown.length / decPerPage));
+            decPage = Math.min(Math.max(decPage, 0), pages - 1);
+            const from = decPage * decPerPage, page = new Set(shown.slice(from, from + decPerPage));
+            rows.forEach(tr => tr.classList.toggle('d-none', !page.has(tr)));
+            return {pages, from};
+        };
+        if (table.offsetParent) {
+            // la columna de al lado, si no cabe, con su propio scroll (nunca el de la página)
+            if (window.matchMedia('(min-width: 1200px)').matches) fitScroll(body.querySelector('.dec-side'), 200);
+            rows.forEach(tr => tr.classList.remove('d-none'));
+            decPerPage = rowsPerPage(table, decPerPage, 5);
+            paint();
+            const over = pageOverflowRows(table);
+            if (over) decPerPage = Math.max(5, decPerPage - over);
+        }
+        const {pages, from} = paint();
+        const what = decView === 'ops' ? 'decisiones' : 'entradas';
+        const info = body.querySelector('#decPagerInfo');
+        if (info) info.textContent = shown.length ? `${from + 1}–${Math.min(from + decPerPage, shown.length)} de ${shown.length} ${what}` : `Ninguna`;
+        body.querySelectorAll('[data-dec-page]').forEach(b => b.disabled = +b.dataset.decPage < 0 ? decPage === 0 : decPage >= pages - 1);
+    }
+    function decLoad() {
+        if (decLoading) return decLoading;
+        const body = document.getElementById('decBody');
+        decLoading = fetch('/portfolio/decisiones').then(r => { if (!r.ok) throw new Error(r.statusText); return r.text(); })
+            .then(html => {
+                body.innerHTML = html;
+                decSort = null; decFilter = ''; decPage = 0; decView = 'ops';
+                body.querySelectorAll('#decTable th.sortable, #decEntries th.sortable').forEach(th => th.addEventListener('click', () => {
+                    const col = [...th.parentNode.children].indexOf(th), table = th.closest('table');
+                    // primer clic: texto de la A a la Z (la fecha, de la más reciente); números de mayor a menor
+                    const first = th.dataset.type === 'text' && col !== 0 ? 1 : -1;
+                    decSort = {col, table: table.id, dir: decSort && decSort.col === col && decSort.table === table.id ? -decSort.dir : first};
+                    const tbody = table.tBodies[0];
+                    const key = tr => tr.children[col].dataset.sort ?? '';
+                    const isNum = th.dataset.type !== 'text';
+                    [...tbody.rows].sort((a, b) => {
+                        const x = key(a), y = key(b);
+                        if (x === '' || y === '') return x === y ? 0 : x === '' ? 1 : -1;   // sin dato, al final
+                        return decSort.dir * (isNum ? parseFloat(x) - parseFloat(y) : x.localeCompare(y));
+                    }).forEach(tr => tbody.appendChild(tr));
+                    decPage = 0; decRender();
+                }));
+                body.querySelectorAll('[data-dec-type]').forEach(b => b.addEventListener('click', () => {
+                    body.querySelectorAll('[data-dec-type]').forEach(x => x.classList.toggle('active', x === b));
+                    decFilter = b.dataset.decType; decPage = 0; decRender();
+                }));
+                // «Por tramos» solo tiene compras: fuera los filtros Compras / Ventas
+                body.querySelectorAll('[data-dec-view]').forEach(b => b.addEventListener('click', () => {
+                    decView = b.dataset.decView;
+                    body.querySelectorAll('[data-dec-view]').forEach(x => x.classList.toggle('active', x === b));
+                    body.querySelectorAll('[data-dec-type="BUY"], [data-dec-type="SELL"]').forEach(x => x.classList.toggle('d-none', decView !== 'ops'));
+                    if (decView !== 'ops' && (decFilter === 'BUY' || decFilter === 'SELL')) body.querySelector('[data-dec-type=""]').click();
+                    decPage = 0; decRender();
+                }));
+                body.querySelectorAll('[data-dec-page]').forEach(b => b.addEventListener('click', () => { decPage += +b.dataset.decPage; decRender(); }));
+                decRender();
+            })
+            .catch(e => { body.innerHTML = `<div class="p-3 small text-danger">No se pudo calcular el balance: ${e.message}</div>`; decLoading = null; });
+        return decLoading;
+    }
+    // el porqué de una operación: se edita en la misma celda (Intro guarda, Escape cancela)
+    document.getElementById('decBody').addEventListener('click', e => {
+        const btn = e.target.closest('.dec-note-edit');
+        if (!btn) return;
+        const cell = btn.closest('.dec-note'), text = cell.querySelector('.dec-note-text');
+        if (cell.querySelector('textarea')) return;
+        const box = document.createElement('textarea');
+        box.className = 'form-control form-control-sm';
+        box.rows = 2; box.maxLength = 1000; box.value = text.textContent.trim();
+        box.placeholder = 'Por qué compraste o vendiste: tesis, precio, señal…';
+        text.classList.add('d-none'); btn.classList.add('d-none');
+        cell.prepend(box); box.focus();
+        const done = () => { box.remove(); text.classList.remove('d-none'); btn.classList.remove('d-none'); };
+        let saving = false;
+        const save = async () => {
+            if (saving) return;
+            const note = box.value.trim();
+            if (note === text.textContent.trim()) return done();
+            saving = true; box.disabled = true;
+            try {
+                const r = await fetch('/api/portfolio/transaction/note', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ticker: cell.dataset.ticker, refs: JSON.parse(cell.dataset.refs), note})});
+                if (!r.ok) throw new Error(r.statusText);
+                text.textContent = note;
+                cell.closest('tr').dataset.note = note ? '1' : '';
+                btn.title = (note ? 'Editar' : 'Anotar') + ' el porqué';
+                done();
+            } catch (err) { saving = false; box.disabled = false; alert('No se pudo guardar: ' + err.message); }
+        };
+        box.addEventListener('keydown', ev => {
+            if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); save(); }
+            if (ev.key === 'Escape') done();
+        });
+        box.addEventListener('blur', save);
+    });
+    // --- Informes: el archivo a la izquierda y el informe a la derecha; el comentario de IA, solo al pulsar ---
+    let repLoading = null;
+    const repShow = (key, tab) => fetch('/portfolio/informes/' + encodeURIComponent(key)).then(r => r.text()).then(html => {
+        document.getElementById('repPanel').innerHTML = html;
+        const t = tab && document.getElementById(tab);
+        if (t) bootstrap.Tab.getOrCreateInstance(t).show();
+        document.querySelectorAll('#repList [data-rep-key]').forEach(a => a.classList.toggle('active', a.dataset.repKey === key));
+        history.replaceState(null, '', '#informes-' + key);
+        window.fitAll && fitAll();
+    });
+    function repLoad(key) {
+        if (repLoading && !key) return repLoading;
+        const body = document.getElementById('repBody');
+        repLoading = fetch('/portfolio/informes' + (key ? '?key=' + encodeURIComponent(key) : '')).then(r => r.text()).then(html => {
+            body.innerHTML = html;
+            body.querySelectorAll('[data-rep-kind]').forEach(b => b.addEventListener('click', () => {
+                body.querySelectorAll('[data-rep-kind]').forEach(x => x.classList.toggle('active', x === b));
+                const items = [...body.querySelectorAll('#repList [data-rep-key]')];
+                items.forEach(a => a.classList.toggle('d-none', a.dataset.kind !== b.dataset.repKind));
+                const first = items.find(a => a.dataset.kind === b.dataset.repKind);
+                if (first) repShow(first.dataset.repKey);
+                else document.getElementById('repPanel').innerHTML = `<div class="p-4 small text-muted">Aún no hay informes de este tipo: se generan solos al cerrarse el periodo${b.dataset.repKind === 'Y' ? ' (el del año, el 1 de enero)' : ''}.</div>`;
+            }));
+            body.querySelectorAll('#repList [data-rep-key]').forEach(a => a.addEventListener('click', () => repShow(a.dataset.repKey)));
+            window.fitAll && fitAll();
+        }).catch(e => { body.innerHTML = `<div class="p-3 small text-danger">No se pudieron cargar los informes: ${e.message}</div>`; repLoading = null; });
+        return repLoading;
+    }
+    // el botón «Comentar con IA» (una llamada a Gemini, sin búsqueda)
+    document.getElementById('repBody').addEventListener('click', async e => {
+        const btn = e.target.closest('[data-report-ai]');
+        if (!btn) return;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Comentando…';
+        try {
+            const r = await fetch(`/api/portfolio/informes/${encodeURIComponent(btn.dataset.reportAi)}/comentario`, {method: 'POST'});
+            if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+            await repShow(btn.dataset.reportAi, 'rep-ai-tab');   // en el trimestral y el anual, su subpestaña
+        } catch (err) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-stars me-1"></i>Comentar con IA'; alert(err.message); }
+    });
+    // tus objetivos para el año siguiente (informe anual)
+    document.getElementById('repBody').addEventListener('click', async e => {
+        const btn = e.target.closest('[data-report-goals]');
+        if (!btn) return;
+        btn.disabled = true;
+        const r = await fetch(`/api/portfolio/informes/${encodeURIComponent(btn.dataset.reportGoals)}/objetivos`, {method: 'POST',
+            headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text: document.getElementById('repGoals').value})}).catch(() => null);
+        btn.disabled = false;
+        btn.textContent = r && r.ok ? 'Guardado ✓' : 'No se pudo guardar';
+        setTimeout(() => { btn.textContent = 'Guardar objetivos'; }, 2000);
+    });
+    document.getElementById('rep-tab')?.addEventListener('shown.bs.tab', () => {
+        const m = location.hash.match(/^#informes-(.+)$/);
+        repLoad(m ? decodeURIComponent(m[1]) : null);
+        if (!m) history.replaceState(null, '', '#informes');
+    });
+    document.getElementById('dec-tab')?.addEventListener('shown.bs.tab', () => {
+        const tramos = location.hash === '#tramos';   // #tramos: abre Decisiones en «Por tramos»
+        decLoad().then(() => tramos ? document.querySelector('[data-dec-view="entries"]')?.click() : decRender());
+        if (!tramos) history.replaceState(null, '', '#decisiones');
+    });
+    window.addEventListener('resize', () => { if (document.getElementById('dec-pane')?.classList.contains('active')) decRender(); });
+    // --- Menú agrupado: los seis grupos visibles abren la última pestaña (oculta) de su grupo; el selector de la derecha,
+    // las del grupo. Contable/Seguimiento son la misma pestaña con dos vistas (showView).
+    const pfLast = {pos: 'active-tab', perf: 'perf-tab', dist: 'dist-tab', div: 'div-tab', ops: 'closed-tab', res: 'res-tab'};
+    const pfShow = id => bootstrap.Tab.getOrCreateInstance(document.getElementById(id)).show();
+    document.querySelectorAll('[data-pf-group]').forEach(b => b.addEventListener('click', () => pfShow(pfLast[b.dataset.pfGroup])));
+    document.querySelectorAll('[data-pf-show]').forEach(b => b.addEventListener('click', () => {
+        if (!document.getElementById(b.dataset.pfShow).classList.contains('active')) pfShow(b.dataset.pfShow);
+    }));
+    document.querySelectorAll('#portfolioTabs [data-bs-toggle="tab"]').forEach(t => t.addEventListener('shown.bs.tab', () => {
+        const g = t.dataset.pfMember;
+        pfLast[g] = t.id;
+        document.querySelectorAll('[data-pf-group]').forEach(b => {
+            b.classList.toggle('active', b.dataset.pfGroup === g);
+            b.classList.toggle('text-muted', b.dataset.pfGroup !== g);
+        });
+        document.querySelectorAll('.pf-subnav').forEach(n => n.classList.toggle('d-none', n.dataset.for !== g));
+        const seg = !document.getElementById('viewSeguimiento').classList.contains('d-none');
+        document.querySelectorAll('.pf-subnav [data-pf-show]').forEach(b => b.classList.toggle('active', b.dataset.pfShow === t.id
+            && (!b.dataset.posView || b.dataset.posView === (seg ? 'seguimiento' : 'contable'))));
+        if (t.dataset.pfHash) history.replaceState(null, '', t.dataset.pfHash);
+        else if (t.id === 'active-tab' && !seg && location.hash) history.replaceState(null, '', location.pathname + location.search);
+    }));

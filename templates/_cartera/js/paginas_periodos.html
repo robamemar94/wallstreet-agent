@@ -1,0 +1,290 @@
+    function divPage(which, delta) {
+        const rows = document.querySelectorAll(`.div-${which}-row`);
+        const total = rows.length;
+        if (total === 0) return;
+        const table = rows[0].closest('table');
+        if (table && table.offsetParent) { rows.forEach(r => r.style.display = ''); DIV_PER_PAGE = rowsPerPage(table, DIV_PER_PAGE); }
+        const pages = Math.ceil(total / DIV_PER_PAGE);
+        divPagState[which] = Math.min(pages, Math.max(1, divPagState[which] + delta));
+        const start = (divPagState[which] - 1) * DIV_PER_PAGE;
+        rows.forEach((r, i) => r.style.display = (i >= start && i < start + DIV_PER_PAGE) ? '' : 'none');
+        const info = document.getElementById(which + 'PageInfo');
+        if (info) info.textContent = `Pág. ${divPagState[which]} / ${pages}`;
+    }
+
+    // ── Paginación Posiciones Cerradas (Summary Table) ─────────────────────
+    let closedPosPageState = 1;
+    let CLOSED_POS_PER_PAGE = 8;
+
+    function closedPosPage(delta) {
+        const rows = document.querySelectorAll('.closed-pos-row');
+        const total = rows.length;
+        if (total === 0) return;
+        rows.forEach(r => r.style.display = '');
+        CLOSED_POS_PER_PAGE = rowsPerPage('closedPositionsTable', CLOSED_POS_PER_PAGE);   // sin scroll: las filas que caben
+        const pages = Math.ceil(total / CLOSED_POS_PER_PAGE);
+        closedPosPageState = Math.min(pages, Math.max(1, closedPosPageState + delta));
+        const start = (closedPosPageState - 1) * CLOSED_POS_PER_PAGE;
+        rows.forEach((r, i) => r.style.display = (i >= start && i < start + CLOSED_POS_PER_PAGE) ? '' : 'none');
+        const info = document.getElementById('closedPosPageInfo');
+        if (info) info.textContent = `Pág. ${closedPosPageState} / ${pages}`;
+    }
+
+    // Inicializar paginación al abrir la pestaña
+    document.getElementById('div-tab')?.addEventListener('shown.bs.tab', function() {
+        divPage('latest', 0);
+    });
+
+    document.getElementById('closed-tab')?.addEventListener('shown.bs.tab', function() {
+        closedPosPage(0);
+        applyHistFilters(true);
+    });
+
+    document.getElementById('closed-summary-tab')?.addEventListener('shown.bs.tab', function() {
+        closedPosPage(0);
+    });
+
+    document.getElementById('closed-tx-tab')?.addEventListener('shown.bs.tab', function() {
+        applyHistFilters(false);
+    });
+
+    // ── Toggle tabla anual %  vs € ──────────────────────────────────────────
+    let annualMode = 'pct';
+
+    function getYearStartEur() {
+        const yearStart = {};
+        perfDates.forEach((d, i) => {
+            const yr = d.slice(0, 4);
+            if (yearStart[yr] === undefined) yearStart[yr] = perfValuesEur[i];
+        });
+        return yearStart;
+    }
+
+    function fmtEur(v) {
+        return fmtNum(v, 0, true) + ' €';   // fmtNum agrupa también los miles de 4 cifras (Intl es-ES no)
+    }
+
+    window.setAnnualMode = function(mode) {
+        annualMode = mode;
+        const isPct = mode === 'pct';
+        document.getElementById('btnAnnualPct').className = isPct
+            ? 'btn btn-sm btn-primary active' : 'btn btn-sm btn-outline-primary';
+        document.getElementById('btnAnnualEur').className = isPct
+            ? 'btn btn-sm btn-outline-primary' : 'btn btn-sm btn-primary active';
+
+        // Benchmarks y alfa solo tienen sentido en % (no comparables en €)
+        document.querySelectorAll('.bench-col, .alfa-col').forEach(el => {
+            el.style.display = isPct ? '' : 'none';
+        });
+
+        if (isPct) {
+            document.querySelectorAll('#annualTableBody tr').forEach(tr => {
+                const pct      = parseFloat(tr.dataset.port);
+                const portCell = tr.querySelector('.cell-port');
+                portCell.textContent = (pct >= 0 ? '+' : '') + fmtNum(pct, 2) + '%';
+                portCell.className   = 'fw-bold cell-port ' + (pct >= 0 ? 'text-success' : 'text-danger');
+            });
+        } else {
+            const yearStart = getYearStartEur();
+            document.querySelectorAll('#annualTableBody tr').forEach(tr => {
+                const yr       = tr.dataset.year;
+                const pct      = parseFloat(tr.dataset.port);
+                const startV   = yearStart[yr] || 0;
+                const eurGain  = (pct / 100) * startV;
+                const portCell = tr.querySelector('.cell-port');
+                portCell.textContent = fmtEur(eurGain);
+                portCell.className   = 'fw-bold cell-port ' + (eurGain >= 0 ? 'text-success' : 'text-danger');
+            });
+        }
+    };
+
+    // ── KPIs enriquecidos (mejor/peor mes, volatilidad, % meses positivos) ─────
+    function updateEnrichedKPIs() {
+        const data = buildMonthlyData();
+        if (!data || !data.years.length) return;
+        const { years, matrix } = data;
+        const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        let bestPct = -Infinity, bestLabel = '';
+        let worstPct = Infinity, worstLabel = '';
+        const allReturns = [];
+        let posMths = 0, totalMths = 0;
+        years.forEach(yr => {
+            for (let m = 0; m < 12; m++) {
+                const c = matrix[yr][m];
+                if (!c || !c.hasData) continue;
+                totalMths++;
+                if (c.pct >= 0) posMths++;
+                allReturns.push(c.pct);
+                if (c.pct > bestPct) { bestPct = c.pct; bestLabel = `${monthNames[m]} ${yr}`; }
+                if (c.pct < worstPct) { worstPct = c.pct; worstLabel = `${monthNames[m]} ${yr}`; }
+            }
+        });
+        const fmtP = v => (v >= 0 ? '+' : '') + fmtNum(v, 2) + '%';
+        if (bestPct > -Infinity) {
+            document.getElementById('kpiBestMonth').textContent = fmtP(bestPct);
+            document.getElementById('kpiBestMonthLabel').textContent = bestLabel;
+        }
+        if (worstPct < Infinity) {
+            document.getElementById('kpiWorstMonth').textContent = fmtP(worstPct);
+            document.getElementById('kpiWorstMonthLabel').textContent = worstLabel;
+        }
+        if (allReturns.length > 1) {
+            const mean = allReturns.reduce((a, b) => a + b, 0) / allReturns.length;
+            const variance = allReturns.reduce((a, b) => a + (b - mean) ** 2, 0) / (allReturns.length - 1);
+            document.getElementById('kpiVol').textContent = fmtNum(Math.sqrt(variance * 12), 2) + '%';
+        }
+        if (totalMths > 0) {
+            document.getElementById('kpiPosMths').textContent = Math.round(posMths / totalMths * 100) + '%';
+            document.getElementById('kpiPosMthsSub').textContent = `${posMths} de ${totalMths} meses`;
+        }
+    }
+
+    // ── Tabla crecimiento mensual ──────────────────────────────────────────────
+    let monthlyMode = 'pct';
+
+    function buildMonthlyData() {
+        if (!perfDates || !perfDates.length) return null;
+        const monthData = {};
+        perfDates.forEach((d, i) => {
+            const key = d.slice(0, 7); // "YYYY-MM"
+            if (!monthData[key]) {
+                monthData[key] = { firstNav: perfPortfolio[i], firstEur: perfValuesEur[i] || 0 };
+            }
+            monthData[key].lastNav = perfPortfolio[i];
+            monthData[key].lastEur = perfValuesEur[i] || 0;
+        });
+        const years = [...new Set(Object.keys(monthData).map(k => k.slice(0, 4)))].sort();
+        const matrix = {}, yearTotals = {};
+        years.forEach(yr => {
+            matrix[yr] = {};
+            let yFirstNav = null, yLastNav = null, yFirstEur = null, yLastEur = null;
+            for (let m = 0; m < 12; m++) {
+                const key = `${yr}-${String(m + 1).padStart(2, '0')}`;
+                const md = monthData[key];
+                if (md) {
+                    const mPct = (md.lastNav / md.firstNav - 1) * 100;
+                    matrix[yr][m] = { pct: mPct, eur: (mPct / 100) * md.firstEur, hasData: true };
+                    if (yFirstNav === null) { yFirstNav = md.firstNav; yFirstEur = md.firstEur; }
+                    yLastNav = md.lastNav; yLastEur = md.lastEur;
+                } else {
+                    matrix[yr][m] = { hasData: false };
+                }
+            }
+            yearTotals[yr] = yFirstNav !== null
+                ? { pct: (yLastNav / yFirstNav - 1) * 100, eur: ((yLastNav / yFirstNav - 1)) * yFirstEur, hasData: true }
+                : { hasData: false };
+        });
+        return { years, matrix, yearTotals };
+    }
+
+    window.setMonthlyMode = function(mode) {
+        monthlyMode = mode;
+        const isPct = mode === 'pct';
+        document.getElementById('btnMonthlyPct').className = 'btn btn-sm ' + (isPct ? 'btn-primary active' : 'btn-outline-primary');
+        document.getElementById('btnMonthlyEur').className = 'btn btn-sm ' + (isPct ? 'btn-outline-primary' : 'btn-primary active');
+        renderMonthlyTable();
+    };
+
+    function renderMonthlyTable() {
+        const data = buildMonthlyData();
+        const thead = document.querySelector('#monthlyTableHead tr');
+        const tbody = document.getElementById('monthlyTableBody');
+        if (!tbody || !thead) return;
+        if (!data || !data.years.length) {
+            thead.innerHTML = '<th colspan="10" class="text-center text-muted py-2 small">Sin datos.</th>';
+            tbody.innerHTML = '';
+            return;
+        }
+        const { years, matrix, yearTotals } = data;
+        const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        const fmtEur = v => fmtNum(v, 0, true) + ' €';
+        const fmtPct = v => (v >= 0 ? '+' : '') + fmtNum(v, 2) + '%';
+        const fmt    = v => monthlyMode === 'pct' ? fmtPct(v) : fmtEur(v);
+        // fondo verde/rojo más intenso cuanto mayor el mes (lleno a ±10 % o al mayor importe en €)
+        const maxEur = Math.max(1, ...years.flatMap(yr => Object.values(matrix[yr] || {}).filter(c => c && c.hasData).map(c => Math.abs(c.eur))));
+        const heat = v => {
+            const a = Math.min(Math.abs(v) / (monthlyMode === 'pct' ? 10 : maxEur), 1) * 0.35 + 0.05;
+            return `color-mix(in srgb, var(${v >= 0 ? '--fin-green' : '--fin-red'}) ${Math.round(a * 100)}%, transparent)`;
+        };
+
+        // Cabecera: Mes | 2022 | 2023 | 2024 | ...
+        thead.innerHTML = `<th class="ps-3 text-start text-muted" style="min-width:46px;font-weight:600;">Mes</th>` +
+            years.map(yr => `<th class="text-center" style="min-width:72px;">${yr}</th>`).join('');
+
+        // Filas: una por mes + fila Total
+        let html = monthNames.map((name, m) => {
+            let row = `<tr><td class="ps-3 fw-semibold text-muted">${name}</td>`;
+            years.forEach(yr => {
+                const c = matrix[yr] && matrix[yr][m];
+                if (!c || !c.hasData) { row += `<td class="text-center text-muted" style="opacity:.4;">—</td>`; return; }
+                const val = monthlyMode === 'pct' ? c.pct : c.eur;
+                row += `<td class="text-center fw-semibold ${val >= 0 ? 'text-success' : 'text-danger'}"><span class="mth-cell d-block" style="background:${heat(val)}">${fmt(val)}</span></td>`;
+            });
+            return row + `</tr>`;
+        }).join('');
+
+        // Fila total anual
+        html += `<tr style="border-top:2px solid var(--bs-border-color);"><td class="ps-3 fw-bold">Total</td>`;
+        years.forEach(yr => {
+            const yt = yearTotals[yr];
+            if (!yt || !yt.hasData) { html += `<td class="text-center text-muted">—</td>`; return; }
+            const val = monthlyMode === 'pct' ? yt.pct : yt.eur;
+            html += `<td class="text-center fw-bold ${val >= 0 ? 'text-success' : 'text-danger'}">${fmt(val)}</td>`;
+        });
+        html += `</tr>`;
+
+        tbody.innerHTML = html;
+    }
+
+    // Recalcular performance
+    async function refreshPerformance() {
+        const btn = document.getElementById('refreshPerfBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Calculando…';
+        try {
+            await fetch('/api/portfolio/performance/refresh', { method: 'POST' });
+            showToast('Performance', 'Caché eliminada. Recargando...', 'success');
+            setTimeout(() => location.reload(), 1200);
+        } catch(e) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Recalcular';
+            showToast('Error', 'No se pudo recalcular', 'error');
+        }
+    }
+    window.refreshPerformance = refreshPerformance;
+
+    // Fecha de inicio personalizada del cálculo de rendimiento
+    async function applyPerfStartDate() {
+        const val = document.getElementById('perfStartDateInput').value;
+        if (!val) { showToast('Rendimiento', 'Elige una fecha primero', 'error'); return; }
+        try {
+            const res = await fetch('/api/portfolio/performance/start-date', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start_date: val })
+            });
+            if (!res.ok) throw new Error();
+            showToast('Rendimiento', 'Fecha de inicio actualizada. Recargando...', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } catch (e) {
+            showToast('Error', 'No se pudo guardar la fecha', 'error');
+        }
+    }
+    window.applyPerfStartDate = applyPerfStartDate;
+
+    async function clearPerfStartDate() {
+        try {
+            const res = await fetch('/api/portfolio/performance/start-date', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start_date: null })
+            });
+            if (!res.ok) throw new Error();
+            showToast('Rendimiento', 'Corte eliminado. Recargando...', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } catch (e) {
+            showToast('Error', 'No se pudo eliminar el corte', 'error');
+        }
+    }
+    window.clearPerfStartDate = clearPerfStartDate;
+

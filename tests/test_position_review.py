@@ -74,9 +74,10 @@ def test_key_figures_tones_and_history():
            "net_income": [10, 20, 20, 40], "income_statement": {"Diluted Weighted Average Shares Outstanding": [10, 10, 10, 10]},
            "balance_sheet": {"Total Equity": [100, 100, 100, 100]}}
     dates = ["2021-12-31", "2022-12-30", "2023-12-29", "2024-12-31"]
-    figs = {k["key"]: k for k in kf.build({"forwardPE": 30, "operatingMargins": 0.25, "totalDebt": 50, "totalCash": 80, "ebitda": 10},
+    figs = {k["key"]: k for k in kf.build({"forwardPE": 30, "trailingPE": 22, "operatingMargins": 0.25, "totalDebt": 50, "totalCash": 80, "ebitda": 10},
                                          {"fair_pe_data": {"fair_forward_pe": 20}}, {"returns": {"ROE (TTM)": 0.4}}, fin, dates, [20, 40, 40, 80])}
-    assert figs["pe"]["tone"] == "bad" and figs["pe"]["spark"] == [20, 20, 20, 20]      # 30x frente a un PER justo de 20x
+    assert figs["pe"]["tone"] == "bad"                                                    # 30x frente a un PER justo de 20x
+    assert figs["pe_ttm"]["spark"] == [20, 20, 20, 20] and figs["pe_ttm"]["tone"] == "mid"  # 22x frente a una media de 20x
     assert figs["roe"]["tone"] == "good" and figs["roe"]["spark"][-1] == 40
     assert figs["margin"]["tone"] == "good" and figs["debt"]["tone"] == "good"          # más caja que deuda
     assert figs["debt"]["context"] == "más caja que deuda" and figs["div"]["tone"] == "none"

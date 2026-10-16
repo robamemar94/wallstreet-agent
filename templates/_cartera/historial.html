@@ -1,0 +1,379 @@
+  <!-- Pestaña Histórico Cerrado -->
+  <div class="tab-pane fade" id="closed-pane" role="tabpanel" aria-labelledby="closed-tab">
+    
+    <!-- Cifras de Historial: una línea de fichas (las rellena applyHistFilters) -->
+    <div class="perf-kpis mb-2">
+      <div class="perf-kpi"><span class="lbl">Ganancias realizadas</span><span class="fw-bold text-success" id="histGains">0,00 €</span></div>
+      <div class="perf-kpi"><span class="lbl">Pérdidas realizadas</span><span class="fw-bold text-danger" id="histLosses">0,00 €</span></div>
+      <div class="perf-kpi"><span class="lbl">Dividendos cobrados</span><span class="fw-bold text-primary" id="histDividends">0,00 €</span></div>
+      <div class="perf-kpi"><span class="lbl">Resultado neto</span><span class="fw-bold" id="histNet">0,00 €</span></div>
+    </div>
+
+    <!-- Selector de Sub-pestañas en Historial -->
+    <ul class="nav nav-pills sub-nav small mb-2" id="closedSubTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="closed-summary-tab" data-bs-toggle="pill" data-bs-target="#closed-summary-pane" type="button" role="tab" aria-controls="closed-summary-pane" aria-selected="true">
+          <i class="bi bi-collection-fill me-1_5"></i>Posiciones Cerradas
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="closed-tx-tab" data-bs-toggle="pill" data-bs-target="#closed-tx-pane" type="button" role="tab" aria-controls="closed-tx-pane" aria-selected="false">
+          <i class="bi bi-list-ul me-1_5"></i>Detalle de Operaciones
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="closed-fiscal-tab" data-bs-toggle="pill" data-bs-target="#closed-fiscal-pane" type="button" role="tab" aria-controls="closed-fiscal-pane" aria-selected="false">
+          <i class="bi bi-receipt me-1_5"></i>Fiscal por año
+        </button>
+      </li>
+    </ul>
+
+    <div class="tab-content" id="closedSubTabsContent">
+      
+      <!-- Sub-pestaña A: Resumen de Posiciones Cerradas -->
+      <div class="tab-pane fade show active" id="closed-summary-pane" role="tabpanel" aria-labelledby="closed-summary-tab">
+        <div class="card shadow-sm border-0 mb-4">
+          <div class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center pb-2">
+            <div>
+              <h5 class="fw-bold mb-0">Resumen de Posiciones Cerradas</h5>
+              <small class="text-muted" style="font-size:0.72rem;">
+                Rendimiento histórico agrupado por activo vendido por completo.
+              </small>
+            </div>
+            <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('closedPositionsTable', 'closed-positions-summary.csv')" title="Exportar a CSV">
+              <i class="bi bi-download me-1"></i>CSV
+            </button>
+          </div>
+          
+          <!-- Filtros de Posiciones Cerradas -->
+          <div class="card-body py-2 border-bottom border-top bg-light">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <div class="input-group input-group-sm bg-white shadow-sm rounded border-0" style="max-width: 200px;">
+                <span class="input-group-text border-0 bg-transparent text-muted pe-1">
+                  <i class="bi bi-search" style="font-size: 0.75rem;"></i>
+                </span>
+                <input type="text" id="closedPosSearch" class="form-control border-0 bg-transparent ps-1" placeholder="Buscar...">
+              </div>
+              <div class="ms-md-auto d-flex align-items-center gap-2">
+                <span class="small text-muted fw-bold">P&amp;L:</span>
+                <div class="btn-group btn-group-sm">
+                  <button class="btn btn-sm btn-dark" id="pnlFilter-all" onclick="setClosedPnlFilter('all')">Todas</button>
+                  <button class="btn btn-sm btn-outline-secondary" id="pnlFilter-profit" onclick="setClosedPnlFilter('profit')">Ganadoras</button>
+                  <button class="btn btn-sm btn-outline-secondary" id="pnlFilter-loss" onclick="setClosedPnlFilter('loss')">Perdedoras</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-body p-0">
+            {% if closed_portfolio %}
+            <div class="table-responsive">
+              <table class="table table-modern align-middle mb-0" id="closedPositionsTable">
+                <thead>
+                  <tr style="cursor: pointer; user-select: none;">
+                    <th class="ps-4" onclick="sortTable('closedPositionsTable', 0, false)">Activo <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th onclick="sortTable('closedPositionsTable', 1, false)">Empresa <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 2, true)">Títulos <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 3, true)">Pr. Compra <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 4, true)">Pr. Venta <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 5, true)">Coste Total <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 6, true)">Total Cobrado <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 7, true)">CAGR % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('closedPositionsTable', 8, true)">Divs Cobrados <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end pe-4" onclick="sortTable('closedPositionsTable', 9, true)">P&amp;L Realizado <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in closed_portfolio %}
+                  <tr class="closed-pos-row">
+                    <td class="ps-4 align-middle">
+                      <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(item.ticker) }}</a>
+                    </td>
+                    <td class="text-muted align-middle text-truncate" style="max-width: 150px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.total_shares_sold }}">{{ num(item.total_shares_sold, 2) }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.average_buy_price }}">{{ num(item.average_buy_price, 2) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.average_sell_price or 0 }}">
+                      {% if item.current_price > 0 %}
+                        <span class="border-bottom border-dashed cursor-help" 
+                              data-bs-toggle="tooltip" 
+                              data-bs-html="true" 
+                              data-bs-placement="top" 
+                              title="
+                                <div class='text-start p-1' style='font-size:0.75rem; max-width: 220px;'>
+                                  <strong class='d-block mb-1 border-bottom pb-1 text-white'>🔍 Efecto Salida Actual</strong>
+                                  Precio actual de mercado: <strong>{{ num(item.current_price, 2) }} {{ item.currency_symbol }}</strong><br>
+                                  {% if item.opp_diff_eur > 0 %}
+                                    <span class='text-warning fw-bold'>Costo de Oportunidad: -{{ num(item.opp_diff_eur, 2) }} €</span>
+                                    <p class='text-white-50 m-0 mt-1 small'>La cotización ha subido desde que vendiste.</p>
+                                  {% elif item.opp_diff_eur < 0 %}
+                                    <span class='text-success fw-bold'>🛡️ Pérdida Evitada: +{{ num(item.opp_diff_eur|abs, 2) }} €</span>
+                                    <p class='text-white-50 m-0 mt-1 small'>¡Excelente venta! Evitaste pérdidas al vender a tiempo.</p>
+                                  {% else %}
+                                    <span class='text-muted'>Sin variaciones</span>
+                                  {% endif %}
+                                </div>
+                              ">
+                          {{ num(item.average_sell_price or 0, 2) }} {{ item.currency_symbol }}
+                        </span>
+                      {% else %}
+                        {{ num(item.average_sell_price or 0, 2) }} {{ item.currency_symbol }}
+                      {% endif %}
+                    </td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.invested_value }}">{{ num(item.invested_value, 2) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.total_sell_revenue }}">{{ num(item.total_sell_revenue, 2) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end num-font align-middle fw-semibold {% if item.cagr and item.cagr > 0 %}text-success{% elif item.cagr and item.cagr < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ item.cagr or -9999 }}">
+                      {% if item.cagr is not none %}{{ num(item.cagr, 2) }}%{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end num-font align-middle text-primary" data-sort-value="{{ item.dividends_collected }}">
+                      {% if item.dividends_collected > 0 %}{{ num(item.dividends_collected, 2) }} {{ item.currency_symbol }}{% else %}—{% endif %}
+                    </td>
+
+                    <td class="text-end num-font align-middle pe-4" data-sort-value="{{ item.total_profit_closed_eur }}">
+                      <div class="fw-bold {% if item.total_profit_closed_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        {% if item.total_profit_closed_eur >= 0 %}+{% endif %}{{ num(item.total_profit_closed_eur, 2) }} €
+                      </div>
+                      <small class="text-muted" style="font-size:0.7rem;">
+                        {% if item.return_pct >= 0 %}+{% endif %}{{ num(item.return_pct, 2) }}%
+                      </small>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <!-- Paginación de Posiciones Cerradas (Compacta Derecha) -->
+            <div class="d-flex justify-content-end align-items-center gap-2 px-4 py-2 border-top bg-light rounded-bottom">
+              <span class="num-font small fw-bold text-muted me-2" id="closedPosPageInfo">Pág. 1 / 1</span>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-sm btn-outline-secondary rounded-circle" onclick="closedPosPage(-1)" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; margin-right:4px;">
+                  <i class="bi bi-chevron-left" style="font-size:0.72rem;"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary rounded-circle" onclick="closedPosPage(1)" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
+                  <i class="bi bi-chevron-right" style="font-size:0.72rem;"></i>
+                </button>
+              </div>
+            </div>
+            {% else %}
+            <div class="text-center py-5 text-muted">
+              <i class="bi bi-archive fs-3 d-block mb-2 opacity-50"></i>
+              No se han encontrado posiciones cerradas en el histórico.
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div> <!-- fin closed-summary-pane -->
+
+      <!-- Sub-pestaña B: Detalle de Operaciones Individuales -->
+      <div class="tab-pane fade" id="closed-tx-pane" role="tabpanel" aria-labelledby="closed-tx-tab">
+        <!-- Filtros de Periodo y Fecha con Buscador e Tipo integrados (Estilo Sutil Premium) -->
+        <div class="card shadow-sm border-0 mb-4 bg-light">
+          <div class="card-body py-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <div class="input-group input-group-sm bg-white shadow-sm rounded border-0" style="max-width: 180px;">
+                <span class="input-group-text border-0 bg-transparent text-muted pe-1">
+                  <i class="bi bi-search" style="font-size: 0.75rem;"></i>
+                </span>
+                <input type="text" id="closedTxSearch" class="form-control border-0 bg-transparent ps-1" placeholder="Buscar...">
+              </div>
+              
+              <div class="d-flex gap-1 flex-wrap ms-md-2">
+                <button class="btn btn-sm btn-dark" onclick="setHistPeriod('all')" id="histBtn-all">Todo</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="setHistPeriod('month')" id="histBtn-month">Este Mes</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="setHistPeriod('3m')" id="histBtn-3m">3 Meses</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="setHistPeriod('ytd')" id="histBtn-ytd">YTD</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="setHistPeriod('1y')" id="histBtn-1y">Último Año</button>
+              </div>
+              
+              <div class="ms-md-auto d-flex align-items-center gap-2 flex-wrap">
+                <div class="input-group input-group-sm" style="max-width: 130px;">
+                  <span class="input-group-text bg-white border-0 shadow-sm text-muted" style="font-size: 0.75rem;">Tipo</span>
+                  <select class="form-select border-0 bg-white shadow-sm" id="histTypeFilter" onchange="applyHistFilters(true)" style="font-size: 0.75rem;">
+                    <option value="all">Todos</option>
+                    <option value="COMPRA">Compras</option>
+                    <option value="VENTA">Ventas</option>
+                    <option value="DIVIDENDO">Dividendos</option>
+                  </select>
+                </div>
+                
+                <div class="input-group input-group-sm" style="max-width: 165px;">
+                  <span class="input-group-text bg-white border-0 shadow-sm text-muted" style="font-size: 0.75rem;">Desde</span>
+                  <input type="date" class="form-control border-0 bg-white shadow-sm" id="histDateFrom" onchange="applyHistFilters(true)" style="font-size: 0.75rem;">
+                </div>
+                
+                <div class="input-group input-group-sm" style="max-width: 165px;">
+                  <span class="input-group-text bg-white border-0 shadow-sm text-muted" style="font-size: 0.75rem;">Hasta</span>
+                  <input type="date" class="form-control border-0 bg-white shadow-sm" id="histDateTo" onchange="applyHistFilters(true)" style="font-size: 0.75rem;">
+                </div>
+                
+                <button class="btn btn-sm btn-outline-success border-0 bg-white shadow-sm px-2_5" onclick="exportTableToCSV('closedTable', 'portfolio-trade-history.csv')" title="Exportar a CSV">
+                  <i class="bi bi-download me-1"></i>CSV
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla de Operaciones Detallada -->
+        <div class="table-responsive bg-white rounded shadow-sm">
+            <table class="table table-modern align-middle mb-0" id="closedTable">
+                <thead>
+                    <tr style="cursor: pointer;">
+                        <th class="ps-4" onclick="sortTable('closedTable', 0)">Fecha ↕</th>
+                        <th class="text-center" onclick="sortTable('closedTable', 1)">Tipo ↕</th>
+                        <th onclick="sortTable('closedTable', 2)">Activo ↕</th>
+                        <th class="text-end" onclick="sortTable('closedTable', 3, true)">Cantidad ↕</th>
+                        <th class="text-end" onclick="sortTable('closedTable', 4, true)">Precio ↕</th>
+                        <th class="text-end pe-4" onclick="sortTable('closedTable', 5, true)">P&amp;L (EUR) ↕</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in realized_trades %}
+                    <tr class="hist-row" 
+                        data-date="{{ item.date[:10] }}" 
+                        data-type="{{ item.type }}" 
+                        data-pnl="{{ item.pnl_eur }}">
+                        <td class="ps-4 num-font align-middle">{{ item.date[:10] }}</td>
+                        <td class="text-center align-middle">
+                            {% if item.type == 'VENTA' %}
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" style="font-size:0.72rem;">VENTA</span>
+                            {% elif item.type == 'COMPRA' %}
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1" style="font-size:0.72rem;">COMPRA</span>
+                            {% else %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size:0.72rem;">DIVIDENDO</span>
+                            {% endif %}
+                        </td>
+                        <td class="align-middle">
+                            <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(item.ticker) }}</a>
+                        </td>
+                        <td class="text-end num-font align-middle">{{ num(item.shares, 2) }}</td>
+                        <td class="text-end num-font align-middle">{{ num(item.price, 2) }} {{ item.currency }}</td>
+                        <td class="text-end fw-bold num-font align-middle pe-4 {% if item.type == 'COMPRA' %}text-muted{% elif item.pnl_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if item.type == 'COMPRA' %}
+                            -
+                            {% else %}
+                            {% if item.pnl_eur >= 0 %}+{% endif %}{{ num(item.pnl_eur, 2) }} €
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-archive fs-3 d-block mb-2 opacity-50"></i>
+                            No se han encontrado operaciones de Compra, Venta ni Dividendos en el historial.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Paginación de Operaciones Detalladas (Compacta Derecha) -->
+        <div class="d-flex justify-content-end align-items-center gap-2 px-4 py-2 border-top bg-light rounded-bottom shadow-sm">
+          <span class="num-font small fw-bold text-muted me-2" id="closedTxPageInfo">Pág. 1 / 1</span>
+          <div class="btn-group btn-group-sm">
+            <button class="btn btn-sm btn-outline-secondary rounded-circle" onclick="closedTxPage(-1)" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; margin-right:4px;">
+              <i class="bi bi-chevron-left" style="font-size:0.72rem;"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary rounded-circle" onclick="closedTxPage(1)" style="width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center;">
+              <i class="bi bi-chevron-right" style="font-size:0.72rem;"></i>
+            </button>
+          </div>
+        </div>
+      </div> <!-- fin closed-tx-pane -->
+
+      <!-- Sub-pestaña C: Fiscal por año -->
+      <div class="tab-pane fade" id="closed-fiscal-pane" role="tabpanel" aria-labelledby="closed-fiscal-tab">
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-transparent border-0 pt-3 d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="fw-bold mb-0">Resumen Fiscal por Año</h5>
+              <small class="text-muted" style="font-size:0.72rem;">
+                Ganancias/pérdidas patrimoniales realizadas + dividendos. EUR aproximado usando tipos de cambio actuales.
+              </small>
+            </div>
+            <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('fiscalTable','fiscal-resumen.csv')">
+              <i class="bi bi-download me-1"></i>CSV
+            </button>
+          </div>
+          <div class="card-body p-0">
+            {% if fiscal_data %}
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0 text-center" style="font-size:0.9rem;" id="fiscalTable">
+                <thead>
+                  <tr>
+                    <th class="ps-4 text-start">Año</th>
+                    <th class="text-end text-success">Ganancias</th>
+                    <th class="text-end text-danger">Pérdidas</th>
+                    <th class="text-end text-primary">Dividendos</th>
+                    <th class="text-end fw-bold">Base Imponible</th>
+                    <th class="text-end pe-4">Impuesto Est.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% set ns = namespace(total_gains=0, total_losses=0, total_divs=0, total_net=0, total_tax=0) %}
+                  {% for row in fiscal_data %}
+                  {% set ns.total_gains = ns.total_gains + row.gains %}
+                  {% set ns.total_losses = ns.total_losses + row.losses %}
+                  {% set ns.total_divs = ns.total_divs + row.dividends %}
+                  {% set ns.total_net = ns.total_net + row.net %}
+                  {% set ns.total_tax = ns.total_tax + row.tax_estimate %}
+                  <tr>
+                    <td class="ps-4 text-start fw-bold">{{ row.year }}</td>
+                    <td class="text-end text-success fw-semibold">
+                      {% if row.gains > 0 %}+{{ num(row.gains, 2) }} €{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end text-danger fw-semibold">
+                      {% if row.losses < 0 %}{{ num(row.losses, 2) }} €{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end text-primary fw-semibold">
+                      {% if row.dividends > 0 %}+{{ num(row.dividends, 2) }} €{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end fw-bold {% if row.net > 0 %}text-success{% elif row.net < 0 %}text-danger{% else %}text-muted{% endif %}">
+                      {% if row.net > 0 %}+{% endif %}{{ num(row.net, 2) }} €
+                    </td>
+                    <td class="text-end pe-4 fw-semibold">
+                      {% if row.tax_estimate > 0 %}{{ num(row.tax_estimate, 2) }} €{% else %}—{% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+                <tfoot class="fw-bold border-top border-2">
+                  <tr>
+                    <td class="ps-4 text-start">Total</td>
+                    <td class="text-end text-success">
+                      {% if ns.total_gains > 0 %}+{{ num(ns.total_gains, 2) }} €{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end text-danger">
+                      {% if ns.total_losses < 0 %}{{ num(ns.total_losses, 2) }} €{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end text-primary">
+                      {% if ns.total_divs > 0 %}+{{ num(ns.total_divs, 2) }} €{% else %}—{% endif %}
+                    </td>
+                    <td class="text-end {% if ns.total_net > 0 %}text-success{% else %}text-danger{% endif %}">
+                      {% if ns.total_net > 0 %}+{% endif %}{{ num(ns.total_net, 2) }} €
+                    </td>
+                    <td class="text-end pe-4">{{ num(ns.total_tax, 2) }} €</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div class="px-4 py-3">
+              <small class="text-muted" style="font-size:0.72rem;">
+                <strong>Tramos IRPF base del ahorro (desde 2025):</strong>
+                0–6.000 € → 19% · 6.000–50.000 € → 21% · 50.000–200.000 € → 23% · 200.000–300.000 € → 27% · &gt;300.000 € → 30%.
+                Dividendos en bruto y pasados a euros con el cambio de hoy.
+                Las pérdidas de un año pueden compensarse con ganancias de los 4 años siguientes.
+                Consulta con tu asesor fiscal — este cálculo es orientativo.
+              </small>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-5 small">
+              <i class="bi bi-receipt fs-3 d-block mb-2 opacity-50"></i>
+              Sin datos de transacciones para generar el resumen fiscal.
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div> <!-- fin closed-fiscal-pane -->
+
+    </div> <!-- fin closedSubTabsContent -->
+  </div> <!-- fin closed-pane -->

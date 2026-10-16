@@ -1,0 +1,208 @@
+  <!-- Pestaña Posiciones Abiertas -->
+  <div class="tab-pane fade show active" id="active-pane" role="tabpanel" aria-labelledby="active-tab">
+    
+    <!-- Resumen: lo que tienes y cómo se ha movido, dos barras con tramos iguales (en pantallas anchas, en una línea) -->
+    <div class="summary-strip mb-2">
+    <div class="card border-0 sum-group" style="background-color: var(--fin-card-bg);">
+        <div class="sum-row">
+            {% set d_abs = total_daily_abs %}{% set d_pct = total_daily_pct %}
+            <div class="sum-seg sum-seg-key {{ 'key-up' if d_abs > 0 else ('key-down' if d_abs < 0 else '') }}">
+                <span class="sum-label">Valor actual</span>
+                <span class="sum-val num-font">{{ num(total_current_value, 2) }} €</span>
+                <span class="sum-sub num-font key-chg" title="Hoy: desde el cierre anterior, con los precios en directo (incluye el cambio de la divisa)">{{ '+' if d_abs > 0 }}{{ num(d_abs, 2) }} €</span>
+                <span class="sum-sub num-font key-chg key-pct" title="Hoy, en porcentaje">{{ '+' if d_pct > 0 }}{{ num(d_pct, 2) }}%</span>
+                {# con el horario extendido de EE. UU.: el total ya sumado, para que no haya duda de si está incluido o no #}
+                {% set xs = portfolio|selectattr('ext_day')|list %}{% if xs %}{% set xe = xs|map(attribute='ext_day')|sum(attribute='eur') %}
+                {% set kinds = xs|map(attribute='ext_day.kind')|unique|list %}{% set xlab = 'pre-market' if kinds == ['pre'] else ('post-market' if kinds == ['post'] else 'pre/post-market') %}{% set xt = d_abs + xe %}
+                <span class="sum-sub num-font text-nowrap ext-eur {{ 'text-success' if xt > 0 else ('text-danger' if xt < 0 else 'text-body-secondary') }}" data-ext-tone="{{ 'up' if xt > 0 else 'down' }}"
+                      data-ext-tip="Con el {{ xlab }}">
+                    <i class="bi {{ 'bi-sunrise-fill' if 'pre' in kinds else 'bi-moon-stars-fill' }}" style="font-size: .85rem; vertical-align: -.1em;"></i> {{ num(xt, 2, sign=True) }} €</span>{% endif %}
+            </div>
+            <div class="sum-seg">
+                <span class="sum-label">Invertido <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" title="✂️ Comisiones Totales: {{ num(total_fees, 2) }} €"></i></span>
+                <span class="sum-val num-font">{{ num(total_invested, 2) }} €</span>
+            </div>
+            <div class="sum-seg">
+                <span class="sum-label">Rent. latente <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" data-bs-html="true" title="📈 Efecto Acción: {% if global_unrealized_price_pnl >= 0 %}+{% endif %}{{ num(global_unrealized_price_pnl, 0) }} €<br>💵 Efecto Divisa: {% if global_unrealized_fx_pnl >= 0 %}+{% endif %}{{ num(global_unrealized_fx_pnl, 0) }} €"></i></span>
+                <span class="sum-val num-font {{ 'text-success' if total_return_abs > 0 else ('text-danger' if total_return_abs < 0 else 'text-muted') }}">{{ '+' if total_return_abs > 0 }}{{ num(total_return_abs, 2) }} €</span>
+                <span class="sum-sub num-font {{ 'text-success' if total_return_pct > 0 else ('text-danger' if total_return_pct < 0 else 'text-muted') }}">{{ '+' if total_return_pct > 0 }}{{ num(total_return_pct, 2) }}%</span>
+            </div>
+            <div class="sum-seg">
+                <span class="sum-label">Bº realizado <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" data-bs-html="true" title="📈 Ventas cerradas: {% if global_realized_price_pnl >= 0 %}+{% endif %}{{ num(global_realized_price_pnl, 0) }} €<br>💵 Efecto divisa: {% if global_realized_fx_pnl >= 0 %}+{% endif %}{{ num(global_realized_fx_pnl, 0) }} €<br>💰 Dividendos: +{{ num(global_total_dividends, 0) }} €<br>Igual que el resultado neto de Historial"></i></span>
+                <span class="sum-val num-font {{ 'text-success' if total_realized_pnl > 0 else ('text-danger' if total_realized_pnl < 0 else 'text-muted') }}">{{ '+' if total_realized_pnl > 0 }}{{ num(total_realized_pnl, 2) }} €</span>
+            </div>
+            <div class="sum-seg">
+                <span class="sum-label">Total histórico <i class="bi bi-info-circle text-muted" data-bs-toggle="tooltip" data-bs-html="true" title="📈 Acción: {% if global_total_price_pnl >= 0 %}+{% endif %}{{ num(global_total_price_pnl, 0) }} €<br>💵 Divisa: {% if global_total_fx_pnl >= 0 %}+{% endif %}{{ num(global_total_fx_pnl, 0) }} €<br>💰 Dividendos: +{{ num(global_total_dividends, 0) }} €<br>✂️ Comisiones: {{ num(total_fees, 2) }} €"></i></span>
+                <span class="sum-val num-font {{ 'text-success' if global_total_profits > 0 else ('text-danger' if global_total_profits < 0 else 'text-muted') }}">{{ '+' if global_total_profits > 0 }}{{ num(global_total_profits, 2) }} €</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Variación por periodos (corridos, salvo YTD): pulsar uno lo muestra en Seguimiento (tabla y mapa) -->
+    {% set band = [('1d', '1D', 'Desde el cierre anterior, con los precios en directo'),
+                   ('1w', '1S', 'Desde el último cierre de hace 7 días'),
+                   ('1m', '1M', 'Desde el último cierre de hace un mes'),
+                   ('ytd', 'YTD', 'Desde el último cierre del año pasado'),
+                   ('1y', '1A', 'Desde el último cierre de hace un año')] %}
+    <div class="card border-0 sum-group var-band" style="background-color: var(--fin-card-bg);">
+        <div class="sum-row">
+        {% for k, label, tip in band %}
+            {% set pc = period_changes.get(k) or {} %}
+            {% set v_abs = total_daily_abs if k == '1d' else pc.get('abs_eur') %}
+            {% set v_pct = total_daily_pct if k == '1d' else pc.get('pct') %}
+            <button type="button" class="sum-seg {{ 'active' if k == '1d' }}" data-band-period="{{ k }}"
+                    title="{{ tip }}. Las compras y ventas del periodo no cuentan como ganancia.{% if pc.get('incomplete') %} Sin precio al inicio: {{ pc.incomplete|join(', ') }}.{% endif %} Pulsa para verlo por posición en Seguimiento.">
+                <span class="sum-label">{{ label }}{% if pc.get('incomplete') %} <i class="bi bi-exclamation-triangle text-warning"></i>{% endif %}</span>
+                {% if v_pct is not none and v_abs is not none %}
+                <span class="sum-val num-font {{ 'text-success' if v_abs > 0 else ('text-danger' if v_abs < 0 else 'text-muted') }}">{{ '+' if v_abs > 0 }}{{ num(v_abs, 2) }} €</span>
+                <span class="sum-sub num-font {{ 'text-success' if v_pct > 0 else ('text-danger' if v_pct < 0 else 'text-muted') }}">{{ '+' if v_pct > 0 }}{{ num(v_pct, 2) }}%</span>
+                {% else %}<span class="sum-val num-font text-muted">–</span><span class="sum-sub">&nbsp;</span>{% endif %}
+                {% if pc.get('benchmark_pct') is not none %}
+                <span class="sum-bench" title="Índice de referencia ({{ benchmark }}) en el mismo periodo{{ ', último cierre' if k == '1d' }}">{{ benchmark }} {{ '+' if pc.benchmark_pct > 0 }}{{ num(pc.benchmark_pct, 2) }}%</span>
+                {% endif %}
+                {% if k != '1d' and pc.get('fx_eur') is not none and v_abs is not none and pc.fx_eur|abs >= 1 %}
+                <span class="sum-bench" title="De ese resultado, lo que hicieron las empresas en su moneda ({{ '+' if (v_abs - pc.fx_eur) > 0 }}{{ num(v_abs - pc.fx_eur, 0) }} €) y lo que movió el cambio a euros">💵 divisa <span class="{{ 'text-success' if pc.fx_eur > 0 else 'text-danger' }}">{{ '+' if pc.fx_eur > 0 }}{{ num(pc.fx_eur, 0) }} €</span></span>
+                {% endif %}
+            </button>
+        {% endfor %}
+        </div>
+    </div>
+    </div>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 pos-toolbar">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="btn-group btn-group-sm d-none" role="group" aria-label="Vista de las posiciones (en la cabecera)">
+            <button type="button" class="btn btn-outline-primary active" data-pos-view="contable" title="Títulos, precio medio, valor y ganancia"><i class="bi bi-calculator me-1"></i>Contable</button>
+            <button type="button" class="btn btn-outline-primary" data-pos-view="seguimiento" title="Variación y contribución por periodo, distancia al máximo, CAGR estimado y próximos resultados"><i class="bi bi-activity me-1"></i>Seguimiento</button>
+        </div>
+        {% set cash = (overview or {}).get('cash') or {} %}
+        <button type="button" class="cash-chip" data-bs-toggle="modal" data-bs-target="#cashModal" title="Efectivo en el bróker: es aparte, el valor y la rentabilidad de la cartera son solo de lo invertido. Pulsa para apuntar una aportación o ajustar el saldo">
+            <i class="bi bi-wallet2 me-1"></i><span class="text-muted">Liquidez</span>
+            <b class="num-font ms-1" data-cash-balance>{% if cash.configured %}{{ num(cash.balance, 2) }} €{% else %}apunta tu saldo{% endif %}</b>
+            {% if cash.configured and cash.month.deposited %}<span class="text-success small ms-2" data-cash-month>+{{ num(cash.month.deposited, 0) }} € en {{ cash.month.label }}</span>{% elif cash.configured %}<span class="small ms-2 text-warning" data-cash-month>sin aportación en {{ cash.month.label }}</span>{% endif %}
+        </button>
+        <div class="btn-group btn-group-sm d-none" role="group" aria-label="Tabla o mapa" id="ptSubviews">
+            <button type="button" class="btn btn-outline-secondary active" data-pt-sub="tabla"><i class="bi bi-table me-1"></i>Tabla</button>
+            <button type="button" class="btn btn-outline-secondary" data-pt-sub="mapa"><i class="bi bi-grid-3x3-gap me-1"></i>Mapa</button>
+        </div>
+        </div>
+        <span class="dropdown d-none" id="ptInfo">
+            <button type="button" class="btn btn-link btn-sm p-0 text-muted" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-label="Qué significa cada columna"><i class="bi bi-info-circle"></i></button>
+            <div class="dropdown-menu dropdown-menu-end p-3 small text-wrap" style="max-width: 28rem; min-width: 20rem;">CAGR estimado: valoración base de la ficha al precio de hoy (pulsa para ver los supuestos) ·
+    <span class="cagr-green">ganga ≥{{ num(ZONE.ganga, 0) }}%</span> · <span class="cagr-amber">barata {{ num(ZONE.barata, 0) }}–{{ num(ZONE.ganga, 0) }}%</span> · <span class="cagr-orange">justo {{ num(ZONE.justo, 0) }}–{{ num(ZONE.barata, 0) }}%</span> · <span class="cagr-red">cara &lt;{{ num(ZONE.justo, 0) }}%</span> ·
+    <i class="bi bi-exclamation-triangle text-warning"></i> valoración antigua · <i class="bi bi-clock-history text-danger"></i> anticuada · <i class="bi bi-pencil-fill text-primary"></i> año corregido a mano.
+    La contribución respeta las fechas de compra y venta.</div>
+        </span>
+        <button class="btn btn-sm btn-outline-success" onclick="exportTableToCSV('activeTable', 'portfolio-open-positions.csv')" title="Exportar a CSV">
+            <i class="bi bi-download me-1"></i>Exportar CSV
+        </button>
+    </div>
+    <div class="d-none" id="viewSeguimiento">
+        <div class="bg-white rounded shadow-sm mb-3" id="ptTable">
+            <div id="ptBody"><div class="p-3 small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Calculando variaciones y valoraciones…</div></div>
+        </div>
+        <div class="row g-3 mb-3 d-none" id="ptMap">
+            <div class="col-12 col-xl-7"><div class="card h-100">
+                <div class="card-header bg-transparent fw-bold"><i class="bi bi-grid-3x3-gap me-1"></i>Mapa de la cartera <span class="small text-muted fw-normal">· tamaño = peso, color = variación <span class="pt-period-label">1D</span></span></div>
+                <div class="card-body p-1"><div id="treemap" style="height: 380px;"></div></div>
+            </div></div>
+            <div class="col-12 col-xl-5"><div class="card h-100">
+                <div class="card-header bg-transparent fw-bold"><i class="bi bi-bar-chart me-1"></i>Contribución a la variación <span class="small text-muted fw-normal">(puntos de %)</span></div>
+                <div class="card-body p-1"><div id="contrib" style="height: 380px;"></div></div>
+            </div></div>
+        </div>
+    </div>
+    <div class="table-responsive bg-white rounded shadow-sm" id="viewContable">
+        <table class="table table-modern align-middle mb-0" id="activeTable">
+            <thead>
+                <tr style="cursor: pointer; user-select: none;">
+                    <th class="ps-4" onclick="sortTable('activeTable', 0, false)">Activo <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th onclick="sortTable('activeTable', 1, false)">Empresa <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 2, true)" title="Precio y, debajo, cuánto se ha movido hoy en su moneda">Último <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 3, true)">Var. día % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 4, true)">Var. día € <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 5, true)">Títulos <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 6, true)">Precio Medio <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 7, true)" title="Títulos × precio medio, en euros al cambio de hoy (la misma base que el P&amp;L de esta tabla, que no incluye el efecto divisa)">Invertido <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 8, true)">Valor Mercado <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 9, true)">Peso % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-end" onclick="sortTable('activeTable', 10, true)">P&amp;L <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.72rem; opacity: 0.6;"></i></th>
+                    <th class="text-center" style="width:48px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in portfolio|sort(attribute="current_value_eur", reverse=true) %}{# por peso, como Seguimiento #}
+                <tr class="portfolio-row">
+                    <td class="ps-4 align-middle">
+                        <div class="d-flex align-items-center gap-2">
+                            <!-- <img src="/logos/{{ item.ticker }}.png" class="rounded" style="width: 20px; height: 20px; object-fit: contain; background: white; padding: 1px; border: 1px solid #eee;" onerror="this.style.display='none'"> -->
+                            <a href="/portfolio/ticker/{{ item.ticker }}" class="text-decoration-none text-dark fw-bold">{{ clean_ticker(item.ticker) }}</a>
+                        </div>
+                    </td>
+                    <td class="text-muted align-middle text-truncate" style="max-width: 150px;" title="{{ item.company_name }}">{{ item.company_name }}</td>
+                    {% if item.closed_today %}{% set why = 'Su mercado no ha abierto hoy' ~ (' (última sesión ' ~ item.last_date.strftime('%d/%m') ~ ')' if item.last_date else '') %}
+                    {% set la = item.last_abs %}
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.current_price }}">
+                        <div class="price-main">{{ num(item.current_price, 2) }} {{ item.currency_symbol }}</div>
+                        <div class="price-move {{ 'text-success' if la and la > 0 else ('text-danger' if la and la < 0 else 'text-body-secondary') }} opacity-50" title="{{ why }}">{% if la is not none %}<i class="bi bi-moon-fill" style="font-size: .6rem;"></i> {{ num(la, 2, sign=True) }} {{ item.currency_symbol }}{% else %}–{% endif %}</div></td>
+                    <td class="text-end align-middle" data-sort-value="{{ item.last_pct if item.last_pct is not none else '' }}" data-sort-group="1" title="{{ why }}">{{ stale_pill(item.last_pct, item.last_date, day=false, ext=ext_quote(item.ticker)) }}</td>
+                    {% if item.ext_day %}<td class="text-end num-font align-middle" data-sort-value="{{ item.ext_day.total }}" data-sort-group="1">{{ ext_eur(item.ext_day, item.currency_symbol) }}</td>
+                    {% else %}<td class="text-end num-font align-middle text-body-secondary" data-sort-value="" data-sort-group="1" title="{{ why }} · no cuenta en lo de hoy">–</td>{% endif %}
+                    {% else %}{% set dc = item.daily_change_total_eur %}
+                    {% set da = item.daily_change_abs %}
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.current_price }}">
+                        <div class="price-main">{{ num(item.current_price, 2) }} {{ item.currency_symbol }}</div>
+                        <div class="price-move {{ 'text-success' if da > 0 else ('text-danger' if da < 0 else 'text-muted') }}" title="Movimiento de hoy, en su moneda">{{ num(da, 2, sign=True) }} {{ item.currency_symbol }}</div></td>
+                    <td class="text-end align-middle" data-sort-value="{{ item.daily_change_pct }}">{{ chg_pill(item.daily_change_pct) }}</td>
+                    {% if item.ext_day %}<td class="text-end num-font align-middle" data-sort-value="{{ item.ext_day.total }}">{{ ext_eur(item.ext_day, item.currency_symbol) }}</td>
+                    {% else %}<td class="text-end num-font align-middle" data-sort-value="{{ dc }}" title="Incluye el cambio de la divisa"><span class="eur-open {{ 'text-success' if dc > 0 else ('text-danger' if dc < 0 else 'text-muted') }}">{{ '+' if dc > 0 }}{{ num(dc, 2) }} €</span></td>{% endif %}
+                    {% endif %}
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.shares }}">{{ num(item.shares, 0 if item.shares == item.shares|int else 2) }}</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.average_price }}">{{ num(item.average_price, 2) }} {{ item.currency_symbol }}</td>
+                    <td class="text-end num-font align-middle text-body-secondary" data-sort-value="{{ item.invested_value_eur }}">{{ num(item.invested_value_eur, 2) }} €</td>
+                    <td class="text-end num-font align-middle" data-sort-value="{{ item.current_value_eur }}">{{ num(item.current_value_eur, 2) }} €</td>
+                    {% set peso = (item.current_value_eur / total_current_value * 100) if total_current_value > 0 else 0 %}
+                    <td class="text-end align-middle" data-sort-value="{{ peso }}">
+                        <div class="d-flex align-items-center justify-content-end gap-2">
+                            <div class="progress" style="height:3px; width:40px;"><div class="progress-bar bg-primary" style="width:{{ "{:.1f}".format(peso) }}%"></div></div>
+                            <span class="fw-semibold num-font">{{ num(peso, 1) }}%</span>
+                        </div>
+                    </td>
+                    {% set pnl_total = item.current_value_eur - item.invested_value_eur %}
+                    <td class="text-end num-font align-middle {% if pnl_total > 0 %}text-success{% elif pnl_total < 0 %}text-danger{% else %}text-muted{% endif %}" data-sort-value="{{ pnl_total }}">
+                        <div class="text-nowrap">
+                            <span>{% if pnl_total > 0 %}+{% endif %}{{ num(pnl_total, 2) }} €</span>
+                            <small class="fw-normal ms-1" style="font-size: 0.75rem; opacity: 0.85;">
+                                ({% if item.return_pct > 0 %}+{% endif %}{{ (num(item.return_pct, 2) ~ '%') }})
+                                {% if item.cagr is not none %}
+                                <i class="bi bi-info-circle text-muted ms-1 cursor-pointer" data-bs-toggle="tooltip" data-bs-placement="top" title="Rentabilidad Anualizada (CAGR): {% if item.cagr > 0 %}+{% endif %}{{ (num(item.cagr, 1) ~ '%') }}" style="font-size: 0.68rem; vertical-align: middle;"></i>
+                                {% endif %}
+                            </small>
+                            {# TODO: desglose precio/FX — pendiente de validar cálculo #}
+                        </div>
+                    </td>
+                    <td class="text-center align-middle">
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary border-0 px-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-three-dots-vertical"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="min-width:170px;">
+                                <li>
+                                    <a class="dropdown-item small" href="/portfolio/ticker/{{ item.ticker }}">
+                                        <i class="bi bi-eye me-2 text-primary"></i>Ver detalle
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider my-1"></li>
+                                <li>
+                                    <button class="dropdown-item small text-danger" onclick="deletePosition('{{ item.ticker }}')">
+                                        <i class="bi bi-trash me-2"></i>Eliminar posición
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+  </div>

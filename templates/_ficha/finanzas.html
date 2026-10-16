@@ -1,0 +1,498 @@
+    <div class="tab-pane fade" id="nav-financials" role="tabpanel">
+        
+        {# Estado del histórico financiero: completo (estados cargados), básico (4 cifras de Yahoo/Alpha Vantage) o vacío #}
+        {% set fin_years = financials_hist.get('years') or [] %}
+        {% set fin_full = financials_hist.get('income_statement') or financials_hist.get('balance_sheet') or financials_hist.get('cash_flow') %}
+        {% set fin_src = {'audit': 'auditoría manual', 'manual': 'datos manuales', 'ia': 'extracción IA', 'alphavantage': 'Alpha Vantage', 'yahoo': 'Yahoo Finance'}.get(financials_hist.get('source'), 'fuente externa') %}
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <ul class="nav nav-pills bg-light p-1 rounded-3 d-inline-flex border" id="subFinancialsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active fw-bold py-1 px-3" id="sub-stats-tab" data-bs-toggle="pill" data-bs-target="#sub-stats-pane" type="button" role="tab">
+                        <i class="bi bi-list-columns-reverse me-1"></i> Estadísticas
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold py-1 px-3" id="sub-charts-tab" data-bs-toggle="pill" data-bs-target="#sub-charts-pane" type="button" role="tab">
+                        <i class="bi bi-bar-chart-line me-1"></i> Gráficos
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link fw-bold py-1 px-3" id="sub-tables-tab" data-bs-toggle="pill" data-bs-target="#sub-tables-pane" type="button" role="tab" title="Cuenta de resultados, balance y flujos de caja">
+                        <i class="bi bi-table me-1"></i> Cuentas anuales
+                    </button>
+                </li>
+            </ul>
+            <div class="fin-source ms-auto d-flex align-items-center gap-2" id="finSource">
+                {% if fin_full %}
+                    <span class="text-muted"><i class="bi bi-database-check text-success me-1"></i>Histórico de {{ fin_src }} · {{ fin_years|min }}–{{ fin_years|max }} ({{ fin_years|length }} años)</span>
+                {% elif fin_years %}
+                    <span class="text-warning-emphasis" title="Solo ingresos, beneficio neto, BPA y FCF. Carga los estados financieros para ver la cuenta de resultados, el balance y los flujos de caja completos">
+                        <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>Sin estados financieros cargados · solo cifras básicas de {{ fin_src }} ({{ fin_years|length }} años)</span>
+                    <button class="btn btn-warning btn-sm py-0 px-2 fw-bold" style="font-size: .72rem;" onclick="switchToFinancialsAndOpenAuditData()"><i class="bi bi-database-add me-1"></i>Cargar datos</button>
+                {% else %}
+                    <span class="text-danger"><i class="bi bi-database-x me-1"></i>Sin datos financieros cargados</span>
+                    <button class="btn btn-warning btn-sm py-0 px-2 fw-bold" style="font-size: .72rem;" onclick="switchToFinancialsAndOpenAuditData()"><i class="bi bi-database-add me-1"></i>Cargar datos</button>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="tab-content" id="subFinancialsTabsContent">
+            <!-- SUB-PESTAÑA: ESTADÍSTICAS (todas las cifras de la empresa hoy; las clave también van en el Resumen ejecutivo) -->
+            <div class="tab-pane fade show active" id="sub-stats-pane" role="tabpanel">
+        {# Finanzas de un vistazo: arriba, seis minigráficos de los últimos ejercicios con su tendencia en color
+           (financial_trends_service); debajo, las cifras de hoy (Yahoo) en una tabla en español. Sin scroll de página. #}
+        {% macro pctv(v, color=False) %}{% if v is none %}<span class="text-muted">–</span>{% else %}<span class="{{ ('text-success' if v >= 0 else 'text-danger') if color }}">{{ num(v * 100, 1) }} %</span>{% endif %}{% endmacro %}
+        {% macro mult(v) %}{{ num(v, 1) ~ 'x' if v else '–' }}{% endmacro %}
+        {% macro big(v, sym='') %}{% if v is none %}–{% elif v|abs >= 1e9 %}{{ num(v / 1e9, 1) }} mil M{{ ' ' ~ sym if sym }}{% elif v|abs >= 1e6 %}{{ num(v / 1e6, 0) }} M{{ ' ' ~ sym if sym }}{% else %}{{ num(v, 0) }}{{ ' ' ~ sym if sym }}{% endif %}{% endmacro %}
+        {% set es_sector = {'Technology': 'Tecnología', 'Communication Services': 'Comunicaciones', 'Consumer Cyclical': 'Consumo cíclico', 'Consumer Defensive': 'Consumo defensivo', 'Healthcare': 'Salud', 'Financial Services': 'Servicios financieros', 'Industrials': 'Industria', 'Basic Materials': 'Materiales', 'Energy': 'Energía', 'Utilities': 'Servicios públicos', 'Real Estate': 'Inmobiliario'} %}
+        {% set es_country = {'United States': 'Estados Unidos', 'United Kingdom': 'Reino Unido', 'Germany': 'Alemania', 'France': 'Francia', 'Spain': 'España', 'Netherlands': 'Países Bajos', 'Sweden': 'Suecia', 'Switzerland': 'Suiza', 'Italy': 'Italia', 'Denmark': 'Dinamarca', 'Norway': 'Noruega', 'Finland': 'Finlandia', 'Poland': 'Polonia', 'Canada': 'Canadá', 'Mexico': 'México', 'Brazil': 'Brasil', 'China': 'China', 'Japan': 'Japón', 'Ireland': 'Irlanda', 'Belgium': 'Bélgica', 'Argentina': 'Argentina', 'Uruguay': 'Uruguay', 'Israel': 'Israel', 'Taiwan': 'Taiwán', 'South Korea': 'Corea del Sur', 'Australia': 'Australia', 'Luxembourg': 'Luxemburgo', 'Singapore': 'Singapur', 'Hong Kong': 'Hong Kong', 'India': 'India'} %}
+        {% set es_reco = {'strong_buy': 'Compra fuerte', 'buy': 'Compra', 'hold': 'Mantener', 'underperform': 'Infraponderar', 'sell': 'Venta', 'strong_sell': 'Venta fuerte'} %}
+        {% set fsym = currency_symbol %}
+        <div class="fin-profile d-flex flex-wrap align-items-center column-gap-2 row-gap-1 mb-2">
+            <span class="fw-bold">{{ info.get('longName', ticker) }}</span>
+            {% for v in [es_country.get(info.get('country'), info.get('country')), es_sector.get(info.get('sector'), info.get('sector')), info.get('industry'), info.get('currency')] if v %}<span class="text-muted">· {{ v }}</span>{% endfor %}
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <div id="pe-display-container" class="d-flex align-items-center gap-1">
+                    {% if db.get("fair_pe_data") %}
+                    <span class="badge bg-primary px-2 py-1" style="font-size: 0.68rem; cursor: pointer;" onclick="toggleEditPE()" title="Haz clic para cambiar a mano el PER justo">
+                        PER justo: {{ num(db.get("fair_pe_data").get('fair_forward_pe'), 1) }}x <i class="bi bi-pencil-fill ms-1" style="font-size:0.55rem;"></i>
+                    </span>
+                    {% else %}
+                    <button class="btn btn-xs btn-outline-primary py-0 px-2 fw-bold" style="font-size: 0.68rem;" onclick="toggleEditPE()">
+                        <i class="bi bi-pencil-fill me-1"></i> Fijar PER justo
+                    </button>
+                    {% endif %}
+                </div>
+                <div id="pe-edit-container" class="d-none d-flex align-items-center gap-1">
+                    <input type="number" step="0.1" class="form-control form-control-sm py-0 font-monospace-data text-center fw-bold" id="input-manual-pe" style="width: 64px; font-size: 0.7rem;" value="{{ db.get('fair_pe_data', {}).get('fair_forward_pe') or '' }}" placeholder="PER">
+                    <button class="btn btn-xs btn-success py-0 px-1" style="font-size: 0.65rem;" onclick="saveManualPE('{{ ticker }}')"><i class="bi bi-check"></i></button>
+                    <button class="btn btn-xs btn-danger py-0 px-1" style="font-size: 0.65rem;" onclick="toggleEditPE()"><i class="bi bi-x"></i></button>
+                </div>
+            </div>
+        </div>
+
+        {# 1) Minigráficos de 10 años #}
+        {% if fin_trends and fin_trends|rejectattr('empty')|list %}
+        <div class="fin-trends mb-2">
+            {% for t in fin_trends %}{% set tr = t.trend %}
+            <div class="fin-trend fin-{{ t.tone }}">
+                <div class="d-flex align-items-baseline gap-1">
+                    <span class="fin-trend-title">{{ t.title }}</span>
+                    <span class="ms-auto fin-trend-chip" title="{% if tr and tr.kind == 'cagr' %}Crecimiento anual compuesto de {{ t.years[0] }} al último ejercicio completo{% elif tr and tr.kind == 'pp' %}Puntos de margen {{ tr.of }} ganados o perdidos en {{ tr.years }} años{% elif tr and tr.kind == 'debt' %}Deuda financiera (sin arrendamientos) menos caja{% endif %}">
+                    {% if t.empty or not tr %}sin datos
+                    {% elif tr.kind == 'cagr' and tr.pct is not none %}{{ num(tr.pct, 1, sign=True) }} %/año
+                    {% elif tr.kind == 'dir' %}{{ 'mejora' if tr.up else 'empeora' }}
+                    {% elif tr.kind == 'pp' %}{{ num(tr.pp, 1, sign=True) }} pp
+                    {% elif tr.kind == 'debt' %}{% if t.net_debt is not none and t.net_debt <= 0 %}caja neta{% elif t.years_fcf %}{{ num(t.years_fcf, 1) }} años de FCF{% else %}{{ 'baja' if t.tone == 'good' else 'sube' if t.tone == 'bad' else 'estable' }}{% endif %}
+                    {% endif %}</span>
+                </div>
+                <div class="fin-trend-val num-font">
+                    {% if t.key == 'revenue' or t.key == 'fcf' %}{{ big(t.last, fsym) }}
+                    {% elif t.key == 'eps' %}{{ num(t.last, 2) ~ ' ' ~ fsym if t.last is not none else '–' }}
+                    {% elif t.key == 'margins' %}{{ num(t.last, 1) ~ ' %' if t.last is not none else '–' }} <span class="fin-trend-sub">{{ tr.of if tr else '' }} · <span style="color: #94a3b8;">bruto</span> · <span style="color: #3b82f6;">neto</span></span>
+                    {% elif t.key == 'shares' %}{{ big(t.last) }}{% if tr and tr.pct is not none %} <span class="fin-trend-sub">{{ 'recompra' if tr.pct < -0.5 else 'diluye' if tr.pct > 0.5 else 'estable' }} {{ num(tr.pct|abs, 1) }} %/año</span>{% endif %}
+                    {% elif t.key == 'debt' %}{{ big(t.last, fsym) }} <span class="fin-trend-sub">{% if t.cash is not none %}<span class="text-success">caja {{ big(t.cash) }}</span>{% endif %}</span>
+                    {% endif %}
+                </div>
+                <div class="fin-trend-chart" id="finTrend-{{ t.key }}"></div>
+            </div>
+            {% endfor %}
+        </div>
+        <script type="application/json" id="finTrendsData">{{ fin_trends|tojson }}</script>
+        {% endif %}
+
+        {# 2) Las cifras de hoy (Yahoo), en cuatro columnas. Como la franja de cifras clave del Resumen: las que más importan,
+           destacadas (fs-key); el valor en color con umbrales sencillos (verde bien, ámbar normal, rojo flojo; sin color las
+           que dependen de cada empresa). TTM = últimos 12 meses; NTM = próximos 12 meses (estimación de los analistas). #}
+        {% macro tn(v, good, ok, lower=false) %}{% if v is none %}{% elif lower %}{{ 'fs-good' if v <= good else 'fs-mid' if v <= ok else 'fs-bad' }}{% else %}{{ 'fs-good' if v >= good else 'fs-mid' if v >= ok else 'fs-bad' }}{% endif %}{% endmacro %}
+        {% set pr = info.get('currentPrice') or info.get('regularMarketPrice') %}
+        {% set g_rev, g_ni = info.get('revenueGrowth'), info.get('earningsGrowth') %}
+        {% set c3 = custom_metrics.cagr3Y if custom_metrics.cagr3Y != 'N/A' else none %}{% set c5 = custom_metrics.cagr5Y if custom_metrics.cagr5Y != 'N/A' else none %}
+        {% set roc = ext_stats.returns.get('ROC') if ext_stats.returns.get('ROC') not in (none, 'N/A') else none %}
+        {% set fair_pe = (db.get('fair_pe_data') or {}).get('fair_forward_pe') %}{% set fpe = info.get('forwardPE') %}
+        {% set nd = ((info.get('totalDebt') - info.get('totalCash')) / info.get('ebitda')) if info.get('totalDebt') is not none and info.get('totalCash') is not none and info.get('ebitda') else none %}
+        {% set fcfy = (info.get('freeCashflow') / info.get('marketCap') * 100) if info.get('freeCashflow') and info.get('marketCap') else none %}
+        {% set reco = info.get('recommendationKey') %}
+        <div class="fin-stats">
+            <div class="fin-stats-col">
+                <div class="fin-stats-h">Crecimiento</div>
+                <table class="fin-stats-t"><tbody>
+                    <tr class="fs-key"><td title="Ventas de los últimos 12 meses frente a los 12 anteriores">Ventas TTM (interanual)</td><td class="{{ tn(g_rev * 100 if g_rev is not none else none, 10, 3) }}">{{ pctv(g_rev) }}</td></tr>
+                    <tr><td title="Beneficio neto de los últimos 12 meses frente a los 12 anteriores">Beneficio neto TTM (interanual)</td><td class="{{ tn(g_ni * 100 if g_ni is not none else none, 10, 3) }}">{{ pctv(g_ni) }}</td></tr>
+                    <tr><td title="Crecimiento anual compuesto de las ventas a 3 y 5 años">Ventas CAGR 3a / 5a</td><td><span class="{{ tn(c3 * 100 if c3 is not none else none, 10, 3) }}">{{ pctv(c3) }}</span> / <span class="{{ tn(c5 * 100 if c5 is not none else none, 10, 3) }}">{{ pctv(c5) }}</span></td></tr>
+                </tbody></table>
+                <div class="fin-stats-h">Márgenes TTM</div>
+                <table class="fin-stats-t"><tbody>
+                    <tr><td>Bruto</td><td class="{{ tn(info.get('grossMargins') * 100 if info.get('grossMargins') is not none else none, 50, 30) }}">{{ pctv(info.get('grossMargins')) }}</td></tr>
+                    <tr><td>EBITDA</td><td class="{{ tn(info.get('ebitdaMargins') * 100 if info.get('ebitdaMargins') is not none else none, 25, 15) }}">{{ pctv(info.get('ebitdaMargins')) }}</td></tr>
+                    <tr class="fs-key"><td>Operativo</td><td class="{{ tn(info.get('operatingMargins') * 100 if info.get('operatingMargins') is not none else none, 20, 10) }}">{{ pctv(info.get('operatingMargins')) }}</td></tr>
+                    <tr><td>Neto</td><td class="{{ tn(info.get('profitMargins') * 100 if info.get('profitMargins') is not none else none, 15, 8) }}">{{ pctv(info.get('profitMargins')) }}</td></tr>
+                </tbody></table>
+            </div>
+            <div class="fin-stats-col">
+                <div class="fin-stats-h">Rentabilidad TTM</div>
+                <table class="fin-stats-t"><tbody>
+                    <tr class="fs-key"><td title="Beneficio sobre fondos propios. Ojo: las recompras lo inflan">ROE</td><td class="{{ tn(info.get('returnOnEquity') * 100 if info.get('returnOnEquity') is not none else none, 15, 8) }}">{{ pctv(info.get('returnOnEquity')) }}</td></tr>
+                    <tr><td title="Beneficio sobre activos">ROA</td><td class="{{ tn(info.get('returnOnAssets') * 100 if info.get('returnOnAssets') is not none else none, 8, 4) }}">{{ pctv(info.get('returnOnAssets')) }}</td></tr>
+                    <tr class="fs-key"><td title="Rentabilidad sobre el capital empleado">ROC</td><td class="{{ tn(roc * 100 if roc is not none else none, 15, 8) }}">{{ pctv(roc) }}</td></tr>
+                </tbody></table>
+                <div class="fin-stats-h">Múltiplos</div>
+                <table class="fin-stats-t"><tbody>
+                    <tr><td title="Precio / BPA de los últimos 12 meses">PER TTM</td><td>{{ mult(info.get('trailingPE')) }}</td></tr>
+                    <tr class="fs-key"><td title="Precio / BPA estimado de los próximos 12 meses{{ '. Verde: por debajo de tu PER justo (' ~ num(fair_pe, 1) ~ 'x)' if fair_pe }}">PER NTM</td><td class="{{ ('fs-good' if fpe <= fair_pe else 'fs-mid' if fpe <= fair_pe * 1.2 else 'fs-bad') if fpe and fair_pe else '' }}">{{ mult(fpe) }}</td></tr>
+                    <tr><td title="BPA que esperan los analistas para los próximos 12 meses">BPA NTM</td><td>{{ num(info.get('forwardEps'), 2) ~ ' ' ~ fsym if info.get('forwardEps') else '–' }}</td></tr>
+                    <tr><td title="PER entre el crecimiento esperado a 5 años. Verde hasta 1, ámbar hasta 2">PEG</td><td class="{{ tn(info.get('pegRatio'), 1, 2, lower=true) if info.get('pegRatio') }}">{{ num(info.get('pegRatio'), 2) if info.get('pegRatio') else '–' }}</td></tr>
+                    <tr class="fs-key"><td title="Flujo de caja libre (TTM) / capitalización. Verde desde el 4 %, ámbar desde el 2 %">FCF yield TTM</td><td class="{{ tn(fcfy, 4, 2) }}">{{ num(fcfy, 1) ~ ' %' if fcfy is not none else '–' }}</td></tr>
+                    <tr><td>EV / EBITDA TTM</td><td>{{ mult(info.get('enterpriseToEbitda')) }}</td></tr>
+                    <tr><td>Precio / valor contable</td><td>{{ mult(info.get('priceToBook')) }}</td></tr>
+                    <tr><td>Precio / ventas TTM</td><td>{{ mult(info.get('priceToSalesTrailing12Months')) }}</td></tr>
+                </tbody></table>
+            </div>
+            <div class="fin-stats-col">
+                <div class="fin-stats-h">Tamaño y riesgo</div>
+                <table class="fin-stats-t"><tbody>
+                    <tr><td>Capitalización</td><td>{{ big(info.get('marketCap'), fsym) }}</td></tr>
+                    <tr><td title="Capitalización + deuda − caja">Valor de empresa (EV)</td><td>{{ big(info.get('enterpriseValue'), fsym) }}</td></tr>
+                    <tr><td title="Cuánto se mueve frente al mercado (1 = como el mercado)">Beta</td><td>{{ num(info.get('beta'), 2) if info.get('beta') else '–' }}</td></tr>
+                </tbody></table>
+                <div class="fin-stats-h">Analistas (12 meses)</div>
+                {% set tgt = info.get('targetMeanPrice') %}{% set up = ((tgt / pr - 1) * 100) if tgt and pr else none %}
+                <table class="fin-stats-t"><tbody>
+                    <tr class="fs-key"><td title="Precio objetivo medio a 12 meses y lo que queda hasta él desde el precio de hoy">Precio objetivo medio</td><td>{{ num(tgt, 2) ~ ' ' ~ fsym if tgt else '–' }}{% if up is not none %} <span class="{{ 'fs-good' if up >= 10 else 'fs-mid' if up >= 0 else 'fs-bad' }}">({{ num(up, 0, sign=True) }} %)</span>{% endif %}</td></tr>
+                    <tr><td>Precio objetivo alto / bajo</td><td>{{ num(info.get('targetHighPrice'), 0) if info.get('targetHighPrice') else '–' }} / {{ num(info.get('targetLowPrice'), 0) ~ ' ' ~ fsym if info.get('targetLowPrice') else '–' }}</td></tr>
+                    <tr><td>Recomendación</td><td class="{{ 'fs-good' if reco in ('strong_buy', 'buy') else 'fs-mid' if reco == 'hold' else 'fs-bad' if reco in ('underperform', 'sell', 'strong_sell') }}">{{ es_reco.get(reco, reco or '–') }}</td></tr>
+                    <tr><td>Analistas</td><td>{{ info.get('numberOfAnalystOpinions') or '–' }}</td></tr>
+                </tbody></table>
+            </div>
+            <div class="fin-stats-col">
+                <div class="fin-stats-h">Balance</div>
+                <table class="fin-stats-t"><tbody>
+                    <tr class="fs-key"><td title="Años de EBITDA para pagar la deuda neta (negativo: más caja que deuda). Verde hasta 1, ámbar hasta 3">Deuda neta / EBITDA</td><td class="{{ tn(nd, 1, 3, lower=true) }}">{{ num(nd, 2) ~ 'x' if nd is not none else '–' }}</td></tr>
+                    <tr><td title="Activo corriente / pasivo corriente. Verde desde 1,5, ámbar desde 1">Liquidez corriente</td><td class="{{ tn(info.get('currentRatio'), 1.5, 1) if info.get('currentRatio') }}">{{ num(info.get('currentRatio'), 2) if info.get('currentRatio') else '–' }}</td></tr>
+                    <tr><td title="Como la liquidez corriente, sin existencias. Verde desde 1, ámbar desde 0,7">Prueba ácida</td><td class="{{ tn(info.get('quickRatio'), 1, 0.7) if info.get('quickRatio') }}">{{ num(info.get('quickRatio'), 2) if info.get('quickRatio') else '–' }}</td></tr>
+                    <tr><td>Caja</td><td>{{ big(info.get('totalCash'), fsym) }}</td></tr>
+                    <tr><td>Deuda</td><td>{{ big(info.get('totalDebt'), fsym) }}</td></tr>
+                </tbody></table>
+                <div class="fin-stats-h">Dividendos</div>
+                {% set dy = info.get('dividendYield') %}{% set dy5 = info.get('fiveYearAvgDividendYield') %}{% set po = info.get('payoutRatio') %}
+                <table class="fin-stats-t"><tbody>
+                    <tr><td>Dividendo anual por acción</td><td>{{ num(info.get('dividendRate'), 2) ~ ' ' ~ fsym if info.get('dividendRate') else '–' }}</td></tr>
+                    <tr><td>Rentabilidad por dividendo</td><td>{{ pctv((dy / 100 if dy > 0.2 else dy) if dy else none) }}</td></tr>
+                    <tr><td title="Parte del beneficio que se reparte. Verde hasta el 60 %, ámbar hasta el 80 %">Pay-out</td><td class="{{ tn(po * 100, 60, 80, lower=true) if po }}">{{ pctv(po or none) }}</td></tr>
+                    <tr><td>Rentabilidad media 5 años</td><td>{{ pctv((dy5 / 100 if dy5 > 0.2 else dy5) if dy5 else none) }}</td></tr>
+                </tbody></table>
+            </div>
+        </div>
+        <style>
+            .fin-profile { font-size: .8rem; }
+            .fin-trends { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .5rem; }
+            @media (max-width: 1199px) { .fin-trends { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+            @media (max-width: 575px) { .fin-trends { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+            .fin-trend { border-radius: 8px; padding: .4rem .55rem .2rem; background: var(--bs-secondary-bg); border-top: 3px solid var(--bs-secondary-border-subtle); min-width: 0; }
+            .fin-trend.fin-good { border-top-color: var(--bs-success); } .fin-trend.fin-bad { border-top-color: var(--bs-danger); } .fin-trend.fin-flat { border-top-color: var(--bs-warning); }
+            .fin-trend-title { font-size: .68rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .fin-trend-chip { font-size: .7rem; font-weight: 700; white-space: nowrap; color: var(--bs-secondary-color); }
+            .fin-good .fin-trend-chip { color: var(--bs-success); } .fin-bad .fin-trend-chip { color: var(--bs-danger); } .fin-flat .fin-trend-chip { color: var(--bs-warning-text-emphasis); }
+            .fin-trend-val { font-size: .95rem; font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .fin-trend-sub { font-size: .68rem; font-weight: 400; color: var(--bs-secondary-color); }
+            .fin-trend-chart { height: 120px; }
+            .fin-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 1rem; border-radius: 8px; padding: .35rem .7rem .5rem; background: var(--bs-secondary-bg); }
+            @media (max-width: 991px) { .fin-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+            .fin-stats-col { min-width: 0; }
+            .fin-stats-h { font-size: .64rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--bs-secondary-color); margin: .35rem 0 .1rem; padding-bottom: .1rem; border-bottom: 1px solid var(--bs-border-color); }
+            .fin-stats-t { width: 100%; table-layout: fixed; font-size: .76rem; border-collapse: collapse; }
+            .fin-stats-t td { padding: .12rem 0; border-bottom: 1px solid var(--bs-border-color-translucent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            .fin-stats-t tr:last-child td { border-bottom: 0; }
+            .fin-stats-t td:first-child { color: var(--bs-secondary-color); width: 62%; }
+            .fin-stats-t td:last-child { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+            /* las cifras importantes (fs-key): solo el número, en color según sea bueno o flojo y algo más marcado; el resto, sin color */
+            .fin-stats-t tr.fs-key .fs-good { color: var(--fin-green, #16a34a); } .fin-stats-t tr.fs-key .fs-mid { color: #f59e0b; } .fin-stats-t tr.fs-key .fs-bad { color: var(--fin-red, #dc2626); }
+            .fin-stats-t tr.fs-key td:last-child { font-weight: 700; }
+            /* selector segmentado (cuentas y gráficos), como el de periodos */
+            .fin-seg { gap: 2px; background: var(--bs-secondary-bg); border-radius: 7px; padding: 2px; flex-wrap: nowrap; }
+            .fin-seg .nav-link { font-size: .74rem; font-weight: 600; padding: .18rem .7rem; border-radius: 5px; color: var(--bs-secondary-color); white-space: nowrap; }
+            .fin-seg .nav-link.active { background: var(--bs-body-bg); color: var(--bs-body-color); box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+            /* cuentas anuales */
+            .fin-table-wrap { overflow: auto; }
+            .fin-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .76rem; font-variant-numeric: tabular-nums; }
+            .fin-table th { position: sticky; top: 0; z-index: 2; background: var(--bs-card-bg, var(--bs-body-bg)); font-size: .66rem; font-weight: 700; letter-spacing: .03em;
+                            color: var(--bs-secondary-color); text-align: right; padding: .3rem .55rem; border-bottom: 1px solid var(--bs-border-color); white-space: nowrap; }
+            .fin-table td { text-align: right; padding: .2rem .55rem; border-bottom: 1px solid var(--bs-border-color-translucent); white-space: nowrap; }
+            .fin-table .fin-label { text-align: left; position: sticky; left: 0; z-index: 1; background: var(--bs-card-bg, var(--bs-body-bg)); min-width: 230px; max-width: 300px;
+                                    overflow: hidden; text-overflow: ellipsis; color: var(--bs-secondary-color); padding-left: 1.1rem; }
+            .fin-table th.fin-label { z-index: 3; }
+            .fin-table tr.fin-total td { font-weight: 700; color: var(--bs-body-color); }
+            .fin-table tr.fin-total .fin-label { padding-left: .4rem; color: var(--bs-body-color); }
+            .fin-table tr.fin-key td { background: rgba(59, 130, 246, .08); }
+            .fin-table tr.fin-key .fin-label { box-shadow: inset 3px 0 0 #3b82f6; background: color-mix(in srgb, var(--bs-card-bg, var(--bs-body-bg)) 92%, #3b82f6); }
+            .fin-table tr.fin-pct td { font-style: italic; color: var(--bs-secondary-color); font-size: .72rem; }
+            .fin-table .fin-ltm { background: rgba(127, 127, 127, .06); }
+            .fin-table .fin-neg { color: var(--bs-danger); }
+            .fin-table .fin-na { color: var(--bs-secondary-color); opacity: .5; }
+            .fin-table tr.row-interactive { cursor: pointer; }
+            .fin-table tr.row-interactive:hover td { background: rgba(127, 127, 127, .1); }
+            .fin-table tr.row-selected td { background: rgba(13, 202, 240, .15) !important; }
+        </style>
+        <script>
+        // Minigráficos de Finanzas: se dibujan al abrir la pestaña (con ancho 0 saldrían en blanco)
+        (() => {
+            let done = false;
+            const sym = '{{ currency_symbol }}';
+            const big = v => v == null ? '–' : Math.abs(v) >= 1e9 ? fmtNum(v / 1e9, 1) + ' mil M' : Math.abs(v) >= 1e6 ? fmtNum(v / 1e6, 0) + ' M' : fmtNum(v, 2);
+            const TONE = {good: '#16a34a', bad: '#dc2626', flat: '#d97706', none: '#64748b'};
+            const draw = () => {
+                const raw = document.getElementById('finTrendsData');
+                const pane = document.getElementById('sub-stats-pane');
+                if (done || !raw || !pane || !pane.offsetParent) return;
+                done = true;
+                const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                const grid = dark ? '#334155' : '#e9eef5', font = {size: 9, color: dark ? '#94a3b8' : '#64748b'};
+                // los gráficos se alargan con el alto que sobre en la ventana (sin pasarse)
+                const charts = [...document.querySelectorAll('.fin-trend-chart')];
+                const free = innerHeight - pane.getBoundingClientRect().bottom - 16;
+                if (free > 0) charts.forEach(el => el.style.height = Math.min(260, el.clientHeight + free) + 'px');
+                JSON.parse(raw.textContent).forEach(t => {
+                    const el = document.getElementById('finTrend-' + t.key);
+                    if (!el || t.empty) { if (el) el.innerHTML = '<div class="small text-muted pt-4 text-center">Sin datos en las cuentas cargadas</div>'; return; }
+                    const x = t.years.map(y => y === 'LTM' ? '12m' : "'" + String(y).slice(2));
+                    const fmt = v => v == null ? '–' : t.unit === 'pct' ? fmtNum(v, 1) + ' %' : t.unit === 'price' ? fmtNum(v, 2) + ' ' + sym : t.unit === 'count' ? big(v) : big(v) + ' ' + sym;
+                    const c = TONE[t.tone] || TONE.none;
+                    let traces;
+                    if (t.type === 'bar') {
+                        const v = t.series[0].values;
+                        traces = [{x, y: v, type: 'bar', marker: {color: v.map((y, i) => y != null && y < 0 ? '#dc2626' : c), opacity: t.years.map(y => y === 'LTM' ? .45 : .85)},
+                                   text: v.map(fmt), textposition: 'none', hovertemplate: '%{x}: %{text}<extra></extra>'}];
+                    } else if (t.type === 'debt') {
+                        traces = [{x, y: t.series[0].values, type: 'bar', name: 'Deuda', marker: {color: '#94a3b8'}, text: t.series[0].values.map(fmt), textposition: 'none', hovertemplate: 'Deuda %{x}: %{text}<extra></extra>'},
+                                  {x, y: t.series[1].values, type: 'scatter', mode: 'lines', name: 'Caja', line: {color: '#16a34a', width: 2}, text: t.series[1].values.map(fmt), hovertemplate: 'Caja %{x}: %{text}<extra></extra>'}];
+                    } else {
+                        const colors = {Bruto: '#94a3b8', Operativo: c, Neto: '#3b82f6', Acciones: c};
+                        traces = t.series.map(s => ({x, y: s.values, type: 'scatter', mode: 'lines', name: s.name, connectgaps: true,
+                            line: {color: colors[s.name] || c, width: s.name === 'Operativo' || s.name === 'Acciones' ? 2.2 : 1.4},
+                            text: s.values.map(fmt), hovertemplate: s.name + ' %{x}: %{text}<extra></extra>'}));
+                    }
+                    Plotly.newPlot(el, traces, {height: el.clientHeight, margin: {l: 4, r: 4, t: 4, b: 16}, showlegend: false, bargap: .25,
+                        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font, hovermode: 'closest',
+                        xaxis: {type: 'category', fixedrange: true, tickfont: {size: 8}, showgrid: false},
+                        yaxis: {visible: false, fixedrange: true, zeroline: true, zerolinecolor: grid, rangemode: t.unit === 'count' ? 'normal' : 'tozero'}},
+                        {displayModeBar: false, responsive: true});
+                });
+            };
+            document.addEventListener('DOMContentLoaded', () => {
+                ['nav-financials-tab', 'sub-stats-tab'].forEach(id => document.getElementById(id)?.addEventListener('shown.bs.tab', () => setTimeout(draw, 30)));
+                setTimeout(draw, 300);   // si la ficha abre ya en Finanzas
+            });
+        })();
+        </script>
+            </div> <!-- Cierre de sub-stats-pane -->
+
+            <!-- SUB-PESTAÑA A: GRÁFICOS DE TENDENCIA -->
+            <div class="tab-pane fade" id="sub-charts-pane" role="tabpanel">
+        <div class="row g-2 mb-2">
+            <!-- Columna Izquierda: Gráfico de Precio (50% de ancho) -->
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 d-flex flex-column dash-card dash-green" id="priceChartCard">
+                    <div class="card-header bg-transparent border-0 pt-2 pb-1 px-2 d-flex justify-content-between align-items-center">
+                        <span class="dash-label mb-0"><i class="bi bi-graph-up me-1"></i>Cotización<span id="priceRangeChg" class="ms-2" style="text-transform: none;"></span></span>
+                        <div class="btn-group btn-group-sm fin-periods" role="group" aria-label="Rango de fechas">
+                                <button type="button" class="btn btn-outline-secondary" data-period="1d" onclick="updatePriceChart(this, '{{ ticker }}')">1D</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="5d" onclick="updatePriceChart(this, '{{ ticker }}')">5D</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="1mo" onclick="updatePriceChart(this, '{{ ticker }}')">1M</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="6mo" onclick="updatePriceChart(this, '{{ ticker }}')">6M</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="ytd" onclick="updatePriceChart(this, '{{ ticker }}')">YTD</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="1y" onclick="updatePriceChart(this, '{{ ticker }}')">1A</button>
+                                <button type="button" class="btn btn-outline-secondary" data-period="5y" onclick="updatePriceChart(this, '{{ ticker }}')">5A</button>
+                                <button type="button" class="btn btn-outline-secondary active" data-period="10y" onclick="updatePriceChart(this, '{{ ticker }}')">MAX</button>
+                            </div>
+                    </div>
+                    <div class="card-body p-0 flex-grow-1">
+                        <div id="priceChart" class="fin-fit-chart" style="height: 380px; width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna Derecha: Gráficos de Estados Financieros con pestañas (50% de ancho) -->
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 d-flex flex-column dash-card dash-blue">
+                    <div class="card-header bg-transparent border-0 pt-2 pb-1 px-2 d-flex align-items-center gap-2">
+                        <ul class="nav nav-pills fin-seg {{ 'invisible' if not fin_years }}" id="chartTabs" role="tablist">
+                            <li class="nav-item"><button class="nav-link active" id="revenue-chart-tab" data-bs-toggle="tab" data-bs-target="#revenue-tab-pane" type="button" role="tab">Ventas</button></li>
+                            <li class="nav-item"><button class="nav-link" id="net-income-chart-tab" data-bs-toggle="tab" data-bs-target="#net-income-tab-pane" type="button" role="tab">Beneficio neto</button></li>
+                            <li class="nav-item"><button class="nav-link" id="eps-chart-tab" data-bs-toggle="tab" data-bs-target="#eps-tab-pane" type="button" role="tab">BPA</button></li>
+                            <li class="nav-item"><button class="nav-link" id="fcf-chart-tab" data-bs-toggle="tab" data-bs-target="#fcf-tab-pane" type="button" role="tab">Flujo de caja libre</button></li>
+                            <li class="nav-item"><button class="nav-link d-none" id="custom-chart-tab" data-bs-toggle="tab" data-bs-target="#custom-tab-pane" type="button" role="tab">Detalle IA</button></li>
+                        </ul>
+                        <span class="ms-auto small text-muted text-nowrap" id="finBarInfo"></span>
+                    </div>
+                    <div class="card-body p-0 flex-grow-1">
+                        {% if not fin_years %}
+                        <div class="fin-empty">
+                            <i class="bi bi-bar-chart"></i>
+                            <strong>Sin datos financieros cargados</strong>
+                            <span class="small">No hay histórico de ingresos, beneficio, BPA ni FCF para dibujar.</span>
+                            <button class="btn btn-warning btn-sm fw-bold mt-1" onclick="switchToFinancialsAndOpenAuditData()"><i class="bi bi-database-add me-1"></i>Cargar datos</button>
+                        </div>
+                        {% endif %}
+                        <div class="tab-content h-100 {{ 'd-none' if not fin_years }}" id="chartTabsContent">
+                            <div class="tab-pane fade show active h-100" id="revenue-tab-pane" role="tabpanel">
+                                <div id="revenueChart" class="fin-fit-chart" style="height: 380px; width: 100%;"></div>
+                            </div>
+                            <div class="tab-pane fade h-100" id="net-income-tab-pane" role="tabpanel">
+                                <div id="netIncomeChart" class="fin-fit-chart" style="height: 380px; width: 100%;"></div>
+                            </div>
+                            <div class="tab-pane fade h-100" id="eps-tab-pane" role="tabpanel">
+                                <div id="epsChart" class="fin-fit-chart" style="height: 380px; width: 100%;"></div>
+                            </div>
+                            <div class="tab-pane fade h-100" id="fcf-tab-pane" role="tabpanel">
+                                <div id="fcfChart" class="fin-fit-chart" style="height: 380px; width: 100%;"></div>
+                            </div>
+                            <div class="tab-pane fade h-100" id="custom-tab-pane" role="tabpanel">
+                                <div id="customChart" class="fin-fit-chart" style="height: 380px; width: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </div>
+            </div> <!-- Cierre de sub-charts-pane -->
+
+            <!-- SUB-PESTAÑA B: TABLAS HISTÓRICAS (P&L, BALANCE, CASH FLOW) -->
+            <div class="tab-pane fade" id="sub-tables-pane" role="tabpanel">
+        <!-- Tarjeta de Gráfico Interactivo Dinámico (Oculto inicialmente) -->
+        <div id="financials-chart-card-hist" class="card shadow-sm border border-info mb-2 d-none">
+            <div class="card-header bg-info bg-opacity-10 py-1 d-flex justify-content-between align-items-center">
+                <span class="fw-bold text-info" style="font-size: 0.75rem;">
+                    <i class="bi bi-graph-up me-2"></i>Tendencia de las filas elegidas
+                </span>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-xs btn-outline-secondary py-0" style="font-size: 0.65rem;" onclick="clearInteractiveMetrics('hist')">
+                        <i class="bi bi-eraser-fill me-1"></i> Limpiar
+                    </button>
+                    <button class="btn btn-xs btn-outline-info py-0" style="font-size: 0.65rem;" onclick="closeInteractiveChart('hist')">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-1 bg-white">
+                <div id="interactiveChartHist" style="height: 300px; width: 100%;"></div>
+            </div>
+        </div>
+
+        <!-- Input Area (Collapse) de la Auditoría Manual -->
+        <div class="collapse mb-2" id="feedback-collapse-audit">
+            <div class="card card-body border-primary bg-light p-2 px-3 shadow-sm">
+                <h6 class="text-primary fw-bold mb-2 d-flex justify-content-between" style="font-size: .8rem;">
+                    <span><i class="bi bi-database-fill-add me-2"></i>DATOS PARA LA AUDITORÍA DE ESTADOS FINANCIEROS (PASO 0)</span>
+                    <button type="button" class="btn-close" data-bs-toggle="collapse" data-bs-target="#feedback-collapse-audit" aria-label="Close"></button>
+                </h6>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="audit-income" class="form-label small fw-bold text-uppercase text-primary d-flex justify-content-between">
+                            1. Cuenta de Resultados (P&L)
+                            <span class="text-muted" style="cursor:help;" title="Sube una imagen o pega el texto de la Cuenta de Resultados."><i class="bi bi-camera"></i></span>
+                        </label>
+                        <textarea class="form-control font-monospace-data border-primary-subtle mb-2" id="audit-income" rows="4" placeholder="Texto de Income Statement...">{{ db.get('manual_audit_raw', {}).get('income', '') if db.get('manual_audit_raw') else '' }}</textarea>
+                        <input type="file" id="img-income" class="d-none" accept="image/*" onchange="handleImageUpload(this, 'income')">
+                        <button class="btn btn-xs btn-outline-primary w-100 py-1" style="font-size: 0.65rem;" onclick="document.getElementById('img-income').click()">
+                            <i class="bi bi-image me-1"></i> Adjuntar Imagen
+                        </button>
+                        <div id="preview-income" class="mt-1 d-none small text-success fw-bold"><i class="bi bi-check-circle-fill"></i> Imagen de Resultados lista</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="audit-balance" class="form-label small fw-bold text-uppercase text-primary d-flex justify-content-between">
+                            2. Balance General
+                            <span class="text-muted" style="cursor:help;" title="Sube una imagen o pega el texto del Balance."><i class="bi bi-camera"></i></span>
+                        </label>
+                        <textarea class="form-control font-monospace-data border-primary-subtle mb-2" id="audit-balance" rows="4" placeholder="Texto de Balance Sheet...">{{ db.get('manual_audit_raw', {}).get('balance', '') if db.get('manual_audit_raw') else '' }}</textarea>
+                        <input type="file" id="img-balance" class="d-none" accept="image/*" onchange="handleImageUpload(this, 'balance')">
+                        <button class="btn btn-xs btn-outline-primary w-100 py-1" style="font-size: 0.65rem;" onclick="document.getElementById('img-balance').click()">
+                            <i class="bi bi-image me-1"></i> Adjuntar Imagen
+                        </button>
+                        <div id="preview-balance" class="mt-1 d-none small text-success fw-bold"><i class="bi bi-check-circle-fill"></i> Imagen de Balance lista</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="audit-cashflow" class="form-label small fw-bold text-uppercase text-primary d-flex justify-content-between">
+                            3. Estado de Flujos de Caja
+                            <span class="text-muted" style="cursor:help;" title="Sube una imagen o pega el texto del Flujo de Caja."><i class="bi bi-camera"></i></span>
+                        </label>
+                        <textarea class="form-control font-monospace-data border-primary-subtle mb-2" id="audit-cashflow" rows="4" placeholder="Texto de Cash Flow...">{{ db.get('manual_audit_raw', {}).get('cashflow', '') if db.get('manual_audit_raw') else '' }}</textarea>
+                        <input type="file" id="img-cashflow" class="d-none" accept="image/*" onchange="handleImageUpload(this, 'cashflow')">
+                        <button class="btn btn-xs btn-outline-primary w-100 py-1" style="font-size: 0.65rem;" onclick="document.getElementById('img-cashflow').click()">
+                            <i class="bi bi-image me-1"></i> Adjuntar Imagen
+                        </button>
+                        <div id="preview-cashflow" class="mt-1 d-none small text-success fw-bold"><i class="bi bi-check-circle-fill"></i> Imagen de Caja lista</div>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-3 border-top pt-2">
+                    <button class="btn btn-primary px-4 shadow-sm" onclick="extractDataOnly('{{ ticker }}')" id="btn-extract">
+                        <i class="bi bi-database-down me-2"></i> {% if db.get('full_audit_structure') %}Actualizar y Re-extraer Datos{% else %}1. Guardar y Extraer Datos{% endif %}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Explorador Histórico Financiero Multimodal -->
+        {# Cuentas anuales en español (financial_labels): de la más antigua a la más reciente, importes en millones, los
+           totales en negrita y las cifras clave resaltadas. Clic en una fila: su tendencia en el gráfico de arriba. #}
+        {% macro fcell(v, k) %}{% if v is none %}<span class="fin-na">–</span>{% elif k == 'pct' %}<span class="{{ 'fin-neg' if v < 0 }}">{{ num(v, 1) }} %</span>{% elif k == 'per_share' %}<span class="{{ 'fin-neg' if v < 0 }}">{{ num(v, 2) }}</span>{% else %}<span class="{{ 'fin-neg' if v < 0 }}">{{ num(v, 0 if v|abs >= 100 else 1) }}</span>{% endif %}{% endmacro %}
+        <div class="card border-0 shadow-sm dash-card dash-blue mb-0">
+    <div class="card-body p-2">
+        <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+            <ul class="nav nav-pills fin-seg" id="histTabs" role="tablist">
+                <li class="nav-item"><button class="nav-link active" id="hist-income-tab" data-bs-toggle="pill" data-bs-target="#hist-income" type="button" role="tab">Cuenta de resultados</button></li>
+                <li class="nav-item"><button class="nav-link" id="hist-balance-tab" data-bs-toggle="pill" data-bs-target="#hist-balance" type="button" role="tab">Balance</button></li>
+                <li class="nav-item"><button class="nav-link" id="hist-cashflow-tab" data-bs-toggle="pill" data-bs-target="#hist-cashflow" type="button" role="tab">Flujos de caja</button></li>
+            </ul>
+            <span class="text-muted small">Millones de {{ info.get('currency', '') }} · BPA por acción · {% if fin_full %}pulsa una fila para ver su tendencia{% endif %}</span>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2 ms-auto" style="font-size: 0.72rem;" type="button" data-bs-toggle="collapse" data-bs-target="#feedback-collapse-audit">
+                <i class="bi bi-pencil-square me-1"></i>{{ 'Editar datos' if db.get('full_audit_structure') else 'Cargar datos' }}
+            </button>
+        </div>
+        <div class="tab-content" id="histTabsContent">
+            {% for id, key in [('income', 'income_statement'), ('balance', 'balance_sheet'), ('cashflow', 'cash_flow')] %}
+            <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="hist-{{ id }}" role="tabpanel">
+                {% if not fin_years %}
+                <div class="fin-empty">
+                    <i class="bi bi-table"></i>
+                    <strong>Sin datos financieros cargados</strong>
+                    <span class="small">Pega el texto o adjunta una imagen de los estados financieros para ver aquí la cuenta de resultados, el balance y los flujos de caja.</span>
+                    <button class="btn btn-warning btn-sm fw-bold mt-1" onclick="switchToFinancialsAndOpenAuditData()"><i class="bi bi-database-add me-1"></i>Cargar datos</button>
+                </div>
+                {% else %}
+                {% set trs = fin_tables.get(key) or [] %}
+                <div class="fin-table-wrap" data-fit="200">
+                    <table class="fin-table">
+                        <thead><tr><th class="fin-label"></th>{% for y in fin_years_ord %}<th class="{{ 'fin-ltm' if y == 'LTM' }}">{{ 'Últ. 12 m' if y == 'LTM' else y }}</th>{% endfor %}</tr></thead>
+                        <tbody>
+                        {% for r in trs %}
+                            <tr class="row-interactive {{ 'fin-total' if r.total }} {{ 'fin-key' if r.key }} {{ 'fin-pct' if r.kind == 'pct' }}" title="{{ r.name }} · clic para ver su tendencia"
+                                onclick='toggleInteractiveMetric(this, {{ r.label|tojson }}, {{ r["values"]|tojson }}, {{ fin_years_ord|tojson }}, "hist")'>
+                                <td class="fin-label">{{ r.label }}</td>
+                                {% for v in r["values"] %}<td class="{{ 'fin-ltm' if fin_years_ord[loop.index0] == 'LTM' }}">{{ fcell(v, r.kind) }}</td>{% endfor %}
+                            </tr>
+                        {% else %}
+                            {% set basic = {'income': [('Ventas', 'revenue', 'money'), ('Beneficio neto', 'net_income', 'money'), ('BPA', 'eps', 'per_share')], 'cashflow': [('Flujo de caja libre', 'fcf', 'money')]}.get(id) %}
+                            {% if basic %}
+                                {% for lab, k, kd in basic %}{% set vals = financials_hist.get(k) or [] %}
+                                <tr class="fin-total"><td class="fin-label">{{ lab }}</td>{% for y in fin_years_ord %}{% set i = financials_hist['years'].index(y) if y in financials_hist['years'] else -1 %}{% set v = vals[i] if i >= 0 and i < vals|length else none %}<td>{{ fcell(none if v is none else (v / 1e6 if kd == 'money' else v), kd) }}</td>{% endfor %}</tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr><td colspan="100" class="text-center py-3 text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>Sin balance: solo hay cifras básicas de {{ fin_src }}.
+                                    <a href="#" class="fw-bold ms-1" onclick="switchToFinancialsAndOpenAuditData(); return false;">Cargar estados financieros</a></td></tr>
+                            {% endif %}
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    </div>
+    
+    </div> <!-- Cierre de sub-tables-pane -->
+    </div> <!-- Cierre de subFinancialsTabsContent -->
+    </div> <!-- Cierre de tab-pane nav-financials -->

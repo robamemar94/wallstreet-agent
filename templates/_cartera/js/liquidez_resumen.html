@@ -1,0 +1,117 @@
+    // --- Liquidez del bróker (/api/portfolio/liquidez): la ventana, el recuadro de Posiciones y la línea del Resumen ---
+    const cashEur = v => fmtNum(v, 2) + ' €';
+    const CASH_LABEL = {deposit: 'Aportación', withdrawal: 'Retirada', buy: 'Compra', sell: 'Venta', dividend: 'Dividendo'};
+    function cashKind() { return document.querySelector('input[name=cashKind]:checked').value; }
+    function cashHint(st) {
+        const k = cashKind();
+        document.getElementById('cashAmountLabel').textContent = k === 'balance' ? 'Saldo del bróker (€)' : 'Importe (€)';
+        document.getElementById('cashHint').textContent = k === 'balance'
+            ? 'El saldo que te dice el bróker al cierre de esa fecha. Desde ahí, las compras, ventas y dividendos se aplican solos.'
+            : (st && !st.configured ? 'Primero apunta tu saldo actual con «Ajustar saldo».' : '');
+    }
+    function cashRender(st) {
+        const sum = document.getElementById('cashSummary');
+        document.querySelectorAll('[data-cash-balance]').forEach(el => el.textContent = st.configured ? cashEur(st.balance) : 'apunta tu saldo');
+        document.querySelectorAll('[data-cash-month]').forEach(el => {
+            el.textContent = st.month.deposited ? `+${fmtNum(st.month.deposited, 0)} € en ${st.month.label}` : `sin aportación en ${st.month.label}`;
+            el.className = 'small ms-2 ' + (st.month.deposited ? 'text-success' : 'text-warning');
+        });
+        if (!st.configured) {
+            sum.innerHTML = 'Aún no llevas la liquidez. Apunta el saldo que tienes hoy en el bróker con <b>Ajustar saldo</b> y, desde ahí, se lleva sola.';
+            document.getElementById('cashKindBalance').checked = true;
+            cashHint(st);
+            document.getElementById('cashRecent').innerHTML = '';
+            return;
+        }
+        const p = st.since, a = st.anchor, sg = v => (v > 0 ? '+' : '') + fmtNum(v, 2) + ' €';
+        sum.className = 'mb-3';
+        const neg = st.balance < 0 ? `<div class="small text-warning mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Saldo negativo: ¿falta apuntar una aportación o ajustar el saldo?</div>` : '';
+        sum.innerHTML = `<div class="d-flex align-items-baseline gap-2 mb-2"><span class="fs-4 fw-bold num-font">${cashEur(st.balance)}</span>
+            <span class="small ${st.month.deposited ? 'text-success' : 'text-warning'}">${st.month.deposited ? 'aportado en ' + st.month.label + ': ' + cashEur(st.month.deposited) : 'sin aportación en ' + st.month.label}</span></div>
+            ${neg}<div class="cash-parts text-muted"><span>Saldo el ${a.date.slice(8, 10)}/${a.date.slice(5, 7)}/${a.date.slice(0, 4)}</span><span class="num-font">${cashEur(a.balance)}</span>
+            ${[['Aportaciones', p.deposit], ['Retiradas', p.withdrawal], ['Compras', p.buy], ['Ventas', p.sell], ['Dividendos (netos de retención)', p.dividend]]
+                .filter(([, v]) => v).map(([l, v]) => `<span>${l}</span><span class="num-font ${v > 0 ? 'text-success' : 'text-danger'}">${sg(v)}</span>`).join('')}</div>`;
+        document.getElementById('cashRecent').innerHTML = st.recent.length ? st.recent.map(m => `<div class="d-flex justify-content-between align-items-center py-1 border-bottom border-secondary-subtle">
+            <span><span class="text-muted">${m.date.slice(8, 10)}/${m.date.slice(5, 7)}</span> ${CASH_LABEL[m.type]}${m.ticker ? ' <b>' + m.ticker.replace(/\.(ST|PA|MC|OL)$/, '') + '</b>' : ''}${m.note ? ' <span class="text-muted">· ' + m.note.replace(/</g, '&lt;') + '</span>' : ''}</span>
+            <span class="text-nowrap"><span class="num-font ${m.amount > 0 ? 'text-success' : 'text-danger'}">${sg(m.amount)}</span>
+            ${m.manual ? `<button type="button" class="btn btn-link btn-sm p-0 ms-2 text-muted" data-cash-del="${m.id}" title="Borrar"><i class="bi bi-trash"></i></button>` : ''}</span></div>`).join('')
+            : '<div class="text-muted">Sin movimientos desde el saldo de partida.</div>';
+        cashHint(st);
+    }
+    async function cashCall(url, opts) {
+        const r = await fetch(url, opts).catch(() => null);
+        const err = document.getElementById('cashError');
+        if (!r || !r.ok) {
+            const d = r ? await r.json().catch(() => ({})) : {};
+            err.textContent = d.detail || 'No se pudo guardar';
+            err.classList.remove('d-none');
+            return null;
+        }
+        err.classList.add('d-none');
+        const st = await r.json();
+        cashRender(st);
+        return st;
+    }
+    const cashModal = document.getElementById('cashModal');
+    cashModal?.addEventListener('show.bs.modal', () => {
+        document.getElementById('cashDate').value = new Date().toISOString().slice(0, 10);
+        cashCall('/api/portfolio/liquidez');
+    });
+    cashModal?.addEventListener('shown.bs.modal', () => document.getElementById('cashAmount').focus());
+    cashModal?.addEventListener('hidden.bs.modal', () => { if (location.hash === '#liquidez') history.replaceState(null, '', location.pathname); });
+    document.querySelectorAll('input[name=cashKind]').forEach(r => r.addEventListener('change', () => cashHint()));
+    document.getElementById('cashSave')?.addEventListener('click', async () => {
+        const amount = parseFloat(document.getElementById('cashAmount').value), date = document.getElementById('cashDate').value || null;
+        const kind = cashKind(), note = document.getElementById('cashNote').value;
+        if (isNaN(amount)) { document.getElementById('cashAmount').focus(); return; }
+        const body = kind === 'balance' ? {amount, date} : {type: kind, amount, date, note};
+        const st = await cashCall(kind === 'balance' ? '/api/portfolio/liquidez/saldo' : '/api/portfolio/liquidez/movimiento',
+                                  {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+        if (st) {
+            document.getElementById('cashAmount').value = '';
+            document.getElementById('cashNote').value = '';
+            if (kind === 'balance') document.getElementById('cashKindDeposit').checked = true;
+            cashHint(st);
+        }
+    });
+    document.getElementById('cashAmount')?.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('cashSave').click(); });
+    document.getElementById('cashRecent')?.addEventListener('click', e => {
+        const b = e.target.closest('[data-cash-del]');
+        if (b && confirm('¿Borrar este movimiento?')) cashCall('/api/portfolio/liquidez/movimiento/' + b.dataset.cashDel, {method: 'DELETE'});
+    });
+    document.addEventListener('DOMContentLoaded', () => {
+        if (location.hash === '#liquidez') bootstrap.Modal.getOrCreateInstance(cashModal).show();
+    });
+    // Resumen: curva pequeña de la cartera frente al índice de referencia (las mismas series que Rendimiento)
+    let resDecLoaded = false;
+    document.getElementById('res-tab')?.addEventListener('shown.bs.tab', async () => {
+        if (resDecLoaded) return;
+        resDecLoaded = true;
+        const box = document.querySelector('[data-res-dec]');
+        const d = await fetch('/api/portfolio/decisiones/resumen').then(r => r.ok ? r.json() : null).catch(() => null);
+        if (!d || !d.buys || !d.buys.n) { box.textContent = 'Sin decisiones que medir todavía.'; resDecLoaded = false; return; }
+        const pp = v => (v > 0 ? '+' : '') + fmtNum(v, 1) + ' pp', cl = v => v > 0 ? 'text-success' : 'text-danger';
+        const ex = (o, lbl) => o ? `<div class="res-row"><span class="text-muted">${lbl}</span><span><b>${o.ticker.replace(/\.(ST|PA|MC|OL)$/, '')}</b> ${o.date.slice(8, 10)}/${o.date.slice(5, 7)} <span class="${cl(o.excess)}">${pp(o.excess)}</span></span></div>` : '';
+        box.className = '';
+        box.innerHTML = `<div class="res-row"><span class="text-muted">Compras por delante del ${PERF_REF_BENCH}</span><b>${d.buys.beat} de ${d.buys.n}</b></div>`
+            + `<div class="res-row"><span class="text-muted">De media</span><b class="${cl(d.buys.avg)}">${pp(d.buys.avg)}</b></div>`
+            + ex(d.best[0], 'Mejor') + ex(d.worst[0], 'Peor')
+            + `<div class="res-row"><span class="text-muted">Con su porqué</span><b>${d.with_reason} de ${d.n_ops}</b></div>`;
+    });
+    document.getElementById('res-tab')?.addEventListener('shown.bs.tab', () => {
+        const el = document.getElementById('resChart');
+        if (!el || !window.Plotly || !perfDates.length) return;
+        const ref = perfBenchmarks[PERF_REF_BENCH] || [];
+        const traces = [{x: perfDates, y: perfPortfolio, mode: 'lines', name: 'Cartera', line: {color: '#3b82f6', width: 2}}];
+        if (ref.length) traces.push({x: perfDates, y: ref, mode: 'lines', name: PERF_REF_BENCH, line: {color: '#fd7e14', width: 1.5, dash: 'dot'}});
+        Plotly.react(el, traces, {margin: {l: 30, r: 8, t: 4, b: 22}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+            font: {size: 10, color: getComputedStyle(document.body).color}, showlegend: true, legend: {orientation: 'h', x: 0, y: 1.12},
+            xaxis: {showgrid: false}, yaxis: {gridcolor: 'rgba(128,128,128,.15)'}}, {displayModeBar: false, responsive: true});
+    });
+    // bootstrap.bundle se carga después del contenido: las pestañas, cuando ya está disponible
+    document.addEventListener('DOMContentLoaded', () => {
+        const tab = location.hash.startsWith('#informes') ? 'rep-tab' : {'#distribucion': 'dist-tab', '#dividendos': 'div-tab', '#decisiones': 'dec-tab', '#tramos': 'dec-tab',
+                     '#fundamentales': 'fund-tab', '#rendimiento': 'perf-tab', '#historial': 'closed-tab', '#resumen': 'res-tab'}[location.hash];
+        if (tab) setTimeout(() => pfShow(tab));   // después de que cada pestaña prepare su arranque (también en DOMContentLoaded)
+    });
+})();

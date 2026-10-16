@@ -1,0 +1,421 @@
+<style>
+    /* columna izquierda: Calidad y, debajo, seis fichas en dos columnas (cuatro indicadores, tesis y directivos) */
+    .ind-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: .6rem; }
+    /* el alto que sobra en la columna se reparte entre Calidad y los indicadores (no se queda vacío abajo) */
+    /* Calidad algo más grande; indicadores compactos; tesis y directivos con el alto que queda (contenido repartido) */
+    .dash-quality { flex: 0 0 auto; }
+    /* Señales: una línea por tema, en rejilla (semáforo · tema · conclusión · detalle · ir) */
+    .sig-card { min-height: 0; }
+    .sig-rows, .sig-async { display: flex; flex-direction: column; }
+    .sig-row { display: grid; grid-template-columns: 10px 5.4rem 6.2rem minmax(0, 1fr) 12px; align-items: center; column-gap: .55rem;
+               padding: .42rem .3rem; border-top: 1px solid var(--bs-border-color-translucent); color: var(--bs-body-color); text-decoration: none; font-size: .78rem; }
+    .sig-rows > .sig-row:first-child { border-top: 0; }
+    a.sig-row:hover { background: rgba(127, 127, 127, .08); border-radius: 6px; }
+    .sig-row { --sig: var(--bs-secondary-color); }
+    .sig-row[data-tone="good"] { --sig: var(--fin-green, #16a34a); } .sig-row[data-tone="mid"] { --sig: #f59e0b; } .sig-row[data-tone="bad"] { --sig: var(--fin-red, #dc2626); }
+    .sig-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--sig); box-shadow: 0 0 0 3px color-mix(in srgb, var(--sig) 22%, transparent); }
+    .sig-row[data-tone="none"] .sig-dot { background: transparent; border: 1px solid var(--bs-secondary-color); box-shadow: none; }
+    .sig-name { font-size: .66rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--bs-secondary-color); white-space: nowrap; }
+    .sig-word { font-weight: 700; font-size: .9rem; color: var(--sig); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sig-row[data-tone="none"] .sig-word { color: var(--bs-body-color); }
+    .sig-detail { color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .sig-detail b { color: var(--bs-body-color); }
+    .sig-go { color: var(--bs-secondary-color); opacity: .5; font-size: .7rem; }
+    a.sig-row:hover .sig-go { opacity: 1; }
+    .sig-count .sc { font-weight: 700; margin-left: .5rem; } .sig-count .sc i { font-size: .55rem; vertical-align: middle; margin-right: .2rem; }
+    .sig-chips { display: inline-flex; gap: .3rem; vertical-align: middle; }
+    .sig-chip { border-radius: 4px; padding: 0 .35rem; font-size: .72rem; font-weight: 600; white-space: nowrap; background: var(--bs-secondary-bg); }
+    .sig-chip.up { color: var(--fin-red, #dc2626); background: color-mix(in srgb, var(--fin-red, #dc2626) 14%, transparent); }
+    .sig-chip.down { color: var(--fin-green, #16a34a); background: color-mix(in srgb, var(--fin-green, #16a34a) 14%, transparent); }
+    .sig-chip small { opacity: .75; font-weight: 500; margin-right: .2rem; }
+    .sig-news { flex: 1 1 0; min-height: 3rem; overflow-y: auto; font-size: .74rem; }
+    .sig-news-h { font-size: .64rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--bs-secondary-color); margin-bottom: .15rem; }
+    @media (max-width: 991px) { .sig-news { flex: none; overflow: visible; } .sig-row { grid-template-columns: 10px 5rem 5.6rem minmax(0, 1fr) 12px; } }
+    .dash-quality .dash-why { font-size: .84rem !important; line-height: 1.4; }
+    .ind-tile { align-content: center; padding: .4rem .7rem !important; }
+    .ind-tile .ind-val { font-size: 1rem; }
+    .dash-bottom #insSummary > .card-body { display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
+    .ind-tile { flex-direction: row !important; flex-wrap: wrap; align-items: baseline; column-gap: .6rem; row-gap: .05rem; }
+    .ind-tile .ind-label { flex: 1 0 100%; }
+    .ind-tile .ind-bar { flex: 1 1 4rem; align-self: center; }
+    .ind-tile .ind-sub { flex: 1 0 100%; -webkit-line-clamp: 1; }
+    .ind-tile { display: flex; flex-direction: column; gap: .15rem; padding: .5rem .7rem; border-radius: .5rem; background: var(--fin-card-bg, var(--bs-tertiary-bg));
+                color: var(--bs-body-color); text-decoration: none; min-width: 0; border: 1px solid transparent; }
+    a.ind-tile:hover { border-color: var(--bs-border-color); }
+    .ind-label { font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--bs-secondary-color); }
+    .ind-val { font-size: 1.05rem; font-weight: 700; line-height: 1.2; }
+    .ind-sub { font-size: .7rem; color: var(--bs-secondary-color); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .ind-bar { height: 5px; border-radius: 3px; background: var(--bs-secondary-bg); overflow: hidden; margin: .1rem 0; }
+    .ind-bar > span { display: block; height: 100%; border-radius: 3px; width: 0; }
+    @media (max-width: 991.98px) { .ind-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .manage-menu { min-width: 21rem; font-size: .8rem; z-index: 1060; }
+    .ticker-head { flex-wrap: nowrap !important; } .ticker-head > div:first-child { min-width: 0; }
+    .manage-menu .manage-h { font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--bs-secondary-color); margin: .6rem 0 .3rem; }
+    .manage-menu .manage-h:first-child { margin-top: 0; }
+    .manage-menu .manage-lists { max-height: 9rem; overflow-y: auto; }
+    .head-badges .badge { font-weight: 600; }
+    /* franja de cifras clave (arriba del Resumen) */
+    .kf-strip { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)) auto; gap: .5rem; }
+    @media (max-width: 1199px) { .kf-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+    .kf { --kf: var(--bs-secondary-color); display: flex; flex-direction: column; gap: .1rem; padding: .45rem .65rem .4rem; border-radius: .5rem; min-width: 0;
+          background: var(--fin-card-bg, var(--bs-tertiary-bg)); border-top: 3px solid color-mix(in srgb, var(--kf) 70%, transparent); }
+    .kf-good { --kf: var(--fin-green, #16a34a); } .kf-mid { --kf: #f59e0b; } .kf-bad { --kf: var(--fin-red, #dc2626); }
+    .kf-label { font-size: .64rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kf-val { font-size: 1.3rem; font-weight: 700; line-height: 1.1; color: var(--kf); white-space: nowrap; }
+    .kf-none .kf-val { color: var(--bs-body-color); }
+    .kf-spark { width: 46%; max-width: 90px; height: 22px; flex: 0 1 auto; }
+    .kf-spark polyline { stroke: var(--kf); stroke-width: 1.6; opacity: .85; }
+    .kf-none .kf-spark polyline { stroke: var(--bs-secondary-color); }
+    .kf-ctx { font-size: .68rem; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kf-more { align-items: center; justify-content: center; color: var(--bs-secondary-color); border-top-color: transparent; padding-left: .9rem; padding-right: .9rem; }
+    .kf-more:hover { color: var(--bs-body-color); }
+    .kf-more .bi { font-size: 1.1rem; }
+</style>
+
+
+<style>
+    /* pestañas de la ficha en una sola fila (con 7 se partían en dos y quitaban sitio al resumen) */
+    #mainTickerTabs { flex-wrap: nowrap; }
+    #mainTickerTabs .nav-link { white-space: nowrap; font-size: .76rem; padding-left: .4rem; padding-right: .4rem; }
+    /* a la izquierda y con el mismo hueco entre todas (estiradas, el hueco dependía del largo de cada una) */
+    #mainTickerTabs { gap: 1.6rem; padding-left: .25rem; }
+    #mainTickerTabs > .nav-item { flex: 0 0 auto !important; }
+    #mainTickerTabs .nav-link { padding-left: .15rem !important; padding-right: .15rem !important; }
+    /* pestañas discretas (como TIKR o Fiscal.ai): texto en gris y la activa subrayada, sin botones rellenos */
+    .ticker-tabs { background: var(--bs-body-bg); border-bottom: 1px solid var(--bs-border-color); padding: 0; flex-wrap: nowrap; }
+    .ticker-tabs .nav-link { background: transparent !important; color: var(--bs-secondary-color) !important; border-radius: 0;
+                             border-bottom: 2px solid transparent; font-weight: 600 !important; padding-top: .3rem !important; padding-bottom: .3rem !important; }
+    .ticker-tabs .nav-link:hover { color: var(--bs-body-color) !important; }
+    .ticker-tabs .nav-link.active { color: var(--bs-primary) !important; border-bottom-color: var(--bs-primary); }
+    .ticker-tabs .nav-link .badge { font-size: .6rem !important; }
+    .finviz-table { font-size: 0.9rem; border-color: #dee2e6; margin-bottom: 0; }
+    .finviz-table th { background-color: #f8f9fa; font-weight: 600; color: #495057; border-right: 1px solid #dee2e6; padding: 8px 12px; }
+    .finviz-table td { font-weight: bold; color: #212529; text-align: right; padding: 8px 12px; }
+    .finviz-table tr:last-child th, .finviz-table tr:last-child td { border-bottom: 0; }
+    
+    @media (min-width: 1200px) {
+        .col-custom-data { flex: 0 0 30% !important; max-width: 30% !important; }
+        .col-custom-chart { flex: 0 0 40% !important; max-width: 40% !important; }
+    }
+
+    /* Estilos personalizados para selección y agrupamiento interactivo */
+    .row-interactive {
+        cursor: pointer !important;
+        transition: all 0.15s ease;
+    }
+    .row-interactive:hover {
+        background-color: rgba(13, 202, 240, 0.08) !important;
+    }
+    .row-selected {
+        background-color: rgba(13, 202, 240, 0.18) !important;
+        border-left: 5px solid #0dcaf0 !important;
+    }
+    .row-selected td {
+        font-weight: bold !important;
+        color: #0d6efd !important;
+    }
+    .table-group-header {
+        background-color: rgba(248, 249, 250, 0.9) !important;
+        border-bottom: 2px solid #dee2e6 !important;
+    }
+
+    /* Estilos para el indicador de puntuación circular */
+    .score-display-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 140px;
+    }
+    .score-badge-circle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        font-size: 1.8rem;
+        font-weight: 800;
+        font-family: system-ui, -apple-system, sans-serif;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        border: 2px solid transparent;
+    }
+    .score-high {
+        background-color: rgba(25, 135, 84, 0.12) !important; /* light success (green) */
+        color: #198754 !important; /* success green */
+        border-color: rgba(25, 135, 84, 0.3) !important;
+    }
+    .score-notable {
+        background-color: rgba(255, 193, 7, 0.15) !important; /* light warning (yellow) */
+        color: #b78103 !important; /* dark yellow / gold */
+        border-color: rgba(255, 193, 7, 0.4) !important;
+    }
+    .score-medium {
+        background-color: rgba(253, 126, 20, 0.12) !important; /* light orange */
+        color: #fd7e14 !important; /* orange */
+        border-color: rgba(253, 126, 20, 0.3) !important;
+    }
+    .score-low {
+        background-color: rgba(220, 53, 69, 0.12) !important; /* light danger */
+        color: #dc3545 !important; /* red */
+        border-color: rgba(220, 53, 69, 0.3) !important;
+    }
+    .score-na {
+        background-color: rgba(108, 117, 125, 0.1) !important;
+        color: #6c757d !important;
+        border-color: rgba(108, 117, 125, 0.2) !important;
+    }
+
+    /* Professional Financial Tables Styling (Bloomberg/Koyfin style) */
+    .table-professional {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        font-size: 0.8rem !important; /* Extremely legible but dense enough */
+        border-collapse: separate;
+        border-spacing: 0;
+        width: 100%;
+        color: #1e293b;
+    }
+    
+    [data-bs-theme="dark"] .table-professional {
+        color: #e2e8f0;
+    }
+    
+    /* Sticky First Column for Metric name */
+    .table-professional th:first-child,
+    .table-professional td:first-child {
+        position: sticky;
+        left: 0;
+        background-color: #ffffff;
+        z-index: 10;
+        border-right: 1.5px solid #cbd5e1;
+        text-align: left !important;
+        min-width: 250px;
+        max-width: 320px;
+        box-shadow: 2px 0 5px rgba(0,0,0,0.02);
+    }
+    
+    [data-bs-theme="dark"] .table-professional th:first-child,
+    [data-bs-theme="dark"] .table-professional td:first-child {
+        background-color: var(--fin-card-bg, #11131b);
+        border-right: 1.5px solid #1f222e;
+        box-shadow: 2px 0 5px rgba(0,0,0,0.15);
+    }
+    
+    /* Ensure background stays proper on hover */
+    .table-professional tr:hover td {
+        background-color: rgba(13, 110, 253, 0.04) !important;
+    }
+    
+    [data-bs-theme="dark"] .table-professional tr:hover td {
+        background-color: rgba(13, 110, 253, 0.08) !important;
+    }
+    
+    /* Header Styling */
+    .table-professional thead th {
+        background-color: #f1f5f9 !important;
+        color: #475569 !important;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.72rem;
+        letter-spacing: 0.05em;
+        padding: 8px 14px;
+        border-bottom: 2px solid #94a3b8;
+        border-top: 1px solid #cbd5e1;
+        position: sticky;
+        top: 0;
+        z-index: 12;
+    }
+    
+    .table-professional thead th:first-child {
+        z-index: 15;
+    }
+    
+    [data-bs-theme="dark"] .table-professional thead th {
+        background-color: #151821 !important;
+        color: #94a3b8 !important;
+        border-bottom: 2px solid #334155;
+        border-top: 1px solid #1f222e;
+    }
+    
+    /* Rows and Cells */
+    .table-professional tbody td {
+        padding: 6px 14px;
+        border-bottom: 1px solid #cbd5e1;
+        vertical-align: middle;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.45;
+    }
+    
+    [data-bs-theme="dark"] .table-professional tbody td {
+        border-bottom: 1px solid #1f222e;
+    }
+    
+    /* Indentation for sub-metrics */
+    .table-professional .indent-submetric {
+        padding-left: 2.25rem !important;
+        font-size: 0.775rem;
+        color: #475569 !important;
+    }
+    
+    [data-bs-theme="dark"] .table-professional .indent-submetric {
+        color: #94a3b8 !important;
+    }
+    
+    /* Major totals/subtotals rows */
+    .table-professional tr.table-group-header {
+        background-color: #f8fafc !important;
+        border-top: 1.5px solid #94a3b8 !important;
+        border-bottom: 1.5px solid #94a3b8 !important;
+    }
+    
+    [data-bs-theme="dark"] .table-professional tr.table-group-header {
+        background-color: rgba(255,255,255,0.02) !important;
+        border-top: 1.5px solid #334155 !important;
+        border-bottom: 1.5px solid #334155 !important;
+    }
+    
+    .table-professional tr.table-group-header td {
+        font-weight: 700 !important;
+        color: #0f172a !important;
+    }
+    
+    [data-bs-theme="dark"] .table-professional tr.table-group-header td {
+        color: #f8fafc !important;
+    }
+    
+    /* Accent coloring for key financial totals */
+    .table-professional tr.table-group-header.total-row-highlight {
+        background-color: rgba(13, 110, 253, 0.05) !important;
+    }
+    [data-bs-theme="dark"] .table-professional tr.table-group-header.total-row-highlight {
+        background-color: rgba(13, 110, 253, 0.1) !important;
+    }
+    
+    /* Alignments */
+    .table-professional .text-end {
+        text-align: right !important;
+    }
+    
+    /* Negative and zero formatting colors */
+    .table-professional .neg-val {
+        color: #ef4444 !important; /* Coral red */
+        font-weight: 600;
+    }
+    [data-bs-theme="dark"] .table-professional .neg-val {
+        color: #f87171 !important;
+    }
+    
+    .table-professional .zero-val {
+        color: #94a3b8 !important;
+        opacity: 0.6;
+    }
+
+    /* Resumen ejecutivo: franja de la tesis y cifras clave (mismo estilo que el resumen de Cartera) */
+    .key-figs { overflow-x: auto; }
+    .quote-fig { font-size: .78rem; white-space: nowrap; }
+    .pv-periods .btn, .fin-periods .btn { font-size: .7rem; padding: .1rem .45rem; }   /* .pv-periods: los del Resumen (su JS los rellena); .fin-periods: los de Finanzas */
+    /* Resumen de la ficha: cifras clave en dos filas, etiquetas de bloque y notas de calidad */
+    .key-figs-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); height: 100%; }
+    .key-figs-grid .key-fig { border-bottom: 1px solid var(--bs-border-color-translucent); justify-content: center; }
+    .key-figs-grid .key-fig:nth-child(5n) { border-right: 0; }
+    .key-figs-grid .key-fig:nth-child(n+6) { border-bottom: 0; }
+    .key-figs-grid.key-figs-line { grid-template-columns: repeat(7, minmax(0, 1fr)) auto; }
+    .key-figs-line .key-fig { padding-left: .5rem; padding-right: .5rem; }
+    .key-figs-line .key-fig { border-bottom: 0; border-right: 1px solid var(--bs-border-color-translucent); }
+    .key-figs-line .key-fig:nth-child(5n) { border-right: 1px solid var(--bs-border-color-translucent); }
+    .key-figs-line .key-fig:last-child { border-right: 0; }
+    /* bloques del Resumen: una franja de color a la izquierda para distinguirlos de un vistazo */
+    .dash-card { border-left: 3px solid var(--dash-accent, var(--bs-border-color)) !important; }
+    .dash-green { --dash-accent: #22c55e; } .dash-slate { --dash-accent: #64748b; } .dash-blue { --dash-accent: #3b82f6; } .dash-purple { --dash-accent: #8b5cf6; } .dash-teal { --dash-accent: #14b8a6; } .dash-amber { --dash-accent: #f59e0b; }
+    .dash-label .bi { color: var(--dash-accent); }
+    /* la tesis acaba a la altura de la columna izquierda: no aporta alto a la fila y, si no cabe, scroll propio */
+    .dash-fill { min-height: 0; }
+    .dash-fill-body { flex: 1 1 0; min-height: 0; overflow-y: auto; }
+    @media (max-width: 991px) { .dash-fill-body { flex: none; overflow: visible; } }
+    .dash-label { font-size: .68rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--bs-secondary-color); margin-bottom: .35rem; }
+    .dash-why { font-size: .72rem; }
+    .dash-scores { display: grid; grid-template-columns: repeat(4, auto); gap: .25rem; font-size: .76rem; }
+    .text-orange { color: #fd7e14 !important; }
+    .key-figs-row { min-width: 640px; }
+    .key-fig { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: .1rem; padding: .45rem .7rem;
+               border-right: 1px solid var(--bs-border-color); }
+    .key-fig:last-child { border-right: 0; }
+    .key-fig-more { flex: 0 0 auto; align-items: center; color: var(--bs-secondary-color); }
+    .key-fig-more:hover { background: rgba(127, 127, 127, .08); }
+    .key-fig-label { font-size: .65rem; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .key-fig-val { font-size: .98rem; font-weight: 700; white-space: nowrap; }
+    /* Cabecera y pestañas compactas: más alto para tablas y gráficos */
+    #mainTickerTabs .nav-link { font-size: .76rem; letter-spacing: .3px; }
+    #subFinancialsTabs .nav-link { font-size: .74rem; }
+    .fin-source { font-size: .74rem; }
+    .fin-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+                 gap: .4rem; padding: 2rem 1rem; color: var(--bs-secondary-color); height: 100%; min-height: 260px; }
+    .fin-empty i { font-size: 1.8rem; opacity: .6; }
+    /* Normas de calidad: nota total y los 5 pilares en una pantalla; el scroll, solo al abrir un informe */
+    .rules-bar { padding: .3rem .6rem; border: 1px solid var(--bs-border-color); border-radius: .5rem; background: rgba(13,110,253,.05); }
+    .rules-total { font-size: 1.35rem; font-weight: 800; line-height: 1; }
+    .rules-syn:empty { display: none; }
+    .rules-syn { padding: .2rem .6rem; border: 1px dashed var(--bs-border-color); border-radius: .5rem; font-size: .78rem; line-height: 1.35; }
+    .rules-syn .syn-head { font-weight: 600; }
+    .rules-syn .syn-detail { font-size: .74rem; color: var(--bs-secondary-color); }
+    .rules-syn .syn-detail span + span::before { content: " · "; }
+    /* Informes de calidad: nota, fortalezas y debilidades arriba; el informe completo debajo, con su comienzo a la vista */
+    #reportTabsContent > .tab-pane.active { display: flex; flex-direction: column; min-height: 100%; }
+    #reportTabsContent > .tab-pane > .card,
+    #reportTabsContent > .tab-pane > .card > .card-body { flex: 1 1 auto; display: flex; flex-direction: column; }
+    .qa-fill { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    /* con un informe de calidad el panel tiene alto fijo: así el arranque del informe encoge si no cabe todo */
+    #reportTabsContent > .tab-pane.active:has(.qa-fill) { height: 100%; }
+    #reportTabsContent > .tab-pane:has(.qa-fill) > .card, #reportTabsContent > .tab-pane:has(.qa-fill) > .card > .card-body { min-height: 0; }
+    /* fortalezas y debilidades: dos columnas enteras (sin scroll); el informe ocupa el resto con su comienzo a la vista */
+    .qa-fill > .qa-meta:not(.d-none) { flex: 1 0 auto; display: flex; flex-direction: column; }
+    .qa-fill > .qa-meta > .qa-row { flex: 1 0 auto; }
+    .qa-fill.report-open > .qa-meta { flex: none; }
+    .qa-fill .qa-row { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+    @media (max-width: 991px) { .qa-fill .qa-row { grid-template-columns: 1fr; } }
+    .qa-fill .qa-box { display: flex; flex-direction: column; min-height: 0; }
+    .qa-fill .qa-list { font-size: .76rem; }
+    .qa-fill .qa-list li { line-height: 1.32; margin-bottom: .2rem !important; display: flex; gap: .35rem; }
+    .qa-fill .qa-list li > i { flex: none; margin: 0 !important; }
+    .qa-fill.report-open > .qa-meta .qa-row { display: none; }
+    .qa-report { --qa-bg: #fff; background: var(--qa-bg); }
+    [data-bs-theme="dark"] .qa-report { --qa-bg: var(--fin-card-bg); }
+    /* del informe se ve solo el arranque (unas líneas); fortalezas y debilidades se quedan el resto del alto */
+    .qa-fill > .qa-report:not(.d-none) { flex: 2 1 0; max-height: 23rem; min-height: 100px; display: flex; flex-direction: column; }
+    .qa-fill .qa-report > .qa-preview { flex: 1 1 0; min-height: 46px; container-type: size; position: relative; overflow: hidden; }
+    .qa-fill.report-open > .qa-report:not(.d-none) { flex: 1 1 auto; max-height: none; }
+    @container (max-height: 80px) { .qa-preview-fade > .btn { display: none; } }
+    @media (min-height: 860px) { .qa-fill .qa-list { font-size: .82rem; } .qa-fill .qa-list li { line-height: 1.45; margin-bottom: .35rem !important; } }
+    .qa-fill .qa-report > .qa-preview > .card-body { height: 100%; overflow: hidden; }
+    .qa-fill.report-open .qa-report > .qa-preview > .card-body { overflow-y: auto; }
+    .qa-preview-fade { position: absolute; left: 0; right: 0; bottom: 0; height: min(5.5rem, 75%); display: flex; align-items: flex-end;
+                       justify-content: center; padding-bottom: .7rem; cursor: pointer;
+                       background: linear-gradient(to bottom, transparent, var(--qa-bg) 70%); }
+    .qa-fill.report-open .qa-preview-fade { display: none; }
+    .qa-report-title { font-size: .8rem; font-weight: 600; color: var(--bs-emphasis-color); }
+    .qa-fill .report-header-toolbar { padding-bottom: .45rem; margin-bottom: .5rem !important; }
+    .qa-report-date { font-size: .72rem; font-weight: 400; color: var(--bs-secondary-color); }
+    .qa-report .report-content { max-width: 800px; padding: .35rem .5rem; }
+    /* la nota, en una píldora (el JS de los gauges le vuelve a poner score-badge-circle) */
+    .qa-scoreline .score-badge-circle { width: auto; height: auto; min-width: 3.2rem; border-radius: 999px; padding: .05rem .6rem; font-size: 1rem; box-shadow: none; border-width: 1px; }
+    .qa-scorehead .score-badge-circle { font-size: 1.6rem; min-width: 4.6rem; padding: .1rem .8rem; border-width: 2px; }
+    .qa-scorehead .qa-scorebar { flex: 0 0 140px; height: 7px; }
+    .qa-scorebar { height: 5px; border-radius: 3px; background: var(--bs-secondary-bg); overflow: hidden; max-width: 260px; }
+    .qa-scorebar > span { display: block; height: 100%; border-radius: 3px; }
+    .qa-fill .score-display-card { min-height: 0; }
+    /* los 5 pilares se reparten todo el alto del panel; al abrir un informe, ese pilar crece y el panel hace scroll */
+    #reportTabsContent > #rules.active { display: flex; flex-direction: column; min-height: 100%; }
+    #reportTabsContent > #rules > .card,
+    #reportTabsContent > #rules > .card > .card-body,
+    #reportTabsContent > #rules > .card > .card-body > #rules { flex: 1 1 auto; display: flex; flex-direction: column; }
+    .rules-list { flex: 1 1 auto; gap: .25rem !important; }
+    .rules-list > .card { flex: 1 1 0; display: flex; flex-direction: column; margin-bottom: 0 !important; }
+    .rules-list > .card > .card-header { flex: 1 1 auto; border-bottom: 0; }
+    .pilar-bar { height: 4px; border-radius: 2px; background: var(--bs-secondary-bg); overflow: hidden; margin-top: .25rem; }
+    .rules-list > .card > .card-header { padding-top: .15rem !important; padding-bottom: .15rem !important; }
+    .rules-list h6 { line-height: 1.15; }
+    .rules-list .card-header p { line-height: 1.25; }
+    .pilar-bar > span { display: block; height: 100%; border-radius: 2px; transition: width .3s; }
+    .thesis-strip .st-green { color: var(--fin-green, #089981); } .thesis-strip .st-amber { color: #f0a500; } .thesis-strip .st-red { color: var(--fin-red, #f23645); }
+</style>

@@ -31,3 +31,29 @@ def test_veredicto(g, mult, tone):
 def test_sin_datos():
     assert vr.verdict({"metric": "eps", "growth": 0.1, "exit_multiple": 20}, vr.history({}, {})) is None
     assert vr.warning(None) is None
+
+
+def test_grupos_de_los_avisos():
+    from app.application.services.notification_service import filter_of
+    assert filter_of({"group": "avisos", "type": "insider_buy"}) == "analistas"
+    assert filter_of({"group": "avisos", "type": "estimate_rise"}) == "analistas"
+    assert filter_of({"group": "avisos", "type": "zona"}) == filter_of({"group": "avisos", "type": "cerca"}) == "comprar"
+    assert filter_of({"group": "monitor", "type": "anormal"}) == "precio"
+    assert filter_of({"group": "noticias"}) == "noticias"
+    assert filter_of({"group": "alertas", "kind": "valoración", "counts": True}) == "comprar"   # hacia barata o ganga
+    assert filter_of({"group": "alertas", "kind": "valoración", "counts": False}) == "otros"
+    assert filter_of({"group": "alertas", "kind": "caída", "counts": True}) == "precio"
+    assert filter_of({"group": "alertas", "kind": "recuperada", "counts": True}) == "otros"
+    assert filter_of({"group": "avisos", "type": "report"}) == filter_of({"group": "avisos", "type": "legacy"}) == "cartera"
+
+
+def test_agenda_por_semanas():
+    import datetime
+    from app.interfaces.views.thesis_views import agenda_weeks
+    d = datetime.date
+    weeks = agenda_weeks([{"ticker": "META", "date": d(2026, 10, 21)}, {"ticker": "ROL", "date": d(2026, 10, 21)},
+                          {"ticker": "BKNG", "date": d(2026, 11, 3)}],
+                         [{"ticker": "MSFT", "date": d(2026, 10, 30), "kind": "pago", "gross_eur": 13}], today=d(2026, 10, 15))
+    assert [w["label"] for w in weeks] == ["La próxima", "En 2 semanas", "En 3 semanas"]
+    assert weeks[1]["span"] == "del lun 26 oct al dom 1 nov"
+    assert [i["ticker"] for i in weeks[0]["items"]] == ["META", "ROL"] and weeks[1]["items"][0]["ticker"] == "MSFT"

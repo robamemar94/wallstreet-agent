@@ -96,6 +96,11 @@
 {% macro agenda_compact_window(key, w, theses_ids) %}
 <div class="card-body small agenda-window d-none" data-agenda-view="cartera" data-agenda-window="{{ key }}">
     {% set items = (w.upcoming|map(attribute='date')|list + w.dividends|map(attribute='date')|list)|unique|sort %}
+    {# lo que viene en el periodo, en una línea #}
+    {% set pays = w.dividends|rejectattr('kind', 'equalto', 'ex')|list %}
+    <div class="ag-coming">{{ 'Próximos 7 días' if key == 'semana' else 'Próximos 30 días' }}:
+        {% if w.upcoming or pays %}{% if w.upcoming %}<b>{{ w.upcoming|length }}</b> resultado{{ 's' if w.upcoming|length > 1 }} ({% for i in w.upcoming %}{{ clean_ticker(i.ticker) }}{{ ', ' if not loop.last }}{% endfor %}){% endif %}{% if w.upcoming and pays %} · {% endif %}{% if pays %}<b>{{ pays|length }}</b> cobro{{ 's' if pays|length > 1 }} (≈{{ num(pays|sum(attribute='gross_eur'), 0) }} €){% endif %}
+        {% else %}nada de tu cartera{% endif %}</div>
     {% for d in items %}{% set res = w.upcoming|selectattr('date', 'equalto', d)|list %}{% set divs = w.dividends|selectattr('date', 'equalto', d)|list %}
     <div class="ag-row">{{ day_label(d, (res or divs)[0].days) }}
         <span class="ag-what">{% if res %}<i class="bi bi-clipboard-data text-primary me-1" title="Presenta resultados"></i>{% for i in res %}{{ thesis_link(clean_ticker(i.ticker), theses_ids.get(i.ticker)) }}{{ ', ' if not loop.last }}{% endfor %} <span class="text-muted">resultados</span>{% endif %}
@@ -106,6 +111,7 @@
 {% endmacro %}
 {% macro other_compact_window(key, w, meta) %}
 <div class="card-body small agenda-window d-none" data-agenda-view="resto" data-agenda-window="{{ key }}">
+    <div class="ag-coming">{{ 'Próximos 7 días' if key == 'semana' else 'Próximos 30 días' }}: {% if w.upcoming %}<b>{{ w.upcoming|length }}</b> de las que sigues presenta{{ 'n' if w.upcoming|length > 1 }} resultados{% else %}ninguna de las que sigues presenta resultados{% endif %}</div>
     {% for i in w.upcoming %}{% set m = meta.get(i.ticker, {}) %}
     <div class="ag-row">{{ day_label(i.date, i.days) }}<span class="ag-what"><i class="bi bi-clipboard-data text-primary me-1"></i>{{ company(clean_ticker(i.ticker), i.thesis_id, m) }}{% if m.zone %} {{ zone_badge(m.zone) }}{% endif %}</span></div>
     {% else %}<div class="text-muted">Ninguna de las que sigues presenta resultados {{ span(w) }}.</div>{% endfor %}

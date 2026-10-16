@@ -1,0 +1,634 @@
+
+    const perfDates      = {{ perf_dates | tojson | safe }};
+    const perfPortfolio  = {{ perf_portfolio | tojson | safe }};
+    const perfValuesEur  = {{ perf_values_eur | tojson | safe }};
+    const perfPatrimony  = {{ perf_patrimony | tojson | safe }};   // con la liquidez (null antes del saldo de partida)
+    const PAT = 'Con liquidez', hasPat = (perfPatrimony.uv || []).some(v => v !== null);
+    const perfBenchmarks = {{ perf_benchmarks | tojson | safe }};
+    const PERF_REF_BENCH = {{ perf_ref_bench | tojson }};   // índice de referencia (Ajustes): el de todas las alfas
+
+    document.addEventListener("DOMContentLoaded", function() {
+        // Inicializar tooltips de Bootstrap
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        // Gráfico de Rendimiento
+        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const textColor = isDark ? "#adb5bd" : "#2c3e50";
+        const gridColor = isDark ? "rgba(255,255,255,0.05)" : "#f0f0f0";
+
+        const benchColors = { "MSCI World": "#6c757d", "S&P 500": "#fd7e14" };
+        let currentPeriod = 'all';
+        let currentMode   = 'nav';
+        let perfChartInit = false;
+
+        // Visibilidad de series para Leyenda Interactiva (ojo)
+        let seriesVisibility = { 'Mi Cartera': true };
+        Object.keys(perfBenchmarks).forEach(name => {
+            seriesVisibility[name] = true;
+        });
+
+        // ── Helpers ─────────────────────────────────────────────────────────
+        function getStartIndex(period) {
+            if (!perfDates.length || period === 'all') return 0;
+            const last = new Date(perfDates[perfDates.length - 1]);
+            let cutoff = new Date(last);
+            
+            if      (period === '1d')  cutoff.setDate(cutoff.getDate() - 1);
+            else if (period === '7d')  cutoff.setDate(cutoff.getDate() - 7);
+            else if (period === '1m')  cutoff.setMonth(cutoff.getMonth() - 1);
+            else if (period === '3m')  cutoff.setMonth(cutoff.getMonth() - 3);
+            else if (period === '6m')  cutoff.setMonth(cutoff.getMonth() - 6);
+            else if (period === 'ytd') cutoff = new Date(last.getFullYear(), 0, 1);
+            else if (period === '1y')  cutoff.setFullYear(cutoff.getFullYear() - 1);
+            else if (period === '3y')  cutoff.setFullYear(cutoff.getFullYear() - 3);
+            else if (period === '5y')  cutoff.setFullYear(cutoff.getFullYear() - 5);
+            else if (period === '10y') cutoff.setFullYear(cutoff.getFullYear() - 10);
+            
+            let si = 0;
+            for (let i = 0; i < perfDates.length; i++) {
+                if (new Date(perfDates[i]) >= cutoff) {
+                    si = i;
+                    break;
+                }
+            }
+            // Asegurar al menos 2 puntos para poder pintar línea
+            if (perfDates.length - si < 2 && perfDates.length >= 2) {
+                si = perfDates.length - 2;
+            }
+            return si;
+        }
+
+        function calcDrawdown(vals) {
+            let mx = vals[0] || 0, dd = [];
+            vals.forEach(v => { if (v > mx) mx = v; dd.push(mx > 0 ? (v - mx) / mx * 100 : 0); });
+            return dd;
+        }
+
+        // ── Leyenda Personalizada e Interactiva (botón de ojo) ────────────────
+        function renderCustomLegend() {
+            const legendContainer = document.getElementById('custom-legend');
+            if (!legendContainer) return;
+            
+            let items = ['Mi Cartera'];
+            if (hasPat) items.push(PAT);
+            if (currentMode !== 'real') {
+                Object.keys(perfBenchmarks).forEach(name => {
+                    items.push(name);
+                });
+            }
+            
+            let html = '';
+            items.forEach(name => {
+                const isVisible = seriesVisibility[name] !== false;
+                const color = name === 'Mi Cartera' ? '#0d6efd' : name === PAT ? '#20c997' : (benchColors[name] || '#adb5bd');
+                const eyeIcon = isVisible ? 'bi-eye-fill text-primary' : 'bi-eye-slash text-muted';
+                const borderClass = isVisible 
+                    ? (isDark ? 'border-primary-subtle bg-dark text-light' : 'border-primary-subtle bg-light text-dark') 
+                    : 'opacity-50 bg-light-subtle text-muted';
+                const textClass = isVisible ? 'fw-semibold' : '';
+                
+                html += `
+                    <div class="custom-legend-item d-flex align-items-center gap-2 px-3 py-1.5 rounded border ${borderClass}" 
+                         style="cursor: pointer; user-select: none; transition: all 0.2s; font-size: 0.8rem;" 
+                         onclick="toggleSeries('${name}')">
+                        <span class="legend-color-dot" style="width: 10px; height: 10px; border-radius: 50%; background-color: ${color}; display: inline-block;"></span>
+                        <span class="${textClass}">${name}</span>
+                        <i class="bi ${eyeIcon} ms-2"></i>
+                    </div>
+                `;
+            });
+            legendContainer.innerHTML = html;
+        }
+
+        window.toggleSeries = function(name) {
+            seriesVisibility[name] = seriesVisibility[name] === false ? true : false;
+            renderCustomLegend();
+            renderPerfChart();
+        };
+
+        // ── Render principal ────────────────────────────────────────────────
+        // Se pinta toda la serie con un navegador debajo (como Fiscal.ai): los botones de periodo y el arrastre del
+        // navegador solo eligen la ventana visible [si, ei]; el índice se rebasa a 10 en su primer día y el drawdown y
+        // los KPIs son de esa ventana.
+        let perfRangeIdx = null;   // [si, ei] si el usuario ha movido la ventana a mano
+        function perfWindow() {
+            return perfRangeIdx || [getStartIndex(currentPeriod), perfDates.length - 1];
+        }
+        // Coste de la liquidez en la ventana visible (desde que se lleva): patrimonio con efectivo menos cartera, en pp
+        function renderCashCost(si, ei) {
+            const wrap = document.getElementById('kpiCashWrap');
+            if (!wrap) return;
+            const uv = perfPatrimony.uv || [];
+            let k = si;
+            while (k <= ei && uv[k] === null) k++;
+            wrap.classList.toggle('d-none', !hasPat);
+            if (!hasPat) return;
+            if (k >= ei) {
+                document.getElementById('kpiCash').textContent = '—';
+                document.getElementById('kpiCash').className = 'fw-bold text-muted';
+                document.getElementById('kpiCashSub').textContent = k <= ei ? 'desde el ' + perfDates[k].slice(8, 10) + '/' + perfDates[k].slice(5, 7) + ': aún sin historia' : 'fuera de la ventana';
+                return;
+            }
+            const pp = 100 * ((uv[ei] / uv[k]) - (perfPortfolio[ei] / perfPortfolio[k]));
+            const pcts = perfPatrimony.cash_pct.slice(k, ei + 1).filter(v => v !== null);
+            const avg = pcts.reduce((a, b) => a + b, 0) / (pcts.length || 1);
+            const el = document.getElementById('kpiCash');
+            el.textContent = (pp > 0 ? '+' : '') + fmtNum(pp, 2) + ' pp';
+            el.className = 'fw-bold ' + (pp >= 0 ? 'text-success' : 'text-danger');
+            document.getElementById('kpiCashSub').textContent = 'efectivo medio ' + fmtNum(avg, 1) + ' %';
+        }
+        function renderPerfChart() {
+            const [si, ei] = perfWindow();
+            const dates = perfDates;
+            const cfg   = { responsive: true, displayModeBar: false };
+            const xaxis = { showgrid: false, tickfont: { color: textColor }, type: 'date',
+                            range: [dates[si], dates[ei]], rangeslider: rangeSliderStyle() };
+            const traces = [];
+
+            if (currentMode === 'real') {
+                if (seriesVisibility['Mi Cartera'] !== false) {
+                    traces.push({
+                        x: dates, y: perfValuesEur, mode: 'lines', name: 'Cartera (€)',
+                        line: { color: '#0d6efd', width: 3 },
+                        fill: 'tozeroy', fillcolor: 'rgba(13,110,253,0.08)'
+                    });
+                }
+                if (hasPat && seriesVisibility[PAT] !== false) {
+                    traces.push({ x: dates, y: perfPatrimony.eur, mode: 'lines', name: 'Con liquidez (€)', connectgaps: false,
+                                  line: { color: '#20c997', width: 2, dash: 'dash' } });
+                }
+                const layout = {
+                    xaxis,
+                    yaxis: { tickformat: ',.0f', ticksuffix: ' €', tickfont: { color: textColor }, gridcolor: gridColor, showgrid: true,
+                             range: yRangeFor(traces.map(t => t.y), si, ei) || undefined },
+                    margin: { t: 10, b: 34, l: 75, r: 10 },
+                    hovermode: 'x unified', showlegend: false,
+                    separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+                };
+                Plotly.react('perf-chart', traces, layout, cfg);
+                renderDrawdown(perfValuesEur.slice(si, ei + 1), dates.slice(si, ei + 1));
+                // KPIs en modo real usan NAV igualmente (rentabilidad pura)
+                updateKPIs(perfPortfolio.slice(si, ei + 1), dates.slice(si, ei + 1));
+            } else {
+                // NAV rebasado a 10 en el primer día de la ventana
+                const base = perfPortfolio[si] || 10;
+                const port = perfPortfolio.map(v => Math.round(v / base * 1000) / 100);
+                if (seriesVisibility['Mi Cartera'] !== false) {
+                    traces.push({ x: dates, y: port, mode: 'lines', name: 'Mi Cartera', line: { color: '#0d6efd', width: 3 } });
+                }
+                if (hasPat && seriesVisibility[PAT] !== false) {
+                    // rebasado como la cartera: si la ventana empieza con liquidez, a 10 ese día; si no, junto a la cartera
+                    const pb = perfPatrimony.uv[si];
+                    traces.push({ x: dates, y: perfPatrimony.uv.map(v => v === null ? null : Math.round(v / (pb || base) * 1000) / 100),
+                                  mode: 'lines', name: PAT, line: { color: '#20c997', width: 2, dash: 'dash' } });
+                }
+                Object.entries(perfBenchmarks).forEach(([name, vals]) => {
+                    if (seriesVisibility[name] !== false) {
+                        const bBase = vals[si] || 10;
+                        traces.push({
+                            x: dates, y: vals.map(v => Math.round(v / bBase * 1000) / 100), mode: 'lines', name,
+                            line: { color: benchColors[name] || '#adb5bd', width: 2, dash: 'dot' }
+                        });
+                    }
+                });
+                const layout = {
+                    xaxis,
+                    yaxis: { title: { text: 'Valor Cuota', font: { color: textColor } }, showgrid: true, gridcolor: gridColor,
+                             tickfont: { color: textColor }, range: yRangeFor(traces.map(t => t.y), si, ei) || undefined },
+                    margin: { t: 10, b: 34, l: 50, r: 10 },
+                    showlegend: false, // Ocultar nativo, usamos el nuestro interactivo
+                    hovermode: 'x unified',
+                    separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+                };
+                Plotly.react('perf-chart', traces, layout, cfg);
+                renderDrawdown(port.slice(si, ei + 1), dates.slice(si, ei + 1));
+                updateKPIs(port.slice(si, ei + 1), dates.slice(si, ei + 1));
+            }
+
+            renderCashCost(si, ei);
+
+            // al arrastrar o estirar el navegador (o hacer zoom): nueva ventana, sin periodo marcado
+            const el = document.getElementById('perf-chart');
+            if (el && el.on && !el._rangeHooked) {
+                el._rangeHooked = true;
+                rangeSliderYears(el);   // años bajo el navegador
+                el.on('plotly_relayout', ev => {
+                    const rg = relayoutXRange(ev);
+                    if (rg === undefined) return;
+                    perfRangeIdx = rg === 'all' ? [0, perfDates.length - 1] : rangeIndices(perfDates, rg[0], rg[1]);
+                    document.querySelectorAll('#periodTabs button').forEach(b => b.className = 'btn btn-sm btn-outline-secondary');
+                    renderPerfChart();
+                });
+            }
+            
+            // Re-renderizar leyenda personalizada
+            renderCustomLegend();
+            perfLayout();
+        }
+
+        // Todo en una pantalla: gráfico + drawdown a la izquierda y tabla a la derecha, del alto que quede en la ventana
+        // Tabla de la derecha a todo el ancho (oculta el gráfico) y vuelta
+        window.togglePerfTable = function () {
+            const tableCol = document.getElementById('perfTableCard').parentElement, chartCol = document.getElementById('perfChartCard').parentElement;
+            const wide = tableCol.classList.toggle('col-xl-12');
+            tableCol.classList.toggle('col-xl-4', !wide);
+            chartCol.classList.toggle('d-none', wide);
+            document.querySelector('#perfTableExpand i').className = wide ? 'bi bi-arrows-angle-contract' : 'bi bi-arrows-angle-expand';
+            document.getElementById('perfTableExpand').title = wide ? 'Volver a ver el gráfico' : 'Ampliar la tabla a todo el ancho';
+            if (!wide) perfLayout();
+        };
+        function perfLayout() {
+            const card = document.getElementById('perfChartCard'), table = document.getElementById('perfTableCard');
+            if (!card) return;
+            const wide = window.innerWidth >= 1200;
+            const set = h => {
+                const dd = Math.round(Math.max(70, h * 0.22));
+                card.style.height = h + 'px';
+                if (table) table.style.height = wide ? h + 'px' : '';
+                document.getElementById('drawdown-chart').style.height = dd + 'px';
+                document.getElementById('perf-chart').style.height = (h - dd - 16 - 38 - 14) + 'px';   // padding · leyenda · rótulo
+            };
+            // lo que la página deja por debajo de la tarjeta (su margen y los rellenos de los contenedores) también cabe;
+            // se mide con la tarjeta muy alta para que la página sea más larga que la ventana
+            set(window.innerHeight * 2);
+            const below = document.documentElement.scrollHeight - (card.getBoundingClientRect().bottom + window.scrollY);
+            set(Math.max(340, Math.floor(window.innerHeight - card.getBoundingClientRect().top - below)));
+            ['perf-chart', 'drawdown-chart'].forEach(id => { const el = document.getElementById(id); if (el && el.data) Plotly.Plots.resize(el); });
+        }
+        window.addEventListener('resize', () => { if (document.getElementById('perf-pane')?.classList.contains('active')) perfLayout(); });
+        // las cifras se rellenan después y pueden pasar a ocupar otra línea: se reajusta cuando cambian de tamaño
+        const perfKpis = document.querySelector('.perf-kpis');
+        if (perfKpis && window.ResizeObserver) new ResizeObserver(() => {
+            if (document.getElementById('perf-pane')?.classList.contains('active')) perfLayout();
+        }).observe(perfKpis);
+
+        function renderDrawdown(vals, dates) {
+            const dd = calcDrawdown(vals);
+            Plotly.react('drawdown-chart', [{
+                x: dates, y: dd, type: 'scatter', fill: 'tozeroy',
+                line: { color: '#dc3545', width: 1 },
+                fillcolor: 'rgba(220,53,69,0.2)', showlegend: false
+            }], {
+                xaxis: { showgrid: false, tickfont: { color: textColor } },
+                yaxis: { tickformat: '.1f', ticksuffix: '%',
+                         tickfont: { color: textColor }, gridcolor: gridColor },
+                margin: { t: 5, b: 35, l: 50, r: 10 },
+                separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                showlegend: false
+            }, { responsive: true, displayModeBar: false });
+        }
+
+        // ── KPIs dinámicos ──────────────────────────────────────────────────
+        function fmt(v, decimals=2) {
+            return (v >= 0 ? '+' : '') + fmtNum(v, decimals) + '%';
+        }
+        function colorClass(v) {
+            return v >= 0 ? 'text-success' : 'text-danger';
+        }
+
+        function updateKPIs(portSlice, dates) {
+            if (!portSlice.length) return;
+            const base = portSlice[0];
+            const last = portSlice[portSlice.length - 1];
+            const totalRet = (last / base - 1) * 100;
+            const days     = (new Date(dates[dates.length-1]) - new Date(dates[0])) / 86400000;
+            const years    = days / 365.25;
+            const annual   = years >= 1;   // con menos de un año no se anualiza (8 meses al +28 % saldrían como un +45 % anual)
+            const cagr     = annual ? (Math.pow(last / base, 1 / years) - 1) * 100 : totalRet;
+            const maxDD    = Math.min(...calcDrawdown(portSlice));
+
+            const labelMap = {
+                '1d': 'Último Día',
+                '7d': 'Últimos 7 Días',
+                '1m': 'Último Mes',
+                '3m': 'Últimos 3 Meses',
+                '6m': 'Últimos 6 Meses',
+                'ytd': 'Año en Curso (YTD)',
+                '1y': 'Último Año (1A)',
+                '3y': 'Últimos 3 Años (3A)',
+                '5y': 'Últimos 5 Años (5A)',
+                '10y': 'Últimos 10 Años (10A)',
+                'all': 'Historial Completo'
+            };
+            // ventana movida a mano con el navegador: sus fechas
+            const dm = d => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(2, 4)}`;
+            const custom = perfRangeIdx ? `${dm(dates[0])}–${dm(dates[dates.length - 1])}` : null;
+            const periodLabel = custom || {
+                'all':'Todo','1d':'1D','7d':'7D','1m':'1M','3m':'3M','6m':'6M','ytd':'YTD','1y':'1A','3y':'3A','5y':'5A','10y':'10A'
+            }[currentPeriod] || 'Todo';
+
+            const periodTitle = custom ? `Del ${dm(dates[0])} al ${dm(dates[dates.length - 1])}` : (labelMap[currentPeriod] || 'Detalle');
+
+            // Actualizar Título del Panel Lateral
+            const elPeriodTitle = document.getElementById('infoPeriodTitle');
+            if (elPeriodTitle) elPeriodTitle.textContent = periodTitle;
+
+            // Total return (Badge superior)
+            const elTotal = document.getElementById('kpiTotal');
+            elTotal.textContent   = fmt(totalRet);
+            elTotal.className     = 'fw-bold fs-4 ' + colorClass(totalRet);
+            document.getElementById('kpiTotalLabel').innerHTML =
+                `Rentabilidad Total <span class="opacity-50">(${periodLabel})</span>`;
+
+            // CAGR (Badge superior)
+            const elCagr = document.getElementById('kpiCagr');
+            elCagr.textContent = annual ? fmt(cagr) : '—';
+            elCagr.className   = 'fw-bold fs-4 ' + (annual ? colorClass(cagr) : 'text-muted');
+            elCagr.title       = annual ? '' : 'Con menos de un año no se anualiza: la comparación de al lado es la del periodo';
+            document.getElementById('kpiCagrLabel').innerHTML =
+                `CAGR <span class="opacity-50">(${annual ? periodLabel : 'menos de 1 año'})</span>`;
+
+            // Benchmark CAGRs (Badge superior)
+            const si = getStartIndex(currentPeriod);
+            let benchHtml = '';
+            Object.entries(perfBenchmarks).forEach(([name, vals]) => {
+                if (!vals.length || name !== PERF_REF_BENCH) return;   // una sola alfa: frente al índice de referencia
+                const bSlice = vals.slice(si);
+                const bCagr  = annual
+                    ? (Math.pow(bSlice[bSlice.length-1] / bSlice[0], 1/years) - 1) * 100
+                    : (bSlice[bSlice.length-1] / bSlice[0] - 1) * 100;
+                const alfa   = cagr - bCagr;
+                const color  = name === 'MSCI World' ? '#6c757d' : '#fd7e14';
+                benchHtml += `<span style="color:${color};">${name}: ${fmt(bCagr)}</span>`;
+                benchHtml += ` <span class="${colorClass(alfa)}">(α ${fmt(alfa)})</span><br>`;
+            });
+            document.getElementById('kpiBenchCagr').innerHTML = benchHtml;
+
+            // Max drawdown (Badge superior)
+            document.getElementById('kpiDD').textContent = fmtNum(maxDD, 2) + '%';
+            document.getElementById('kpiDDLabel').innerHTML =
+                `Máx. Drawdown <span class="opacity-50">(${periodLabel})</span>`;
+
+            // ── ACTUALIZAR TARJETA DE DETALLES DEL PERÍODO (LADO DERECHO) ──
+            const elInfoPortReturn = document.getElementById('infoPortReturn');
+            const elInfoPortBadge = document.getElementById('infoPortBadge');
+            const elInfoPortRangeVal = document.getElementById('infoPortRangeVal');
+            
+            if (elInfoPortReturn) {
+                if (currentMode === 'real') {
+                    const vals = perfValuesEur.slice(si);
+                    const baseEur = vals[0] || 0;
+                    const lastEur = vals[vals.length - 1] || 0;
+                    const diffEur = lastEur - baseEur;
+                    const pctEur = baseEur > 0 ? (diffEur / baseEur * 100) : 0;
+                    
+                    elInfoPortReturn.textContent = `${pctEur >= 0 ? '+' : ''}${fmtNum(pctEur, 2)}%`;
+                    elInfoPortReturn.className = `fs-4 fw-bold ${pctEur >= 0 ? 'text-success' : 'text-danger'}`;
+                    
+                    elInfoPortBadge.textContent = `${diffEur >= 0 ? '+' : ''}${fmtNum(Math.round(diffEur), 0)} €`;
+                    elInfoPortBadge.className = `badge ${diffEur >= 0 ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle'}`;
+                    
+                    elInfoPortRangeVal.textContent = `${fmtNum(Math.round(baseEur), 0)} € → ${fmtNum(Math.round(lastEur), 0)} €`;
+                } else {
+                    const baseVal = portSlice[0] || 100;
+                    const lastVal = portSlice[portSlice.length - 1] || 100;
+                    const pctVal = baseVal > 0 ? ((lastVal / baseVal) - 1) * 100 : 0;
+                    
+                    elInfoPortReturn.textContent = `${pctVal >= 0 ? '+' : ''}${fmtNum(pctVal, 2)}%`;
+                    elInfoPortReturn.className = `fs-4 fw-bold ${pctVal >= 0 ? 'text-success' : 'text-danger'}`;
+                    
+                    elInfoPortBadge.textContent = `NAV TWR`;
+                    elInfoPortBadge.className = `badge bg-secondary-subtle text-secondary border border-secondary-subtle`;
+                    
+                    elInfoPortRangeVal.textContent = `Índice: ${fmtNum(baseVal, 2)} → ${fmtNum(lastVal, 2)}`;
+                }
+            }
+
+            // Comparativa de Benchmarks y Alfa en tarjeta lateral
+            const elInfoBenchmarks = document.getElementById('infoBenchmarksContainer');
+            if (elInfoBenchmarks) {
+                if (currentMode === 'real') {
+                    elInfoBenchmarks.innerHTML = `
+                        <div class="text-center text-muted p-2 small bg-white border rounded">
+                            <i class="bi bi-info-circle me-1"></i> Benchmarks no comparables en modo € (las aportaciones alteran el saldo).
+                        </div>
+                    `;
+                } else {
+                    let html = `<div class="small text-muted fw-bold mb-1" style="font-size:0.75rem;">FRENTE AL ${PERF_REF_BENCH.toUpperCase()}:</div>`;
+                    
+                    // Calculo de retorno de cartera en periodo
+                    const baseVal = portSlice[0] || 100;
+                    const lastVal = portSlice[portSlice.length - 1] || 100;
+                    const portPct = baseVal > 0 ? ((lastVal / baseVal) - 1) * 100 : 0;
+                    
+                    Object.entries(perfBenchmarks).forEach(([name, bVals]) => {
+                        if (!bVals.length || name !== PERF_REF_BENCH) return;
+                        const bSlice = bVals.slice(si);
+                        const bBase = bSlice[0] || 10;
+                        const bLast = bSlice[bSlice.length - 1] || 10;
+                        const bPct = bBase > 0 ? ((bLast / bBase) - 1) * 100 : 0;
+                        
+                        const alpha = portPct - bPct;
+                        const color = name === 'MSCI World' ? '#6c757d' : '#fd7e14';
+                        const alphaSign = alpha >= 0 ? '+' : '';
+                        
+                        html += `
+                            <div class="d-flex justify-content-between align-items-center p-2 rounded bg-white border shadow-sm">
+                                <div>
+                                    <span class="legend-color-dot me-1" style="width: 8px; height: 8px; border-radius: 50%; background-color: ${color}; display: inline-block;"></span>
+                                    <span class="small fw-semibold text-dark">${name}</span>
+                                    <div class="text-muted" style="font-size: 0.68rem;">Retorno: ${bPct >= 0 ? '+' : ''}${fmtNum(bPct, 2)}%</div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge ${alpha >= 0 ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'}" style="font-size:0.72rem; padding: 0.35em 0.65em;">
+                                        α ${alphaSign}${fmtNum(alpha, 2)}%
+                                    </span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    elInfoBenchmarks.innerHTML = html;
+                }
+            }
+
+            // Estadísticas adicionales en tarjeta lateral
+            const elInfoMaxDD = document.getElementById('infoMaxDD');
+            if (elInfoMaxDD) {
+                const activeValsForDD = currentMode === 'real' ? perfValuesEur.slice(si) : portSlice;
+                const periodMaxDD = activeValsForDD.length ? Math.min(...calcDrawdown(activeValsForDD)) : 0;
+                elInfoMaxDD.textContent = `${fmtNum(periodMaxDD, 2)}%`;
+            }
+
+            const elInfoDays = document.getElementById('infoAnalyzedDays');
+            if (elInfoDays && dates.length >= 2) {
+                const diffMs = new Date(dates[dates.length - 1]) - new Date(dates[0]);
+                const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+                elInfoDays.textContent = `${diffDays} días`;
+            } else if (elInfoDays) {
+                elInfoDays.textContent = '—';
+            }
+        }
+
+        // ── Controles período y modo ────────────────────────────────────────
+        window.setPeriod = function(p) {
+            currentPeriod = p;
+            perfRangeIdx = null;   // el periodo manda sobre la ventana movida a mano
+            document.querySelectorAll('#periodTabs button').forEach(b => {
+                b.className = b.id === 'period-' + p
+                    ? 'btn btn-sm btn-dark'
+                    : 'btn btn-sm btn-outline-secondary';
+            });
+            if (perfChartInit) renderPerfChart();
+        };
+
+        window.setMode = function(m) {
+            currentMode = m;
+            const isReal = m === 'real';
+            document.getElementById('btnNav').className  = isReal ? 'btn btn-outline-primary' : 'btn btn-primary active';
+            document.getElementById('btnReal').className = isReal ? 'btn btn-primary active' : 'btn btn-outline-primary';
+            // aclaración del modo junto a los botones (antes buscaba un título que ya no existe y el modo € no cambiaba)
+            const hint = document.getElementById('perfModeHint');
+            if (hint) hint.textContent = isReal
+                ? 'Valor en € de la cartera, con aportaciones (no comparable con los índices)'
+                : 'Índice que empieza en 10: las aportaciones no cuentan como rentabilidad';
+            if (perfChartInit) renderPerfChart();
+        };
+
+        // Gráfico de Dividendos
+        const divDataRaw = {{ div_data | tojson | safe }};
+        const divTraces = [];
+        const years = divDataRaw.years;
+        const tickers = divDataRaw.tickers;
+
+        tickers.forEach(ticker => {
+            const yValues = years.map(year => {
+                return (divDataRaw.data[year] && divDataRaw.data[year][ticker]) ? divDataRaw.data[year][ticker] : 0;
+            });
+            
+            // Solo añadir traza si hay dividendos para este ticker en algún año
+            if (yValues.some(val => val > 0)) {
+                divTraces.push({
+                    x: years,
+                    y: yValues,
+                    name: ticker,
+                    type: 'bar'
+                });
+            }
+        });
+
+        const layoutDiv = {
+            barmode: 'stack',
+            // años como categorías: sin 2.022,5 entre barras; sin título de eje (se montaba sobre la leyenda)
+            xaxis: { type: 'category', tickfont: { color: textColor } },
+            yaxis: { title: { text: 'Dividendos (€)', font: { color: textColor } }, tickfont: { color: textColor }, gridcolor: gridColor, separatethousands: true },
+            margin: { t: 10, b: 40, l: 60, r: 10 },
+            legend: { orientation: 'h', y: -0.2, font: { color: textColor } },
+            separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)'
+        };
+
+        const config = { responsive: true, displayModeBar: false };
+
+        // Renderizar cuando se cambie a la pestaña Rendimiento
+        const perfTab = document.getElementById('perf-tab');
+        perfTab.addEventListener('shown.bs.tab', function() {
+            perfLayout();
+            const cfg = { responsive: true, displayModeBar: false };
+            if (!perfChartInit) {
+                perfChartInit = true;
+                if (perfDates.length > 0) {
+                    renderPerfChart();
+                } else {
+                    document.getElementById('perf-chart').innerHTML =
+                        '<div class="text-center text-muted py-5"><i class="bi bi-hourglass-split fs-3 d-block mb-2"></i>Calculando rendimiento…<br><small>Primera carga puede tardar 30-60 seg. Recarga la página.</small></div>';
+                }
+                renderMonthlyTable();
+                updateEnrichedKPIs();
+            } else {
+                Plotly.Plots.resize('perf-chart');
+                Plotly.Plots.resize('drawdown-chart');
+            }
+        });
+
+        // Previsión de dividendos: anunciado y estimado por mes
+        const cleanTk = t => t.includes('.') ? t.slice(0, t.lastIndexOf('.')) : t;   // como clean_ticker
+        const divForecast = {{ div_forecast.months | tojson | safe }};
+        function renderDivForecast() {
+            const el = document.getElementById('div-forecast-chart');
+            if (!divForecast.some(m => m.announced_eur + m.estimated_eur > 0)) {
+                el.innerHTML = '<div class="text-center text-muted py-5 small">Ninguna posición abierta reparte dividendo</div>';
+                return;
+            }
+            const names = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+            const x = divForecast.map(m => names[parseInt(m.month.slice(5, 7)) - 1] + ' ' + m.month.slice(2, 4));
+            // al pasar el ratón: total del tramo y de qué empresas viene
+            const tips = (m, est) => m.items.filter(i => i.estimated === est)
+                .map(i => `${cleanTk(i.ticker)}: ${fmtNum(i.gross_eur, 2)} €`).join('<br>');
+            const bar = (key, name, color, est) => ({
+                x, y: divForecast.map(m => m[key]), name, type: 'bar', marker: { color },
+                hovertemplate: divForecast.map(m => `<b>%{x} · ${name}: ${fmtNum(m[key], 2)} €</b><br>${tips(m, est)}<extra></extra>`),
+            });
+            Plotly.newPlot('div-forecast-chart', [bar('announced_eur', 'Anunciado', '#089981', false), bar('estimated_eur', 'Estimado', 'rgba(8,153,129,0.4)', true)], {
+                barmode: 'stack',
+                xaxis: { tickfont: { color: textColor }, fixedrange: true },
+                yaxis: { title: { text: '€', font: { color: textColor } }, tickfont: { color: textColor }, gridcolor: gridColor, fixedrange: true, separatethousands: true },
+                separators: ',.',
+                margin: { t: 10, b: 30, l: 50, r: 10 },
+                legend: { orientation: 'h', y: 1.12, font: { color: textColor } },
+                separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+            }, { responsive: true, displayModeBar: false });
+            // al pulsar una barra: desglose del mes por empresa, anunciado y estimado por separado
+            document.getElementById('div-forecast-chart').on('plotly_click', ev => {
+                const idx = ev.points[0].pointIndex;
+                showForecastMonth(idx, x[idx]);
+            });
+        }
+        function showForecastMonth(idx, label) {
+            const m = divForecast[idx], el = document.getElementById('div-forecast-detail');
+            if (!m.items.length) { el.innerHTML = `<div class="text-muted py-2">Sin cobros previstos en ${label}.</div>`; return; }
+            const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+            const dmy = d => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+            const group = (est, title, total) => {
+                const rows = m.items.filter(i => i.estimated === est);
+                if (!rows.length) return '';
+                return `<div class="col-12 col-md-6"><div class="fw-bold mb-1">${title} <span class="text-success">${fmtNum(total, 2)} €</span></div>
+                    <table class="table table-sm mb-0"><tbody>${rows.map(i => `<tr>
+                        <td class="fw-bold" title="${esc(i.name)}">${esc(cleanTk(i.ticker))}</td>
+                        <td class="num-font text-muted">${dmy(i.date)} <span class="small">${i.kind === 'pago' ? 'cobro' : 'fecha ex'}</span></td>
+                        <td class="text-end num-font">${fmtNum(i.gross_eur, 2)} €</td>
+                        <td class="text-end num-font text-muted">${fmtNum(i.net_eur, 2)} € netos</td></tr>`).join('')}</tbody></table></div>`;
+            };
+            el.innerHTML = `<div class="border-top pt-2 mt-1">
+                <div class="d-flex justify-content-between align-items-center mb-2"><span class="fw-bold text-capitalize">${label}</span>
+                <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="document.getElementById('div-forecast-detail').innerHTML=''"><i class="bi bi-x-lg"></i></button></div>
+                <div class="row g-3">${group(false, 'Anunciado', m.announced_eur)}${group(true, 'Estimado', m.estimated_eur)}</div></div>`;
+        }
+
+        // Renderizar gráfico al cambiar a la pestaña Dividendos
+        let divChartInit = false;
+        const divTabBtn = document.getElementById('div-tab');
+        if (divTabBtn) {
+            divTabBtn.addEventListener('shown.bs.tab', function() {
+                if (!divChartInit) {
+                    divChartInit = true;
+                    renderDivForecast();
+                    if (divTraces.length > 0) {
+                        Plotly.newPlot('div-chart', divTraces, layoutDiv, { responsive: true, displayModeBar: false });
+                    } else {
+                        document.getElementById('div-chart').innerHTML =
+                            '<div class="text-center text-muted py-5 small">Sin datos de dividendos</div>';
+                    }
+                } else {
+                    Plotly.Plots.resize('div-chart');
+                    Plotly.Plots.resize('div-forecast-chart');
+                }
+            });
+        }
+    });
+
+    // ── Paginación tablas de dividendos ────────────────────────────────────
+    const divPagState = { upcoming: 1, latest: 1 };
+    let DIV_PER_PAGE = 8;   // «Últimos cobrados»: se ajusta a lo que cabe
+    // al cambiar el tamaño de la ventana, las tablas paginadas vuelven a calcular cuántas filas caben
+    window.addEventListener('resize', () => {
+        clearTimeout(window.__pfResize);
+        window.__pfResize = setTimeout(() => {
+            if (document.getElementById('closed-summary-pane')?.classList.contains('active') && document.getElementById('closed-pane')?.classList.contains('active')) closedPosPage(0);
+            if (document.getElementById('closed-tx-pane')?.classList.contains('active') && document.getElementById('closed-pane')?.classList.contains('active')) applyHistFilters(false);
+            if (document.getElementById('div-sub-paid')?.classList.contains('active') && document.getElementById('div-pane')?.classList.contains('active')) divPage('latest', 0);
+        }, 150);
+    });
+

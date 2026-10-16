@@ -6,17 +6,18 @@ from main import app
 client = TestClient(app)
 
 
-def test_home_has_market_and_command_center_tabs():
+def test_home_is_a_single_view():
+    """Una sola portada: arriba la cinta de índices y el Centro de mando (Mi Cartera, Bandeja de hoy, Agenda); abajo,
+    la Actividad del día. Sin pestañas ni mapa de calor."""
     html = client.get("/").text
-    assert 'data-bs-target="#home-mercado"' in html and 'data-bs-target="#home-centro"' in html
-    for kept in ("heatmapTracked", "renderHeatmap", "centroPulse", "fetch('/api/centro/pulso')"):   # pestaña Mercado
-        assert kept in html
-    for slot in ("slot-summary", "slot-attention", "slot-agenda"):   # pestaña Centro: la bandeja (avisos, noticias, monitor) y la columna
+    assert 'class="idx-tape' in html and 'id="miCarteraCard"' in html and 'id="activityTitle"' in html
+    assert 'id="mcNews"' in html and 'id="newsModal"' in html   # noticias: línea de Mi Cartera → ventana centrada
+    for slot in ("slot-attention", "slot-agenda"):
         assert f'id="{slot}"' in html
-    assert 'id="slot-news"' not in html                              # las noticias son una pestaña de la bandeja
-    assert "fetch('/mercado/centro' + " in html
-    for gone in ("weeklyCalendarList", "earnList", "divList"):   # ahora en la agenda y en el calendario
+    for gone in ('data-bs-target="#home-mercado"', "heatmapTracked", "renderHeatmap", 'id="slot-summary"',
+                 "weeklyCalendarList", "earnList", "divList"):
         assert gone not in html
+    assert "fetch('/mercado/centro' + " in html and "fetch('/api/centro/pulso')" in html
 
 
 def test_menu_has_thesis_and_watchlist_and_calendar_button():
@@ -28,7 +29,7 @@ def test_menu_has_thesis_and_watchlist_and_calendar_button():
 
 
 def test_old_pages_redirect():
-    for old, new in (("/centro", "/mercado#centro"), ("/calendario", "/mercado#calendario"), ("/oportunidades", "/watchlist")):
+    for old, new in (("/centro", "/mercado"), ("/calendario", "/mercado#calendario"), ("/oportunidades", "/watchlist")):
         r = client.get(old, follow_redirects=False)
         assert r.status_code in (302, 307) and r.headers["location"] == new
 
@@ -42,3 +43,12 @@ def test_calendar_api_returns_events():
     d = client.get("/api/calendario").json()
     assert "today" in d and isinstance(d["events"], list)
     assert all(e["category"] in ("portfolio", "favorite", "seguimiento", "dividend") for e in d["events"])
+
+
+def test_bandeja_hidden_is_stored_in_db():
+    """Lo quitado con la ✕ de la Bandeja de hoy se guarda en la BBDD (no en el navegador): no vuelve al recargar."""
+    r = client.post("/api/portada/bandeja/quitar", json={"keys": ["precio|ANET"]})
+    assert r.status_code == 200 and "precio|ANET" in r.json()["keys"]
+    client.post("/api/portada/bandeja/quitar", json={"keys": ["comprar|MAD.AX"]})
+    html = client.get("/portada/bandeja").text
+    assert "precio|ANET" in html and "comprar|MAD.AX" in html and 'data-hidden=' in html

@@ -1,0 +1,943 @@
+            {% set tabs_desc = {
+                'franchise': 'Calidad de Franquicia y Economic Moat: Explicación del modelo de negocio, fuentes de foso defensivo, pricing power e incertidumbre secular con debate extremo Bull vs Bear.',
+                'audit': 'Auditoría contable profunda de los tres estados financieros ejecutada por tres analistas especialistas en paralelo (P&L, Balance y Flujo de Caja) para blindarnos ante falsas señales y maquillaje de cuentas.',
+                'mgmt_alloc': 'Estudio cualitativo de la directiva y su asignación de capital (The Outsiders Test): alineación de intereses (Skin in the Game), recompras de acciones eficientes, SBC, dividendos e integridad.',
+                'rules': 'Auditoría forense ultra-exigente y matemática de las 11 Normas de Calidad de Inversión personalizadas del usuario, basándose rigurosamente en los datos numéricos extraídos del Paso 0.',
+                'verdict': 'Síntesis holística realizada por el Director de Inversiones: integra las conclusiones de franquicia, auditoría contable y directiva/capital de la Fase 1 para calcular la nota media de calidad y dictar el veredicto definitivo de inversión.',
+                'thesis': 'Modelado cuantitativo de valoración, escenarios de TIR y Contrato de Inversión final: calcula el precio de entrada y formaliza las tesis, KPIs operativos y disparadores de venta (Sell Triggers).',
+                'pe_forensic': 'Auditoría forense de Private Equity para deconstruir el modelo de monetización y juzgar la calidad de los beneficios (Earnings Quality) mediante materialidad, reconciliación de caja real y asignación de scoring.',
+                'thesis_destroyer': 'Stress-test despiadado como Abogado del Diablo: desafía y ataca racionalmente la tesis de inversión proponiendo escenarios realistas de destrucción de valor (Bear Cases), ponderando su probabilidad de ocurrencia frente a los escudos defensivos del negocio.',
+                'technical': 'Análisis Técnico y Timing de Entrada (Buy the Dip): Analiza el comportamiento del precio, soporte técnico clave, medias móviles y niveles de sobreventa (RSI, caída desde ATH) para optimizar el timing de compra de este activo de calidad.'
+            } %}
+            {% macro render_report_card(key, label_full) %}
+            <div id="{{ key }}" class="qa-root {{ 'qa-fill' if key not in ['val', 'technical', 'rules'] }}">
+                {% set has_financial_data = db.get('full_audit_structure') or db.get('financials_hist_manual') %}
+                {% set has_verdict_deps = db.get('audit') and db.get('franchise') and db.get('mgmt_alloc') %}
+                {% set has_val_deps = db.get('verdict') %}
+                {% set has_thesis_deps = db.get('verdict') %}
+
+                {% set is_disabled = false %}
+                {% set disabled_title = "" %}
+                {% if key == 'pe_forensic' and not has_financial_data %}
+                    {% set is_disabled = true %}
+                    {% set disabled_title = "Primero debes extraer los datos en la pestaña de Auditoría" %}
+                {% elif key == 'verdict' and not has_verdict_deps %}
+                    {% set is_disabled = true %}
+                    {% set disabled_title = "No se puede ejecutar el Veredicto Final porque aún faltan análisis previos. Por favor, ejecuta primero: Franquicia, Auditoría y Dirección." %}
+                {% elif key == 'val' and not has_val_deps %}
+                    {% set is_disabled = true %}
+                    {% set disabled_title = "No se puede ejecutar la Valuación porque aún falta el Veredicto Final. Por favor, ejecuta primero el Veredicto Final." %}
+                {% elif key in ['thesis', 'thesis_destroyer'] and not has_thesis_deps %}
+                    {% set is_disabled = true %}
+                    {% set disabled_title = "No se puede ejecutar este informe porque aún falta el Veredicto Final. Por favor, ejecuta primero el Veredicto Final." %}
+                {% endif %}
+
+                {% if key == 'rules' %}
+                <!-- DISEÑO EXCLUSIVO PARA LA AUDITORÍA DE NORMAS DE CALIDAD PASO A PASO -->
+                {# Nota total (se recalcula en vivo con updateQualityTotalScore) #}
+                {% set p1_s = db.get("rules_pilar1_score") %}
+                {% set p2_s = db.get("rules_pilar2_score") %}
+                {% set p3_s = db.get("rules_pilar3_score") %}
+                {% set p4_s = db.get("rules_pilar4_score") %}
+                {% set p5_s = db.get("rules_pilar5_score") %}
+
+                {% set p1_val = p1_s.split('/')[0]|trim|float(0.0) if (p1_s and p1_s != 'N/A') else 0.0 %}
+                {% set p2_val = p2_s.split('/')[0]|trim|float(0.0) if (p2_s and p2_s != 'N/A') else 0.0 %}
+                {% set p3_val = p3_s.split('/')[0]|trim|float(0.0) if (p3_s and p3_s != 'N/A') else 0.0 %}
+                {% set p4_val = p4_s.split('/')[0]|trim|float(0.0) if (p4_s and p4_s != 'N/A') else 0.0 %}
+                {% set p5_val = p5_s.split('/')[0]|trim|float(0.0) if (p5_s and p5_s != 'N/A') else 0.0 %}
+                {% set total_calc = p1_val + p2_val + p3_val + p4_val + p5_val %}
+                {# la nota solo vale con los 5 pilares hechos: una suma parcial engañaría (p. ej. 3,4 → «Descarte») #}
+                {% set pd = namespace(n=0) %}{% for i in range(1, 6) %}{% if db.get('rules_pilar' ~ i) %}{% set pd.n = pd.n + 1 %}{% endif %}{% endfor %}
+                {% set all_pilars = pd.n == 5 %}
+
+                {% set verdict_class = "text-danger" %}
+                {% set verdict_label = "Calidad Insuficiente (Descarte)" %}
+                {% if total_calc >= 8.0 %}
+                    {% set verdict_class = "text-success" %}
+                    {% set verdict_label = "Calidad Élite (Core)" %}
+                {% elif total_calc >= 5.0 %}
+                    {% set verdict_class = "text-warning" %}
+                    {% set verdict_label = "Calidad Sólida (Satélite)" %}
+                {% endif %}
+                {# Una franja: nota total y clasificación, estado de los datos y feedback global #}
+                <div class="rules-bar d-flex align-items-center flex-wrap gap-3 mb-2" id="quality-total-score-box">
+                    <div class="d-flex align-items-baseline gap-1">
+                        <span class="rules-total num-font {{ 'text-muted' if not all_pilars }}" id="live-total-score">{{ num(total_calc, 2) if all_pilars else '–' }}</span>
+                        <span class="text-muted small">/ 10</span>
+                    </div>
+                    {% if all_pilars %}
+                    <span class="fw-bold {{ verdict_class }}" id="live-verdict-label" style="font-size: .8rem;">{{ verdict_label }}</span>
+                    {% else %}
+                    <span class="fw-bold text-muted" id="live-verdict-label" style="font-size: .8rem;">Pendiente · {{ pd.n }} de 5 pilares</span>
+                    {% endif %}
+                    <span class="text-muted d-none d-xl-inline" style="font-size: .7rem;">5 pilares de 2 puntos · cada uno se ejecuta por separado</span>
+                    <span class="ms-auto d-flex align-items-center gap-2" style="font-size: .72rem;">
+                        {% if has_financial_data %}
+                        <span class="text-success" title="Los estados financieros históricos están cargados y entran en el contexto de cada pilar"><i class="bi bi-database-check me-1"></i>Estados financieros listos</span>
+                        {% else %}
+                        <span class="text-warning-emphasis"><i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>Faltan los estados financieros</span>
+                        <button class="btn btn-warning btn-sm py-0 px-2 fw-bold" style="font-size: .72rem;" type="button" onclick="switchToFinancialsAndOpenAuditData()"><i class="bi bi-database-add me-1"></i>Cargar datos</button>
+                        {% endif %}
+                        <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size: .72rem;" type="button" data-bs-toggle="collapse" data-bs-target="#feedback-collapse-rules">
+                            <i class="bi bi-chat-left-dots me-1"></i>Feedback global</button>
+                    </span>
+                </div>
+
+                {# Síntesis de los 5 pilares: titular siempre visible y detalle plegable (lo pinta renderRulesSyn) #}
+                <div class="rules-syn mb-2" id="rulesSyn"></div>
+
+                <!-- Input Area (Collapse) para Feedback Global -->
+                <div class="collapse mb-2 hide" id="feedback-collapse-rules">
+                    <div class="card card-body border-primary bg-light p-2 shadow-sm">
+                        <label for="feedback-rules" class="form-label small fw-bold text-uppercase text-primary mb-1" style="font-size: .68rem;">Instrucciones Adicionales para el Agente</label>
+                        <textarea class="form-control border-primary-subtle" id="feedback-rules" rows="2" placeholder="Opcional: Da instrucciones o feedback específico para guiar al agente..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Listado de los 5 Pilares de Calidad -->
+                <div class="d-flex flex-column gap-1 mb-0 rules-list">
+                    {% set rules_steps = [
+                        ('rules_pilar1', '🛡️ Pilar 1: Foso Competitivo, Pricing Power y Riesgo Terminal', 'Auditoría del margen bruto de los últimos 10 años, pricing power, ventajas de costes y riesgo terminal ante disrupción por IA o tecnología.', 2.0),
+                        ('rules_pilar2', '📈 Pilar 2: Crecimiento de Ventas, FCF Total y BPA', 'Cálculo de CAGR de ingresos, FCF Total (no por acción) y BPA a 3, 5 y 10 años, y análisis de la dilución de acciones en circulación.', 2.0),
+                        ('rules_pilar3', '⚙️ Pilar 3: ROIC, Márgenes y Eficiencia del Capital', 'Análisis de ROIC promedio a 10 años con Goodwill, margen EBIT medio a 10 años y la cascada de márgenes: bruto -> EBIT -> FCF.', 2.0),
+                        ('rules_pilar4', '🏰 Pilar 4: Solvencia, Liquidez y Riesgo de Refinanciación', 'Cálculo de ratios de los últimos 10 años (Deuda/FCF, Quick Ratio, FCF/EBITDA), calendario de vencimientos y capacidad de estrés financiero.', 2.0),
+                        ('rules_pilar5', '👔 Pilar 5: Asignación de Capital, ROIIC, Recompra, SBC y Gobernanza', 'Cálculo de ROIIC a 3, 5 y 10 años, evolución de recompra de acciones, impacto dilutivo de SBC, calidad contable y gobernanza.', 2.0)
+                    ] %}
+
+                    {% for sub_key, sub_label, sub_desc, max_points in rules_steps %}
+                    <div class="card border shadow-xs" id="card-{{ sub_key }}">
+                        <div class="card-header bg-white py-1 px-2 d-flex justify-content-between align-items-center gap-2"
+                             style="{% if db.get(sub_key) %}cursor: pointer;{% endif %}"
+                             {% if db.get(sub_key) %}onclick="if(!event.target.closest('button')) { toggleReportCollapse('{{ sub_key }}'); }"{% endif %}>
+                            <div class="d-flex align-items-center gap-2" style="min-width: 0;">
+                                <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 34px; height: 34px;">
+                                    <i class="bi {% if sub_key == 'rules_pilar1' %}bi-shield-check{% elif sub_key == 'rules_pilar2' %}bi-graph-up-arrow{% elif sub_key == 'rules_pilar3' %}bi-activity{% elif sub_key == 'rules_pilar4' %}bi-shield-exclamation{% else %}bi-person-gear{% endif %} " style="font-size: .85rem;"></i>
+                                </div>
+                                <div style="min-width: 0;">
+                                    <h6 class="fw-bold mb-0 text-dark text-truncate" style="font-size: 0.86rem;">{{ sub_label }}</h6>
+                                    <p class="text-muted mb-0 text-truncate" style="font-size: 0.7rem;" title="{{ sub_desc }}">{{ sub_desc }}</p>
+                                    {% set ps = db.get(sub_key ~ "_score") %}{% set pv = ps.split('/')[0]|trim|float(0.0) if (db.get(sub_key) and ps and ps != 'N/A') else 0.0 %}
+                                    <div class="pilar-bar"><span data-pilar-bar="{{ loop.index }}" style="width: {{ (pv / max_points * 100)|round(0) }}%;" class="{{ 'bg-success' if pv >= 1.5 else ('bg-warning' if pv >= 1.0 else 'bg-danger') }}"></span></div>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                                <!-- Estado o Puntuación -->
+                                <div id="status-container-{{ sub_key }}">
+                                    {% if db.get(sub_key) %}
+                                        {% if max_points %}
+                                            {% set sub_score = db.get(sub_key ~ "_score", "N/A") %}
+                                            {% set sub_score_num = sub_score.split('/')[0]|trim|float(-1.0) if (sub_score and sub_score != 'N/A') else -1.0 %}
+                                            <span class="badge {% if sub_score_num >= 1.5 %}bg-success{% elif sub_score_num >= 1.0 %}bg-warning text-dark{% else %}bg-danger{% endif %} py-1 px-2 font-monospace fw-bold" style="font-size: 0.72rem;">
+                                                Nota: <span class="pilar-score-val" data-pilar="{{ loop.index }}">{{ sub_score.split('/')[0]|trim if sub_score and sub_score != 'N/A' else '0.0' }}</span> / {{ max_points }}
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-success py-1 px-2" style="font-size: 0.72rem;">
+                                                <i class="bi bi-check-circle-fill me-1"></i> Listo
+                                            </span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-secondary bg-opacity-25 text-secondary py-1 px-2 font-monospace" style="font-size: 0.72rem;">
+                                            Pendiente {% if max_points %}(<span class="pilar-score-val" data-pilar="{{ loop.index }}">0.0</span> / {{ max_points }}){% endif %}
+                                        </span>
+                                    {% endif %}
+                                </div>
+
+                                <!-- Botón de Ejecutar -->
+                                <button class="btn btn-xs btn-primary font-monospace shadow-xs px-2 py-0" 
+                                        style="font-size: 0.7rem;" id="btn-{{ sub_key }}" 
+                                        onclick="generateReport('{{ ticker }}', '{{ sub_key }}', document.getElementById('feedback-rules').value)"
+                                        {% if not has_financial_data %}disabled title="Primero debes extraer los datos en la pestaña de Auditoría"{% endif %}>
+                                    {% if db.get(sub_key) %}<i class="bi bi-arrow-repeat me-1"></i> Regenerar{% else %}<i class="bi bi-play-fill me-1"></i> Ejecutar{% endif %}
+                                </button>
+
+                                <!-- Botón Ver Reporte -->
+                                <button class="btn btn-xs btn-outline-secondary px-2 py-0 {% if not db.get(sub_key) %}d-none{% endif %}" style="font-size: 0.7rem;" type="button" 
+                                        data-bs-toggle="collapse" data-bs-target="#collapse-{{ sub_key }}" aria-expanded="false" id="toggle-{{ sub_key }}">
+                                    <i class="bi bi-eye-fill me-1"></i> Reporte
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Collapse Div de Reporte e Loading Spinner individual -->
+                        <div class="collapse border-top bg-light bg-opacity-25" id="collapse-{{ sub_key }}">
+                            <div class="card-body p-3 bg-white">
+                                <!-- Spinner de Carga Individual -->
+                                <div id="loading-{{ sub_key }}" class="text-center d-none my-4">
+                                    <div class="spinner-border text-primary spinner-border-sm mb-2" role="status"></div>
+                                    <p class="text-primary small mb-0 fw-bold">El agente está procesando este pilar...</p>
+                                </div>
+                                <!-- Contenedor del Contenido individual -->
+                                <div class="report-content font-monospace-data" id="content-{{ sub_key }}" style="font-size: 0.85rem; line-height: 1.6;">
+                                    {{ reports_html.get(sub_key, '') | safe }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% else %}
+                {% if key == 'pe_forensic' %}
+                <!-- Alerta de Carga de Datos Previa para pe_forensic -->
+                {% set has_financial_data = db.get('full_audit_structure') or db.get('financials_hist_manual') %}
+                {% if not has_financial_data %}
+                <div class="alert alert-warning border-warning bg-warning bg-opacity-10 text-dark mb-2 shadow-sm py-2 d-flex gap-3 align-items-center flex-wrap">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-exclamation-triangle-fill text-warning fs-3"></i>
+                        <div>
+                            <h6 class="fw-bold mb-1 text-warning-emphasis">Se requiere Carga de Datos Previa</h6>
+                            <p class="small mb-0 text-muted">No se han extraído los estados financieros históricos de 10 años para este activo. Por favor, realiza primero el proceso de extracción en la pestaña de <strong>Auditoría</strong> antes de iniciar el análisis.</p>
+                        </div>
+                    </div>
+                    <div class="ms-auto">
+                        <button class="btn btn-warning btn-sm fw-bold text-dark px-3" type="button" onclick="switchToFinancialsAndOpenAuditData()">
+                            <i class="bi bi-shield-lock-fill me-1"></i> Ir a 1. Auditoría
+                        </button>
+                    </div>
+                </div>
+{% endif %}
+                {% endif %}
+
+                <!-- Toolbar del Informe -->
+                <div class="report-header-toolbar d-flex justify-content-between align-items-center gap-3 mb-2">
+                    {% if key not in ['val', 'technical'] %}
+                    {% set current_score = 'N/A' %}
+                    {% if reports_meta and key in reports_meta %}
+                        {% set current_score = reports_meta[key].score %}
+                    {% endif %}
+                    {# Extraer el número si viene como 'X.X/10' #}
+                    {% set score_num = -1.0 %}
+                    {% if current_score and current_score != 'N/A' %}
+                        {% set score_num = current_score.split('/')[0]|trim|float(-1.0) %}
+                    {% endif %}
+                        <div id="scorehead-{{ key }}" class="qa-scoreline qa-scorehead d-flex align-items-center gap-2 {{ 'd-none' if not db.get(key) }}">
+                            <span class="text-uppercase text-muted fw-bold" style="font-size: 0.65rem; letter-spacing: .3px;">Calidad</span>
+                            <div id="score-badge-{{ key }}" class="score-badge-circle
+                                {% if score_num >= 8.5 %}score-high
+                                {% elif score_num >= 7.0 %}score-notable
+                                {% elif score_num >= 5.0 %}score-medium
+                                {% elif score_num >= 0.0 %}score-low
+                                {% else %}score-na{% endif %}">
+                                <span id="score-{{ key }}">{{ current_score.split('/')[0]|trim if current_score and current_score != 'N/A' else 'N/A' }}</span>
+                            </div>
+                            <span class="text-muted small">/ 10</span>
+                            <div class="qa-scorebar flex-grow-1"><span class="{{ 'bg-success' if score_num >= 8.5 else ('bg-warning' if score_num >= 7.0 else ('bg-orange' if score_num >= 5.0 else 'bg-danger')) }}" style="width: {{ ((score_num if score_num > 0 else 0) * 10)|round(0) }}%;{{ ' background: #fd7e14;' if 5.0 <= score_num < 7.0 }}"></span></div>
+                        </div>
+                    {% else %}
+                    <div class="text-muted text-truncate" style="font-size: 0.74rem; min-width: 0;" title="{{ tabs_desc[key] }}">{{ tabs_desc[key] }}</div>
+                    {% endif %}
+                    <div class="d-flex gap-2 flex-shrink-0">
+                        {% if key == 'audit' %}
+                            <button class="btn btn-sm btn-outline-primary py-0" type="button" onclick="switchToFinancialsAndOpenAuditData()">
+                                <i class="bi bi-pencil-square me-1"></i> Insertar / Modificar Datos
+                            </button>
+                        {% endif %}
+                        <button class="btn btn-sm btn-outline-secondary py-0" type="button" data-bs-toggle="collapse" data-bs-target="#feedback-collapse-{{ key }}">
+                            <i class="bi bi-chat-left-dots me-1"></i> Feedback / Instrucciones IA
+                        </button>
+                        <button class="btn btn-sm btn-primary shadow-sm py-0" onclick="sendAuditOrFeedback('{{ ticker }}', '{{ key }}')" id="btn-{{ key }}"
+                                {% if is_disabled %}disabled title="{{ disabled_title }}"{% endif %}>
+                            {% if db.get(key) %}<i class="bi bi-arrow-repeat me-1"></i> Regenerar{% else %}<i class="bi bi-play-fill me-1"></i> Generar{% endif %}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Input Area (Collapse) -->
+                <div class="collapse mb-2 hide" id="feedback-collapse-{{ key }}">
+                    <div class="card card-body border-primary bg-light p-3 shadow-sm">
+                        <label for="feedback-{{ key }}" class="form-label small fw-bold text-uppercase text-primary">Instrucciones Adicionales para el Agente</label>
+                        <textarea class="form-control border-primary-subtle mb-3" id="feedback-{{ key }}" rows="2" placeholder="Opcional: Da instrucciones o feedback específico para guiar al agente..."></textarea>
+                        
+                        <div class="text-end">
+                            <button class="btn btn-primary btn-sm px-4" id="feedback-start-{{ key }}" onclick="sendAuditOrFeedback('{{ ticker }}', '{{ key }}')"
+                                    {% if is_disabled %}disabled title="{{ disabled_title }}"{% endif %}>
+                                <i class="bi bi-rocket-takeoff me-1"></i> Enviar Instrucciones e Iniciar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loading UI -->
+                <div id="loading-{{ key }}" class="text-center d-none my-5">
+                    <div class="spinner-border text-primary mb-3" role="status" style="width: 2.5rem; height: 2.5rem; border-width: 0.2em;"></div>
+                    <h5 class="text-primary fw-bold">El agente está procesando...</h5>
+                    <p class="text-muted small">Revisa la terminal si el agente solicita intervención manual.</p>
+                </div>
+
+                <!-- Meta Fields (Score, Pros/Cons) -->
+                <div id="meta-{{ key }}" class="qa-meta {% if not db.get(key) %}d-none{% endif %} mb-2">
+                    {% if key != 'val' and key != 'technical' %}
+{# Fortalezas y debilidades, una al lado de la otra y compactas: el informe queda a la vista debajo #}
+                    <div class="qa-row">
+                        <div class="border rounded p-2 px-3 qa-box">
+                            {% if key == 'rules' %}
+                            <h6 class="text-success fw-bold text-uppercase mb-1" style="font-size: 0.72rem;"><i class="bi bi-check-circle-fill me-1"></i> Normas Aprobadas (Aprobados)</h6>
+                            {% else %}
+                            <h6 class="text-success fw-bold text-uppercase mb-1" style="font-size: 0.72rem;"><i class="bi bi-plus-circle me-1"></i> Fortalezas (Pros)</h6>
+                            {% endif %}
+                            <ul class="list-unstyled mb-0 small qa-list" id="pros-{{ key }}">
+                                {% if reports_meta and key in reports_meta and reports_meta[key].pros %}
+                                    {% for pro in reports_meta[key].pros %}
+                                    <li class="mb-1 text-muted"><i class="bi bi-check2 text-success me-1"></i> {{ pro }}</li>
+                                    {% endfor %}
+                                {% else %}
+                                    <li class="fst-italic text-muted">Sin datos.</li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                        <div class="border rounded p-2 px-3 qa-box">
+                            {% if key == 'rules' %}
+                            <h6 class="text-danger fw-bold text-uppercase mb-1" style="font-size: 0.72rem;"><i class="bi bi-x-circle-fill me-1"></i> Normas Suspensas (Suspensos)</h6>
+                            {% else %}
+                            <h6 class="text-danger fw-bold text-uppercase mb-1" style="font-size: 0.72rem;"><i class="bi bi-dash-circle me-1"></i> Debilidades (Cons)</h6>
+                            {% endif %}
+                            <ul class="list-unstyled mb-0 small qa-list" id="cons-{{ key }}">
+                                {% if reports_meta and key in reports_meta and reports_meta[key].cons %}
+                                    {% for con in reports_meta[key].cons %}
+                                    <li class="mb-1 text-muted"><i class="bi bi-x-lg text-danger me-1"></i> {{ con }}</li>
+                                    {% endfor %}
+                                {% else %}
+                                    <li class="fst-italic text-muted">Sin datos.</li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </div>
+                    {% elif key == 'val' %}
+                    <!-- Valoración Simplificada -->
+                    <div class="card bg-light border-0 py-3 text-center mx-auto score-display-card" style="max-width: 350px;">
+                        <span class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.7rem;">Señal de Valoración</span>
+                        {% set current_signal = 'N/A' %}
+                        {% if reports_meta and key in reports_meta %}
+                            {% set current_signal = reports_meta[key].score %}
+                        {% endif %}
+                        {% set sig_lower = current_signal|lower %}
+                        
+                        <div id="signal-badge-val" class="px-4 py-2 font-monospace text-center w-auto rounded-pill fs-6 fw-bold border d-inline-block mx-auto 
+                            {% if 'strong buy' in sig_lower or 'buy' in sig_lower %}score-high
+                            {% elif 'hold' in sig_lower %}score-medium
+                            {% elif 'strong sell' in sig_lower or 'sell' in sig_lower %}score-low
+                            {% else %}score-na{% endif %}" 
+                            style="min-width: 160px;">
+                            <span id="signal-val">
+                                {% if 'strong buy' in sig_lower %}💥 STRONG BUY
+                                {% elif 'buy' in sig_lower %}📈 BUY
+                                {% elif 'hold' in sig_lower %}⚖️ HOLD
+                                {% elif 'strong sell' in sig_lower %}🚨 STRONG SELL
+                                {% elif 'sell' in sig_lower %}📉 SELL
+                                {% else %}{{ current_signal }}{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    {% elif key == 'technical' %}
+                    <!-- Análisis Técnico Simplificado (Veredicto de Entrada) -->
+                    <div class="card border border-light-subtle bg-light bg-opacity-50 py-2.5 px-3 text-center mx-auto rounded shadow-xs" style="max-width: 380px;">
+                        <span class="text-uppercase text-muted fw-bold mb-2 d-block" style="font-size: 0.68rem; letter-spacing: 0.05em;"><i class="bi bi-graph-down-arrow me-1"></i>Veredicto Técnico de Entrada</span>
+                        {% set current_verdict = 'N/A' %}
+                        {% if reports_meta and key in reports_meta %}
+                            {% set current_verdict = reports_meta[key].score %}
+                        {% endif %}
+                        {% set verd_lower = current_verdict|lower %}
+                        
+                        <div class="d-flex justify-content-center align-items-center gap-2 flex-wrap">
+                            <div id="signal-badge-technical" class="px-3.5 py-1.5 font-monospace text-center w-auto rounded-pill fs-7 fw-bold border d-inline-block
+                                {% if 'comprar' in verd_lower or 'buy' in verd_lower %}score-high
+                                {% elif 'esperar' in verd_lower or 'observe' in verd_lower or 'hold' in verd_lower %}score-medium
+                                {% elif 'descartar' in verd_lower or 'sell' in verd_lower %}score-low
+                                {% else %}score-na{% endif %}"
+                                style="min-width: 180px;">
+                                <span id="signal-technical" style="font-size: 0.8rem;">
+                                    {% if 'comprar' in verd_lower or 'buy ya' in verd_lower or 'comprar ya' in verd_lower %}🟢 COMPRAR YA
+                                    {% elif 'esperar' in verd_lower or 'observar' in verd_lower %}🟡 ESPERAR Y OBSERVAR
+                                    {% elif 'descartar' in verd_lower or 'cancelar' in verd_lower %}🔴 DESCARTAR
+                                    {% else %}{{ current_verdict }}{% endif %}
+                                </span>
+                            </div>
+
+                            {# Indicador compacto de la Puntuación Clínica, justo al lado del veredicto #}
+                            {% set pc_score_top = 'N/A' %}
+                            {% set pc_num_top = -1.0 %}
+                            {% if reports_meta and key in reports_meta and reports_meta[key].traffic_lights and reports_meta[key].traffic_lights.puntuacion_clinica %}
+                                {% set pc_score_top = reports_meta[key].traffic_lights.puntuacion_clinica.score %}
+                                {% set pc_clean_top = pc_score_top.split('/')[0]|trim %}
+                                {% set pc_num_top = pc_clean_top|float(-1.0) %}
+                            {% endif %}
+                            {% if pc_score_top and pc_score_top != 'N/A' %}
+                            <div id="clinical-score-badge-technical" class="px-2.5 py-1.5 rounded-pill border fw-bold font-monospace d-inline-flex align-items-center gap-1
+                                {% if pc_num_top >= 8.5 %}score-high
+                                {% elif pc_num_top >= 7.0 %}score-notable
+                                {% elif pc_num_top >= 5.0 %}score-medium
+                                {% elif pc_num_top >= 0.0 %}score-low
+                                {% else %}score-na{% endif %}" style="font-size: 0.75rem;" title="Puntuación Clínica de la Matriz de Decisión">
+                                <i class="bi bi-clipboard2-pulse"></i> {{ pc_score_top if '/' in pc_score_top else pc_score_top ~ '/10' }}
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Matiz de Sesgo cuando el veredicto es ESPERAR Y OBSERVAR -->
+                        {% if reports_meta and key in reports_meta and reports_meta[key].wait_nuance and ('esperar' in verd_lower or 'observar' in verd_lower) %}
+                        {% set wn = reports_meta[key].wait_nuance %}
+                        <div class="mt-2 d-flex flex-column align-items-center gap-1">
+                            {% if wn.bias %}
+                            <span class="badge rounded-pill border
+                                {% if wn.bias == 'ALCISTA' %}score-high
+                                {% elif wn.bias == 'BAJISTA' %}score-low
+                                {% else %}score-na{% endif %}" style="font-size: 0.68rem;">
+                                {% if wn.bias == 'ALCISTA' %}📈{% elif wn.bias == 'BAJISTA' %}📉{% else %}➖{% endif %} Sesgo: {{ wn.bias }}
+                            </span>
+                            {% endif %}
+                            {% if wn.trigger %}
+                            <span class="text-muted text-start" style="font-size: 0.68rem; max-width: 320px;">
+                                <i class="bi bi-bullseye me-1"></i><strong>Gatillo:</strong> {{ wn.trigger }}{% if wn.distance %} <span class="fw-bold">({{ wn.distance }})</span>{% endif %}
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Matriz de Decisión y Puntuación Clínica (mostrada arriba del todo, antes del informe completo) -->
+                        <div id="traffic-lights-container-technical" class="{% if not reports_meta or not key in reports_meta or not reports_meta[key].traffic_lights %}d-none{% endif %}">
+                            {% if reports_meta and key in reports_meta and reports_meta[key].traffic_lights %}
+                            {% set tl = reports_meta[key].traffic_lights %}
+                            {% set pc_num = -1.0 %}
+                            {% if tl.puntuacion_clinica and tl.puntuacion_clinica.score %}
+                                {% set pc_clean = tl.puntuacion_clinica.score.split('/')[0]|trim %}
+                                {% set pc_num = pc_clean|float(-1.0) %}
+                            {% endif %}
+                            <div class="mt-3 border-top pt-2.5 text-start mx-auto" style="max-width: 320px; font-size: 0.75rem;">
+                                <span class="text-uppercase text-muted fw-bold d-block text-center mb-2" style="font-size: 0.62rem; letter-spacing: 0.05em;"><i class="bi bi-clipboard-data me-1"></i>Matriz de Decisión</span>
+
+                                {% if tl.puntuacion_clinica %}
+                                <div class="d-flex flex-column align-items-center mb-2.5">
+                                    <span class="text-muted" style="font-size: 0.65rem;">Puntuación Clínica</span>
+                                    <div class="score-badge-circle
+                                        {% if pc_num >= 8.5 %}score-high
+                                        {% elif pc_num >= 7.0 %}score-notable
+                                        {% elif pc_num >= 5.0 %}score-medium
+                                        {% elif pc_num >= 0.0 %}score-low
+                                        {% else %}score-na{% endif %}">
+                                        <span>{{ tl.puntuacion_clinica.score.split('/')[0]|trim if tl.puntuacion_clinica.score else 'N/A' }}</span>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <div class="d-flex flex-column gap-1.5">
+                                    {% if tl.momentum %}
+                                    <div class="d-flex justify-content-between align-items-center bg-light bg-opacity-75 px-2 py-1 rounded border border-light-subtle">
+                                        <span class="fw-semibold text-secondary"><i class="bi bi-speedometer2 me-1"></i> Momentum</span>
+                                        <span class="font-monospace fw-bold">{{ tl.momentum.classification }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if tl.estructura %}
+                                    <div class="d-flex justify-content-between align-items-center bg-light bg-opacity-75 px-2 py-1 rounded border border-light-subtle">
+                                        <span class="fw-semibold text-secondary"><i class="bi bi-bezier2 me-1"></i> Estructura</span>
+                                        <span class="font-monospace fw-bold">{{ tl.estructura.classification }}</span>
+                                    </div>
+                                    {% endif %}
+                                    {% if tl.price_action %}
+                                    <div class="d-flex justify-content-between align-items-center bg-light bg-opacity-75 px-2 py-1 rounded border border-light-subtle">
+                                        <span class="fw-semibold text-secondary"><i class="bi bi-graph-up me-1"></i> Price Action</span>
+                                        <span class="font-monospace fw-bold">{{ tl.price_action.classification }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div id="report-date-container-{{ key }}" class="text-muted mt-2 text-center {% if not reports_meta or not key in reports_meta or not reports_meta[key].date %}d-none{% endif %}" style="font-size: 0.68rem;">
+                            <i class="bi bi-calendar3 me-1"></i> Fecha del Informe: <span id="report-date-val-{{ key }}" class="fw-semibold font-monospace-data">{{ reports_meta[key].date if reports_meta and key in reports_meta and reports_meta[key].date else '' }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Alerta de Informe Legacy (No usó Auditoría 0) -->
+                {% if reports_meta and key in reports_meta and reports_meta[key].is_legacy %}
+                <div id="legacy-alert-{{ key }}" class="alert alert-warning border-start border-4 border-warning rounded-0 d-flex align-items-center py-1 px-2 mb-2 small" title="Este informe se generó sin los datos estructurados del Paso 0: el agente buscó la información por su cuenta. Completa la Auditoría y regenéralo.">
+                    <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                    <div class="text-truncate">
+                        <strong class="me-1">Informe legacy:</strong>
+                        <p class="mb-0 small d-inline">
+                            Este informe se generó <strong>sin los datos estructurados del Paso 0</strong>. El agente buscó la información de forma autónoma, lo que puede ser menos preciso. 
+                            Se recomienda completar la <strong>Auditoría</strong> y regenerar este informe para mayor fiabilidad.
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Alerta de Rechazo -->
+                <div id="rejection-{{ key }}" class="{% if not reports_meta or not reports_meta[key] or not reports_meta[key].rejection %}d-none{% endif %} mb-2">
+                    <!-- 1. Alerta Activa (Rojo) -->
+                    {# compacta: una franja con el motivo y los botones al lado, para que el informe siga a la vista #}
+                    <div id="rejection-card-active-{{ key }}" class="alert alert-danger border-start border-3 border-danger rounded-1 py-1 px-2 mb-0 d-flex align-items-center gap-2" style="font-size: .76rem; line-height: 1.35;">
+                        <i class="bi bi-exclamation-octagon-fill text-danger" style="font-size: 1rem;"></i>
+                        <div class="flex-grow-1" style="min-width: 0;">
+                            <span class="fw-semibold text-danger me-1">Línea roja:</span><span id="rejection-text-{{ key }}">{{ reports_meta[key].rejection if reports_meta and key in reports_meta else '' }}</span>
+                        </div>
+                        <div class="d-flex gap-1 flex-shrink-0">
+                            <button class="btn btn-xs btn-outline-danger px-2 py-0" style="font-size: .72rem;" id="btn-ignore-rejection-{{ key }}" onclick="dismissRejectionAlert('{{ key }}')">
+                                <i class="bi bi-eye-slash me-1"></i>Ignorar
+                            </button>
+                            <button class="btn btn-xs btn-danger px-2 py-0" style="font-size: .72rem;" id="btn-accept-rejection-{{ key }}" onclick="updateStatus('{{ ticker }}', 'REJECTED')">
+                                <i class="bi bi-x-circle me-1"></i>Descartar
+                            </button>
+                            <button class="btn btn-xs btn-secondary d-none px-2 py-0" style="font-size: .72rem;" id="btn-undo-rejection-{{ key }}" onclick="restoreRejectionAlert('{{ key }}')">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>Deshacer
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 2. Alerta Ignorada / Rastro (Amarillo/Gris) - Ultra compacta -->
+                    <div id="rejection-card-dismissed-{{ key }}" class="alert alert-warning border-start border-4 border-warning rounded-0 p-2 shadow-sm d-none" style="font-size: 0.8rem;">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="d-flex align-items-center flex-grow-1 text-truncate">
+                                <i class="bi bi-shield-slash-fill fs-5 text-warning me-2"></i>
+                                <div class="text-truncate">
+                                    <span class="fw-bold me-2">🛡️ Alerta Ignorada:</span>
+                                    <span class="text-muted font-monospace-data" id="dismissed-text-{{ key }}">{{ reports_meta[key].rejection if reports_meta and key in reports_meta else '' }}</span>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-1 flex-wrap">
+                                <button class="btn btn-xs btn-outline-secondary py-0 px-2 fw-semibold" id="btn-toggle-comment-{{ key }}" onclick="toggleCommentBox('{{ key }}')" style="font-size: 0.7rem;">
+                                    <i class="bi bi-chat-text me-1"></i> Comentar
+                                </button>
+                                <button class="btn btn-xs btn-outline-primary py-0 px-2 fw-semibold" onclick="reevaluateWithComment('{{ key }}')" style="font-size: 0.7rem;">
+                                    <i class="bi bi-arrow-repeat me-1"></i> Reevaluar
+                                </button>
+                                <button class="btn btn-xs btn-outline-secondary py-0 px-2 text-danger border-0 fw-semibold" onclick="restoreRejectionAlert('{{ key }}')" style="font-size: 0.7rem;">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Restaurar Alerta
+                                </button>
+                                <button class="btn btn-xs btn-outline-danger py-0 px-2 fw-semibold" onclick="hideRejectionAlertPermanently('{{ key }}')" style="font-size: 0.7rem;" title="Ocultar / Eliminar completamente esta alerta">
+                                    <i class="bi bi-x-lg me-1"></i> Eliminar
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Caja de comentarios y reevaluación (oculta por defecto) -->
+                        <div class="mt-2 bg-white p-2 border rounded shadow-xs d-none" id="comment-box-container-{{ key }}">
+                            <div class="d-flex flex-column gap-2">
+                                <textarea class="form-control form-control-sm font-monospace-data" id="rejection-comment-{{ key }}" rows="2" placeholder="Escribe tu justificación para guiar al agente en la reevaluación (opcional)..." style="font-size: 0.75rem;"></textarea>
+                                <div class="d-flex justify-content-end gap-2">
+                                    <button class="btn btn-xs btn-secondary py-1 px-2" onclick="toggleCommentBox('{{ key }}')">Cancelar</button>
+                                    <button class="btn btn-xs btn-primary py-1 px-3" onclick="saveRejectionComment('{{ key }}')">
+                                        <i class="bi bi-save me-1"></i> Guardar Comentario
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Muestra del comentario guardado (si existe) -->
+                        <div class="mt-1 text-muted d-none" id="saved-comment-preview-container-{{ key }}" style="font-size: 0.72rem; padding-left: 1.6rem;">
+                            <span class="fst-italic">💬 Comentario guardado:</span> 
+                            <span id="saved-comment-preview-{{ key }}" class="fw-semibold text-dark font-monospace-data"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contenido del Informe -->
+                {% set qa_preview = key not in ['val', 'technical', 'rules'] %}
+                <div id="accordion-container-{{ key }}" class="card border qa-report {% if not db.get(key) and not (key == 'audit' and db.get('full_audit_structure')) %}d-none{% endif %} mt-0">
+                    <!-- Cabecera de la tarjeta del informe, actúa como interruptor clicable -->
+                    <div class="card-header bg-white py-1 d-flex justify-content-between align-items-center flex-wrap gap-2" 
+                         style="cursor: pointer;" 
+                         onclick="toggleReportCollapse('{{ key }}')">
+                        <span class="qa-report-title">
+                            <i class="bi bi-file-earmark-text text-primary me-1"></i> Informe completo
+                            <span class="qa-report-date ms-2" id="report-date-{{ key }}"></span>
+                        </span>
+                        <span class="btn btn-xs btn-outline-secondary px-2 py-0" style="font-size: 0.7rem;" id="toggle-{{ key }}">
+                            <i class="bi {{ 'bi-arrows-angle-expand' if qa_preview else 'bi-chevron-down' }} me-1 qa-chevron"></i><span class="qa-toggle-txt">{{ 'Ampliar' if qa_preview else 'Abrir informe' }}</span>
+                        </span>
+                    </div>
+
+                    {# En los informes de calidad se ve el comienzo; «Ampliar» lo deja leer entero (con scroll propio) #}
+                    <div class="{{ 'qa-preview' if qa_preview else 'collapse' }}" id="collapse-{{ key }}">
+                        <div class="card-body px-3 py-2">
+                    {% if key == 'audit' and db.get('full_audit_structure') %}
+                    <!-- Visualización Detallada de Estados Financieros Extraídos -->
+                    {% set full_data = db.get('full_audit_structure') %}
+                    <div class="card border-info bg-info bg-opacity-10 mb-4 shadow-sm">
+                        <div class="card-header bg-info bg-opacity-25 py-2 d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-info" style="font-size: 0.75rem;">
+                                <i class="bi bi-cpu-fill me-1"></i> 1. REVISIÓN DE ESTRUCTURA COMPLETA EXTRAÍDA
+                            </span>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-xs btn-info text-white py-0" style="font-size: 0.6rem;" type="button" data-bs-toggle="collapse" data-bs-target="#full-audit-details">
+                                    Ver Detalle Completo
+                                </button>
+                                <span class="badge bg-info text-white" style="font-size: 0.6rem;">IA Parsed</span>
+                            </div>
+                        </div>
+                        
+                        <div class="collapse" id="full-audit-details">
+                            <div class="card-body p-3 bg-white">
+                                <!-- Tarjeta de Gráfico Interactivo Dinámico para Auditoría (Oculto inicialmente) -->
+                                <div id="financials-chart-card-audit" class="card shadow-sm border border-info mb-4 d-none shadow-lg">
+                                    <div class="card-header bg-info bg-opacity-10 py-2 d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold text-info" style="font-size: 0.75rem;">
+                                            <i class="bi bi-graph-up me-2"></i> COMPARACIÓN DE TENDENCIAS SELECCIONADAS (AUDITORÍA)
+                                        </span>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <button class="btn btn-xs btn-outline-secondary py-0" style="font-size: 0.65rem;" onclick="clearInteractiveMetrics('audit')">
+                                                <i class="bi bi-eraser-fill me-1"></i> Limpiar
+                                            </button>
+                                            <button class="btn btn-xs btn-outline-info py-0" style="font-size: 0.65rem;" onclick="closeInteractiveChart('audit')">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body p-1 bg-white">
+                                        <div id="interactiveChartAudit" style="height: 560px; width: 100%;"></div>
+                                    </div>
+                                </div>
+
+                                <!-- P&L Detail -->
+                                <h6 class="text-primary border-bottom pb-1 mb-2" style="font-size: 0.75rem;">CUENTA DE RESULTADOS (P&L)</h6>
+                                <div class="table-responsive mb-4">
+                                    <table class="table table-sm table-hover mb-0 table-professional">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th class="text-start" style="min-width: 250px;">Concepto</th>
+                                                {% for yr in full_data['years']|reverse %}<th>{{ yr }}</th>{% endfor %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for metric, vals in full_data.get('income_statement', {}).items() %}
+                                            {% set m_lower = metric|lower %}
+                                            {% set is_major = ('total' in m_lower or 'net' in m_lower or 'operating' in m_lower or 'gross' in m_lower or 'revenue' in m_lower or 'ebit' in m_lower or 'efectivo' in m_lower or 'cash' in m_lower or 'fcf' in m_lower or 'bpa' in m_lower or 'eps' in m_lower or 'ingresos' in m_lower or 'ventas' in m_lower or 'beneficio' in m_lower or 'balance' in m_lower or 'activos' in m_lower or 'pasivos' in m_lower or 'patrimonio' in m_lower or 'equity' in m_lower) %}
+                                            {% set is_primary_total = ('revenue' in m_lower or 'ventas' in m_lower or 'ingresos' in m_lower or 'net income' in m_lower or 'beneficio neto' in m_lower or 'free cash flow' in m_lower or 'fcf' in m_lower or 'flujo de caja libre' in m_lower or 'total assets' in m_lower or 'total activos' in m_lower or 'activos totales' in m_lower) %}
+                                            <tr class="row-interactive {% if is_major %}table-group-header{% endif %} {% if is_primary_total %}total-row-highlight{% endif %}" onclick='toggleInteractiveMetric(this, {{ metric|tojson }}, {{ vals|tojson }}, {{ full_data["years"]|tojson }}, "audit")' title="Clic para seleccionar y comparar en gráfico">
+                                                <td class="text-start {% if is_major %}fw-bold{% else %}indent-submetric{% endif %}">
+                                                    {% if is_major %}
+                                                        <i class="bi bi-folder-fill me-1 text-primary opacity-75"></i>
+                                                    {% else %}
+                                                        <i class="bi bi-circle me-1 opacity-50" style="font-size: 0.5rem; vertical-align: middle;"></i>
+                                                    {% endif %}
+                                                    {{ metric }}
+                                                </td>
+                                                {% for v in vals|reverse %}<td class="text-end pe-3 {% if is_major %}fw-bold{% endif %}">{{ format_financial_value(v, 1) }}</td>{% endfor %}
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Balance Detail -->
+                                <h6 class="text-primary border-bottom pb-1 mb-2" style="font-size: 0.75rem;">BALANCE SHEET</h6>
+                                <div class="table-responsive mb-4">
+                                    <table class="table table-sm table-hover mb-0 table-professional">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th class="text-start" style="min-width: 250px;">Concepto</th>
+                                                {% for yr in full_data['years']|reverse %}<th>{{ yr }}</th>{% endfor %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for metric, vals in full_data.get('balance_sheet', {}).items() %}
+                                            {% set m_lower = metric|lower %}
+                                            {% set is_major = ('total' in m_lower or 'net' in m_lower or 'operating' in m_lower or 'gross' in m_lower or 'revenue' in m_lower or 'ebit' in m_lower or 'efectivo' in m_lower or 'cash' in m_lower or 'fcf' in m_lower or 'bpa' in m_lower or 'eps' in m_lower or 'ingresos' in m_lower or 'ventas' in m_lower or 'beneficio' in m_lower or 'balance' in m_lower or 'activos' in m_lower or 'pasivos' in m_lower or 'patrimonio' in m_lower or 'equity' in m_lower) %}
+                                            {% set is_primary_total = ('revenue' in m_lower or 'ventas' in m_lower or 'ingresos' in m_lower or 'net income' in m_lower or 'beneficio neto' in m_lower or 'free cash flow' in m_lower or 'fcf' in m_lower or 'flujo de caja libre' in m_lower or 'total assets' in m_lower or 'total activos' in m_lower or 'activos totales' in m_lower) %}
+                                            <tr class="row-interactive {% if is_major %}table-group-header{% endif %} {% if is_primary_total %}total-row-highlight{% endif %}" onclick='toggleInteractiveMetric(this, {{ metric|tojson }}, {{ vals|tojson }}, {{ full_data["years"]|tojson }}, "audit")' title="Clic para seleccionar y comparar en gráfico">
+                                                <td class="text-start {% if is_major %}fw-bold{% else %}indent-submetric{% endif %}">
+                                                    {% if is_major %}
+                                                        <i class="bi bi-folder-fill me-1 text-primary opacity-75"></i>
+                                                    {% else %}
+                                                        <i class="bi bi-circle me-1 opacity-50" style="font-size: 0.5rem; vertical-align: middle;"></i>
+                                                    {% endif %}
+                                                    {{ metric }}
+                                                </td>
+                                                {% for v in vals|reverse %}<td class="text-end pe-3 {% if is_major %}fw-bold{% endif %}">{{ format_financial_value(v, 1) }}</td>{% endfor %}
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Cash Flow Detail -->
+                                <h6 class="text-primary border-bottom pb-1 mb-2" style="font-size: 0.75rem;">CASH FLOW STATEMENT</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover mb-0 table-professional">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th class="text-start" style="min-width: 250px;">Concepto</th>
+                                                {% for yr in full_data['years']|reverse %}<th>{{ yr }}</th>{% endfor %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for metric, vals in full_data.get('cash_flow', {}).items() %}
+                                            {% set m_lower = metric|lower %}
+                                            {% set is_major = ('total' in m_lower or 'net' in m_lower or 'operating' in m_lower or 'gross' in m_lower or 'revenue' in m_lower or 'ebit' in m_lower or 'efectivo' in m_lower or 'cash' in m_lower or 'fcf' in m_lower or 'bpa' in m_lower or 'eps' in m_lower or 'ingresos' in m_lower or 'ventas' in m_lower or 'beneficio' in m_lower or 'balance' in m_lower or 'activos' in m_lower or 'pasivos' in m_lower or 'patrimonio' in m_lower or 'equity' in m_lower) %}
+                                            {% set is_primary_total = ('revenue' in m_lower or 'ventas' in m_lower or 'ingresos' in m_lower or 'net income' in m_lower or 'beneficio neto' in m_lower or 'free cash flow' in m_lower or 'fcf' in m_lower or 'flujo de caja libre' in m_lower or 'total assets' in m_lower or 'total activos' in m_lower or 'activos totales' in m_lower) %}
+                                            <tr class="row-interactive {% if is_major %}table-group-header{% endif %} {% if is_primary_total %}total-row-highlight{% endif %}" onclick='toggleInteractiveMetric(this, {{ metric|tojson }}, {{ vals|tojson }}, {{ full_data["years"]|tojson }}, "audit")' title="Clic para seleccionar y comparar en gráfico">
+                                                <td class="text-start {% if is_major %}fw-bold{% else %}indent-submetric{% endif %}">
+                                                    {% if is_major %}
+                                                        <i class="bi bi-folder-fill me-1 text-primary opacity-75"></i>
+                                                    {% else %}
+                                                        <i class="bi bi-circle me-1 opacity-50" style="font-size: 0.5rem; vertical-align: middle;"></i>
+                                                    {% endif %}
+                                                    {{ metric }}
+                                                </td>
+                                                {% for v in vals|reverse %}<td class="text-end pe-3 {% if is_major %}fw-bold{% endif %}">{{ format_financial_value(v, 1) }}</td>{% endfor %}
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Resumen Compacto (Siempre visible) -->
+                        <div class="card-body p-0 border-top bg-light-subtle">
+                            <table class="table table-sm table-borderless mb-0 font-monospace-data text-center" style="font-size: 0.7rem;">
+                                <thead class="table-info table-opacity-25">
+                                    <tr>
+                                        <th class="ps-3 text-start">Métricas Clave</th>
+                                        {% for yr in full_data['years']|reverse %}<th>{{ yr }}</th>{% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-bottom border-info border-opacity-10">
+                                        <td class="ps-3 text-start text-muted fw-bold">Ventas</td>
+                                        {% for val in full_data['chart_metrics']['revenue']|reverse %}<td>{{ format_financial_value(val, 0) }}</td>{% endfor %}
+                                    </tr>
+                                    <tr class="border-bottom border-info border-opacity-10">
+                                        <td class="ps-3 text-start text-muted">Bº Neto</td>
+                                        {% for val in full_data['chart_metrics']['net_income']|reverse %}<td>{{ format_financial_value(val, 0) }}</td>{% endfor %}
+                                    </tr>
+                                    <tr>
+                                        <td class="ps-3 text-start text-success fw-bold">FCF</td>
+                                        {% for val in full_data['chart_metrics']['fcf']|reverse %}<td class="text-success fw-bold">{{ format_financial_value(val, 0) }}</td>{% endfor %}
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+
+                    </div>
+                    {% endif %}
+                            {% if key == 'audit' %}
+                    <!-- Sub-pestañas para Auditoría Forense -->
+                    <ul class="nav nav-pills mb-3 bg-light p-1 rounded border shadow-sm {% if not db.get('audit') %}d-none{% endif %}" id="auditSubTabs" role="tablist">
+                        <li class="nav-item flex-grow-1 text-center" role="presentation">
+                            <button class="nav-link active py-2 fw-bold" id="audit-synthesis-tab" data-bs-toggle="pill" data-bs-target="#audit-synthesis" type="button" role="tab">🌍 Síntesis Global</button>
+                        </li>
+                        <li class="nav-item flex-grow-1 text-center" role="presentation">
+                            <button class="nav-link py-2 fw-bold" id="audit-income-report-tab" data-bs-toggle="pill" data-bs-target="#audit-income-report" type="button" role="tab">📊 Resultados</button>
+                        </li>
+                        <li class="nav-item flex-grow-1 text-center" role="presentation">
+                            <button class="nav-link py-2 fw-bold" id="audit-balance-report-tab" data-bs-toggle="pill" data-bs-target="#audit-balance-report" type="button" role="tab">⚖️ Balance</button>
+                        </li>
+                        <li class="nav-item flex-grow-1 text-center" role="presentation">
+                            <button class="nav-link py-2 fw-bold" id="audit-cashflow-report-tab" data-bs-toggle="pill" data-bs-target="#audit-cashflow-report" type="button" role="tab">💸 Caja</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="auditSubTabsContent">
+                        <div class="tab-pane fade show active" id="audit-synthesis" role="tabpanel">
+                            <div class="report-content" id="content-audit">{{ reports_html.get('audit', '') | safe }}</div>
+                        </div>
+                        
+                        <!-- 📊 Resultados -->
+                        <div class="tab-pane fade" id="audit-income-report" role="tabpanel">
+                            {% set sub_score = db.get('audit_income_score', 'N/A') %}
+                            {% set sub_pros = db.get('audit_income_pros', []) %}
+                            {% set sub_cons = db.get('audit_income_cons', []) %}
+                            {% set sub_score_clean = sub_score.split('/')[0]|trim %}
+                            {% set sub_score_num = sub_score_clean|float(-1.0) %}
+                            
+                            <div class="row g-3 mb-4 mt-1" id="meta-container-audit_income">
+                                <div class="col-md-3">
+                                    <div class="card bg-light border-0 py-3 text-center score-display-card">
+                                        <span class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.7rem;">Puntuación de Resultados</span>
+                                        <div id="score-badge-audit_income" class="score-badge-circle
+                                            {% if sub_score_num >= 8.5 %}score-high
+                                            {% elif sub_score_num >= 7.0 %}score-notable
+                                            {% elif sub_score_num >= 5.0 %}score-medium
+                                            {% elif sub_score_num >= 0.0 %}score-low
+                                            {% else %}score-na{% endif %}">
+                                            <span id="score-audit_income">{{ sub_score_clean if sub_score and sub_score != 'N/A' else 'N/A' }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-9">
+                                    <div class="row g-2 h-100">
+                                        <div class="col-md-6">
+                                            <div class="h-100 border rounded p-3 bg-white">
+                                                <h6 class="text-success fw-bold text-uppercase mb-2" style="font-size: 0.75rem;"><i class="bi bi-plus-circle me-1"></i> Fortalezas (Pros)</h6>
+                                                <ul class="list-unstyled mb-0 small font-monospace-data" id="pros-audit_income">
+                                                    {% if sub_pros %}
+                                                        {% for pro in sub_pros %}
+                                                        <li class="mb-1 text-muted"><i class="bi bi-check2 text-success me-1"></i> {{ pro }}</li>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <li class="fst-italic text-muted">Sin datos.</li>
+                                                    {% endif %}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="h-100 border rounded p-3 bg-white">
+                                                <h6 class="text-danger fw-bold text-uppercase mb-2" style="font-size: 0.75rem;"><i class="bi bi-dash-circle me-1"></i> Debilidades (Cons)</h6>
+                                                <ul class="list-unstyled mb-0 small font-monospace-data" id="cons-audit_income">
+                                                    {% if sub_cons %}
+                                                        {% for con in sub_cons %}
+                                                        <li class="mb-1 text-muted"><i class="bi bi-x-lg text-danger me-1"></i> {{ con }}</li>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <li class="fst-italic text-muted">Sin datos.</li>
+                                                    {% endif %}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="report-content" id="content-audit_income">{{ reports_html.get('audit_income', 'Análisis en proceso...') | safe }}</div>
+                        </div>
+                        
+                        <!-- ⚖️ Balance -->
+                        <div class="tab-pane fade" id="audit-balance-report" role="tabpanel">
+                            {% set sub_score = db.get('audit_balance_score', 'N/A') %}
+                            {% set sub_pros = db.get('audit_balance_pros', []) %}
+                            {% set sub_cons = db.get('audit_balance_cons', []) %}
+                            {% set sub_score_clean = sub_score.split('/')[0]|trim %}
+                            {% set sub_score_num = sub_score_clean|float(-1.0) %}
+                            
+                            <div class="row g-3 mb-4 mt-1" id="meta-container-audit_balance">
+                                <div class="col-md-3">
+                                    <div class="card bg-light border-0 py-3 text-center score-display-card">
+                                        <span class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.7rem;">Puntuación de Balance</span>
+                                        <div id="score-badge-audit_balance" class="score-badge-circle
+                                            {% if sub_score_num >= 8.5 %}score-high
+                                            {% elif sub_score_num >= 7.0 %}score-notable
+                                            {% elif sub_score_num >= 5.0 %}score-medium
+                                            {% elif sub_score_num >= 0.0 %}score-low
+                                            {% else %}score-na{% endif %}">
+                                            <span id="score-audit_balance">{{ sub_score_clean if sub_score and sub_score != 'N/A' else 'N/A' }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-9">
+                                    <div class="row g-2 h-100">
+                                        <div class="col-md-6">
+                                            <div class="h-100 border rounded p-3 bg-white">
+                                                <h6 class="text-success fw-bold text-uppercase mb-2" style="font-size: 0.75rem;"><i class="bi bi-plus-circle me-1"></i> Fortalezas (Pros)</h6>
+                                                <ul class="list-unstyled mb-0 small font-monospace-data" id="pros-audit_balance">
+                                                    {% if sub_pros %}
+                                                        {% for pro in sub_pros %}
+                                                        <li class="mb-1 text-muted"><i class="bi bi-check2 text-success me-1"></i> {{ pro }}</li>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <li class="fst-italic text-muted">Sin datos.</li>
+                                                    {% endif %}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="h-100 border rounded p-3 bg-white">
+                                                <h6 class="text-danger fw-bold text-uppercase mb-2" style="font-size: 0.75rem;"><i class="bi bi-dash-circle me-1"></i> Debilidades (Cons)</h6>
+                                                <ul class="list-unstyled mb-0 small font-monospace-data" id="cons-audit_balance">
+                                                    {% if sub_cons %}
+                                                        {% for con in sub_cons %}
+                                                        <li class="mb-1 text-muted"><i class="bi bi-x-lg text-danger me-1"></i> {{ con }}</li>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <li class="fst-italic text-muted">Sin datos.</li>
+                                                    {% endif %}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="report-content" id="content-audit_balance">{{ reports_html.get('audit_balance', 'Análisis en proceso...') | safe }}</div>
+                        </div>
+                        
+                        <!-- 💸 Caja -->
+                        <div class="tab-pane fade" id="audit-cashflow-report" role="tabpanel">
+                            {% set sub_score = db.get('audit_cashflow_score', 'N/A') %}
+                            {% set sub_pros = db.get('audit_cashflow_pros', []) %}
+                            {% set sub_cons = db.get('audit_cashflow_cons', []) %}
+                            {% set sub_score_clean = sub_score.split('/')[0]|trim %}
+                            {% set sub_score_num = sub_score_clean|float(-1.0) %}
+                            
+                            <div class="row g-3 mb-4 mt-1" id="meta-container-audit_cashflow">
+                                <div class="col-md-3">
+                                    <div class="card bg-light border-0 py-3 text-center score-display-card">
+                                        <span class="text-uppercase text-muted fw-bold mb-3" style="font-size: 0.7rem;">Puntuación de Flujo de Caja</span>
+                                        <div id="score-badge-audit_cashflow" class="score-badge-circle
+                                            {% if sub_score_num >= 8.5 %}score-high
+                                            {% elif sub_score_num >= 7.0 %}score-notable
+                                            {% elif sub_score_num >= 5.0 %}score-medium
+                                            {% elif sub_score_num >= 0.0 %}score-low
+                                            {% else %}score-na{% endif %}">
+                                            <span id="score-audit_cashflow">{{ sub_score_clean if sub_score and sub_score != 'N/A' else 'N/A' }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-9">
+                                    <div class="row g-2 h-100">
+                                        <div class="col-md-6">
+                                            <div class="h-100 border rounded p-3 bg-white">
+                                                <h6 class="text-success fw-bold text-uppercase mb-2" style="font-size: 0.75rem;"><i class="bi bi-plus-circle me-1"></i> Fortalezas (Pros)</h6>
+                                                <ul class="list-unstyled mb-0 small font-monospace-data" id="pros-audit_cashflow">
+                                                    {% if sub_pros %}
+                                                        {% for pro in sub_pros %}
+                                                        <li class="mb-1 text-muted"><i class="bi bi-check2 text-success me-1"></i> {{ pro }}</li>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <li class="fst-italic text-muted">Sin datos.</li>
+                                                    {% endif %}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="h-100 border rounded p-3 bg-white">
+                                                <h6 class="text-danger fw-bold text-uppercase mb-2" style="font-size: 0.75rem;"><i class="bi bi-dash-circle me-1"></i> Debilidades (Cons)</h6>
+                                                <ul class="list-unstyled mb-0 small font-monospace-data" id="cons-audit_cashflow">
+                                                    {% if sub_cons %}
+                                                        {% for con in sub_cons %}
+                                                        <li class="mb-1 text-muted"><i class="bi bi-x-lg text-danger me-1"></i> {{ con }}</li>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <li class="fst-italic text-muted">Sin datos.</li>
+                                                    {% endif %}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="report-content" id="content-audit_cashflow">{{ reports_html.get('audit_cashflow', 'Análisis en proceso...') | safe }}</div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="report-content" id="content-{{ key }}">
+                        {{ reports_html.get(key, '') | safe }}
+                    </div>
+                    {% endif %}
+                        </div>
+                        {% if qa_preview %}
+                        <div class="qa-preview-fade" onclick="toggleReportCollapse('{{ key }}')">
+                            <span class="btn btn-sm btn-outline-primary rounded-pill px-3 py-0 shadow-sm" style="font-size: .76rem; background: var(--qa-bg);">
+                                <i class="bi bi-book me-1"></i> Leer el informe completo
+                            </span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if not db.get(key) %}
+                <div id="empty-{{ key }}" class="text-center py-5 bg-light rounded border border-dashed">
+                    <i class="bi bi-file-earmark-text text-muted mb-3 d-block" style="font-size: 3rem; opacity: 0.3;"></i>
+                    <p class="text-muted">Aún no se ha generado el informe de <strong>{{ label_full }}</strong>.</p>
+                    {# el aviso y el botón se reevalúan en vivo (refreshReportDeps) al terminar los informes previos #}
+                    <div id="empty-warn-{{ key }}" class="alert alert-warning border-warning bg-warning bg-opacity-10 text-dark mb-3 mx-auto py-2 px-3 small rounded {{ 'd-none' if not is_disabled }}" style="max-width: 550px;">
+                        <i class="bi bi-exclamation-triangle-fill me-1 text-warning"></i>
+                        <span id="empty-warn-text-{{ key }}">{{ disabled_title }}</span>
+                    </div>
+                    <button class="btn btn-primary" id="empty-btn-{{ key }}" onclick="sendAuditOrFeedback('{{ ticker }}', '{{ key }}')" {% if is_disabled %}disabled title="{{ disabled_title }}"{% endif %}>Generar ahora</button>
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+            {% endmacro %}

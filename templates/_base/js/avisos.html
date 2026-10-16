@@ -1,0 +1,353 @@
+        // --- Alertas: resaltado "nuevo" + marcar como leída. El estado de leído está en la BBDD
+        //     (el mismo que usa el panel de notificaciones); cada fila lo trae en data-read. ---
+        // Compartido entre el dashboard (index.html) y la página completa (alerts.html):
+        // cualquier fila con [data-alert-key] se trata igual, así el estado "visto"
+        // es consistente entre ambas vistas.
+        window.applyAlertSeenState = function() {
+            document.querySelectorAll('[data-alert-key]').forEach(row => {
+                const key = row.dataset.alertKey;
+                if (!key) return;
+                const seen = row.dataset.read === '1';
+                const badge = row.querySelector('.alert-new-badge');
+                const btn = row.querySelector('.btn-mark-seen');
+                if (seen) {
+                    row.classList.remove('alert-new');
+                    if (badge) badge.classList.add('d-none');
+                    if (btn) btn.classList.add('d-none');
+                } else {
+                    row.classList.add('alert-new');
+                    if (badge) badge.classList.remove('d-none');
+                    if (btn) btn.classList.remove('d-none');
+                }
+            });
+            const counterBadge = document.getElementById('dropAlertCounterBadge');
+            if (counterBadge) {
+                const unseenCount = document.querySelectorAll('[data-alert-key].alert-new').length;
+                if (unseenCount > 0) {
+                    counterBadge.textContent = unseenCount;
+                    counterBadge.classList.remove('d-none');
+                } else {
+                    counterBadge.classList.add('d-none');
+                }
+            }
+            // Contadores de las pills de filtro en /alerts (Todas / Valoración / Caída):
+            // muestran no leídas, no el total.
+            document.querySelectorAll('.alert-count-badge[data-count-type]').forEach(badge => {
+                const t = badge.dataset.countType;
+                const rows = t === 'ALL'
+                    ? document.querySelectorAll('#alertsTable tbody tr[data-alert-key]')
+                    : document.querySelectorAll('#alertsTable tbody tr[data-type="' + t + '"][data-alert-key]');
+                let unread = 0;
+                rows.forEach(r => { if (r.dataset.read !== '1') unread++; });
+                badge.textContent = unread;
+            });
+            // Contadores del submenú de dirección (📈 Se encarece / 📉 Se abarata), no leídas.
+            document.querySelectorAll('.alert-count-badge[data-count-direction]').forEach(badge => {
+                const d = badge.dataset.countDirection;
+                const rows = document.querySelectorAll('#alertsTable tbody tr[data-type="VALORACIÓN"][data-direction="' + d + '"][data-alert-key]');
+                let unread = 0;
+                rows.forEach(r => { if (r.dataset.read !== '1') unread++; });
+                badge.textContent = unread;
+            });
+            window.refreshSidebarAlertBadge();
+        };
+        // Leído / no leído, sincronizado: la campana, la Bandeja de hoy y Avisos escuchan el evento «notif-read»
+        // ({keys, read}) y se repintan sin recargar; las otras pestañas abiertas lo reciben por BroadcastChannel.
+        const notifChannel = (() => { try { return new BroadcastChannel('alphaflow-notif'); } catch (e) { return null; } })();
+        const notifAnnounce = body => { if (body && body.keys) document.dispatchEvent(new CustomEvent('notif-read', {detail: {keys: body.keys, read: body.read !== false}})); };
+        window.markNotificationsRead = (body) => {
+            notifAnnounce(body);
+            return fetch('/api/notifications/read', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body), keepalive: true})
+                .then(() => { try { notifChannel && notifChannel.postMessage(body); } catch (e) {} window.refreshNotificationBadges(); });
+        };
+        if (notifChannel) notifChannel.onmessage = e => { notifAnnounce(e.data); window.refreshNotificationBadges(); };
+        window.markAlertSeen = function(btn) {
+            const row = btn.closest('[data-alert-key]');
+            if (!row) return;
+            row.dataset.read = '1';
+            window.applyAlertSeenState();
+            window.markNotificationsRead({keys: ['alert|' + row.dataset.alertKey]});
+        };
+        window.markAllAlertsSeen = function() {
+            document.querySelectorAll('[data-alert-key]').forEach(row => row.dataset.read = '1');
+            window.applyAlertSeenState();
+            window.markNotificationsRead({group: 'alertas'});
+        };
+
+        // --- Badge de notificaciones (estilo Android) en el icono "Alertas" del sidebar ---
+        // Se calcula globalmente (todas las páginas) contra un listado ligero de claves,
+        // ya que el detalle de las alertas solo se carga en /alerts y /.
+        // Globos de la campana y de «Alertas» en el menú: del mismo recuento que el panel de notificaciones
+        const setBadge = (el, n) => { if (!el) return; el.textContent = n > 99 ? '99+' : n; el.classList.toggle('d-none', !n); };
+        window.refreshNotificationBadges = () => fetch('/api/notifications/count').then(r => r.json()).then(c => {
+            // Campana: número = sin leer de la cartera; si no hay ninguna pero sí otras (de fuera de cartera, o cambios
+            // de valoración que no van hacia zona de compra), solo un punto
+            const outside = c.quiet || 0;
+            document.querySelectorAll('.notif-bell-badge').forEach(b => {
+                setBadge(b, c.total);
+                const dot = !c.total && outside > 0;
+                b.classList.toggle('dot', dot);
+                if (dot) { b.textContent = ''; b.classList.remove('d-none'); }
+                b.closest('.notif-bell')?.setAttribute('title', c.total ? `Notificaciones: ${c.total} sin leer de tu cartera`
+                    : dot ? `Notificaciones: ${outside} sin leer que no son urgentes (fuera de cartera o cambios de valoración)` : 'Notificaciones');
+            });
+            // Avisos del menú: la misma cifra que la campana (número de tu cartera o, si no hay, el punto naranja)
+            const ab = document.getElementById('sidebarAlertBadge');
+            if (ab) {
+                setBadge(ab, c.total);
+                const adot = !c.total && outside > 0;
+                ab.classList.toggle('dot', adot);
+                if (adot) { ab.textContent = ''; ab.classList.remove('d-none'); }
+                ab.closest('.nav-link')?.setAttribute('title', c.total ? `Avisos: ${c.total} sin leer de tu cartera` : adot ? `Avisos: ${outside} sin leer que no son urgentes` : 'Avisos');
+            }
+            if (window.thesisBadgeState) {
+                window.thesisBadgeState.news = c.noticias;
+                window.thesisBadgeState.newsTitle = c.noticias ? `${c.noticias} noticias sin leer de empresas en cartera` : '';
+                window.renderThesisBadge();
+            }
+            document.querySelectorAll('[data-notif-count]').forEach(b => b.textContent = c[b.dataset.notifCount] || '');
+            window.loadCentroPulse && window.loadCentroPulse();   // la línea de avisos de la tarjeta «Mi Cartera» (portada)
+        }).catch(() => {});
+        window.refreshSidebarAlertBadge = () => window.refreshNotificationBadges();
+
+        window.syncHomeNav = () => {};
+        // Noticias de la semana (línea de «Mi Cartera» en la portada → ventana centrada, como el calendario)
+        (() => {
+            const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+            const tk = t => t && t.includes('.') ? t.slice(0, t.lastIndexOf('.')) : (t || '');
+            const paint = d => {
+                const row = n => `<a class="nm-item ${n.seen ? '' : 'unread'}" href="${esc(n.url || '/noticias?ticker=' + n.ticker)}" ${n.url ? 'target="_blank" rel="noopener"' : ''} data-news-id="${n.id}" title="${esc(n.title)}">` +
+                    `<span class="fw-bold ${n.materiality >= 5 ? 'text-danger' : 'text-warning'}">${n.materiality}/5</span><b>${esc(tk(n.ticker))}</b>` +
+                    `<span class="nm-title">${esc(n.title)}</span><span class="text-muted text-nowrap">${(n.date || '').slice(8, 10)}/${(n.date || '').slice(5, 7)}</span></a>`;
+                const html = (d.headline ? `<div class="px-3 py-2 small border-bottom">${esc(d.headline)}</div>` : '') +
+                    (d.week.length ? d.week.map(row).join('') : '<div class="p-3 text-muted">Sin noticias muy relevantes esta semana.</div>') +
+                    (d.old_unread.length ? '<div class="nm-sep">Sin leer de semanas anteriores</div>' + d.old_unread.map(row).join('') : '');
+                document.querySelectorAll('.news-menu-body').forEach(b => b.innerHTML = html);
+                // la línea de la tarjeta «Mi Cartera» de la portada: abre la ventana con la lista (como el calendario)
+                const mc = document.getElementById('mcNews');
+                if (mc) mc.innerHTML = `<span class="d-flex align-items-center gap-2"><a href="#" class="pulse-line text-decoration-none" data-bs-toggle="modal" data-bs-target="#newsModal" title="Ver las noticias de esta semana">` +
+                    `<i class="bi bi-broadcast me-1 text-primary"></i><span class="text-white-50"><span class="text-white fw-semibold">${d.week.length} noticia${d.week.length === 1 ? '' : 's'}</span> esta semana` +
+                    `${d.unread ? ` · <span class="text-warning">${d.unread} sin leer</span>` : ''}</span></a>` +
+                    `<a href="/noticias" class="ms-auto text-decoration-none text-nowrap" title="Ir a la página de Noticias">Noticias <i class="bi bi-arrow-right"></i></a></span>`;
+            };
+            const load = () => fetch('/api/noticias/semana').then(r => r.json()).then(paint).catch(() => {});
+            document.addEventListener('DOMContentLoaded', load);
+            document.getElementById('newsModal')?.addEventListener('show.bs.modal', load);
+            // abrir una noticia la marca como leída (como en Noticias)
+            document.addEventListener('click', e => {
+                const a = e.target.closest('#newsModal .nm-item.unread');
+                if (!a) return;
+                a.classList.remove('unread');
+                window.markNotificationsRead && window.markNotificationsRead({keys: ['news|' + a.dataset.newsId]});
+            });
+        })();   // (antes marcaba Mercado o Centro; ahora la portada es una sola)
+
+        // Panel de notificaciones
+        const NOTIF_ICON = {alertas: 'bi-bell', noticias: 'bi-broadcast', avisos: 'bi-inbox', monitor: 'bi-activity'};
+        let notifItems = [], notifGroup = '', notifScope = '';
+        const notifInScope = i => !notifScope || (notifScope === 'held' ? i.portfolio : !i.portfolio);
+        const notifEsc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+        const notifWhen = d => {
+            if (!d) return '';
+            const dt = new Date(d.replace(' ', 'T')), days = Math.floor((Date.now() - dt) / 86400000);
+            return days <= 0 ? 'hoy ' + dt.toTimeString().slice(0, 5) : days === 1 ? 'ayer' : days < 7 ? `hace ${days} días` : dt.toLocaleDateString('es-ES');
+        };
+        function notifRender() {
+            const unreadOnly = document.getElementById('notifUnreadOnly').checked;
+            // leído / no leído para todas; solo las de empresas en cartera cuentan en los globos
+            const list = notifItems.filter(i => (!notifGroup || i.group === notifGroup) && notifInScope(i) && (!unreadOnly || !i.read));
+            document.getElementById('notifList').innerHTML = list.length ? list.slice(0, 150).map(i => `
+                <div class="notif-item ${i.read ? 'read' : 'unread'} ${i.portfolio ? 'held' : ''}" data-key="${notifEsc(i.key)}">
+                    <i class="bi ${NOTIF_ICON[i.group]} notif-icon text-muted"></i>
+                    <div class="flex-grow-1">
+                        <div><a href="${notifEsc(i.href)}" class="text-decoration-none fw-bold">${notifEsc(i.ticker || '')}</a>
+                            <span class="notif-kind ms-1">${notifEsc(i.kind)}</span>${i.portfolio ? '<span class="notif-kind notif-held ms-1" title="La tienes en cartera: cuenta en el globo">cartera</span>' : ''}</div>
+                        <div>${notifEsc(i.text)}${i.url ? ` <a href="${notifEsc(i.url)}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}</div>
+                        <div class="notif-meta">${notifWhen(i.date)}</div>
+                    </div>
+                    <button type="button" class="btn btn-link btn-sm p-0 notif-read-btn align-self-start" title="${i.read ? 'Marcar como no leída' : 'Marcar como leída'}"
+                            aria-label="${i.read ? 'Marcar como no leída' : 'Marcar como leída'}" onclick="notifRead('${notifEsc(i.key)}', ${!i.read}, true)">
+                        <i class="bi ${i.read ? 'bi-eye-slash' : 'bi-eye'}"></i></button>
+                    ${i.group === 'avisos' || i.group === 'monitor' ? `<button type="button" class="btn btn-link btn-sm p-0 notif-read-btn text-muted align-self-start"
+                            title="Descartar: no volverá a salir mientras siga dándose" aria-label="Descartar" onclick="notifDismiss('${notifEsc(i.key)}')"><i class="bi bi-x-lg"></i></button>` : ''}
+                </div>`).join('')
+                : `<div class="p-4 text-center small text-muted"><i class="bi bi-check2-circle fs-3 d-block mb-1"></i>${unreadOnly ? 'Todo leído.' : 'Sin notificaciones.'}</div>`;
+        }
+        async function notifLoad() {
+            try { const d = await (await fetch('/api/notifications')).json(); notifItems = d.items || []; notifRender(); } catch (e) {}
+        }
+        // Noticia leída: fuera la marca de nueva en las tarjetas de noticias (Centro de mando, /noticias)
+        window.paintNewsRead = (id) => document.querySelectorAll(`[data-news="${CSS.escape(String(id))}"]`).forEach(el => {
+            el.classList.remove('unread');
+            el.querySelectorAll('.badge-new, .btn-read').forEach(b => b.remove());
+        });
+        // Lo leído en el panel, también en la página abierta: alertas, avisos y monitor (y el aviso de cada noticia)
+        window.paintReadOnPage = (keys, read) => {
+            keys.forEach(key => {
+                if (key.startsWith('alert|')) document.querySelectorAll(`[data-alert-key="${CSS.escape(key.slice(6))}"]`).forEach(r => { r.dataset.read = read ? '1' : ''; });
+                const newsId = key.startsWith('news|') ? key.slice(5) : null;
+                if (newsId && read) window.paintNewsRead(newsId);
+                if (!window.paintSeen) return;
+                document.querySelectorAll('.inbox-item').forEach(el => {
+                    const own = (el.dataset.keys || el.dataset.key || '').split(',');
+                    if (own.includes(key) || (newsId && own.some(k => k.includes('|att|news|') && k.endsWith('|' + newsId)))) window.paintSeen(el, read);
+                });
+            });
+            if (window.applyAlertSeenState) window.applyAlertSeenState();
+        };
+        document.addEventListener('notif-read', e => {   // marcado en otro sitio (Bandeja, Avisos, otra pestaña)
+            const {keys, read} = e.detail; let changed = false;
+            notifItems.forEach(i => { if (keys.includes(i.key) && i.read !== read) { i.read = read; changed = true; } });
+            if (changed && document.getElementById('notifPanel')?.classList.contains('show')) notifRender();
+            window.paintReadOnPage(keys, read);
+        });
+        window.notifRead = (key, read, rerender) => {
+            const it = notifItems.find(i => i.key === key);
+            if (it) it.read = read;
+            if (rerender) notifRender();
+            window.paintReadOnPage([key], read);
+            return window.markNotificationsRead({keys: [key], read});
+        };
+        window.notifDismiss = async (key) => {
+            const r = await fetch('/api/notices/dismiss', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({keys: [key], seen: true})});
+            if (!r.ok) return;
+            notifItems = notifItems.filter(i => i.key !== key);
+            notifRender();
+            window.refreshNotificationBadges && window.refreshNotificationBadges();
+            // también en la página abierta (Mercado, Watchlist)
+            if (window.dismissedNoticeKeys) window.dismissedNoticeKeys.add(key);
+            document.querySelectorAll('.inbox-item').forEach(el => {
+                if ((el.dataset.keys || el.dataset.key || '').split(',').includes(key)) {
+                    const list = el.closest('.notice-list'); el.remove(); if (window.refreshNoticeList) refreshNoticeList(list);
+                }
+            });
+        };
+        window.notifMarkAll = () => {
+            const unreadOnly = document.getElementById('notifUnreadOnly').checked;
+            const keys = notifItems.filter(i => !i.read && (!notifGroup || i.group === notifGroup) && notifInScope(i)).map(i => i.key);
+            if (!keys.length) return;
+            keys.forEach(k => { const it = notifItems.find(i => i.key === k); if (it) it.read = true; });
+            notifRender();
+            window.paintReadOnPage(keys, true);
+            window.markNotificationsRead({keys});
+        };
+        document.addEventListener('DOMContentLoaded', () => {
+            const panel = document.getElementById('notifPanel');
+            panel.addEventListener('show.bs.offcanvas', notifLoad);
+            document.querySelectorAll('[data-notif-group]').forEach(b => b.addEventListener('click', () => {
+                notifGroup = b.dataset.notifGroup;
+                document.querySelectorAll('[data-notif-group]').forEach(x => x.classList.toggle('active', x === b));
+                notifRender();
+            }));
+            document.getElementById('notifUnreadOnly').addEventListener('change', notifRender);
+            // como en el correo: pulsar una notificación sin leer la marca como leída (los botones van aparte)
+            document.getElementById('notifList').addEventListener('click', e => {
+                const row = e.target.closest('.notif-item.unread');
+                if (!row || e.target.closest('button')) return;
+                const it = notifItems.find(i => i.key === row.dataset.key);
+                if (it) notifRead(it.key, true, !e.target.closest('a'));   // si abre un enlace no hace falta repintar
+            });
+            document.querySelectorAll('[data-notif-scope]').forEach(b => b.addEventListener('click', () => {
+                notifScope = b.dataset.notifScope;
+                document.querySelectorAll('[data-notif-scope]').forEach(x => x.classList.toggle('active', x === b));
+                notifRender();
+            }));
+        });
+        // Una sola vez: las alertas que marcaste como vistas cuando se guardaban en el navegador pasan a la BBDD
+        (function migrateAlertSeen() {
+            try {
+                if (localStorage.getItem('alerts_read_migrated')) return;
+                const keys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (k && k.startsWith('alert_seen_')) keys.push('alert|' + k.slice(11));
+                }
+                localStorage.setItem('alerts_read_migrated', '1');
+                if (keys.length) window.markNotificationsRead({keys}).then(() => { if (location.pathname === '/alerts') location.reload(); });
+            } catch (e) {}
+        })();
+        // Noticias nuevas del radar de tesis (solo materialidad >=4)
+        // Globo de «Centro» en el menú = avisos de tesis + noticias sin leer (Tesis y Noticias son pestañas del Centro)
+        const thesisBadge = window.thesisBadgeState = {notices: 0, news: 0, noticesTitle: '', newsTitle: ''};
+        const renderThesisBadge = window.renderThesisBadge = () => {
+            const b = document.getElementById('sidebarThesisBadge');
+            if (!b) return;
+            const n = thesisBadge.notices + thesisBadge.news;
+            b.textContent = n > 99 ? '99+' : n;
+            b.classList.toggle('d-none', !n);
+            b.title = [thesisBadge.noticesTitle, thesisBadge.newsTitle].filter(Boolean).join('\n');
+            // con noticias sin leer de la cartera, el icono lleva directo a /noticias; si no, a /tesis
+            const link = document.getElementById('sidebarThesisLink');
+            if (link) {
+                link.href = thesisBadge.news ? '/noticias' : '/tesis';
+                link.title = thesisBadge.news ? 'Tesis y noticias: ir a las noticias sin leer' : 'Tesis y noticias';
+            }
+        };
+        // Noticias nuevas del radar de tesis (solo materialidad >=4)
+        // el globo del menú solo suma las noticias de empresas en cartera (viene de refreshNotificationBadges);
+        // la pestaña «Noticias» muestra todas las no leídas
+        window.refreshSidebarNewsBadge = () => fetch('/api/theses/news/unread-count').then(r => r.json()).then(d => {
+            window.refreshNotificationBadges && window.refreshNotificationBadges();
+            const tab = document.getElementById('tabNewsBadge');
+            if (tab) { tab.textContent = d.unread > 99 ? '99+' : d.unread; tab.classList.toggle('d-none', !d.unread); }
+            window.checkRadarDone(d);
+        }).catch(() => {});
+        // Aviso «radar terminado»: mientras hay radar en curso se pregunta cada 20 s; al acabar (o al abrir cualquier
+        // página después, si no se había visto) sale un aviso con lo encontrado. Lo ya avisado se recuerda en el navegador.
+        let radarPoll = null;
+        window.checkRadarDone = d => {
+            clearTimeout(radarPoll);
+            if (d.radar_running) { radarPoll = setTimeout(window.refreshSidebarNewsBadge, 20000); return; }
+            const last = d.radar_last;
+            if (!last) return;
+            let seen = null;
+            try { seen = localStorage.getItem('radarDoneSeen'); localStorage.setItem('radarDoneSeen', last.finished_at); } catch (e) {}
+            if (seen === last.finished_at || Date.now() - new Date(last.finished_at) > 12 * 3600000) return;
+            const news = last.new_items === 1 ? '1 noticia nueva' : `${last.new_items} noticias nuevas`;
+            const fail = last.failed.length ? `<br><span class="text-warning">Falló: ${last.failed.join(', ')}</span>` : '';
+            const id = 'radar-toast-' + Date.now();
+            document.getElementById('toastContainer').insertAdjacentHTML('beforeend', `
+                <div id="${id}" class="toast text-white border-0 shadow" role="status" aria-live="polite" style="background-color: #343a40;">
+                  <div class="d-flex">
+                    <div class="toast-body"><strong><i class="bi bi-broadcast me-1 text-info"></i>Radar de noticias terminado</strong><br>
+                      ${last.ran} ${last.ran === 1 ? 'empresa' : 'empresas'} · ${news}${fail}<br>
+                      <a href="/noticias" class="link-light">Ver noticias →</a></div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Cerrar"></button>
+                  </div>
+                </div>`);
+            const el = document.getElementById(id);
+            new bootstrap.Toast(el, {delay: 15000}).show();
+            el.addEventListener('hidden.bs.toast', () => el.remove());
+        };
+        window.refreshSidebarNewsBadge();
+        // Resultados nuevos sin revisar / revisiones con IA listas
+        fetch('/api/theses/notices').then(r => r.json()).then(d => {
+            thesisBadge.notices = d.count || 0;
+            thesisBadge.noticesTitle = (d.notices || []).map(n => `${n.ticker}: ${n.text}`).join('\n');
+            renderThesisBadge();
+        }).catch(() => {});
+
+        window.refreshNotificationBadges();
+
+        // Cifra del día de la cartera en la barra de arriba: al cargar y cada 5 minutos (precios en caché; sin IA)
+        window.refreshDayPill = () => fetch('/api/portfolio/day').then(r => r.json()).then(d => {
+            document.querySelectorAll('.day-pill').forEach(el => {
+                if (!d.value) { el.classList.add('d-none'); return; }
+                const up = d.eur >= 0, sign = up ? '+' : '';
+                el.classList.remove('d-none');
+                el.classList.toggle('up', d.eur > 0); el.classList.toggle('down', d.eur < 0);
+                el.querySelector('.dp-pct').textContent = `${up ? '▲' : '▼'} ${sign}${fmtNum(d.pct, 2)} %`;
+                el.querySelector('.dp-eur').textContent = `${sign}${fmtNum(d.eur, 0)} €`;
+                el.title = `Hoy tu cartera: ${sign}${fmtNum(d.pct, 2)} % (${sign}${fmtNum(d.eur, 0)} €) · valor ${fmtNum(d.value, 0)} €`
+                    + (d.any_open ? '' : ' · mercados cerrados: es la variación de la última sesión')
+                    + (d.missing.length ? ` · sin precio: ${d.missing.join(', ')}` : '') + '. Pulsa para abrir la Cartera';
+            });
+        }).catch(() => {});
+        window.refreshDayPill();
+        setInterval(() => { if (!document.hidden) window.refreshDayPill(); }, 300000);
+
+        document.addEventListener('DOMContentLoaded', () => window.applyAlertSeenState());
+
+        let analyzedCompanies = [];
+        let recentSearches = [];
+

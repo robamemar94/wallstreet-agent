@@ -50,6 +50,16 @@ def session_label(last_date) -> str:
 templates.env.globals["session_label"] = session_label
 
 
+def ext_quote(ticker):
+    """Pre-market / post-market de un valor de EE. UU. que aún no ha abierto hoy (o None): para stale_pill(ext=…)."""
+    from app.interfaces.views.market_views import ext_quote as quote
+    return quote(ticker)
+
+
+templates.env.globals["ext_quote"] = ext_quote
+templates.env.globals["EXT_BIG_PCT"] = 2   # pre/post-market: desde ±2 % se enseña el valor, destacado (si no, solo el icono)
+
+
 def _zone_cuts():
     from app.application.services import base_valuation_service as bv
     return {"ganga": bv.TARGET_RETURN_PCT, "barata": bv.BARATA_PCT, "justo": bv.JUSTO_PCT}

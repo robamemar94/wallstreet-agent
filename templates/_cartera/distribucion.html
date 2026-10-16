@@ -1,0 +1,73 @@
+  <!-- Pestaña Distribución: todo en una pantalla (el alto se ajusta a la ventana); lo de menos del 1 % va en «Otros» -->
+  <div class="tab-pane fade" id="dist-pane" role="tabpanel" aria-labelledby="dist-tab">
+    {% if distribution %}{% set cz = distribution.concentration %}
+        <div class="d-flex flex-wrap gap-2 mb-3 small" id="distChips">
+            <span class="dist-chip" title="La posición que más pesa"><span class="text-muted">Mayor posición</span> <strong>{{ clean_ticker(cz.max_ticker) }} {{ num(cz.max_pct, 1) }}%</strong></span>
+            <span class="dist-chip" title="Lo que suman las 5 posiciones más grandes"><span class="text-muted">Top 5</span> <strong>{{ num(cz.top5_pct, 1) }}%</strong></span>
+            <span class="dist-chip" title="Número efectivo de posiciones (1/Σ peso²): con N posiciones iguales sale N. Cuanto más lejos del número real, más concentrada está la cartera.">
+                <span class="text-muted">Equivale a</span> <strong>{{ num(cz.effective_n, 1) }}</strong> <span class="text-muted">posiciones iguales (de {{ cz.positions }})</span></span>
+            <span class="dist-chip" title="Divisa en la que está la mayor parte de tu dinero en el bróker{{ ' (con la liquidez, en euros)' if distribution.cash }}: su cambio frente al euro te mueve el valor"><span class="text-muted">Divisa principal</span> <strong>{{ cz.main_currency }} {{ num(cz.main_currency_pct, 1) }}%</strong></span>
+            {% if distribution.cash %}<span class="dist-chip" title="Efectivo en el bróker sobre el patrimonio (cartera + liquidez). Los pesos de las posiciones siguen siendo sobre lo invertido"><span class="text-muted">Liquidez</span> <strong>{{ num(distribution.cash.pct, 1) }}%</strong> <span class="text-muted">del patrimonio</span></span>{% endif %}
+            <i class="bi bi-info-circle text-muted align-self-center" title="Lo que pesa menos del 1 % se agrupa en «Otros» (pasa el ratón para ver qué incluye). País: sede de la empresa, no dónde vende. Pasa el ratón por la leyenda para resaltar cada empresa."></i>
+        </div>
+        <div class="row g-3">
+            <div class="col-12 col-xl-6">
+                <div class="card shadow-sm border-0" id="distAssetsCard"><div class="card-body">
+                    <div class="fw-bold small mb-1"><i class="bi bi-pie-chart-fill me-1"></i>Por activo</div>
+                    <div class="row g-2 align-items-center">
+                        <div class="col-12 col-md-8"><div class="dist-donut-wrap"><div id="distAssets"></div><div class="dist-logos" id="distAssetLogos"></div></div></div>
+                        <div class="col-12 col-md-4">
+                            <table class="table table-sm table-borderless mb-0 dist-legend" id="distLegend">
+                            {% for a in distribution.assets %}
+                                <tr data-i="{{ loop.index0 }}" title="{{ a.name }}{{ ' · ' ~ a.members|join(', ') if a.members else '' }}">
+                                    <td class="dist-legend-dot"><span class="dist-dot" data-i="{{ loop.index0 }}"></span></td>
+                                    <td class="dist-legend-logo">{% if a.ticker %}<img src="/logo/{{ a.ticker|urlencode }}" alt="" class="dist-logo" onerror="this.remove()">{% endif %}</td>
+                                    <td><strong>{{ clean_ticker(a.ticker) if a.ticker else a.label }}</strong></td>
+                                    <td class="text-end num-font fw-semibold">{{ num(a.pct, 1) }}%</td>
+                                </tr>
+                            {% endfor %}
+                            </table>
+                        </div>
+                    </div>
+                </div></div>
+            </div>
+            <div class="col-12 col-xl-6">
+                <div class="dist-small-grid" id="distSmallGrid">
+                    {% for key, title, icon in [('roles', 'Por rol', 'bi-bookmark-star'), ('currency', 'Por divisa', 'bi-currency-exchange'), ('sector', 'Por sector', 'bi-diagram-3'), ('country', 'Por país', 'bi-globe')] %}
+                    <div>
+                        <div class="card shadow-sm border-0 dist-small-card h-100"><div class="card-body pb-2 d-flex flex-column">
+                            <div class="fw-bold small mb-1"><i class="bi {{ icon }} me-1"></i>{{ title }}{% if key == 'currency' and distribution.cash %} <span class="text-muted fw-normal" title="Incluye la liquidez del bróker, en euros: es tu exposición real a cada moneda">· con liquidez</span>{% endif %}</div>
+                            {% if key == 'roles' %}
+                            {# barra por rol: relleno = peso actual; franja = rango objetivo #}
+                            {% set scale = [60, (distribution.roles|map(attribute='pct')|max) + 5]|max %}
+                            <div class="dist-roles flex-grow-1 d-flex flex-column justify-content-around">
+                                {% for r in distribution.roles %}
+                                <div title="{{ ('Sin rol: ' ~ r.members|join(', ')) if r.members else (r.label ~ ': ' ~ num(r.pct, 1) ~ '%' ~ (' · objetivo ' ~ r.min ~ '–' ~ r.max ~ '%' if r.min is not none else '')) }}">
+                                    <div class="d-flex align-items-center gap-2 small">
+                                        <span class="text-truncate"><span class="dist-dot" style="background: {{ r.color or '#9ca3af' }}"></span>{{ r.label }}</span>
+                                        <span class="ms-auto num-font fw-semibold">{{ num(r.pct, 1) }}%</span>
+                                        {% if r.min is not none %}<span class="text-muted num-font text-nowrap" style="font-size: .7rem;">{{ r.min }}–{{ r.max }}%</span>{% endif %}
+                                        {% if r.band == 'en_rango' %}<i class="bi bi-check-circle-fill st-green" title="Dentro del rango objetivo"></i>
+                                        {% elif r.band == 'bajo' %}<i class="bi bi-arrow-down-circle-fill text-warning" title="Por debajo del rango objetivo"></i>
+                                        {% elif r.band == 'alto' %}<i class="bi bi-arrow-up-circle-fill text-warning" title="Por encima del rango objetivo"></i>{% endif %}
+                                    </div>
+                                    <div class="dist-bar">
+                                        {% if r.min is not none %}<div class="dist-bar-range" style="left: {{ '%.1f'|format(r.min / scale * 100) }}%; width: {{ '%.1f'|format((r.max - r.min) / scale * 100) }}%;"></div>{% endif %}
+                                        <div class="dist-bar-fill" style="width: {{ '%.1f'|format(r.pct / scale * 100) }}%; background: {{ r.color or '#9ca3af' }};"></div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <div class="text-end small"><a href="/ideal-portfolio" class="text-decoration-none">Portfolio ideal →</a></div>
+                            {% else %}
+                            <div id="dist-{{ key }}" class="dist-small flex-grow-1"></div>
+                            {% endif %}
+                        </div></div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        <script type="application/json" id="distData">{{ distribution|tojson }}</script>
+    {% else %}<div class="p-3 small text-muted">No hay posiciones abiertas.</div>{% endif %}
+    </div>

@@ -1,0 +1,103 @@
+<style>
+    .cagr-green { color: var(--fin-green) !important; } .cagr-amber { color: #e3b341 !important; } .cagr-orange { color: #f0883e !important; } .cagr-red { color: var(--fin-red) !important; }
+    /* .table-modern pinta todos los enlaces del color del texto: el CAGR conserva su color de zona */
+    .table-modern a.cagr-green, .table-modern a.cagr-green:hover { color: var(--fin-green) !important; }
+    /* Seguimiento: veredicto de la tesis (mismos colores que en Tesis) */
+    .tbl-pt td:last-child { overflow: visible; }
+    .table-modern a.pt-verdict { font-size: .62rem; font-weight: 700; letter-spacing: .03em; padding: 1px 5px; border-radius: 4px; border: 1px solid currentColor; }
+    .table-modern a.pt-vd-reforzada { color: var(--fin-green) !important; } .table-modern a.pt-vd-intacta { color: #58a6ff !important; }
+    .table-modern a.pt-vd-vigilancia { color: #d29922 !important; } .table-modern a.pt-vd-debilitada { color: #f0883e !important; } .table-modern a.pt-vd-rota { color: var(--fin-red) !important; }
+    .table-modern a.cagr-amber, .table-modern a.cagr-amber:hover { color: #e3b341 !important; }
+    .table-modern a.cagr-orange, .table-modern a.cagr-orange:hover { color: #f0883e !important; }
+    .table-modern a.cagr-red, .table-modern a.cagr-red:hover { color: var(--fin-red) !important; }
+    /* Contable y Seguimiento: mismo ancho en las columnas comunes (Activo, Empresa, Último, Var. %, Var. €) */
+    #activeTable, .tbl-pt { table-layout: fixed; width: 100%; }
+    #activeTable td, .tbl-pt td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #activeTable th:nth-child(1), .tbl-pt th:nth-child(1) { width: 6%; }
+    #activeTable th:nth-child(2), .tbl-pt th:nth-child(2) { width: 14%; }
+    #activeTable th:nth-child(2) { width: 10%; }
+    #activeTable th:nth-child(3), .tbl-pt th:nth-child(3) { width: 10%; }
+    #activeTable th:nth-child(4), .tbl-pt th:nth-child(4) { width: 9%; }
+    #activeTable th:nth-child(5), .tbl-pt th:nth-child(5) { width: 9%; }
+    #activeTable th, .tbl-pt th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #activeTable th:nth-child(3) { width: 9%; }
+    #activeTable th:nth-child(4) { width: 9%; }   /* cabe la píldora y, al lado, el icono del pre/post-market */
+    #activeTable th:nth-child(6) { width: 6%; }
+    #activeTable th:nth-child(7) { width: 9%; }
+    #activeTable th:nth-child(8) { width: 9%; }   /* Invertido */
+    #activeTable th:nth-child(9) { width: 10%; }  /* Valor mercado */
+    #activeTable th:nth-child(10) { width: 8%; }  /* Peso */
+    .tbl-pt th:nth-child(6), .tbl-pt th:nth-child(9) { width: 7%; }
+    .tbl-pt th:nth-child(7) { width: 7%; }
+    .tbl-pt th:nth-child(8) { width: 8%; }
+    .tbl-pt th:nth-child(10) { width: 10%; }
+    /* Último: precio y, debajo y en pequeño, su movimiento en su moneda */
+    .price-main { font-weight: 600; line-height: 1.15; }
+    .price-move { font-size: .72rem; line-height: 1.1; }
+    #activeTable th:last-child { width: 48px; }
+    .pos-toolbar .btn { font-size: .75rem; }
+    .pf-navbar { border-bottom: var(--bs-border-width) solid var(--bs-border-color); }
+    .pf-navbar .nav-tabs .nav-link { margin-bottom: -1px; }
+    .pf-subnav .btn { font-size: .75rem; }
+    .cash-chip { display: inline-flex; align-items: center; font-size: .78rem; padding: .25rem .7rem; border-radius: 999px;
+                 background: var(--fin-card-bg); border: 1px solid var(--bs-border-color); color: var(--bs-body-color); }
+    .cash-chip:hover { border-color: var(--bs-primary); }
+    #cashModal .cash-parts { display: grid; grid-template-columns: 1fr auto; gap: .15rem 1rem; font-size: .82rem; }
+    #cashModal .cash-recent { max-height: 220px; overflow-y: auto; font-size: .8rem; }
+    /* Resumen: dos filas de tarjetas y la franja de atención; el alto lo ajusta fitResumen() a la ventana */
+    .res-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: .6rem; }
+    .res-h a { text-transform: none; letter-spacing: 0; font-weight: 600; }
+    .res-grid .res-value { grid-column: span 2; } .res-grid .res-bench { grid-column: span 4; }
+    .res-grid > .res-card:nth-child(n+3) { grid-column: span 2; }
+    .res-card { background: var(--fin-card-bg); border-radius: .5rem; padding: .55rem .9rem; min-width: 0; display: flex; flex-direction: column; }
+    .res-h { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); margin-bottom: .3rem; }
+    .res-big { font-size: 1.45rem; font-weight: 700; }
+    .res-kv { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem; font-size: .82rem; }
+    .res-kv span { color: var(--bs-secondary-color); } .res-kv b { text-align: right; }
+    .res-row { display: flex; justify-content: space-between; gap: .5rem; font-size: .8rem; padding: .12rem 0; }
+    .res-table { font-size: .82rem; width: auto; --bs-table-bg: transparent; } .res-table td, .res-table th { padding: .3rem .5rem; }
+    #resChart { min-height: 130px; } .res-table th { font-size: .66rem; color: var(--bs-secondary-color); font-weight: 600; }
+    .res-att-items { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .res-attention { display: flex; align-items: center; flex-wrap: nowrap; margin-bottom: .6rem; padding: .4rem 1rem; border-radius: .5rem;
+                     background: var(--fin-card-bg); border-left: 3px solid var(--bs-warning); color: var(--bs-body-color); font-size: .85rem; }
+    .res-attention:hover { filter: brightness(1.15); }
+    @media (max-width: 992px) { .res-grid { grid-template-columns: 1fr; } .res-grid > .res-card { grid-column: auto !important; } }
+    /* filas más bajas para que quepan más posiciones (el estilo común pone 10 px arriba y abajo) */
+    #activeTable tbody td, .tbl-pt tbody td { padding-top: .25rem; padding-bottom: .25rem; }
+    #activeTable thead th, .tbl-pt thead th { padding-top: .4rem; padding-bottom: .4rem; }
+    /* Fundamentales: cifras de las fichas y secciones del desglose */
+    .fund-big { font-size: 1.05rem !important; } .fund-small { font-size: .88rem !important; }
+    #fundamentalsTable .fund-sep { border-left: 1px solid var(--bs-border-color); }
+    #fundamentalsTable .fund-groups th { font-size: .62rem; text-transform: uppercase; letter-spacing: .06em; color: var(--bs-secondary-color); font-weight: 600; padding: .35rem .5rem .1rem; border-bottom: 0; }
+    /* Rendimiento: todo en una pantalla */
+    .perf-kpis { display: flex; flex-wrap: wrap; gap: .3rem; }
+    .perf-kpi { display: flex; align-items: center; gap: .3rem; background: var(--bs-secondary-bg); border-radius: 6px; padding: .2rem .5rem; font-size: .78rem; }
+    .perf-kpi .lbl { color: var(--bs-secondary-color); font-size: .64rem; text-transform: uppercase; letter-spacing: .02em; }
+    .perf-kpi .lbl small, .perf-kpi .lbl span { font-size: .62rem; }
+    .perf-kpi .sub { color: var(--bs-secondary-color); font-size: .58rem; line-height: 1.1; }
+    .perf-kpi .fs-4, .perf-kpi .fs-6 { font-size: .95rem !important; }
+    #perfTableCard { display: flex; flex-direction: column; }
+    #perfTableCard .perf-table-body { overflow-y: auto; flex: 1; min-height: 0; }
+    #perfTableCard table { font-size: .78rem !important; }
+    #perfTableCard td, #perfTableCard th { padding: .3rem .4rem; }
+    .mth-cell { border-radius: 4px; }
+    /* Distribución */
+    .dist-small-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 767.98px) { .dist-small-grid { grid-template-columns: 1fr; grid-template-rows: none; height: auto !important; } }
+    .dist-chip { background: var(--bs-secondary-bg); border-radius: 6px; padding: .3rem .6rem; }
+    .dist-donut-wrap { position: relative; }
+    .dist-logos { position: absolute; inset: 0; pointer-events: none; }
+    .dist-tag { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: auto; }
+    .dist-logo { width: 20px; height: 20px; object-fit: contain; background: #fff; border-radius: 50%; padding: 1px; box-shadow: 0 0 0 1px rgba(0,0,0,.08); }
+    .dist-sym { font-size: .72rem; font-weight: 700; line-height: 1; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+    .dist-pct { font-size: .66rem; line-height: 1; color: #fff; opacity: .9; text-shadow: 0 1px 2px rgba(0,0,0,.6); font-variant-numeric: tabular-nums; }
+    .dist-legend td { padding: .22rem .3rem; vertical-align: middle; font-size: .8rem; background: transparent; white-space: nowrap; }
+    .dist-legend tr { cursor: default; }
+    .dist-legend tr.active td { background: var(--bs-secondary-bg); }
+    .dist-legend-dot { width: 14px; } .dist-legend-logo { width: 26px; }
+    .dist-dot { display: inline-block; width: .6rem; height: .6rem; border-radius: 50%; margin-right: .4rem; }
+    .dist-roles { gap: .35rem; }
+    .dist-bar { position: relative; height: 8px; border-radius: 4px; background: var(--bs-secondary-bg); margin-top: 3px; overflow: hidden; }
+    .dist-bar-range { position: absolute; top: 0; bottom: 0; background: rgba(148, 163, 184, .35); border-left: 1px dashed var(--bs-secondary-color); border-right: 1px dashed var(--bs-secondary-color); }
+    .dist-bar-fill { position: absolute; top: 2px; bottom: 2px; left: 0; border-radius: 3px; }
+</style>

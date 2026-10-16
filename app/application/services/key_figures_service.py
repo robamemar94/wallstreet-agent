@@ -1,5 +1,5 @@
 """
-Cifras clave de la ficha (franja de arriba del Resumen): siete números que se entienden de un vistazo.
+Cifras clave de la ficha (franja de arriba del Resumen): ocho números que se entienden de un vistazo.
 
 Cada una lleva su valor en color (verde = bien, ámbar = normal, rojo = flojo; sin color las que dependen de cada empresa,
 como el dividendo), una línea de contexto (su media de 5 años, el PER justo, la tendencia de 10 años…) y, si hay
@@ -65,17 +65,26 @@ def build(info: Dict[str, Any], db: Dict[str, Any], ext_stats: Dict[str, Any], f
     trends = {t["key"]: t for t in ft.build(fin)}
     out = []
 
-    # PER adelantado: frente a tu PER justo (si lo has fijado) y a su media de 5 años (cierre del año / BPA)
-    pe = _f(info.get("forwardPE"))
     pe_hist = [c / e if c and e and e > 0 else None for c, e in zip(year_close, eps)]
-    fair = _f((db.get("fair_pe_data") or {}).get("fair_forward_pe"))
     pe_avg = _avg(pe_hist)
+
+    # PER de los últimos 12 meses (con el beneficio ya publicado): frente a su media de 5 años; el minigráfico, el de cada año
+    ttm = _f(info.get("trailingPE"))
+    ttm_tone = "none" if ttm is None or not pe_avg else ("good" if ttm <= pe_avg else "mid" if ttm <= pe_avg * 1.2 else "bad")
+    out.append({"key": "pe_ttm", "label": "PER", "value": ttm, "fmt": "x", "tone": ttm_tone,
+                "context": f"media 5 a {es(pe_avg, 1)}x" if pe_avg else "", "spark": pe_hist,
+                "tip": "Precio / BPA de los últimos 12 meses (lo ya publicado). Verde: por debajo de su media de 5 años, ámbar hasta "
+                       "un 20 % por encima. El minigráfico, el PER de cada año (cierre del año / BPA)."})
+
+    # PER forward (NTM, próximos 12 meses): frente a tu PER justo (si lo has fijado) y a su media de 5 años (cierre del año / BPA)
+    pe = _f(info.get("forwardPE"))
+    fair = _f((db.get("fair_pe_data") or {}).get("fair_forward_pe"))
     ref = fair or pe_avg
     tone = "none" if pe is None or not ref else ("good" if pe <= ref else "mid" if pe <= ref * 1.2 else "bad")
     ctx = " · ".join(x for x in ((f"justo {es(fair, 1)}x" if fair else None), (f"media 5 a {es(pe_avg, 1)}x" if pe_avg else None)) if x)
-    out.append({"key": "pe", "label": "PER adelantado", "value": pe, "fmt": "x", "tone": tone, "context": ctx,
-                "spark": pe_hist, "tip": "Precio / BPA estimado de los próximos 12 meses. Verde: por debajo de tu PER justo "
-                                        "(o, sin él, de su media de 5 años); el minigráfico, el PER de cada año (cierre del año / BPA)."})
+    out.append({"key": "pe", "label": "PER forward (NTM)", "value": pe, "fmt": "x", "tone": tone, "context": ctx,
+                "spark": [], "tip": "Forward o NTM: precio / BPA estimado de los próximos 12 meses. Verde: por debajo de tu PER justo "
+                                     "(o, sin él, de su media de 5 años)."})
 
     # FCF yield: hoy y por año (FCF / capitalización al cierre del año)
     fy = _f(db.get("fcf_yield"))

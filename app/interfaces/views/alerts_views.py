@@ -8,44 +8,15 @@ from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlche
 from app.infrastructure.dependencies import get_asset_repository, get_settings_from_db
 from app.infrastructure.templates import templates
 from app.application.services.alerts_service import (
-    get_alerts_data, save_alerts_data, run_alerts_scan, build_alert_key, valuation_direction, purge_old, AUTO_CLEAN_DAYS,
+    get_alerts_data, save_alerts_data, run_alerts_scan, build_alert_key, purge_old,
 )
 
 router = APIRouter(tags=["Alerts Views"])
 
-@router.get("/alerts", response_class=HTMLResponse)
-async def alerts_page(
-    request: Request,
-    db_session: Session = Depends(get_db)
-):
-    alerts_data = get_alerts_data(db_session)
-    history = alerts_data.get("history", [])
-
-    # Sort history descending (newest first)
-    history.sort(key=lambda x: x.get("date", ""), reverse=True)
-    read = set(alerts_data.get("read") or [])
-    for alert in history:
-        alert["_key"] = build_alert_key(alert)
-        # caídas heredadas de la versión anterior (silenciosas): se dan por leídas
-        alert["_read"] = bool(alert.get("silent")) or ("alert|" + alert["_key"]) in read
-        if alert.get("type", "VALORACIÓN") == "VALORACIÓN":
-            alert["_direction"] = valuation_direction(alert.get("old_status"), alert.get("new_status"))
-
-    count_valoracion = sum(1 for a in history if a.get("type", "VALORACIÓN") == "VALORACIÓN")
-    count_caida = sum(1 for a in history if a.get("type") == "CAÍDA")
-    count_sube = sum(1 for a in history if a.get("_direction") == "SUBE")
-    count_baja = sum(1 for a in history if a.get("_direction") == "BAJA")
-
-    return templates.TemplateResponse("alerts.html", {
-        "request": request,
-        "history": history,
-        "count_valoracion": count_valoracion,
-        "count_caida": count_caida,
-        "count_sube": count_sube,
-        "count_baja": count_baja,
-        "settings": get_settings_from_db(db_session),
-        "auto_clean_months": AUTO_CLEAN_DAYS // 30,
-    })
+@router.get("/alerts")
+def alerts_page():
+    """La antigua página de alertas: su contenido (cambios de zona y caídas) está ahora en Avisos."""
+    return RedirectResponse("/avisos", status_code=307)
 
 @router.get("/api/alerts/keys")
 def get_alert_keys(db_session: Session = Depends(get_db)):
@@ -127,3 +98,73 @@ def clean_alerts(months: int = Form(...), db_session: Session = Depends(get_db))
     save_alerts_data(db_session, alerts_data)
     return RedirectResponse(url="/alerts", status_code=303)
 
+
+
+@router.get("/avisos", response_class=HTMLResponse)
+def notices_page(request: Request, db_session: Session = Depends(get_db)):
+    """Avisos: todas las notificaciones en un sitio (las mismas que la campana, con el mismo leído), por temas.
+    Pendientes (lo que pide algo de ti) y Movimientos (lo que hace el precio); el historial de alertas está en /alerts.
+    Al abrirse, la página recalcula en segundo plano los avisos del Centro y de la Watchlist (sin IA) y se refresca."""
+    return templates.TemplateResponse("avisos.html", {"request": request, "settings": get_settings_from_db(db_session),
+                                                      **notices_context(db_session)})
+
+
+@router.get("/avisos/lista", response_class=HTMLResponse)
+def notices_list_fragment(request: Request, db_session: Session = Depends(get_db)):
+    """La lista de Avisos sola (para refrescarla tras recalcular los avisos sin recargar la página)."""
+    return templates.TemplateResponse("_avisos_list.html", {"request": request, **notices_context(db_session)})
+
+
+def _fold(text: str) -> str:
+    """Para buscar: minúsculas y sin tildes («Hermès» → «hermes»)."""
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", (text or "").lower()) if unicodedata.category(c) != "Mn")
+
+
+def group_by_company(items: list, grouped: set) -> list:
+    """En los tipos que se repiten (zona de compra, cambios de zona, movimientos), una línea por empresa y tipo: la más
+    reciente, con las anteriores en «older». Sin leer si lo está cualquiera; leer o descartar la línea afecta a todas."""
+    out, heads = [], {}
+    for i in items:   # vienen de la más reciente a la más antigua
+        k = (i["filter"], i.get("ticker")) if i["filter"] in grouped and i.get("ticker") else None
+        if k and k in heads:
+            head = heads[k]
+            head["older"].append(i)
+            head["read"] = head["read"] and i["read"]
+            if i.get("vigente") and not head.get("vigente"):   # el grupo sigue vigente si lo está cualquiera
+                head.update(vigente=True, since=i.get("since"), rule=i.get("rule", ""))
+            head["keys"].append(i["key"])
+            if i["dismissable"]:
+                head["dismiss_keys"].append(i["key"])
+            continue
+        i = {**i, "older": [], "keys": [i["key"]], "dismiss_keys": [i["key"]] if i["dismissable"] else []}
+        if k:
+            heads[k] = i
+        out.append(i)
+    for i in out:
+        i["dismissable"] = bool(i["dismiss_keys"])
+    return out
+
+
+def notices_context(db_session: Session) -> dict:
+    from app.application.services import notification_service as ns
+    from app.infrastructure.db.models import DBAsset
+    from app.infrastructure.dependencies import get_notice_repository, get_thesis_repository
+    items = [i for i in ns.collect(db_session, get_thesis_repository(db_session), get_notice_repository(db_session))
+             if i["group"] != "noticias"]   # las noticias sueltas no son avisos (van en el resumen semanal)
+    tickers = {i["ticker"] for i in items if i.get("ticker")}
+    names = {a.ticker: (a.data or {}).get("company_name") or a.company_name or ""
+             for a in db_session.query(DBAsset).filter(DBAsset.ticker.in_(tickers)).all()}
+    for i in items:
+        i["filter"] = ns.filter_of(i)
+        i["dismissable"] = i["group"] in ("avisos", "monitor")   # alertas y noticias: solo leer
+        i["name"] = names.get(i.get("ticker") or "", "")
+        i["rule"] = ns.vigente_rule(i) if i.get("vigente") else ""
+        i["q"] = _fold(" ".join(x for x in (i.get("ticker") or "", i["name"], i["kind"], i["text"]) if x))   # buscar por nombre también
+    items = group_by_company(items, ns.GROUPED_FILTERS)
+    filters = [{"key": k, "label": label, "icon": icon, "on": on} for k, label, icon, on in ns.FILTERS]
+    import datetime
+    today = datetime.date.today()
+    day = lambda n: (today - datetime.timedelta(days=n)).isoformat()
+    return {"items": items, "filters": filters, "filter_info": {f["key"]: f for f in filters},
+            "today": today.isoformat(), "yesterday": day(1), "week_ago": day(6), "month_ago": day(30)}

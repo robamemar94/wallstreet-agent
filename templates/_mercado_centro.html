@@ -1,72 +1,7 @@
-{# Pestaña «Centro de mando» de la portada (la pide a /mercado/centro y reparte cada [data-slot] en su hueco) #}
-{% from "_notices.html" import grouped_inbox %}
-{% from "_agenda.html" import agenda_compact, summary_card %}
-
+{# Sincronización del Centro de mando (la pide la portada en segundo plano, y Avisos al abrirse): recalcula los avisos de
+   la cartera (precios, tesis, monitor) y devuelve solo las notas (precios que no se pudieron descargar). La Bandeja y la
+   Agenda se piden aparte (/portada/bandeja y /portada/agenda), para que cada bloque llegue por su cuenta. #}
 <div data-slot="notes">
     {% if error %}<div class="alert alert-warning small">No se pudieron descargar los precios: {{ error }}</div>{% endif %}
     {% if stale_note %}<div class="alert alert-light border small py-1"><i class="bi bi-clock-history me-1"></i>{{ stale_note }}</div>{% endif %}
-</div>
-
-{% macro centro_news_row(n) %}<li class="list-group-item" data-news="{{ n.id }}" title="{{ n.ticker }} · {{ n.date }} · {{ n.title }}">
-        <span class="{{ 'st-red' if n.materiality >= 5 else 'st-amber' }} fw-bold">{{ n.materiality }}/5</span>
-        <strong>{{ n.ticker|replace('.PA', '')|replace('.ST', '') }}</strong> <span class="text-muted">{{ n.date[8:10] }}/{{ n.date[5:7] }}</span> {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener"{% if not n.seen %} onclick="centroNewsRead({{ n.id }})"{% endif %}>{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
-        {% if not n.seen %}<span class="badge text-bg-primary badge-new">NUEVA</span>{% endif %}
-    </li>{% endmacro %}
-
-{# Bandeja: todo lo que se lee y se marca como visto, a la vista a la vez: Pendiente (lo que pide atención, por prioridad,
-   con las noticias sin leer) y Monitor (movimientos de precio; solo informa; su histórico con un botón) a la izquierda,
-   y Noticias de las tesis (esta semana del radar y la anterior) a la derecha. El número de la cabecera, como la campana:
-   sin leer de tu cartera (avisos + monitor). #}
-{% set pend_unread = attention|rejectattr('seen')|list|length %}
-{% set news_n = news_weeks|map(attribute='news')|map('length')|sum + news_old_unread|length %}
-<div data-slot="attention">
-<div class="card h-100">
-    <div class="card-header bg-transparent fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span><i class="bi bi-inbox me-1"></i>Bandeja <span class="badge text-bg-primary" id="attCount" title="Sin leer de empresas en cartera (avisos y monitor)">{{ (attention + signals)|selectattr('ticker', 'in', held)|rejectattr('seen')|list|length }}</span>
-            {% if changes.as_of %}<span class="small text-muted fw-normal">· precios al cierre del {{ changes.as_of[8:10] }}/{{ changes.as_of[5:7] }}</span>{% endif %}</span>
-    </div>
-    <div class="inbox-grid">
-        <section class="inbox-sec inbox-pend">
-            <div class="inbox-h d-flex align-items-center"><span><i class="bi bi-flag me-1"></i>Pendiente <span class="badge text-bg-warning" data-inbox-n="pend">{{ pend_unread or '' }}</span>
-                <i class="bi bi-info-circle fw-normal ms-1" title="Arriba lo que pide acción (por tipo) y debajo los movimientos de precio, que solo informan. Pulsa una empresa para ver el detalle; el ojo y la ✕ de cada línea valen para todo el grupo"></i></span>
-                <button type="button" class="btn btn-link btn-sm p-0 ms-auto text-decoration-none fw-normal" id="monHistBtn" title="Señales de precio que ya no están activas (no se borran)"
-                        onclick="const h = document.getElementById('attMonListHistory'), on = h.classList.contains('d-none'); h.classList.toggle('d-none', !on); ['attList', 'attMonList'].forEach(id => document.getElementById(id).classList.toggle('d-none', on)); this.textContent = on ? '← Volver' : 'Histórico de precios ({{ signal_history|length }})';">Histórico de precios ({{ signal_history|length }})</button></div>
-            <div class="fixed-body">
-                {{ grouped_inbox(attention, signals, signal_history, theses_ids, held) }}
-            </div>
-        </section>
-        <section class="inbox-sec inbox-news">
-            <div class="inbox-h d-flex align-items-center"><span><i class="bi bi-broadcast me-1"></i>Noticias de las tesis <span class="badge text-bg-secondary">{{ news_n }}</span></span>
-                <a href="/noticias" class="small fw-normal ms-auto text-decoration-none">ver todas →</a></div>
-            <div class="fixed-body">
-            {% if news_headline %}<div class="small px-3 py-2 border-bottom"><i class="bi bi-journal-text me-1 text-muted"></i><a href="/noticias" class="text-decoration-none">{{ news_headline }}</a></div>{% endif %}
-            <ul class="list-group list-group-flush small centro-news">
-            {% if not news_has_current %}
-                <li class="list-group-item news-sep">Última semana</li>
-                <li class="list-group-item text-muted">Sin noticias muy relevantes en la última semana.</li>
-            {% endif %}
-            {% for w in news_weeks %}
-                <li class="list-group-item news-sep">{{ 'Última semana' if w.current else 'Semana anterior' }}
-                    <span class="fw-normal">· del {{ w.days[0].strftime('%d/%m') }} al {{ w.days[1].strftime('%d/%m') }} · {{ w.news|length }}</span></li>
-                {% for n in w.news %}{{ centro_news_row(n) }}{% endfor %}
-            {% endfor %}
-            {% if news_old_unread %}
-                <li class="list-group-item news-sep">Sin leer de semanas anteriores <span class="fw-normal">· {{ news_old_unread|length }}</span></li>
-                {% for n in news_old_unread %}{{ centro_news_row(n) }}{% endfor %}
-            {% endif %}
-            </ul>
-            </div>
-        </section>
-    </div>
-    <div id="whyResult" class="small why-result"></div>{# fuera de la zona que se desplaza: se ve aunque la lista sea larga #}
-</div>
-</div>
-
-<div data-slot="agenda">
-{{ agenda_compact(agenda, other, theses_ids) }}
-</div>
-
-<div data-slot="summary">
-{{ summary_card(agenda, benchmark, {"watch": watch_day, "visit": visit, "soon_other": other.hoy.upcoming,
-                                    "unread": (attention + signals)|selectattr('ticker', 'in', held)|rejectattr('seen')|list|length}) }}
 </div>

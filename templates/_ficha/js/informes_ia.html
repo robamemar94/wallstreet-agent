@@ -1,0 +1,735 @@
+    // Cache de imágenes en base64
+    window.auditImages = { income: null, balance: null, cashflow: null };
+
+    function handleImageUpload(input, type) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                window.auditImages[type] = e.target.result.split(',')[1]; // Solo el base64 sin el prefijo data:image/...
+                document.getElementById(`preview-${type}`).classList.remove('d-none');
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    async function extractDataOnly(ticker) {
+        const btn = document.getElementById('btn-extract');
+        const launchBtn = document.getElementById('btn-audit-launch');
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Extrayendo...';
+        
+        const inc = document.getElementById('audit-income').value.trim();
+        const bal = document.getElementById('audit-balance').value.trim();
+        const csh = document.getElementById('audit-cashflow').value.trim();
+        
+        const payload = JSON.stringify({
+            income: inc,
+            balance: bal,
+            cashflow: csh,
+            images: window.auditImages
+        });
+
+        try {
+            const response = await fetch(`/api/audit/extract/${ticker}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ feedback: payload })
+            });
+            
+            const data = await response.json();
+            if (data.status === 'success') {
+                if (typeof showToast === 'function') {
+                    showToast('✅ Datos Guardados', 'Los datos han sido extraídos. Revisa la tabla de verificación.', 'success');
+                }
+                // Habilitar el segundo botón y recargar la tabla de verificación (haciendo un reload parcial o completo)
+                if (launchBtn) launchBtn.classList.remove('disabled');
+                // Recargamos para que el servidor pinte la tabla de financials_hist_manual
+                location.reload();
+            } else {
+                alert("Error extrayendo datos: " + data.message);
+            }
+        } catch (err) {
+            alert("Error de conexión durante la extracción.");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-database-down me-2"></i> 1. Guardar y Extraer Datos';
+        }
+    }
+
+    async function sendAuditOrFeedback(ticker, type) {
+        // Cerrar el collapse del feedback si está abierto
+        const collapseEl = document.getElementById(`feedback-collapse-${type}`);
+        if (collapseEl && window.bootstrap) {
+            const bsCollapse = bootstrap.Collapse.getInstance(collapseEl);
+            if (bsCollapse) {
+                bsCollapse.hide();
+            }
+        }
+        
+        let payload = "";
+        if (type === 'audit') {
+            const inc = document.getElementById('audit-income').value.trim();
+            const bal = document.getElementById('audit-balance').value.trim();
+            const csh = document.getElementById('audit-cashflow').value.trim();
+            
+            payload = JSON.stringify({
+                income: inc,
+                balance: bal,
+                cashflow: csh,
+                images: window.auditImages
+            });
+        } else {
+            const feedbackInput = document.getElementById(`feedback-${type}`);
+            payload = feedbackInput ? feedbackInput.value.trim() : "";
+        }
+        
+        // Llamar a la generación pasando el payload
+        await generateReport(ticker, type, payload);
+    }
+
+    window.activeReports = window.activeReports || {};
+
+    // Dependencias entre informes: el Veredicto necesita Franquicia, Auditoría y Dirección; Valoración, Tesis y el
+    // Destructor de tesis necesitan el Veredicto. El servidor pinta el estado al cargar; esto lo mantiene al día sin
+    // recargar cuando se termina un informe previo.
+    const REPORT_DONE = new Set();
+    {% for k in ['franchise', 'audit', 'mgmt_alloc', 'verdict', 'val', 'thesis', 'thesis_destroyer', 'pe_forensic'] %}{% if db.get(k) %}REPORT_DONE.add('{{ k }}');{% endif %}{% endfor %}
+    const REPORT_DEPS = {
+        verdict: ['franchise', 'audit', 'mgmt_alloc'],
+        val: ['verdict'], thesis: ['verdict'], thesis_destroyer: ['verdict'],
+    };
+    const REPORT_NAMES = {franchise: 'Franquicia', audit: 'Auditoría', mgmt_alloc: 'Dirección', verdict: 'Veredicto Final'};
+    function refreshReportDeps() {
+        Object.entries(REPORT_DEPS).forEach(([key, deps]) => {
+            const missing = deps.filter(d => !REPORT_DONE.has(d));
+            const msg = missing.length
+                ? (key === 'verdict'
+                    ? `No se puede ejecutar el Veredicto Final porque aún faltan análisis previos. Por favor, ejecuta primero: ${missing.map(m => REPORT_NAMES[m]).join(', ')}.`
+                    : 'No se puede ejecutar este informe porque aún falta el Veredicto Final. Por favor, ejecuta primero el Veredicto Final.')
+                : '';
+            [`btn-${key}`, `feedback-start-${key}`, `empty-btn-${key}`].forEach(id => {
+                const b = document.getElementById(id);
+                if (!b || window.activeReports?.[key]) return;
+                b.disabled = !!missing.length;
+                if (missing.length) b.title = msg; else b.removeAttribute('title');
+            });
+            document.getElementById(`empty-warn-${key}`)?.classList.toggle('d-none', !missing.length);
+            const t = document.getElementById(`empty-warn-text-${key}`);
+            if (t && missing.length) t.textContent = msg;
+        });
+    }
+    window.markReportDone = key => { REPORT_DONE.add(key); refreshReportDeps(); refreshSummarySoon(); };
+
+    // El Resumen ejecutivo (veredicto, matriz de calidad, pros/contras) y la insignia «Calidad» de la cabecera los pinta
+    // el servidor: al terminar un informe se vuelven a pedir y se sustituyen, sin recargar la página
+    let summaryTimer = null;
+    function refreshSummarySoon() { clearTimeout(summaryTimer); summaryTimer = setTimeout(refreshSummary, 800); }
+    async function refreshSummary() {
+        try {
+            const r = await fetch(location.pathname + location.search, {cache: 'no-store'});
+            if (!r.ok) return;
+            const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+            ['nav-dashboard', 'hdr-quality'].forEach(id => {
+                const fresh = doc.getElementById(id), cur = document.getElementById(id);
+                if (fresh && cur) cur.innerHTML = fresh.innerHTML;
+            });
+            window.fitAll?.();
+        } catch (e) { console.warn('No se pudo refrescar el resumen', e); }
+    }
+
+    // --- Síntesis de las Normas de Calidad (solo a mano: el botón, o el aviso al terminar el 5.º pilar) ---
+    const RULES_SYN = {{ (rules_syn or {})|tojson }};
+    function renderRulesSyn() {
+        const box = document.getElementById('rulesSyn');
+        if (!box) return;
+        const st = RULES_SYN, syn = st.synthesis, esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+        const genBtn = label => `<button class="btn btn-sm btn-outline-primary py-0 px-2" id="btnRulesSyn" style="font-size: .72rem;" onclick="generateRulesSynthesis()" title="Una llamada a Gemini con las notas, fortalezas y debilidades de los 5 pilares (≈ medio céntimo)"><i class="bi bi-stars me-1"></i>${label}</button>`;
+        if (syn) {
+            let open = false; try { open = localStorage.getItem('rulesSynOpen') === '1'; } catch (e) {}
+            box.innerHTML = `<div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-stars text-primary"></i>
+                    <span class="syn-head flex-grow-1">${esc(syn.headline)}</span>
+                    ${st.stale ? '<span class="badge text-bg-warning" title="Algún pilar se ha regenerado después de la síntesis">desactualizada</span>' + genBtn('Regenerar') : ''}
+                    <button class="btn btn-link btn-sm p-0 text-muted" id="btnSynToggle" title="${open ? 'Ocultar' : 'Ver'} fortalezas y riesgos"><i class="bi bi-chevron-${open ? 'up' : 'down'}"></i></button>
+                    ${st.stale ? '' : `<button class="btn btn-link btn-sm p-0 text-muted" onclick="generateRulesSynthesis()" title="Regenerar la síntesis (≈ medio céntimo)"><i class="bi bi-arrow-clockwise"></i></button>`}
+                </div>
+                <div class="syn-detail ${open ? '' : 'd-none'}" id="synDetail">
+                    <div><i class="bi bi-check2 text-success me-1"></i>${(syn.strengths || []).map(x => `<span>${esc(x)}</span>`).join('')}</div>
+                    <div><i class="bi bi-x-lg text-danger me-1"></i>${(syn.risks || []).map(x => `<span>${esc(x)}</span>`).join('')}</div>
+                </div>`;
+            document.getElementById('btnSynToggle').onclick = () => {
+                const d = document.getElementById('synDetail'), nowOpen = d.classList.contains('d-none');
+                try { localStorage.setItem('rulesSynOpen', nowOpen ? '1' : '0'); } catch (e) {}
+                renderRulesSyn();
+            };
+        } else if (st.ready) {
+            box.innerHTML = `<div class="d-flex align-items-center gap-2"><i class="bi bi-stars text-primary"></i>
+                <span class="flex-grow-1 text-muted">Los 5 pilares están listos: genera la síntesis para verlo todo de un vistazo.</span>${genBtn('Generar síntesis')}</div>`;
+        } else if ((st.missing || []).length < 5) {
+            box.innerHTML = `<span class="text-muted"><i class="bi bi-stars me-1"></i>Síntesis: falta${st.missing.length > 1 ? 'n' : ''} ${st.missing.length > 1 ? 'los pilares' : 'el pilar'} ${st.missing.join(', ')}.</span>`;
+        } else box.innerHTML = '';
+        window.fitAll?.();
+    }
+    // Al terminar un pilar: se apunta; si ya están los 5, se avisa con el botón (nunca se lanza sola)
+    window.onPilarDone = n => {
+        RULES_SYN.missing = (RULES_SYN.missing || []).filter(x => x !== n);
+        const wasReady = RULES_SYN.ready;
+        RULES_SYN.ready = !RULES_SYN.missing.length;
+        if (RULES_SYN.synthesis) RULES_SYN.stale = true;   // ha cambiado un pilar después de la síntesis
+        renderRulesSyn();
+        if (RULES_SYN.ready && (!wasReady || RULES_SYN.synthesis) && typeof showToast === 'function')
+            showToast('✅ Los 5 pilares están listos', `${RULES_SYN.synthesis ? 'La síntesis ha quedado desactualizada.' : '¿Generamos la síntesis de las Normas de Calidad?'}`
+                + '<br><button class="btn btn-light btn-sm fw-bold mt-2 py-0" onclick="showReportTab(\'rules\'); generateRulesSynthesis()"><i class="bi bi-stars me-1"></i>Generar síntesis (≈ $0,005)</button>', 'info');
+    };
+    async function generateRulesSynthesis() {
+        const btn = document.getElementById('btnRulesSyn');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generando…'; }
+        try {
+            const r = await fetch(`/api/rules_synthesis/${encodeURIComponent('{{ ticker }}')}`, {method: 'POST'});
+            const d = await r.json();
+            if (d.status !== 'success') throw new Error(d.message || 'Error desconocido');
+            Object.assign(RULES_SYN, {synthesis: d.data, stale: false, ready: true, missing: []});
+            renderRulesSyn();
+            if (typeof showToast === 'function') showToast('✅ Síntesis lista', 'Normas de Calidad: titular, fortalezas y riesgos.', 'success');
+        } catch (e) {
+            if (typeof showToast === 'function') showToast('❌ Error en la síntesis', e.message, 'error');
+            renderRulesSyn();
+        }
+    }
+    document.addEventListener('DOMContentLoaded', renderRulesSyn);
+    // Desde el aviso de «completado»: abre la pestaña del informe con el resumen (el informe completo sigue plegado)
+    function showReportTab(key) {
+        if (key === 'technical') { bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-technical-top-tab')).show(); return; }
+        bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-analysis-tab')).show();
+        const t = document.getElementById(`${key}-tab`);
+        if (t) bootstrap.Tab.getOrCreateInstance(t).show();
+    }
+    document.addEventListener('DOMContentLoaded', refreshReportDeps);
+    // Informes que seguían generándose al cargar la página: se retoma la espera (sin lanzar nada nuevo)
+    document.addEventListener('DOMContentLoaded', () => {
+        Object.entries({{ (running_tasks or {})|tojson }}).forEach(([type, taskId]) => generateReport('{{ ticker }}', type, null, taskId));
+    });
+
+    // resumeTaskId: el informe ya se está generando (se lanzó antes de recargar la página); no se lanza otro,
+    // solo se pone la pestaña en «Ejecutando…» y se sigue esperando a esa tarea
+    async function generateReport(ticker, type, providedFeedback = null, resumeTaskId = null) {
+        if (window.activeReports[type]) {
+            if (typeof showToast === 'function') {
+                showToast('⚠️ Agente Ocupado', 'Este análisis ya está en curso.', 'primary');
+            } else {
+                alert('Este análisis ya está en curso. Por favor, espera a que termine.');
+            }
+            return;
+        }
+
+        window.activeReports[type] = true;
+        
+        // Bloquear solo la UI de esta pestaña
+        const mainBtn = document.getElementById(`btn-${type}`);
+        if (mainBtn) {
+            mainBtn.disabled = true;
+            mainBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Ejecutando...';
+        }
+        
+        const feedbackBtn = document.querySelector(`#feedback-collapse-${type} button.btn-primary`);
+        if (feedbackBtn) feedbackBtn.disabled = true;
+        
+        const feedbackInput = document.getElementById(`feedback-${type}`);
+        if (feedbackInput) feedbackInput.disabled = true;
+        
+        if (type === 'audit') {
+            const balInput = document.getElementById('audit-balance');
+            const incInput = document.getElementById('audit-income');
+            const cshInput = document.getElementById('audit-cashflow');
+            if (balInput) balInput.disabled = true;
+            if (incInput) incInput.disabled = true;
+            if (cshInput) cshInput.disabled = true;
+        }
+
+        const reportNames = {
+            'franchise': 'Franquicia y Moat',
+            'mgmt_alloc': 'Dirección y Capital Allocation',
+            'technical': 'Análisis Técnico',
+            'rules_pilar1': 'Normas · Pilar 1', 'rules_pilar2': 'Normas · Pilar 2', 'rules_pilar3': 'Normas · Pilar 3',
+            'rules_pilar4': 'Normas · Pilar 4', 'rules_pilar5': 'Normas · Pilar 5',
+            'audit': 'Auditoría Crítica',
+            'fin': 'Financiero',
+            'cap': 'Capital Allocation',
+            'mgmt': 'Dirección e Integridad',
+            'moat': 'Moat & Riesgos',
+            'verdict': 'Veredicto Final',
+            'rules': 'Auditoría de Normas',
+            'thesis': 'Tesis de Inversión',
+            'thesis_destroyer': 'Stress-Test (Diablo)',
+            'pe_forensic': 'Auditoría VC/PE',
+            'val': 'Valoración'
+        };
+        const reportName = reportNames[type] || 'Reporte';
+
+        if (typeof showToast === 'function' && !resumeTaskId) {
+            showToast('🤖 Agente Iniciado', `El análisis <strong>${reportName}</strong> se está ejecutando.`, 'primary');
+        }
+
+        let feedbackText = "";
+        if (providedFeedback !== null) {
+            feedbackText = providedFeedback;
+        } else {
+            feedbackText = feedbackInput ? feedbackInput.value.trim() : "";
+        }
+
+        const contentDiv = document.getElementById(`content-${type}`);
+        const emptyDiv = document.getElementById(`empty-${type}`);
+        const loadingDiv = document.getElementById(`loading-${type}`);
+
+        if (emptyDiv) emptyDiv.classList.add('d-none');
+        if (loadingDiv) loadingDiv.classList.remove('d-none');
+
+        // Hide legacy badge and alert if generating new
+        const legacyBadge = document.getElementById(`legacy-badge-${type}`);
+        if (legacyBadge) legacyBadge.classList.add('d-none');
+        const legacyAlert = document.getElementById(`legacy-alert-${type}`);
+        if (legacyAlert) legacyAlert.classList.add('d-none');
+
+        // Hide containers temporarily
+        const metaDiv = document.getElementById(`meta-${type}`);
+        const accordionContainer = document.getElementById(`accordion-container-${type}`);
+        if (metaDiv) metaDiv.classList.add('d-none');
+        document.getElementById(`scorehead-${type}`)?.classList.add('d-none');
+        if (accordionContainer) accordionContainer.classList.add('d-none');
+
+        const unlockUI = () => {
+            window.activeReports[type] = false;
+            if (mainBtn) {
+                mainBtn.disabled = false;
+                mainBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Regenerar';
+            }
+            if (feedbackBtn) feedbackBtn.disabled = false;
+            if (feedbackInput) {
+                feedbackInput.disabled = false;
+                feedbackInput.value = ""; // Limpiar el feedback tras enviarlo
+            }
+            if (loadingDiv) loadingDiv.classList.add('d-none');
+            
+            if (type === 'audit') {
+                const balInput = document.getElementById('audit-balance');
+                const incInput = document.getElementById('audit-income');
+                const cshInput = document.getElementById('audit-cashflow');
+                if (balInput) balInput.disabled = false;
+                if (incInput) incInput.disabled = false;
+                if (cshInput) cshInput.disabled = false;
+            }
+
+            // Ocultar icono legacy si existe tras regenerar
+            const legacyIcon = document.getElementById(`legacy-icon-${type}`);
+            if (legacyIcon) legacyIcon.classList.add('d-none');
+        }
+
+        try {
+            const data = resumeTaskId ? {status: 'processing', task_id: resumeTaskId} : await (await fetch(`/api/generate/${ticker}/${type}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ feedback: feedbackText })
+            })).json();
+            
+            if (data.status === 'processing') {
+                const taskId = data.task_id;
+                
+                // Bucle de sondeo (Polling)
+                const pollInterval = setInterval(async () => {
+                    try {
+                        const statusRes = await fetch(`/api/generate_status/${taskId}`);
+                        const statusData = await statusRes.json();
+                        
+                        if (statusData.status === 'success') {
+                            clearInterval(pollInterval);
+                            window.markReportDone?.(type);
+                            
+                            try {
+                                if (contentDiv) {
+                                    contentDiv.innerHTML = statusData.result;
+                                    qaLiftDate(type);
+                                }
+                                
+                                // Lógica especial para sub-informes de Normas de Calidad (rules_step0...rules_pilar5)
+                                if (type.startsWith('rules_')) {
+                                    // Asegurar que el colapso de reporte quede cerrado/sin desplegar
+                                    const collapseDiv = document.getElementById(`collapse-${type}`);
+                                    if (collapseDiv) bootstrap.Collapse.getOrCreateInstance(collapseDiv, { toggle: false }).hide();
+
+                                    // Hacer que el header de la tarjeta sea clickable inmediatamente
+                                    const cardEl = document.getElementById(`card-${type}`);
+                                    if (cardEl) {
+                                        const cardHeader = cardEl.querySelector('.card-header');
+                                        if (cardHeader) {
+                                            cardHeader.style.cursor = 'pointer';
+                                            cardHeader.setAttribute('onclick', `if(!event.target.closest('button')) { toggleReportCollapse('${type}'); }`);
+                                        }
+                                    }
+                                    
+                                    // Mostrar botón Ver Reporte si estaba oculto
+                                    const toggleBtn = document.getElementById(`toggle-${type}`);
+                                    if (toggleBtn) {
+                                        toggleBtn.classList.remove('d-none');
+                                    } else {
+                                        // Crear el botón dinámicamente si no existía
+                                        const btnContainer = document.querySelector(`#card-${type} .d-flex.align-items-center.gap-2`);
+                                        if (btnContainer) {
+                                            const newBtn = document.createElement('button');
+                                            newBtn.id = `toggle-${type}`;
+                                            newBtn.className = 'btn btn-xs btn-outline-secondary px-2 py-1';
+                                            newBtn.style.fontSize = '0.7rem';
+                                            newBtn.type = 'button';
+                                            newBtn.setAttribute('data-bs-toggle', 'collapse');
+                                            newBtn.setAttribute('data-bs-target', `#collapse-${type}`);
+                                            newBtn.innerHTML = '<i class="bi bi-eye-fill me-1"></i> Reporte';
+                                            btnContainer.appendChild(newBtn);
+                                        }
+                                    }
+
+                                    // Actualizar el contenedor del estado/badge
+                                    const statusContainer = document.getElementById(`status-container-${type}`);
+                                    if (statusContainer) {
+                                        let scoreVal = "0.0";
+                                        if (statusData.meta && statusData.meta.score && statusData.meta.score !== "N/A") {
+                                            scoreVal = statusData.meta.score.split('/')[0].trim();
+                                        }
+                                        let scoreNum = parseFloat(scoreVal) || 0.0;
+                                        let badgeClass = "bg-danger";
+                                        if (scoreNum >= 1.5) badgeClass = "bg-success";
+                                        else if (scoreNum >= 1.0) badgeClass = "bg-warning text-dark";
+                                        
+                                        const pilarIndex = type.replace('rules_pilar', '');
+                                        statusContainer.innerHTML = `<span class="badge ${badgeClass} py-1 px-2 font-monospace fw-bold" style="font-size: 0.72rem;">Nota: <span class="pilar-score-val" data-pilar="${pilarIndex}">${scoreVal}</span> / 2.0</span>`;
+                                    }
+
+                                    // Recalcular la nota total de calidad (vive dentro del DOMContentLoaded: se publica en window)
+                                    window.updateQualityTotalScore?.();
+                                    window.onPilarDone?.(parseInt(type.replace('rules_pilar', '')));
+                                }
+                                
+                                // Update Meta Fields
+                                if (statusData.meta && !type.startsWith('rules_')) {
+                                    const metaDiv = document.getElementById(`meta-${type}`);
+                                    if (metaDiv) metaDiv.classList.remove('d-none');
+                                    document.getElementById(`scorehead-${type}`)?.classList.remove('d-none');
+
+                                    // Handle Legacy UI dynamically
+                                    const legacyIconEl = document.getElementById(`legacy-icon-${type}`);
+                                    const legacyAlertEl = document.getElementById(`legacy-alert-${type}`);
+                                    if (statusData.meta.is_legacy) {
+                                        if (legacyIconEl) legacyIconEl.classList.remove('d-none');
+                                        if (legacyAlertEl) legacyAlertEl.classList.remove('d-none');
+                                    } else {
+                                        if (legacyIconEl) legacyIconEl.classList.add('d-none');
+                                        if (legacyAlertEl) legacyAlertEl.classList.add('d-none');
+                                    }
+
+                                    if (type === 'audit' && statusData.sub_reports) {
+                                        const subTabs = document.getElementById('auditSubTabs');
+                                        if (subTabs) subTabs.classList.remove('d-none');
+
+                                        // 1. Update HTML contents
+                                        const contentIncome = document.getElementById('content-audit_income');
+                                        if (contentIncome) contentIncome.innerHTML = statusData.sub_reports.income_html;
+                                        const contentBalance = document.getElementById('content-audit_balance');
+                                        if (contentBalance) contentBalance.innerHTML = statusData.sub_reports.balance_html;
+                                        const contentCashflow = document.getElementById('content-audit_cashflow');
+                                        if (contentCashflow) contentCashflow.innerHTML = statusData.sub_reports.cashflow_html;
+
+                                        // 2. Update Scores & Badges
+                                        const updateSubScore = (subType, scoreVal) => {
+                                            const scoreValueSpan = document.getElementById(`score-audit_${subType}`);
+                                            const scoreBadge = document.getElementById(`score-badge-audit_${subType}`);
+                                            if (scoreValueSpan) scoreValueSpan.innerText = scoreVal.split('/')[0].trim();
+                                            
+                                            let match = scoreVal.match(/([0-9.]+)/);
+                                            if (match && scoreBadge) {
+                                                let score = parseFloat(match[1]);
+                                                scoreBadge.className = 'score-badge-circle';
+                                                if (score >= 8.5) {
+                                                    scoreBadge.classList.add('score-high');
+                                                } else if (score >= 7.0) {
+                                                    scoreBadge.classList.add('score-notable');
+                                                } else if (score >= 5.0) {
+                                                    scoreBadge.classList.add('score-medium');
+                                                } else {
+                                                    scoreBadge.classList.add('score-low');
+                                                }
+                                            }
+                                        };
+                                        updateSubScore('income', statusData.sub_reports.income_score);
+                                        updateSubScore('balance', statusData.sub_reports.balance_score);
+                                        updateSubScore('cashflow', statusData.sub_reports.cashflow_score);
+
+                                        // 3. Update Pros & Cons
+                                        const updateSubProsCons = (subType, prosList, consList) => {
+                                            const prosUl = document.getElementById(`pros-audit_${subType}`);
+                                            const consUl = document.getElementById(`cons-audit_${subType}`);
+                                            if (prosUl) {
+                                                if (prosList && prosList.length > 0) {
+                                                    prosUl.innerHTML = prosList.map(p => `<li class="mb-1 text-muted"><i class="bi bi-check2 text-success me-1"></i> ${p}</li>`).join('');
+                                                } else {
+                                                    prosUl.innerHTML = `<li class="fst-italic text-muted">Sin datos.</li>`;
+                                                }
+                                            }
+                                            if (consUl) {
+                                                if (consList && consList.length > 0) {
+                                                    consUl.innerHTML = consList.map(c => `<li class="mb-1 text-muted"><i class="bi bi-x-lg text-danger me-1"></i> ${c}</li>`).join('');
+                                                } else {
+                                                    consUl.innerHTML = `<li class="fst-italic text-muted">Sin datos.</li>`;
+                                                }
+                                            }
+                                        };
+                                        updateSubProsCons('income', statusData.sub_reports.income_pros, statusData.sub_reports.income_cons);
+                                        updateSubProsCons('balance', statusData.sub_reports.balance_pros, statusData.sub_reports.balance_cons);
+                                        updateSubProsCons('cashflow', statusData.sub_reports.cashflow_pros, statusData.sub_reports.cashflow_cons);
+                                    }
+
+                                    if (type === 'val') {
+                                        const signalEl = document.getElementById(`signal-${type}`);
+                                        if (signalEl) signalEl.innerText = statusData.meta.score;
+                                        drawValuationGauge(`gauge-${type}`, statusData.meta.score);
+                                    } else if (type === 'technical') {
+                                        const signalEl = document.getElementById('signal-technical');
+                                        if (signalEl) {
+                                            const scoreVal = statusData.meta.score;
+                                            const verdLower = scoreVal.toLowerCase();
+                                            let label = scoreVal;
+                                            if (verdLower.includes('comprar') || verdLower.includes('buy')) label = '🟢 COMPRAR YA';
+                                            else if (verdLower.includes('esperar') || verdLower.includes('observar')) label = '🟡 ESPERAR Y OBSERVAR';
+                                            else if (verdLower.includes('descartar') || verdLower.includes('cancelar')) label = '🔴 DESCARTAR';
+                                            signalEl.innerText = label;
+                                        }
+                                        
+                                        // Update the CSS class of signal-badge-technical
+                                        const badgeEl = document.getElementById('signal-badge-technical');
+                                        if (badgeEl) {
+                                            const verdLower = statusData.meta.score.toLowerCase();
+                                            badgeEl.className = 'px-3.5 py-1.5 font-monospace text-center w-auto rounded-pill fs-7 fw-bold border d-inline-block mx-auto';
+                                            if (verdLower.includes('comprar') || verdLower.includes('buy')) {
+                                                badgeEl.classList.add('score-high');
+                                            } else if (verdLower.includes('esperar') || verdLower.includes('observe') || verdLower.includes('hold')) {
+                                                badgeEl.classList.add('score-medium');
+                                            } else if (verdLower.includes('descartar') || verdLower.includes('sell')) {
+                                                badgeEl.classList.add('score-low');
+                                            } else {
+                                                badgeEl.classList.add('score-na');
+                                            }
+                                        }
+
+                                        // Update dynamic traffic lights if present
+                                        const tlContainer = document.getElementById('traffic-lights-container-technical');
+                                        if (tlContainer) {
+                                            if (statusData.meta.traffic_lights) {
+                                                const tl = statusData.meta.traffic_lights;
+                                                let html = `
+                                                    <div class="mt-3 border-top pt-2.5 text-start mx-auto" style="max-width: 320px; font-size: 0.75rem;">
+                                                        <span class="text-uppercase text-muted fw-bold d-block text-center mb-2" style="font-size: 0.62rem; letter-spacing: 0.05em;"><i class="bi bi-traffic-light me-1"></i>Semáforo de Tendencia (Estilo Investing.com)</span>
+                                                        <div class="d-flex flex-column gap-1.5">
+                                                `;
+                                                if (tl.resumen) {
+                                                    html += `
+                                                        <div class="d-flex justify-content-between align-items-center bg-light bg-opacity-75 px-2 py-1 rounded border border-light-subtle">
+                                                            <span class="fw-semibold text-secondary"><i class="bi bi-speedometer2 me-1"></i> Resumen</span>
+                                                            <span class="font-monospace fw-bold">${tl.resumen.classification} <small class="text-muted opacity-75">(${tl.resumen.score})</small></span>
+                                                        </div>
+                                                    `;
+                                                }
+                                                if (tl.indicadores) {
+                                                    html += `
+                                                        <div class="d-flex justify-content-between align-items-center bg-light bg-opacity-75 px-2 py-1 rounded border border-light-subtle">
+                                                            <span class="fw-semibold text-secondary"><i class="bi bi-graph-up me-1"></i> Indicadores</span>
+                                                            <span class="font-monospace fw-bold">${tl.indicadores.classification} <small class="text-muted opacity-75">(${tl.indicadores.score})</small></span>
+                                                        </div>
+                                                    `;
+                                                }
+                                                if (tl.medias) {
+                                                    html += `
+                                                        <div class="d-flex justify-content-between align-items-center bg-light bg-opacity-75 px-2 py-1 rounded border border-light-subtle">
+                                                            <span class="fw-semibold text-secondary"><i class="bi bi-bezier2 me-1"></i> Medias Móviles</span>
+                                                            <span class="font-monospace fw-bold">${tl.medias.classification} <small class="text-muted opacity-75">(${tl.medias.score})</small></span>
+                                                        </div>
+                                                    `;
+                                                }
+                                                html += `
+                                                        </div>
+                                                    </div>
+                                                `;
+                                                tlContainer.innerHTML = html;
+                                                tlContainer.classList.remove('d-none');
+                                            } else {
+                                                tlContainer.classList.add('d-none');
+                                            }
+                                        }
+                                    } else {
+                                        const scoreEl = document.getElementById(`score-${type}`);
+                                        if (scoreEl) scoreEl.innerText = String(statusData.meta.score || 'N/A').split('/')[0].trim();
+                                        drawGauge(`gauge-${type}`, statusData.meta.score);
+                                        // barra de la nota (0-10)
+                                        const bar = document.querySelector(`#scorehead-${type} .qa-scorebar > span`);
+                                        const sn = parseFloat(String(statusData.meta.score || '').replace(',', '.'));
+                                        if (bar) {
+                                            bar.style.width = (isNaN(sn) ? 0 : Math.min(100, sn * 10)) + '%';
+                                            bar.className = sn >= 8.5 ? 'bg-success' : sn >= 7.0 ? 'bg-warning' : sn >= 5.0 ? '' : 'bg-danger';
+                                            bar.style.background = sn >= 5.0 && sn < 7.0 ? '#fd7e14' : '';
+                                        }
+                                        
+                                        const prosUl = document.getElementById(`pros-${type}`);
+                                        if (prosUl) {
+                                            if (statusData.meta.pros.length > 0) {
+                                                prosUl.innerHTML = statusData.meta.pros.map(p => `<li class="mb-1 text-muted"><i class="bi bi-check2 text-success me-1"></i> ${p}</li>`).join('');
+                                            } else {
+                                                prosUl.innerHTML = `<li class="fst-italic text-muted">Sin datos.</li>`;
+                                            }
+                                        }
+                                        
+                                        const consUl = document.getElementById(`cons-${type}`);
+                                        if (consUl) {
+                                            if (statusData.meta.cons.length > 0) {
+                                                consUl.innerHTML = statusData.meta.cons.map(c => `<li class="mb-1 text-muted"><i class="bi bi-x-lg text-danger me-1"></i> ${c}</li>`).join('');
+                                            } else {
+                                                consUl.innerHTML = `<li class="fst-italic text-muted">Sin datos.</li>`;
+                                            }
+                                        }
+                                    }
+
+                                    // Update report date dynamically
+                                    const dateContainer = document.getElementById(`report-date-container-${type}`);
+                                    const dateVal = document.getElementById(`report-date-val-${type}`);
+                                    if (dateContainer && dateVal && statusData.meta.date) {
+                                        dateVal.innerText = statusData.meta.date;
+                                        dateContainer.classList.remove('d-none');
+                                    }
+
+                                    // Handle Rejection UI
+                                    const rejectionDiv = document.getElementById(`rejection-${type}`);
+                                    const rejectionText = document.getElementById(`rejection-text-${type}`);
+                                    if (rejectionDiv && rejectionText) {
+                                        if (statusData.meta.rejection) {
+                                            rejectionText.innerText = statusData.meta.rejection;
+                                            
+                                            const localGlobalStatus = "{{ db.get('status') }}";
+                                            let localState = localStorage.getItem(`rejection_state_{{ ticker }}_${type}`);
+                                            
+                                            if (localState === 'hidden') {
+                                                rejectionDiv.classList.add('d-none');
+                                            } else {
+                                                rejectionDiv.classList.remove('d-none');
+                                                if (localGlobalStatus === 'REJECTED' && localState !== 'ignore') {
+                                                    localState = 'accept';
+                                                }
+
+                                                const btnA = document.getElementById(`btn-accept-rejection-${type}`);
+                                                const btnI = document.getElementById(`btn-ignore-rejection-${type}`);
+                                                const btnU = document.getElementById(`btn-undo-rejection-${type}`);
+                                                
+                                                const cardActive = document.getElementById(`rejection-card-active-${type}`);
+                                                const cardDismissed = document.getElementById(`rejection-card-dismissed-${type}`);
+                                                const commentTextarea = document.getElementById(`rejection-comment-${type}`);
+
+                                                if (localState) {
+                                                    if (btnA && btnI) {
+                                                        btnA.disabled = true;
+                                                        btnI.disabled = true;
+                                                        if (localState === 'accept') {
+                                                            btnA.innerText = '✅ Descartada';
+                                                            btnI.classList.add('d-none');
+                                                        } else if (localState === 'ignore') {
+                                                            btnI.innerText = '✅ Alerta Ignorada';
+                                                            btnA.classList.add('d-none');
+                                                        }
+                                                    }
+                                                    if (btnU) {
+                                                        if (localState === 'accept' && !localStorage.getItem(`rejection_state_{{ ticker }}_${type}`)) {
+                                                            btnU.classList.add('d-none');
+                                                        } else {
+                                                            btnU.classList.remove('d-none');
+                                                        }
+                                                    }
+                                                }
+
+                                                // Sincronizar tarjetas y rastro
+                                                if (localState === 'ignore') {
+                                                    if (cardActive) cardActive.classList.add('d-none');
+                                                    if (cardDismissed) cardDismissed.classList.remove('d-none');
+
+                                                    syncCommentPreview(type);
+                                                } else {
+                                                    if (cardActive) cardActive.classList.remove('d-none');
+                                                    if (cardDismissed) cardDismissed.classList.add('d-none');
+                                                }
+                                            }
+                                        } else {
+                                            rejectionDiv.classList.add('d-none');
+                                        }
+                                    }
+                                }
+
+                                // Show containers
+                                if (metaDiv) metaDiv.classList.remove('d-none');
+                                if (accordionContainer) accordionContainer.classList.remove('d-none');
+                                
+                                // El informe completo queda plegado: se avisa y lo abre el usuario
+                                const collapseDiv = document.getElementById(`collapse-${type}`);
+                                if (collapseDiv && collapseDiv.classList.contains('show'))
+                                    bootstrap.Collapse.getOrCreateInstance(collapseDiv, { toggle: false }).hide();
+                            } catch (successErr) {
+                                console.error("Error al procesar el éxito del reporte:", successErr);
+                            } finally {
+                                unlockUI();
+                            }
+                            
+                            // Aviso de que ha terminado; no se cambia de pestaña ni se abre el informe (lo abre el usuario)
+                            if (typeof showToast === 'function') {
+                                const tabKey = type.startsWith('rules_') ? 'rules' : type;
+                                const goBtn = document.getElementById(`${tabKey}-tab`) || (tabKey === 'technical' ? document.getElementById('nav-technical-top-tab') : null);
+                                showToast('✅ Análisis completado', `El informe de <strong>${reportName}</strong> para ${ticker} está listo.`
+                                    + (goBtn ? `<br><button class="btn btn-light btn-sm fw-bold mt-2 py-0" onclick="showReportTab('${tabKey}')"><i class="bi bi-eye me-1"></i>Ver resumen</button>` : ''), 'success');
+                            }
+                            
+                        } else if (statusData.status === 'error' || statusData.status === 'unknown') {
+                            clearInterval(pollInterval);
+                            
+                            unlockUI();
+
+                            if (typeof showToast === 'function') {
+                                showToast('❌ Error en Análisis', statusData.error || "Error desconocido", 'error');
+                            } else {
+                                alert("Error generando el reporte: " + (statusData.error || "Error desconocido"));
+                            }
+                            
+                            if (emptyDiv && !contentDiv.innerHTML.trim()) {
+                                emptyDiv.classList.remove('d-none');
+                            } else if (contentDiv.innerHTML.trim()) {
+                                if (metaDiv) metaDiv.classList.remove('d-none');
+                                if (accordionContainer) accordionContainer.classList.remove('d-none');
+                            }
+                        }
+                        // If processing, just continue polling
+                    } catch (pollErr) {
+                        console.warn("Error transitorio de conexión en polling:", pollErr);
+                        // No lanzamos alert inmediatamente para evitar falsos positivos por micro-cortes
+                        // Si el error persiste durante varios intentos, podríamos manejarlo, pero 
+                        // normalmente es un timeout temporal del servidor bajo carga.
+                    }
+                }, 4000); // Polling cada 4 segundos (un poco más relajado para evitar carga)
+            } else {
+                alert("Error iniciando la tarea: " + (data.error || "Error desconocido"));
+                if (emptyDiv && !contentDiv.innerHTML.trim()) {
+                    emptyDiv.classList.remove('d-none');
+                }
+                unlockUI();
+            }
+        } catch (err) {
+            alert("Error de conexión. Asegúrate de que el servidor está corriendo.");
+            if (emptyDiv && !contentDiv.innerHTML.trim()) {
+                emptyDiv.classList.remove('d-none');
+            } else if (contentDiv.innerHTML.trim()) {
+                if (metaDiv) metaDiv.classList.remove('d-none');
+                if (accordionContainer) accordionContainer.classList.remove('d-none');
+            }
+            unlockUI();
+        }
+    }
+
