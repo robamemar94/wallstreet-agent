@@ -85,11 +85,11 @@
                 ('audit', 'Auditoría Financiera Forense', 'bi-receipt'),
                 ('mgmt_alloc', 'Dirección y Capital Allocation', 'bi-person-gear'),
                 ('rules', 'Normas de Calidad de Inversión', 'bi-patch-check-fill'),
+                ('thesis_destroyer', 'Abogado del Diablo (Stress-Test)', 'bi-shield-slash'),
                 ('verdict', 'Veredicto de Inversión', 'bi-scale'),
                 ('val', 'Modelado de Valoración (TIR)', 'bi-calculator'),
                 ('thesis', 'Tesis y Vigilancia (KPIs)', 'bi-journal-check'),
-                ('pe_forensic', 'Deconstrucción VC/PE (Forense)', 'bi-clipboard2-pulse'),
-                ('thesis_destroyer', 'Destructor de Tesis (Stress-Test)', 'bi-shield-slash')
+                ('pe_forensic', 'Deconstrucción VC/PE (Forense)', 'bi-clipboard2-pulse')
             ] %}
 {% from "_ficha/informe_ia.html" import render_report_card, tabs_desc with context %}
 {% include "_ficha/analisis.html" %}
@@ -151,6 +151,7 @@
 {% include "_ficha/js/niveles_listas.html" %}
 {% include "_ficha/js/rechazos.html" %}
 {% include "_ficha/js/valoracion.html" %}
+{% include "_ficha/js/diario.html" %}
         </script>
 
         {% endblock %}

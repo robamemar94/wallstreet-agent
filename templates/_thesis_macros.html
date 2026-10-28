@@ -23,7 +23,17 @@
 {% macro money(value, cur='$', fmt='%.2f') -%}
 {#- formato español (1.234,56): 'int' sin decimales; '%.Nf', N decimales -#}
 {%- set txt = num(value, 0 if fmt == 'int' else (fmt[2:-1]|int if fmt.startswith('%.') else 2)) -%}
-{%- if cur in ('kr', 'Fr') -%}{{ txt }} {{ cur }}{%- else -%}{{ cur }}{{ txt }}{%- endif -%}
+{%- if cur in ('kr', 'Fr', 'p') -%}{{ txt }} {{ cur }}{%- else -%}{{ cur }}{{ txt }}{%- endif -%}
+{%- endmacro %}
+
+{# Próximos resultados: «hoy», «mañana» o la fecha con los días. La semana de resultados (≤ 7 días) va en una etiqueta
+   ámbar suave; hoy y mañana, en ámbar lleno #}
+{% macro earnings_when(date, days, fmt='%d/%m') -%}
+{%- if date -%}
+{%- set cls = 'badge text-bg-warning' if days <= 1 else ('badge bg-warning-subtle text-warning-emphasis border border-warning-subtle' if days <= 7 else '') -%}
+<span class="{{ cls }}"{% if cls %} style="font-size: .74rem;"{% endif %} title="Próximos resultados: {{ date.strftime('%d/%m/%Y') }}">
+{%- if days == 0 -%}Resultados hoy{%- elif days == 1 -%}Resultados mañana{%- else -%}{{ date.strftime(fmt) }} ({{ days }} d){%- endif -%}</span>
+{%- else -%}sin fecha{%- endif -%}
 {%- endmacro %}
 
 {% macro trend_icon(trend) -%}
@@ -59,7 +69,33 @@
     .pillar-row .pname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tbl-kpi td, .tbl-kpi th { font-size: .8rem; vertical-align: middle; }
     .tbl-kpi .zone { font-size: .72rem; color: var(--bs-secondary-color); max-width: 150px; }
-    .grid-cell { width: 34px; height: 22px; border-radius: 3px; text-align: center; font-size: .75rem; }
+    .grid-cell { min-width: 46px; height: 22px; padding: 0 .35rem; border-radius: 3px; text-align: center; font-size: .75rem; font-weight: 600; line-height: 22px; font-variant-numeric: tabular-nums; }
+    .grid-cell.grid-last { font-size: .85rem; outline: 1px solid currentColor; outline-offset: -1px; }
+    .checklist td { padding-top: .3rem; padding-bottom: .3rem; }
+    .checklist tbody tr:hover { background: var(--bs-tertiary-bg); }
+    .key-strip .vr { opacity: .15; }
+    .hyp-ref { text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; }
+    /* Resultados por capas: chips con el detalle en el globo, bloques recortados con «Leer más» y desplegables */
+    .chip-label { min-width: 9.5rem; }
+    .rev-chip { display: inline-flex; align-items: center; gap: .25rem; padding: .1rem .5rem; border-radius: 999px; border: 1px solid; font-size: .74rem; cursor: help; max-width: 26rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rev-chip.chip-green { color: var(--fin-green); border-color: rgba(8,153,129,.4); background: rgba(8,153,129,.08); }
+    .rev-chip.chip-red { color: var(--fin-red); border-color: rgba(242,54,69,.4); background: rgba(242,54,69,.08); }
+    .rev-chip.chip-amber { color: var(--st-amber); border-color: rgba(212,160,21,.4); background: rgba(212,160,21,.08); }
+    .rev-chip.chip-muted, .rev-chip.chip-none { color: var(--bs-secondary-color); border-color: var(--bs-border-color); }
+    .clamp { max-height: 9.5em; overflow: hidden; position: relative; }
+    .clamp.clamp-cut::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2.5em; background: linear-gradient(transparent, var(--bs-card-bg, var(--bs-body-bg))); }
+    .clamp.clamp-tall { max-height: 22em; }
+    .outcome-list li { padding: .2rem 0; }
+    .to-validate > .tv-col { width: 100%; }
+    @media (min-width: 1200px) { .to-validate > .tv-col { width: 50%; } }
+    .outcome-list li + li { border-top: 1px solid var(--bs-border-color-translucent); }
+    .clamp.open { max-height: none; }
+    .clamp.open::after { display: none; }
+    .read-more { font-size: .78rem; padding: 0; }
+    details.call-more { border-top: 1px solid var(--bs-border-color-translucent); padding: .3rem 0; }
+    details.call-more > summary, details.qa > summary { cursor: pointer; }
+    details.qa[open] > summary { color: var(--bs-primary); }
+    .rev-list td.rev-headline { max-width: 0; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .timeline-item { border-left: 2px solid var(--bs-border-color); padding: 0 0 1rem 1rem; position: relative; }
     .timeline-item::before { content: ''; position: absolute; left: -6px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--bs-secondary-color); }
     .timeline-item.imp-positive::before { background: var(--fin-green); }

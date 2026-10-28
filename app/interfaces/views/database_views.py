@@ -17,13 +17,13 @@ from app.infrastructure.repositories.sqlalchemy_asset_repository import SqlAlche
 from app.infrastructure.templates import templates
 from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached, get_currency_symbol, get_market_group, MARKET_GROUP_LABELS
 
-from app.application.services import market_cap_service
+from app.application.services import market_cap_service, financial_trends_service, valuation_reality_service, sales_estimate_service
 
 logger = logging.getLogger(__name__)
 
 logger = logging.getLogger(__name__)
 
-from app.application.services.tier_service import tier_of
+from app.application.services.tier_service import ready_to_accept, tier_of
 router = APIRouter(tags=["Database Views"])
 
 
@@ -77,6 +77,20 @@ def get_period_variacion(tickers: list, period: str) -> dict:
     return result
 
 
+def fundamentals(db_d: dict) -> dict:
+    """Margen operativo (%), deuda neta / EBITDA y PER forward, desde lo guardado: sin descargar nada."""
+    fin = valuation_reality_service.stored_financials(db_d)
+    tiles = financial_trends_service.build(fin) if fin else []
+    by_key = {x["key"]: x for x in tiles}
+    try:
+        fwd_pe = float(db_d.get("last_market_fwd_pe"))
+    except (TypeError, ValueError):
+        fwd_pe = None
+    return {"op_margin": (by_key.get("margins") or {}).get("last"),
+            "net_debt_ebitda": financial_trends_service.net_debt_to_ebitda(fin, tiles) if fin else None,
+            "fwd_pe": fwd_pe if fwd_pe and fwd_pe > 0 else None}
+
+
 @router.get("/database", response_class=HTMLResponse)
 async def database_page(
     request: Request,
@@ -95,6 +109,8 @@ async def database_page(
     ensure_prices_cached([a.ticker for a in assets], asset_repo)
     # capitalización: los que aún no tienen acciones en circulación (o son viejas) se descargan en segundo plano
     market_cap_service.backfill_in_background([a.ticker for a in assets if market_cap_service.needs_refresh(a.data or {})])
+    # crecimiento de ventas esperado: lo que falta en la caché se pide en segundo plano (aparece al recargar)
+    sales_estimate_service.backfill_in_background([a.ticker for a in assets])
     for asset in assets:
         t = asset.ticker
         db_d = asset.data or {}
@@ -203,8 +219,10 @@ async def database_page(
             "valuation": val, 
             "is_favorite": asset.is_favorite,
             "is_portfolio": t in active_portfolio_tickers,
+            "ready": ready_to_accept(asset.is_favorite, db_d),   # analizada y sin decidir: pestaña «Por aceptar»
             "tier": tier_of(asset.is_favorite, db_d) or "",   # nivel: '1', '2', 'seg' o vacío (la cartera va aparte)
-            "role": db_d.get("portfolio_role"),
+            **fundamentals(db_d),
+            "sales_est": sales_estimate_service.growth(t),
             "mcap": market_cap_service.describe(db_d.get(market_cap_service.SHARES_KEY), m_data["price"] or None,
                                                 db_d.get("currency"), INDEX_CACHE["data"]),
         })

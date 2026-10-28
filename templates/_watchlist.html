@@ -55,7 +55,7 @@
                 {% endfor %}
             </div>
             <div class="btn-group btn-group-sm" id="wlDist" role="group" aria-label="Distancia a compra">
-                {% for k, label, dot, tip in [('', 'Cualquiera', '', 'Cualquier distancia a compra'), ('zona', 'En zona', 'bg-success', 'Ya cotiza por debajo de su precio de compra'), ('cerca', '&lt;15 %', 'bg-warning', 'A menos del 15 % de su precio de compra'), ('seguimiento', '15–30 %', 'bg-secondary', 'Entre el 15 y el 30 % de su precio de compra'), ('lejos', '&gt;30 %', 'bg-danger', 'Lejos: a más del 30 % de su precio de compra'), ('sin', 'Sin val.', '', 'Sin valoración base'), ('mine', 'Mi precio', '', 'Las que tienen un precio de compra puesto a mano')] %}
+                {% for k, label, dot, tip in [('', 'Cualquiera', '', 'Cualquier distancia a compra'), ('zona', 'En zona', 'bg-success', 'Ya cotiza por debajo de su precio de compra'), ('cerca', '&lt;15 %', 'bg-warning', 'A menos del 15 % de su precio de compra'), ('seguimiento', '15–30 %', 'bg-secondary', 'Entre el 15 y el 30 % de su precio de compra'), ('lejos', '&gt;30 %', 'bg-danger', 'Lejos: a más del 30 % de su precio de compra'), ('sin', 'Sin val.', '', 'Sin valoración base'), ('mine', 'Mi precio', '', 'Tus precios puestos a mano: de compra y, en las de cartera, para ampliar')] %}
                 <button type="button" class="btn btn-outline-secondary {{ 'active' if not k }}" data-dist="{{ k }}" title="{{ tip }}">{% if dot %}<span class="wl-dist-dot {{ dot }}"></span>{% elif k == 'mine' %}<i class="bi bi-pin-angle me-1"></i>{% endif %}{{ label|safe }} <span class="wl-n opacity-75"></span></button>
                 {% endfor %}
             </div>
@@ -82,7 +82,7 @@
             <span class="ms-auto small text-muted" id="wlShown"></span>
             {% call wl_info() %}<div class="mb-1">Color de la rentabilidad estimada = zona: <span class="cagr-green">ganga ≥{{ num(ZONE.ganga, 0) }}%</span> · <span class="cagr-amber">barata {{ num(ZONE.barata, 0) }}–{{ num(ZONE.ganga, 0) }}%</span> · <span class="cagr-orange">justo {{ num(ZONE.justo, 0) }}–{{ num(ZONE.barata, 0) }}%</span> · <span class="cagr-red">cara &lt;{{ num(ZONE.justo, 0) }}%</span>.</div>
 <div class="mb-1">Color de la distancia a compra: <span class="text-success fw-bold">en zona</span> · <span class="text-warning">a menos del 15 %</span> · <span class="text-muted">15–30 %</span> · <span class="text-danger">más del 30 %</span>.</div>
-<div class="mb-1"><i class="bi bi-pin-angle"></i> Mi precio: un precio de compra tuyo, aparte de la valoración. Avisa al alcanzarlo y, a los 90 días, pide revisarlo (<i class="bi bi-clock-history text-warning"></i>): guárdalo de nuevo aunque sea el mismo.</div>
+<div class="mb-1"><i class="bi bi-pin-angle"></i> Mi precio: precio de compra propio. Avisa al alcanzarlo y pide revisión a los 90 días (<i class="bi bi-clock-history text-warning"></i>).</div>
 <div class="mb-1"><i class="bi bi-calculator"></i> abre los supuestos en la pestaña Valoración de la ficha.</div>
 <div><i class="bi bi-clock-history text-danger"></i> valoración anticuada: dos presentaciones de resultados desde tu última revisión (o 7 meses si no hay calendario).</div>{% endcall %}
         </div>
@@ -128,7 +128,9 @@ async function wlApi(url, method, body) {
 const wlRows = () => [...document.querySelectorAll('#wlBody tr[data-wl-ticker]')];
 function wlApplyFilters() {
     const hideHeld = document.getElementById('wlHideHeld').checked;
-    const base = wlRows().filter(tr => !(hideHeld && tr.dataset.held === 'true'));
+    // en «Mi precio» salen también las de cartera con precio para ampliar; en el resto, solo la watchlist
+    const inBase = (tr, k) => k === 'mine' || !(tr.dataset.onlyMine === 'true' || (hideHeld && tr.dataset.held === 'true'));
+    const base = wlRows().filter(tr => inBase(tr, wlFilter.group));
     const byOrigin = tr => !wlFilter.origin || tr.dataset.origins.split(' ').includes(wlFilter.origin);
     const byTheme = tr => !wlFilter.theme || (tr.dataset.themes || '').split('|').includes(wlFilter.theme);
     const inDist = (tr, k) => !k || (k === 'mine' ? !!tr.dataset.mine : tr.dataset.group === k), byGroup = tr => inDist(tr, wlFilter.group);
@@ -136,6 +138,14 @@ function wlApplyFilters() {
     const isStale = tr => tr.dataset.stale === 'true', byStale = tr => !wlFilter.stale || isStale(tr);
     wlRows().forEach(tr => tr.classList.add('d-none'));
     const shown = base.filter(tr => byOrigin(tr) && byTheme(tr) && byGroup(tr) && byRole(tr) && byStale(tr));
+    if (!wlSort) {   // de serie: por distancia a compra; en «Mi precio», por lo cerca que está tu precio
+        const tbody = document.querySelector('.tbl-wl tbody'), end = tbody?.querySelector('.wl-empty');
+        const mineDrop = tr => tr.dataset.mineDrop === '' || tr.dataset.mineDrop === undefined ? 1e9 : parseFloat(tr.dataset.mineDrop);
+        const rowsInOrder = wlOrder.filter(tr => tr.dataset.wlTicker);
+        const order = wlFilter.group === 'mine' ? [...rowsInOrder].sort((a, b) => mineDrop(a) - mineDrop(b)) : rowsInOrder;
+        if (tbody) order.forEach(tr => tbody.insertBefore(tr, end));
+        shown.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    }
     const pages = Math.max(1, Math.ceil(shown.length / WL_PER_PAGE));
     wlPage = Math.min(wlPage, pages - 1);
     shown.slice(wlPage * WL_PER_PAGE, (wlPage + 1) * WL_PER_PAGE).forEach(tr => tr.classList.remove('d-none'));
@@ -144,7 +154,7 @@ function wlApplyFilters() {
     if (empty) empty.classList.toggle('d-none', shown.length > 0);
     // cada opción dice cuántas quedarían con los otros filtros aplicados
     document.querySelectorAll('#wlDist [data-dist]').forEach(b => b.querySelector('.wl-n').textContent =
-        base.filter(tr => byOrigin(tr) && byTheme(tr) && byRole(tr) && byStale(tr) && inDist(tr, b.dataset.dist)).length);
+        wlRows().filter(tr => inBase(tr, b.dataset.dist)).filter(tr => byOrigin(tr) && byTheme(tr) && byRole(tr) && byStale(tr) && inDist(tr, b.dataset.dist)).length);
     document.querySelectorAll('#wlRole option').forEach(o => o.textContent = `${o.dataset.label} (${
         base.filter(tr => byOrigin(tr) && byTheme(tr) && byGroup(tr) && byStale(tr) && roleIs(tr, o.value)).length})`);
     document.querySelectorAll('#wlTheme option').forEach(o => o.textContent = `${o.dataset.label} (${
@@ -154,7 +164,7 @@ function wlApplyFilters() {
     // el botón «Filtros» dice cuántos hay puestos
     const nf = [wlFilter.theme, wlFilter.role, wlFilter.stale].filter(Boolean).length;   // la distancia va a la vista
     const fb = document.getElementById('wlFilterN'); if (fb) { fb.textContent = nf; fb.classList.toggle('d-none', !nf); }
-    const n = document.getElementById('wlCount'); if (n) n.textContent = base.length;
+    const n = document.getElementById('wlCount'); if (n) n.textContent = wlRows().filter(tr => inBase(tr, '')).length;
 }
 function wlRenderPager(total, pages) {
     const nav = document.getElementById('wlPager');
@@ -326,13 +336,7 @@ async function wlEditNote(ticker, btn) {
 // Mi precio: pedirlo, guardarlo (el mismo precio también vale: cuenta como revisado) y recargar la tabla
 async function wlEditMyPrice(ticker, btn) {
     const cur = btn.dataset.minePrice ? parseFloat(btn.dataset.minePrice) : null;
-    const txt = prompt(`Tu precio de compra para ${ticker} (en ${btn.dataset.cur}). Avisa al alcanzarlo.\n`
-                       + `Déjalo igual para darlo por revisado; vacío para quitarlo:`, cur !== null ? fmtNum(cur, 2) : '');
-    if (txt === null) return;
-    const clean = txt.trim().replace(/[^\d.,]/g, ''), price = clean ? parseFloat(clean.includes(',') ? clean.replace(/\./g, '').replace(',', '.') : clean) : null;   // 1.234,5 o 1234.5
-    if (clean && !(price > 0)) { alert('Escribe un precio válido, p. ej. 123,45'); return; }
-    try { await wlApi(`/api/watchlist/${encodeURIComponent(ticker)}/mi-precio`, 'PUT', {price}); await wlLoad(); }
-    catch (x) { alert('No se pudo guardar tu precio: ' + x.message); }
+    if (await editMyPrice(ticker, btn.dataset.cur, cur, btn.closest('tr')?.dataset.held === 'true')) await wlLoad();
 }
 async function wlRemove(ticker) {
     if (!confirm(`¿Quitar ${ticker} de la watchlist? Su valoración se queda en la ficha.`)) return;

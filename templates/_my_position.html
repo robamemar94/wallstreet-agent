@@ -5,6 +5,7 @@
 {% macro pct(v) %}{% if v is none %}<span class="text-muted">–</span>{% else %}<span class="{{ 'text-success' if v >= 0 else 'text-danger' }}">{{ num(v, 1, sign=True) }} %</span>{% endif %}{% endmacro %}
 {# en las ventas, bien = la acción lo hizo peor que el índice después de vender #}
 {% macro rel(v, sell) %}{% if v is none %}<span class="text-muted">–</span>{% else %}{% set ok = (v < 0) if sell else (v > 0) %}<span class="{{ 'text-success' if ok else 'text-danger' }}">{{ num(v, 1, sign=True) }} pp</span>{% endif %}{% endmacro %}
+{% macro pct_eur(v) %}<span class="{{ 'text-success' if v >= 0 else 'text-danger' }}">{{ eur(v, sign=True) }}</span>{% endmacro %}
 {% macro eur(v, sign=False) %}{% if v is none %}–{% else %}{{ num(v, 0 if v|abs >= 1000 else 2, sign=sign) }} €{% endif %}{% endmacro %}
 
 {% if not txs %}
@@ -41,20 +42,21 @@
         <div class="q">Dividendos cobrados</div>
         {% if divs %}
         <div class="a text-success">{{ eur(v.dividends if v.dividends is defined else divs|sum(attribute='eur')) }}</div>
-        <div class="d">{% for y in div_years[:3] %}{{ y.year }}: {{ eur(y.eur) }} ({{ y.n }}){{ ' · ' if not loop.last }}{% endfor %}
-            · último {{ divs[0].date[8:10] }}/{{ divs[0].date[5:7] }}/{{ divs[0].date[2:4] }}</div>
+        <div class="d">{{ divs|length }} cobro{{ 's' if divs|length != 1 }} · último {{ divs[0].date[8:10] }}/{{ divs[0].date[5:7] }}/{{ divs[0].date[2:4] }}</div>
         {% else %}<div class="a text-muted">–</div><div class="d">Aún no has cobrado ninguno</div>{% endif %}
     </div>
 </div>
 
 <div class="row g-2 mp-main">
-    <div class="col-lg-5 d-flex flex-column mp-col">
+    <div class="col-lg-7 d-flex flex-column mp-col">
         <div class="card border-0 shadow-sm dash-card dash-green flex-grow-1 d-flex flex-column">
             <div class="card-body p-2 d-flex flex-column">
                 <div class="dash-label d-flex align-items-center gap-2 mb-1"><i class="bi bi-graph-up"></i>Precio
-                    <span class="fw-normal text-muted text-nowrap" style="text-transform: none; letter-spacing: 0;" title="Tus compras (▲), ventas (▼){{ ' y tu precio medio (línea discontinua)' if active }}">
+                    <span class="fw-normal text-muted text-nowrap" id="mpKeyPrice" style="text-transform: none; letter-spacing: 0;" title="Tus compras (▲), ventas (▼){{ ' y tu precio medio (línea discontinua)' if active }}">
                         <span class="mp-key" style="color: #16a34a;">▲</span> compra <span class="mp-key ms-1" style="color: #dc2626;">▼</span> venta{% if active %} <span class="mp-key ms-1" style="color: #64748b;">┄</span> medio{% endif %}</span>
+                    <span class="fw-normal text-muted text-nowrap d-none" id="mpKeyMoney" style="text-transform: none; letter-spacing: 0;" title="Lo que vale lo que te queda + lo que sacaste + los dividendos, frente a lo que has puesto en total"><span class="mp-key" style="color: #3b82f6;">━</span> con lo cobrado <span class="mp-key ms-1" style="color: #64748b;">┄</span> pusiste</span>
                     <span class="ms-auto d-flex gap-1 mp-tools" style="text-transform: none; letter-spacing: 0;">
+                        {% if has_money %}<span class="btn-group btn-group-sm" role="group" aria-label="Qué ver"><button type="button" class="btn btn-outline-secondary active" data-mp-mode="price" title="Cotización de la acción con tus compras y ventas">Precio</button><button type="button" class="btn btn-outline-secondary" data-mp-mode="money" title="Tu dinero en euros en esta empresa, día a día">Mi dinero</button></span>{% endif %}
                         <span class="btn-group btn-group-sm" role="group" aria-label="Periodo">{% for k, l in [('6m', '6M'), ('1y', '1A'), ('3y', '3A'), ('5y', '5A'), ('max', 'Máx'), ('buy', 'Desde compra')] %}<button type="button" class="btn btn-outline-secondary {{ 'active' if k == 'buy' }}" data-mp-period="{{ k }}" title="{{ 'Desde un poco antes de tu primera compra' if k == 'buy' else 'Todo el histórico de la acción' if k == 'max' else '' }}">{{ l }}</button>{% endfor %}</span>
                         <span class="btn-group btn-group-sm" role="group" aria-label="Escala"><button type="button" class="btn btn-outline-secondary active" data-mp-scale="lin" title="Escala lineal">Lineal</button><button type="button" class="btn btn-outline-secondary" data-mp-scale="log" title="Escala logarítmica: la misma subida en % ocupa lo mismo, sea a 20 $ o a 700 $">Log</button></span>
                     </span></div>
@@ -62,11 +64,36 @@
             </div>
         </div>
     </div>
-    <div class="col-lg-7 d-flex flex-column mp-col">
-        <div class="card border-0 shadow-sm dash-card dash-blue flex-grow-1 d-flex flex-column" style="min-height: 0;">
+    <div class="col-lg-5 d-flex flex-column mp-col">
+        {% set st = stats or {} %}
+        <div class="card border-0 shadow-sm dash-card dash-green flex-shrink-0">
+            <div class="card-body p-2">
+                <div class="dash-label d-flex align-items-center mb-1"><i class="bi bi-clipboard-data me-1"></i>Tu posición en cifras</div>
+                <div class="mp-facts">
+                    <div title="El resultado separado en lo que viene del precio y la divisa y lo que viene de los dividendos">
+                        <div class="q">De dónde viene</div>
+                        {% if v.result is defined %}<div>Cotización y divisa <b>{{ pct_eur(v.result - (v.dividends or 0)) }}</b></div>
+                        <div>Dividendos <b>{{ pct_eur(v.dividends or 0) }}</b></div>{% else %}<div class="text-muted">–</div>{% endif %}
+                    </div>
+                    <div>
+                        <div class="q">Tu historia</div>
+                        <div>Desde hace <b>{{ st.years ~ (' año' if st.years == 1 else ' años') ~ (' y ' if st.months) }}{{ (st.months ~ (' mes' if st.months == 1 else ' meses')) if st.months or not st.years }}</b></div>
+                        {% if st.avg %}<div>Precio medio <b>{{ num(st.avg, 2) }} {{ currency_symbol }}</b></div>{% endif %}
+                        {% if st.best %}<div title="Mejor y peor compra por lo que han hecho hasta hoy">Mejor compra {{ pct(st.best.since) }}{% if st.worst %} · peor {{ pct(st.worst.since) }}{% endif %}</div>{% endif %}
+                        {% if st.n12 %}<div title="Compras con 12 meses de recorrido que lo hicieron mejor que el {{ benchmark }}">A 12 m: <b>{{ st.beat12 }} de {{ st.n12 }}</b> ganaron al índice</div>{% endif %}
+                    </div>
+                    <div title="Dividendos cobrados por año, netos y en euros">
+                        <div class="q">Dividendos por año</div>
+                        {% for y in div_years[:4] %}<div>{{ y.year }} <b>{{ eur(y.eur) }}</b> <span class="text-muted">({{ y.n }})</span></div>{% else %}<div class="text-muted">Aún no has cobrado ninguno</div>{% endfor %}
+                        {% if div_years|length > 4 %}<div class="text-muted">+{{ div_years|length - 4 }} años anteriores</div>{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="card border-0 shadow-sm dash-card dash-blue mt-2 flex-grow-1 d-flex flex-column" style="min-height: 0;">
             <div class="card-body p-2 d-flex flex-column" style="min-height: 0;">
                 <div class="dash-label d-flex align-items-center mb-1"><i class="bi bi-journal-check me-1"></i>Operaciones y decisiones
-                    <span class="ms-auto fw-normal text-muted" style="text-transform: none; letter-spacing: 0;">pasa el ratón por el importe para ver bróker, comisión y cambio</span></div>
+                    <span class="ms-auto fw-normal text-muted" style="text-transform: none; letter-spacing: 0;">el detalle de cada una, sobre las acciones</span></div>
                 {% for c in entries if c.tranches > 1 %}
                 <div class="mp-entry mb-1" title="Compras seguidas de esta empresa (hasta 45 días sin comprar o una venta)">
                     <i class="bi bi-stack me-1 text-primary"></i>Entrada en {{ c.tranches }} tramos desde el {{ c.start[8:10] }}/{{ c.start[5:7] }}/{{ c.start[2:4] }}{% if c.saving is not none %}:
@@ -76,21 +103,27 @@
                 <div class="mp-ops flex-grow-1" id="mpOps">
                 <table class="table table-sm align-middle mb-0 mp-table">
                     <thead><tr>
-                        <th>Fecha</th><th>Operación</th><th class="text-end">Acciones × precio</th><th class="text-end">Importe</th>
+                        <th>Fecha</th><th>Operación</th><th class="text-end">Acciones × precio</th>
+                        <th class="text-end" title="Compra: lo que ha hecho esa compra hasta hoy (en euros, con dividendos). Venta: lo ganado sobre lo que costaron esas acciones.">Rent.</th>
+                        <th class="text-end" title="Rentabilidad anualizada de la compra (desde los 3 meses)">CAGR</th>
                         <th class="text-end" title="Cada compra o venta frente al {{ benchmark }} desde ese día (en euros, con dividendos). En una venta, verde = la acción lo hizo peor después de vender.">vs S&amp;P</th>
                         <th>Por qué</th><th></th>
                     </tr></thead>
                     <tbody>
                     {% set seen = namespace(keys=[]) %}
-                    {% for tx in ledger %}{% set k = tx.kind %}{% set o = tx.op %}{% set r = (o.review if o else none) or {} %}{% set sell = k == 'SELL' %}
+                    {% for tx in ledger if tx.kind != 'DIVIDEND' %}{% set k = tx.kind %}{% set o = tx.op %}{% set r = (o.review if o else none) or {} %}{% set sell = k == 'SELL' %}
                     {% set d = tx.date|string %}{% set first = o and (d[:10] ~ k) not in seen.keys %}{% if o %}{% set seen.keys = seen.keys + [d[:10] ~ k] %}{% endif %}
                     {% set amount = tx.total * (tx.fx or tx.fx_rate or 1) * (0.01 if pence else 1) %}
-                    <tr class="{{ 'mp-div' if k == 'DIVIDEND' }}">
+                    <tr>
                         <td class="num-font text-muted">{{ d[8:10] }}/{{ d[5:7] }}/{{ d[2:4] }}</td>
-                        <td>{% if k == 'BUY' %}<span class="badge text-bg-success bg-opacity-75">Compra</span>{% elif sell %}<span class="badge text-bg-danger bg-opacity-75">Venta</span>{% elif k == 'DIVIDEND' %}<span class="badge text-bg-info bg-opacity-50">Dividendo</span>{% else %}<span class="badge text-bg-warning">Split</span>{% endif %}
+                        <td>{% if k == 'BUY' %}<span class="badge text-bg-success bg-opacity-75">Compra</span>{% elif sell %}<span class="badge text-bg-danger bg-opacity-75">Venta</span>{% else %}<span class="badge text-bg-warning">Split</span>{% endif %}
                             {% if first and o.snapshot and o.snapshot.zone == 'zona' %}<i class="bi bi-bullseye text-success" title="Ese día cotizaba en zona de compra"></i>{% elif first and o.snapshot and o.snapshot.zone and o.snapshot.zone != 'sin' %}<i class="bi bi-bullseye text-muted" title="Ese día le faltaba caer un {{ num(o.snapshot.drop, 1) }} % para la zona de compra"></i>{% endif %}</td>
-                        <td class="text-end num-font">{% if k == 'SPLIT' %}1 : {{ "{:g}".format(tx.shares) }}{% elif k == 'DIVIDEND' %}<span class="text-muted">{{ num(tx.price, 2) }} {{ currency_symbol }} × {{ num(tx.shares, 0 if tx.shares == tx.shares|int else 2) }}</span>{% else %}{{ num(tx.shares, 0 if tx.shares == tx.shares|int else 2) }} × {{ num(tx.price, 2) }} {{ currency_symbol }}{% endif %}</td>
-                        <td class="text-end num-font fw-semibold {{ 'text-success' if k == 'DIVIDEND' }}" title="{% if k != 'SPLIT' %}{{ num(tx.total, 2) }} {{ currency_symbol }}{% if currency_symbol != '€' and tx.fx %} · cambio {{ num(tx.fx, 4) }}{% endif %} · bróker {{ tx.broker }}{% if tx.fee and k != 'DIVIDEND' %} · comisión {{ num(tx.fee, 2) }} {{ currency_symbol }}{% endif %}{% if sell and tx.pnl_eur is not none %} · resultado de la venta {{ num(tx.pnl_eur, 2, sign=True) }} € (cotización {{ num(tx.pnl_price_eur, 2, sign=True) }} €, divisa {{ num(tx.pnl_fx_eur, 2, sign=True) }} €){% endif %}{% endif %}">{% if k != 'SPLIT' %}{{ eur(amount) }}{% endif %}</td>
+                        {% set rent = none %}{% set cagr = none %}
+                        {% if k == 'BUY' and first and r.since is not none %}{% set rent = r.since %}{% set days = tx.days or 0 %}{% if days >= 90 and r.since > -100 %}{% set cagr = ((1 + r.since / 100) ** (365 / days) - 1) * 100 %}{% endif %}
+                        {% elif sell and tx.pnl_eur is not none and amount != tx.pnl_eur %}{% set rent = 100 * tx.pnl_eur / (amount - tx.pnl_eur) %}{% endif %}
+                        <td class="text-end num-font" title="{% if k != 'SPLIT' %}{{ eur(amount) }} · {{ num(tx.total, 2) }} {{ currency_symbol }}{% if currency_symbol != '€' and tx.fx %} · cambio {{ num(tx.fx, 4) }}{% endif %} · bróker {{ tx.broker }}{% if tx.fee %} · comisión {{ num(tx.fee, 2) }} {{ currency_symbol }}{% endif %}{% if sell and tx.pnl_eur is not none %} · resultado de la venta {{ num(tx.pnl_eur, 2, sign=True) }} € (cotización {{ num(tx.pnl_price_eur, 2, sign=True) }} €, divisa {{ num(tx.pnl_fx_eur, 2, sign=True) }} €){% endif %}{% endif %}">{% if k == 'SPLIT' %}1 : {{ "{:g}".format(tx.shares) }}{% else %}{{ num(tx.shares, 0 if tx.shares == tx.shares|int else 2) }} × {{ num(tx.price, 2) }} {{ currency_symbol }}{% endif %}</td>
+                        <td class="text-end num-font fw-semibold">{% if rent is not none %}{{ pct(rent) }}{% endif %}</td>
+                        <td class="text-end num-font">{% if cagr is not none %}{{ pct(cagr) }}{% endif %}</td>
                         {% if first %}{% set hz = [] %}{% for key, label in [('1m', '1 mes'), ('3m', '3 meses'), ('6m', '6 meses'), ('12m', '12 meses')] %}{% if key in (r.horizons or {}) %}{% set _ = hz.append(label ~ ': ' ~ num(r.horizons[key], 1, sign=True) ~ ' pp') %}{% endif %}{% endfor %}
                         <td class="text-end num-font fw-semibold" title="{{ 'Después de vender, la acción hizo' if sell else 'Desde la compra, la acción' }} {{ num(r.since, 1, sign=True) ~ ' %' if r.since is not none else '–' }}{{ ' (desde el cierre de ese día)' if r and not r.from_price }}{% if hz %} · frente al índice a {{ hz|join(' · ') }}{% endif %}{% if r.entry and not sell %} · el mes antes venía {{ {'caida': 'de una caída', 'subida': 'de una subida', 'lateral': 'lateral'}[r.entry] }} ({{ num(r.pre_pct, 1, sign=True) }} %){% endif %}">{{ rel(r.excess, sell) }}</td>
                         <td class="dec-note" data-ticker="{{ o.ticker }}" data-refs="{{ o.refs|tojson|forceescape }}">
@@ -99,10 +132,11 @@
                         {% elif o %}<td class="text-end text-muted" title="Otra orden del mismo día: cuenta como una sola decisión">″</td><td></td>
                         {% else %}<td></td><td></td>{% endif %}
                         <td class="text-end">{% if tx.is_manual and k in ('BUY', 'SELL') %}
-                            <div class="dropdown"><button class="btn btn-link btn-sm p-0 text-muted" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Bróker y borrar (añadida a mano)"><i class="bi bi-three-dots"></i></button>
+                            <div class="dropdown"><button class="btn btn-link btn-sm p-0 text-muted" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Editar, bróker y borrar (añadida a mano)"><i class="bi bi-three-dots"></i></button>
                             <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: .75rem;">
                                 <li><button class="dropdown-item" onclick="changeTxBroker('{{ d }}', '{{ k }}', {{ tx.shares }}, {{ tx.price }}, 'DEGIRO')">Bróker: DEGIRO</button></li>
                                 <li><button class="dropdown-item" onclick="changeTxBroker('{{ d }}', '{{ k }}', {{ tx.shares }}, {{ tx.price }}, 'IBKR')">Bróker: IBKR</button></li>
+                                <li><a class="dropdown-item" href="/portfolio?editar={{ ticker|urlencode }}|{{ d[:10] }}|{{ k }}|{{ tx.shares }}|{{ tx.price }}"><i class="bi bi-pencil me-1"></i>Editar operación</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><button class="dropdown-item text-danger" onclick="deleteTransaction('{{ d }}', '{{ k }}', {{ tx.shares }}, {{ tx.price }})"><i class="bi bi-trash me-1"></i>Borrar operación</button></li>
                             </ul></div>{% endif %}</td>

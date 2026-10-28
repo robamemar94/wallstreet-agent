@@ -47,6 +47,7 @@ master_questions:
   - "¿Cuántas acciones quedan tras la cancelación y las nuevas recompras? ¿A qué precio se recompra frente al valor intrínseco?"
   - "FCF 2026 completo: ¿se normalizan el working capital y el capex?"
   - "Competencia: ¿qué señales económicas hay frente a Pragmatic y Playtech?"
+  - "¿Cuánto cae LatAm en el Q4 con el estudio de Brasil cerrado y cuánto coste se recorta?"
 valuation:
   question: "Base normalizada: FCF ~€1,10B, EUR/SEK ~11,2, ~183,1M acciones → ~67,3 SEK de FCF/acción; a 816 SEK ≈12,1x FCF y ≈8,2% FCF yield."
   columns:

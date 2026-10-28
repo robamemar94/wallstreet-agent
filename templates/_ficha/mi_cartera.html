@@ -75,13 +75,14 @@
             .mp-answer .a { font-size: 1.15rem; font-weight: 700; line-height: 1.2; }
             .mp-answer .d { font-size: .74rem; color: var(--bs-secondary-color); line-height: 1.25; }
             .mp-col { min-height: 0; }
+            .mp-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; font-size: .74rem; line-height: 1.45; }
+            .mp-facts .q { font-size: .64rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--bs-secondary-color); }
             .mp-ops { min-height: 0; overflow-y: auto; font-size: .78rem; }
             .mp-table { font-size: .76rem; --bs-table-bg: transparent; }
             .mp-table th { font-size: .64rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--bs-secondary-color); background: var(--bs-body-bg); position: sticky; top: 0; z-index: 1; white-space: nowrap; }
             .mp-table td { white-space: nowrap; padding-top: .28rem; padding-bottom: .28rem; }
-            .mp-table td.dec-note { white-space: normal; max-width: 0; width: 100%; }
+            .mp-table td.dec-note { white-space: normal; width: 8rem; max-width: 8rem; }
             .mp-table .dec-note-text { min-width: 0; }
-            .mp-table tr.mp-div td { color: var(--bs-secondary-color); }
             .mp-op { padding: .35rem .25rem; border-bottom: 1px solid var(--bs-border-color-translucent); }
             .mp-op:last-child { border-bottom: 0; }
             .mp-op .dec-note { font-size: .74rem; margin-top: .1rem; }
@@ -123,11 +124,21 @@
                         text: m.map(x => `${label} · ${x.date.slice(8, 10)}/${x.date.slice(5, 7)}/${x.date.slice(2, 4)}<br>${fmtNum(x.shares, x.shares % 1 ? 2 : 0)} acc. a ${fmtNum(x.price, 2)} ${sym}`),
                         hovertemplate: '%{text}<extra></extra>'};
                 };
-                const traces = [{x: d.dates, y: d.close, type: 'scatter', mode: 'lines', name: 'Precio', line: {color: '#3b82f6', width: 1.6},
-                    text: d.close.map(v => fmtNum(v, 2) + ' ' + sym), hovertemplate: '%{x|%d/%m/%y} · %{text}<extra></extra>'},
-                    mk('BUY', '#16a34a', 'triangle-up', 'Compra'), mk('SELL', '#dc2626', 'triangle-down', 'Venta')];
-                const shapes = d.avg && d.dates.length ? [{type: 'line', xref: 'x', x0: d.dates[0], x1: d.dates[d.dates.length - 1], y0: d.avg, y1: d.avg,
-                    line: {color: '#64748b', width: 1, dash: 'dash'}}] : [];
+                const price = () => ({suffix: ' ' + sym,
+                    traces: [{x: d.dates, y: d.close, type: 'scatter', mode: 'lines', name: 'Precio', line: {color: '#3b82f6', width: 1.6},
+                        text: d.close.map(v => fmtNum(v, 2) + ' ' + sym), hovertemplate: '%{x|%d/%m/%y} · %{text}<extra></extra>'},
+                        mk('BUY', '#16a34a', 'triangle-up', 'Compra'), mk('SELL', '#dc2626', 'triangle-down', 'Venta')],
+                    shapes: d.avg && d.dates.length ? [{type: 'line', xref: 'x', x0: d.dates[0], x1: d.dates[d.dates.length - 1], y0: d.avg, y1: d.avg,
+                        line: {color: '#64748b', width: 1, dash: 'dash'}}] : []});
+                // tu dinero en euros: lo que tienes (con lo vendido y los dividendos) y, en escalón, lo que has puesto
+                const money = () => ({suffix: ' €', shapes: [], traces: [
+                    {x: d.money.dates, y: d.money.invested, type: 'scatter', mode: 'lines', name: 'Pusiste', line: {color: '#64748b', width: 1.2, dash: 'dash', shape: 'hv'},
+                        text: d.money.invested.map(v => fmtNum(v, 0) + ' €'), hovertemplate: '%{x|%d/%m/%y} · pusiste %{text}<extra></extra>'},
+                    {x: d.money.dates, y: d.money.total, type: 'scatter', mode: 'lines', name: 'Con lo cobrado', line: {color: '#3b82f6', width: 1.6},
+                        fill: 'tonexty', fillcolor: 'rgba(59,130,246,.08)',
+                        text: d.money.total.map((v, i) => fmtNum(v, 0) + ' € (' + fmtNum(v - d.money.invested[i], 0) + ' €)'), hovertemplate: '%{x|%d/%m/%y} · %{text}<extra></extra>'}]});
+                plotFor = mode => mode === 'money' && d.money && d.money.dates ? money() : price();
+                const first = plotFor(st.mode), traces = first.traces, shapes = first.shapes;
                 const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
                 Plotly.newPlot(el, traces, {height: box.clientHeight, width: box.clientWidth, margin: {l: 48, r: 10, t: 6, b: 28},
                     showlegend: false, shapes, hovermode: 'closest', paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
@@ -141,12 +152,15 @@
                     });
             };
             // periodo (6M, 1A, 3A, 5A, todo el histórico o desde tu primera compra) y escala (lineal o logarítmica: con subidas grandes, la log compara mejor los % de cada tramo)
-            const st = {period: 'buy', log: false};
+            const st = {period: 'buy', log: false, mode: 'price'};
+            let plotFor = null;
             const fitY = (a, b) => {
                 const el = document.getElementById('mpChart'), d = JSON.parse(document.getElementById('mpChartData').textContent);
-                const [i, j] = rangeIndices(d.dates, a, b);
-                const ys = [d.close.slice(i, j + 1), d.markers.filter(m => m.date >= String(a).slice(0, 10) && m.date <= String(b).slice(0, 10)).map(m => m.price)].flat();
-                if (d.avg) ys.push(d.avg);
+                const m = st.mode === 'money' && d.money && d.money.dates;
+                const [i, j] = rangeIndices(m ? d.money.dates : d.dates, a, b);
+                const ys = m ? [d.money.total.slice(i, j + 1), d.money.invested.slice(i, j + 1)].flat()
+                    : [d.close.slice(i, j + 1), d.markers.filter(m => m.date >= String(a).slice(0, 10) && m.date <= String(b).slice(0, 10)).map(m => m.price)].flat();
+                if (d.avg && !m) ys.push(d.avg);
                 const lo = Math.min(...ys), hi = Math.max(...ys);
                 if (!isFinite(lo)) return;
                 const range = st.log ? [Math.log10(lo * 0.95), Math.log10(hi * 1.05)] : [lo - (hi - lo) * 0.06, hi + (hi - lo) * 0.06];
@@ -167,7 +181,19 @@
                 document.querySelectorAll('#mpBody [data-mp-period]').forEach(b => b.classList.toggle('active', b.dataset.mpPeriod === st.period));
                 document.querySelectorAll('#mpBody [data-mp-scale]').forEach(b => b.classList.toggle('active', (b.dataset.mpScale === 'log') === st.log));
             };
+            const setMode = mode => {
+                const el = document.getElementById('mpChart');
+                if (!el || !el.data || !plotFor) return;
+                st.mode = mode;
+                const p = plotFor(mode);
+                Plotly.react(el, p.traces, {...el.layout, shapes: p.shapes, yaxis: {...el.layout.yaxis, ticksuffix: p.suffix}}).then(view);
+                document.querySelectorAll('#mpBody [data-mp-mode]').forEach(b => b.classList.toggle('active', b.dataset.mpMode === mode));
+                document.getElementById('mpKeyPrice').classList.toggle('d-none', mode === 'money');
+                document.getElementById('mpKeyMoney').classList.toggle('d-none', mode !== 'money');
+            };
             document.addEventListener('click', e => {
+                const md = e.target.closest('#mpBody [data-mp-mode]');
+                if (md) return setMode(md.dataset.mpMode);
                 const p = e.target.closest('#mpBody [data-mp-period]'), sc = e.target.closest('#mpBody [data-mp-scale]');
                 if (p) { st.period = p.dataset.mpPeriod; view(); }
                 if (sc) { st.log = sc.dataset.mpScale === 'log'; view(); }

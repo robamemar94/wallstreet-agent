@@ -365,3 +365,27 @@ def calculate_position_cagr(ticker: str, ledger: list, return_pct: float, is_act
     except Exception:
         return None
 
+
+
+def xirr(flows: list) -> "float | None":
+    """TIR anual (en %) de unos flujos [(fecha, importe)]: lo que sale, negativo; lo que entra, positivo.
+    Cada importe cuenta desde su fecha (rentabilidad ponderada por el dinero). Sin solución: None."""
+    from datetime import date as _date
+    pts = [(d if isinstance(d, _date) else _date.fromisoformat(str(d)[:10]), float(a)) for d, a in flows if a]
+    if not pts or not any(a < 0 for _, a in pts) or not any(a > 0 for _, a in pts):
+        return None
+    t0 = min(d for d, _ in pts)
+
+    def npv(r: float) -> float:
+        return sum(a / (1 + r) ** ((d - t0).days / 365.25) for d, a in pts)
+
+    lo, hi = -0.9999, 10.0
+    if npv(lo) * npv(hi) > 0:
+        return None
+    for _ in range(200):
+        mid = (lo + hi) / 2
+        if npv(lo) * npv(mid) <= 0:
+            hi = mid
+        else:
+            lo = mid
+    return round((lo + hi) / 2 * 100, 2)

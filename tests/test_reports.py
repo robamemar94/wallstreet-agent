@@ -68,3 +68,71 @@ def test_auto_ai_only_for_new_quarterly_and_annual(monkeypatch):
               {"key": "Q2026-3", "kind": "Q", "reconstructed": True}, {"key": "M2026-12", "kind": "M", "reconstructed": False}):
         rs.auto_ai(None, r)
     assert called == ["Q2026-4", "Y2026"]
+
+
+def test_weekly_report_waits_for_its_radar(monkeypatch):
+    from app.application.services import thesis_news_runner
+    from app.infrastructure.db.database import SessionLocal
+    w = rs.period("W", datetime.date(2026, 10, 14))                      # semana del 12 al 16
+    assert rs.radar_window(w) == ("2026-10-17T08:00:00", "2026-10-24T08:00:00")   # las del radar que la repasa
+    monkeypatch.setattr(rs, "start_date", lambda db: datetime.date(2026, 10, 12))
+    monday = datetime.datetime(2026, 10, 19, 9)
+    db = SessionLocal()
+    try:
+        db.query(rs.DBSetting).filter(rs.DBSetting.key.like(rs.KEY_PREFIX + "W2026-10-%")).delete(synchronize_session=False)
+        monkeypatch.setattr(thesis_news_runner, "radar_pending", lambda: True)
+        assert "W2026-10-12" not in [p["key"] for p in rs.due(db, monday)]       # radar sin hacer: espera
+        assert "W2026-10-12" in [p["key"] for p in rs.due(db, datetime.datetime(2026, 10, 24, 9))]   # semana pasada: no espera
+        monkeypatch.setattr(thesis_news_runner, "radar_pending", lambda: False)
+        assert "W2026-10-12" in [p["key"] for p in rs.due(db, monday)]
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_display_condenses_long_lists():
+    decs = [{"ticker": "AAA" if i % 2 else "BBB", "type": "BUY", "date": f"2026-0{1 + i % 9}-10", "amount_eur": 100.0 * (i + 1),
+             "note": "barata" if i == 3 else None} for i in range(10)] + [{"ticker": "CCC", "type": "SELL", "date": "2026-05-05", "amount_eur": 500.0, "note": None}]
+    divs = [{"ticker": t, "date": "2026-03-01", "eur": e} for t, e in [("A", 1), ("B", 2), ("C", 3), ("D", 4), ("E", 5), ("F", 6), ("A", 7), ("B", 0.5), ("G", 1)]]
+    theses = [{"type": "earnings", "title": "Resultados Q2"}, {"type": "verdict", "title": "Veredicto: INTACTA → VIGILANCIA"}]
+    news = [{"title": str(i)} for i in range(8)]
+    r = rs.display({"kind": "Q", "decisions": decs, "dividends": {"items": divs}, "theses": theses, "news": news, "watchlist": [{"ticker": "Z"}]})
+    assert r["dec_totals"] == {"BUY": {"n": 10, "eur": 5500.0}, "SELL": {"n": 1, "eur": 500.0}}
+    assert [(g["ticker"], g["n"]) for g in r["dec_groups"]][:2] == [("AAA", 5), ("BBB", 5)] and r["dec_groups"][0]["amount_eur"] == 3000.0
+    assert r["dec_groups"][0]["notes"] == ["10/04: barata"]
+    assert [d["ticker"] for d in r["div_top"]] == ["A", "F", "E", "D", "C"] and r["div_rest"] == 2
+    assert [e["type"] for e in r["theses"]] == ["verdict"] and len(r["news"]) == 5 and r["watchlist"] == []
+    y = rs.display({"kind": "Y", "decisions": decs[:2], "news": news, "insiders": [{"ticker": "Z"}], "theses_close": [{"ticker": "A"}], "theses": theses})
+    assert y["news"] == [] and y["insiders"] == [] and y["theses"] == [] and len(y["dec_groups"]) == 2   # en el anual, siempre agrupadas
+    short = rs.display({"kind": "M", "decisions": decs[:3], "dividends": {"items": divs[:2]}, "theses": theses, "news": news})
+    assert "dec_groups" not in short and "div_top" not in short and len(short["theses"]) == 2 and len(short["news"]) == 8
+
+
+def test_risk_cash_cost_and_bridge():
+    port = [100 * (1.01 if i % 2 else 0.995) ** i for i in range(30)]
+    bench = [100 + i * 0.1 for i in range(30)]
+    nav = {"dates": [f"2026-03-{i + 1:02d}" for i in range(30)], "port": port, "bench": bench, "from": None,
+           "cash_uv": [None] * 5 + port[5:], "cash_pct": [None] * 5 + [10.0] * 25}
+    rk = rs.risk(nav)
+    assert rk["vol"] > rk["bench_vol"] > 0 and rk["beta"] is not None
+    assert rs.risk({**nav, "port": port[:10], "bench": bench[:10]}) is None   # pocas sesiones
+    cc = rs.cash_cost(nav)
+    assert cc["pp"] == pytest.approx(0) and cc["avg_pct"] == 10.0 and cc["from"] == "2026-03-06"
+    assert rs.cash_cost({**nav, "cash_uv": [None] * 25 + port[25:]}) is None
+    b = rs.bridge({"performance": {"value_start": 1000, "value_end": 1600, "pnl_eur": 100, "fx_eur": -20}, "flows": {"net": 500}})
+    assert [(x["label"], x["eur"]) for x in b["steps"]] == [("Al empezar", 1000), ("Aportaciones", 500), ("Empresas", 120), ("Divisa", -20)]
+    assert b["steps"][-1]["lo"] == 1600 and b["steps"][-1]["hi"] == 1620 and b["end_pct"] == pytest.approx(100 * 1600 / 1620)
+
+
+def test_gains_and_inaction():
+    idx = pd.date_range("2026-01-01", "2026-03-31", freq="B")
+    df = pd.DataFrame({"AAA": [10.0 if d < pd.Timestamp("2026-02-01") else 20.0 for d in idx]}, index=idx)
+    txs = [{"ticker": "AAA", "date": "2026-01-05", "type": "BUY", "shares": 10, "price": 10.0, "currency": "EUR"},
+           {"ticker": "AAA", "date": "2026-02-10", "type": "SELL", "shares": 4, "price": 20.0, "currency": "EUR"}]
+    g = rs.gains(df, txs, {}, "2026-02-01", "2026-02-28")
+    assert g["realized_eur"] == pytest.approx(40) and g["n_sales"] == 1          # 4 × (20 − 10)
+    assert g["latent_eur"] == pytest.approx(60) and g["latent_pct"] == pytest.approx(100)
+    ina = rs.inaction(df, txs, {}, datetime.date(2026, 2, 1), datetime.date(2026, 2, 28))
+    assert ina["pct"] == pytest.approx(100)                                      # sin vender: las 10 acciones doblan
+    assert rs.sectors({"AAA": 50.0, "BBB": -10.0}, {"AAA": {"sector": "Technology"}})[0] == {
+        "sector": "Tecnología", "pnl_eur": 50.0, "tickers": [{"ticker": "AAA", "pnl_eur": 50.0}]}

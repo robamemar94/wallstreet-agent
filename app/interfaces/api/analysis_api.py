@@ -41,76 +41,141 @@ def update_task_db(db: Session, task_id: str, status: str, result: str = None, e
 class GenerateRequest(BaseModel):
     feedback: Optional[str] = None
 
-def get_enriched_audit_context(db_data: dict) -> str:
-    audit_text = db_data.get("audit", "")
-    
+MAX_CONTEXT_YEARS = 10   # ejercicios completos que ven los agentes (más el LTM): ahorra tokens sin perder el ciclo
+
+
+def _ctx_value(v) -> str:
+    """Cifras grandes en millones con 1 decimal (las tablas son lo que más tokens gasta); el resto, tal cual."""
+    if v is None:
+        return "N/A"
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return str(v)
+    if abs(v) >= 100_000:
+        return f"{v / 1e6:,.1f}"
+    if isinstance(v, float):
+        return f"{v:.3f}".rstrip("0").rstrip(".") if abs(v) < 10 else f"{v:,.2f}"
+    return f"{v:,}"
+
+
+def _ctx_table(title: str, years: list, rows: dict, keep: list) -> str:
+    lines = [f"\n### {title}\n", "| Métricas | " + " | ".join(str(years[i]) for i in keep) + " |",
+             "| --- |" + " --- |" * len(keep)]
+    for metric, values in rows.items():
+        if not isinstance(values, list):
+            continue
+        vals = [values[i] if i < len(values) else None for i in keep]
+        if all(v is None for v in vals):
+            continue
+        lines.append(f"| {metric} | " + " | ".join(_ctx_value(v) for v in vals) + " |")
+    return "\n".join(lines)
+
+
+def _kept_years(years: list) -> list:
+    """Índices de los últimos MAX_CONTEXT_YEARS ejercicios completos y del LTM."""
+    full = [i for i, y in enumerate(years) if str(y).upper() != "LTM"][-MAX_CONTEXT_YEARS:]
+    return full + [i for i, y in enumerate(years) if str(y).upper() == "LTM"]
+
+
+STATEMENTS = ("income_statement", "balance_sheet", "cash_flow")
+# Las cuentas que necesita cada pilar de las Normas de Calidad (los ratios y las métricas van siempre)
+PILLAR_STATEMENTS = {
+    0: ("income_statement",),                    # foso: márgenes
+    1: ("income_statement", "cash_flow"),        # crecimiento: ventas, BPA, FCF
+    2: STATEMENTS,                               # ROIC: las tres
+    3: ("balance_sheet", "cash_flow"),           # solvencia
+    4: ("balance_sheet", "cash_flow"),           # asignación de capital: recompras, SBC, M&A, fondo de comercio
+}
+
+
+def financial_tables_context(db_data: dict, sections: tuple = STATEMENTS) -> str:
+    """Las cuentas pedidas (en millones, últimos 10 ejercicios + LTM) y los ratios forenses calculados en Python."""
+    from app.application.services.forensic_ratios_service import ratios_markdown
+
     struct = db_data.get("full_audit_structure")
-    if struct and "years" in struct:
-        years = struct.get("years", [])
-        if years:
-            header = "| Métricas | " + " | ".join(years) + " |"
-            divider = "| --- | " + " | ".join(["---"] * len(years)) + " |"
-            
-            sections_md = []
-            sections_md.append("\n\n--- ESTADOS FINANCIEROS AUDITADOS Y CALCULADOS (TABLAS DE DATOS) ---")
-            
-            for section_name in ["income_statement", "balance_sheet", "cash_flow"]:
-                section_data = struct.get(section_name, {})
-                if not section_data:
-                    continue
-                    
-                pretty_name = section_name.replace("_", " ").title()
-                lines = [f"\n### {pretty_name}\n", header, divider]
-                
-                for metric, values in section_data.items():
-                    formatted_values = []
-                    for v in values:
-                        if v is None:
-                            formatted_values.append("N/A")
-                        elif isinstance(v, (int, float)):
-                            if isinstance(v, float):
-                                if abs(v) <= 2.0:
-                                    formatted_values.append(f"{v:,.4f}")
-                                else:
-                                    formatted_values.append(f"{v:,.2f}")
-                            else:
-                                formatted_values.append(f"{v:,}")
-                        else:
-                            formatted_values.append(str(v))
-                    lines.append(f"| {metric} | " + " | ".join(formatted_values) + " |")
-                sections_md.append("\n".join(lines))
-                
-            return audit_text + "\n" + "\n".join(sections_md)
-            
+    if struct and struct.get("years"):
+        years = struct["years"]
+        keep = _kept_years(years)
+        parts = ["\n\n--- ESTADOS FINANCIEROS (cifras monetarias en millones; márgenes en tanto por uno) ---"]
+        for section_name in sections:
+            if struct.get(section_name):
+                parts.append(_ctx_table(section_name.replace("_", " ").title(), years, struct[section_name], keep))
+        ratios = ratios_markdown(struct, MAX_CONTEXT_YEARS)
+        if ratios:
+            parts.append("\n" + ratios)
+        return "\n".join(parts)
+
     # Fallback a financials_hist_manual si no existe full_audit_structure
     hist_manual = db_data.get("financials_hist_manual")
-    if hist_manual and "years" in hist_manual:
-        years = hist_manual.get("years", [])
-        if years:
-            header = "| Métricas | " + " | ".join(years) + " |"
-            divider = "| --- | " + " | ".join(["---"] * len(years)) + " |"
-            lines = ["\n\n--- ESTADOS FINANCIEROS HISTÓRICOS MANUALES (TABLAS DE DATOS) ---\n", header, divider]
-            for metric, values in hist_manual.items():
-                if metric == "years":
-                    continue
-                formatted_values = []
-                for v in values:
-                    if v is None:
-                        formatted_values.append("N/A")
-                    elif isinstance(v, (int, float)):
-                        if isinstance(v, float):
-                            if abs(v) <= 2.0:
-                                formatted_values.append(f"{v:,.4f}")
-                            else:
-                                formatted_values.append(f"{v:,.2f}")
-                        else:
-                            formatted_values.append(f"{v:,}")
-                    else:
-                        formatted_values.append(str(v))
-                lines.append(f"| {metric.replace('_', ' ').title()} | " + " | ".join(formatted_values) + " |")
-            return audit_text + "\n" + "\n".join(lines)
-            
-    return audit_text
+    if hist_manual and hist_manual.get("years"):
+        years = hist_manual["years"]
+        rows = {k.replace("_", " ").title(): v for k, v in hist_manual.items() if k != "years"}
+        return ("\n\n--- ESTADOS FINANCIEROS HISTÓRICOS MANUALES (cifras monetarias en millones) ---"
+                + _ctx_table("Histórico", years, rows, _kept_years(years)))
+    return ""
+
+
+def get_enriched_audit_context(db_data: dict) -> str:
+    """Lo que ven los agentes como «auditoría»: la síntesis forense + las cuentas + los ratios forenses."""
+    return (db_data.get("audit", "") or "") + "\n" + financial_tables_context(db_data)
+
+
+def pillar_score(raw) -> str:
+    """Nota de un pilar siempre como «X.X/2.0» (el parser general le añade «/10» y algunos agentes ponían espacios)."""
+    import re
+    m = re.match(r"\s*([0-9]+(?:[.,][0-9]+)?)", str(raw or ""))
+    if not m:
+        return raw
+    v = float(m.group(1).replace(",", "."))
+    return f"{v:.1f}/2.0" if v <= 2.0 else raw
+
+
+def rules_context(db_data: dict) -> str:
+    """Las Normas de Calidad para otros agentes: el informe único antiguo (`rules`) si existe; si no, los 5 pilares
+    (nota, fortalezas, debilidades y motivo de descarte), que es lo que se genera ahora."""
+    from app.application.services import rules_synthesis_service as rs
+
+    if (db_data.get("rules") or "").strip():
+        return db_data["rules"]
+    items = rs.pillars(db_data)
+    if not items:
+        return "(Las Normas de Calidad aún no se han evaluado.)"
+    total = sum(p["score"] or 0 for p in items)
+    out = [f"Puntuación: {total:.1f} / {rs.MAX_POINTS * len(items):.1f} ({len(items)} de {len(rs.PILLARS)} pilares evaluados)"]
+    for p in items:
+        score = f"{p['score']:.1f}/{rs.MAX_POINTS:.1f}" if p["score"] is not None else "N/A"
+        out.append(f"\nPilar {p['n']} — {p['name']}: {score}")
+        if db_data.get(f"rules_pilar{p['n']}_rejection"):
+            out.append(f"🛑 {db_data[f'rules_pilar{p['n']}_rejection']}")
+        out += [f"+ {x}" for x in p["pros"]] + [f"− {x}" for x in p["cons"]]
+    return "\n".join(out)
+
+
+# Secciones (## …) que se conservan de cada informe al pasarlo condensado a otro agente. La última sección lleva
+# el «Resumen del Agente» (nota, pros y contras), así que también se conserva.
+KEY_SECTIONS = {
+    "franchise": ("MODELO DE NEGOCIO", "PRUEBA EMPÍRICA", "FUENTES DEL ECONOMIC MOAT", "TEST NOKIA", "PUNTUACIÓN DE FRANQUICIA"),
+    "mgmt_alloc": ("PUNTUACIÓN DE DIRECCIÓN",),
+    "verdict": ("EVALUACIÓN DE RIESGO", "SCORE FINAL", "VEREDICTO DE FILTRO"),
+    "thesis_destroyer": ("VEREDICTO DEL ABOGADO", "TESIS DESTRUCTIVAS", "MATRIZ DE ROBUSTEZ"),
+}
+
+
+def condensed_report(db_data: dict, key: str) -> str:
+    """Un informe previo resumido para otro agente: su motivo de descarte y sus secciones clave (con el resumen).
+
+    Sin informe, cadena vacía; sin secciones reconocibles (formato antiguo), el informe entero."""
+    import re
+    text = db_data.get(key) or ""
+    if not text.strip():
+        return ""
+    wanted = KEY_SECTIONS.get(key, ())
+    chunks = re.split(r"(?m)^(?=## )", text)
+    keep = [c.strip() for c in chunks if any(w.lower() in c.split("\n", 1)[0].lower() for w in wanted)]
+    if "Resumen del Agente" in chunks[-1] and chunks[-1].strip() not in keep:
+        keep.append("### Resumen del Agente" + chunks[-1].split("### Resumen del Agente", 1)[1])
+    body = "\n\n".join(keep) if keep else text
+    rejection = db_data.get(f"{key}_rejection")
+    return (f"🛑 Motivo de descarte: {rejection}\n\n" if rejection else "") + body
 
 
 # Tareas que este proceso está ejecutando ahora mismo. Una tarea «processing» en BBDD que no está aquí se quedó
@@ -138,6 +203,26 @@ def run_agent_task(task_id: str, ticker: str, report_type: str, company_name: st
     finally:
         RUNNING_TASKS.discard(task_id)
 
+def _auto_destroyer(asset_repo, ticker: str, company_name: str, db_data: dict, audit_ctx: str, rules_ctx: str) -> str:
+    """Genera y guarda el abogado del diablo (como si se hubiera pulsado su botón) y devuelve su contexto condensado.
+    Si falla, el veredicto sigue sin él. Su consumo de IA cuenta dentro del del veredicto."""
+    try:
+        logger.info(f"Veredicto de {ticker} sin abogado del diablo: se genera antes")
+        raw = crew_logic.run_thesis_destroyer(ticker, company_name, "", "", db_data.get("franchise", ""),
+                                              db_data.get("mgmt_alloc", ""), "", audit_ctx, rules_ctx, "")
+        text, score, pros, cons, rejection = parse_summary(str(raw))
+        saved = {"thesis_destroyer": text, "thesis_destroyer_score": score, "thesis_destroyer_pros": pros,
+                 "thesis_destroyer_cons": cons}
+        if rejection:
+            saved["thesis_destroyer_rejection"] = rejection
+        for k, v in saved.items():
+            asset_repo.save_asset_data(ticker, k, v)
+        return condensed_report({**db_data, **saved}, "thesis_destroyer")
+    except Exception as e:
+        logger.warning(f"No se pudo generar el abogado del diablo antes del veredicto de {ticker}: {e}")
+        return ""
+
+
 def _run_agent_task(task_id: str, ticker: str, report_type: str, company_name: str, db_data: dict, feedback: str, tracker):
     db_session = SessionLocal()
     asset_repo = SqlAlchemyAssetRepository(db_session)
@@ -145,49 +230,64 @@ def _run_agent_task(task_id: str, ticker: str, report_type: str, company_name: s
     try:
         logger.info(f"Iniciando tarea en background '{report_type}' para {ticker}. Task ID: {task_id}")
         audit_ctx = get_enriched_audit_context(db_data)
-        
+        # El stress-test del abogado del diablo, si ya existe: lo tienen en cuenta director, valoración y tesis
+        destroyer_ctx = condensed_report(db_data, "thesis_destroyer")
+        rules_ctx = rules_context(db_data)
+
         if report_type == "audit":
-            # Ejecutar el equipo forense (4 analistas) con los datos manuales guardados y el feedback
+            # Equipo forense (3 analistas + síntesis) con las cuentas pegadas y los ratios calculados en Python
+            from app.application.services.forensic_ratios_service import ratios_markdown
             manual_raw = json.dumps(db_data.get('manual_audit_raw', {}))
-            result = crew_logic.run_forensic_auditor(ticker, company_name, manual_raw, feedback)
-            # El resultado ya contiene las 4 secciones unificadas o estructuradas.
-            # En una versión futura podríamos guardarlos por separado si CrewAI permite capturar outputs intermedios.
-            # Por ahora, guardamos el informe integral bajo 'audit'.
+            ratios = ratios_markdown(db_data.get("full_audit_structure"), MAX_CONTEXT_YEARS)
+            result = crew_logic.run_forensic_auditor(ticker, company_name, manual_raw, feedback, ratios)
         elif report_type == "franchise":
-            result = crew_logic.run_franchise_crew(ticker, company_name, feedback, audit_ctx)
+            from app.application.services.forensic_ratios_service import ratios_markdown
+            result = crew_logic.run_franchise_crew(ticker, company_name, feedback, audit_ctx,
+                                                   ratios_markdown(db_data.get("full_audit_structure"), MAX_CONTEXT_YEARS))
         elif report_type == "mgmt_alloc":
             result = crew_logic.run_management_crew(ticker, company_name, feedback, audit_ctx)
         elif report_type == "verdict":
+            # Sin stress-test todavía: el mismo botón lo genera antes, para que el director lo tenga en cuenta
+            if not destroyer_ctx:
+                destroyer_ctx = _auto_destroyer(asset_repo, ticker, company_name, db_data, audit_ctx, rules_ctx)
+            # El director integra: recibe los informes enteros
             result = crew_logic.run_investment_director(
-                ticker, 
-                company_name, 
-                db_data.get("franchise", ""), 
-                db_data.get("mgmt_alloc", ""), 
-                feedback, 
-                audit_ctx, 
-                db_data.get("rules", "")
+                ticker,
+                company_name,
+                db_data.get("franchise", ""),
+                db_data.get("mgmt_alloc", ""),
+                feedback,
+                audit_ctx,
+                rules_ctx,
+                destroyer_ctx,
             )
         elif report_type == "val":
-            result = crew_logic.run_valuation_agent(ticker, company_name, db_data.get("verdict", ""), feedback, audit_ctx)
+            result = crew_logic.run_valuation_agent(ticker, company_name, db_data.get("verdict", ""), feedback, audit_ctx,
+                                                    destroyer_ctx)
         elif report_type == "thesis":
+            # Aguas abajo del director: franquicia y dirección condensadas (el veredicto ya las integra)
             result = crew_logic.run_thesis_agent(
                 ticker,
                 company_name,
                 db_data.get("verdict", ""),
                 db_data.get("val", ""),
-                db_data.get("franchise", ""),
-                db_data.get("mgmt_alloc", ""),
+                condensed_report(db_data, "franchise"),
+                condensed_report(db_data, "mgmt_alloc"),
                 feedback,
                 audit_ctx,
-                db_data.get("rules", "")
+                rules_ctx,
+                destroyer_ctx,
             )
         elif report_type == "rules":
-            result = crew_logic.run_rules_auditor(ticker, company_name, feedback, audit_ctx)
+            from app.application.services.forensic_ratios_service import pillar_metrics_markdown
+            result = crew_logic.run_rules_auditor(ticker, company_name, feedback, audit_ctx,
+                                                  pillar_metrics=pillar_metrics_markdown(db_data.get("full_audit_structure")))
         elif report_type == "pe_forensic":
             result = crew_logic.run_pe_forensic(ticker, company_name, feedback, audit_ctx)
         elif report_type == "technical":
             result = crew_logic.run_technical_analyst(ticker, company_name, feedback, audit_ctx)
         elif report_type == "thesis_destroyer":
+            # Va antes del veredicto: ataca los análisis de calidad (enteros); veredicto, tesis y valoración, si ya existen
             result = crew_logic.run_thesis_destroyer(
                 ticker,
                 company_name,
@@ -197,7 +297,8 @@ def _run_agent_task(task_id: str, ticker: str, report_type: str, company_name: s
                 db_data.get("mgmt_alloc", ""),
                 feedback,
                 audit_ctx,
-                db_data.get("rules", "")
+                rules_ctx,
+                db_data.get("val", ""),
             )
         elif report_type in ["rules_pilar1", "rules_pilar2", "rules_pilar3", "rules_pilar4", "rules_pilar5"]:
             rule_indices = {
@@ -208,12 +309,17 @@ def _run_agent_task(task_id: str, ticker: str, report_type: str, company_name: s
                 "rules_pilar5": 4
             }
             idx = rule_indices[report_type]
-            result = crew_logic.run_rules_auditor(ticker, company_name, feedback, audit_ctx, rule_index=idx)
+            from app.application.services.forensic_ratios_service import pillar_metrics_markdown
+            pillar_ctx = (db_data.get("audit", "") or "") + "\n" + financial_tables_context(db_data, PILLAR_STATEMENTS[idx])
+            result = crew_logic.run_rules_auditor(ticker, company_name, feedback, pillar_ctx, rule_index=idx,
+                                                  pillar_metrics=pillar_metrics_markdown(db_data.get("full_audit_structure")))
         else:
             update_task_db(db_session, task_id, "error", error="Invalid report type")
             return
             
         main_text, score, pros, cons, rejection = parse_summary(str(result))
+        if report_type.startswith("rules_pilar"):
+            score = pillar_score(score)
         
         # Lógica especial para auditoría: separar en sub-informes si tiene delimitadores
         if report_type == "audit" and "---AUDIT_" in main_text:
@@ -496,6 +602,16 @@ async def delete_ticker(
         return {"status": "success", "message": f"Ticker {ticker} eliminado correctamente."}
     return {"status": "error", "message": f"No se pudo eliminar el ticker {ticker}."}
 
+# Extracciones de cuentas en curso o recién acabadas, {TICKER: {"status": running|success|error, "message"}}. La
+# petición sigue en el servidor aunque se recargue la ficha; así la ficha nueva sabe que hay una y la espera.
+EXTRACTIONS: dict[str, dict] = {}
+
+
+@router.get("/audit/extract_status/{ticker}")
+def extract_audit_status(ticker: str):
+    return EXTRACTIONS.get(ticker.upper()) or {"status": "none"}
+
+
 @router.post("/audit/extract/{ticker}")
 def extract_audit_data(
     ticker: str,
@@ -503,6 +619,16 @@ def extract_audit_data(
     asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository)
 ):
     """Acción 1: Guarda los datos brutos y extrae el JSON para gráficas/tabla."""
+    key = ticker.upper()
+    if (EXTRACTIONS.get(key) or {}).get("status") == "running":
+        return {"status": "error", "message": "Ya se están extrayendo las cuentas de esta empresa."}
+    EXTRACTIONS[key] = {"status": "running"}
+    out = _extract_audit_data(ticker, payload, asset_repo)
+    EXTRACTIONS[key] = {"status": out["status"], "message": out.get("message")}
+    return out
+
+
+def _extract_audit_data(ticker: str, payload: dict, asset_repo: SqlAlchemyAssetRepository) -> dict:
     try:
         feedback = payload.get("feedback", "")
         import json
@@ -516,6 +642,9 @@ def extract_audit_data(
         extracted_fin = parse_manual_audit_to_financials(ticker, combined_text, audit_data.get('images'))
         
         if extracted_fin and "years" in extracted_fin:
+            # lo nuevo manda en los años que trae; los antiguos que ya tenías y no vienen ahora se conservan
+            from app.application.services.financials_update_service import merge
+            extracted_fin = merge(asset_repo.get_asset_data(ticker).get("full_audit_structure"), extracted_fin)
             # Guardar la estructura COMPLETA para consulta del usuario
             asset_repo.save_asset_data(ticker, "full_audit_structure", extracted_fin)
             
@@ -544,7 +673,7 @@ def generate_report(
     feedback = request.feedback if request else ""
     
     # Validaciones de precondición antes de lanzar tareas en background
-    if report_type == "verdict":
+    if report_type in ("verdict", "thesis_destroyer"):
         missing_reports = []
         labels = {
             "audit": "Auditoría Financiera Forense",
@@ -558,7 +687,8 @@ def generate_report(
         if missing_reports:
             return {
                 "status": "error", 
-                "message": "No se puede ejecutar el Veredicto Final porque aún faltan análisis previos por ejecutar. Por favor, realiza primero: " + ", ".join(missing_reports)
+                "message": ("No se puede ejecutar el Veredicto Final" if report_type == "verdict" else "No se puede ejecutar el Abogado del Diablo")
+                           + " porque aún faltan análisis previos por ejecutar. Por favor, realiza primero: " + ", ".join(missing_reports)
             }
             
     elif report_type == "val":
@@ -575,12 +705,6 @@ def generate_report(
                 "message": "No se puede ejecutar la Tesis y Vigilancia porque aún falta el Veredicto Final. Por favor, ejecuta primero el Veredicto Final (Director de Inversiones)."
             }
             
-    elif report_type == "thesis_destroyer":
-        if not db_data.get("verdict"):
-            return {
-                "status": "error",
-                "message": "No se puede ejecutar el Destructor de Tesis porque aún falta el Veredicto Final. Por favor, ejecuta primero el Veredicto Final (Director de Inversiones)."
-            }
             
     try:
         stock = yf.Ticker(ticker)

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{# Diario: tus notas de todas las empresas en un sitio. A la izquierda, una nota nueva (eligiendo la empresa) y las
+   operaciones sin porqué, para anotarlo ahí mismo (el mismo porqué de Decisiones). A la derecha, las notas, de la más
+   reciente a la más antigua, filtrables por empresa (?ticker=…). Cada empresa tiene además su diario en la ficha, con
+   sus operaciones y lo de la tesis. Sin scroll de página: cada lista tiene el suyo. #}
+{% block title %}Alpha-Flow · Diario{% endblock %}
+{% block content %}
+{% macro dmy(d) %}{{ d[8:10] }}/{{ d[5:7] }}/{{ d[:4] }}{% endmacro %}
+<style>
+    .dj-wrap { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 1rem; }
+    @media (max-width: 991px) { .dj-wrap { grid-template-columns: 1fr; } }
+    .dj-h { font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--bs-secondary-color); margin-bottom: .4rem; }
+    .dj-card { background: var(--fin-card-bg, var(--bs-tertiary-bg)); border-radius: .5rem; padding: .7rem .9rem; }
+    .dj-item { padding: .5rem 0; border-top: 1px solid var(--bs-border-color); }
+    .dj-text { white-space: pre-wrap; margin-top: .15rem; }
+</style>
+<div class="d-flex align-items-center gap-2 mb-3">
+    <h4 class="fw-bold mb-0"><i class="bi bi-journal-text me-2"></i>Diario</h4>
+    <span class="small text-muted">Lo que piensas de cada empresa y por qué compras o vendes: la carta anual lo usa para juzgar tus razones.</span>
+</div>
+<div class="dj-wrap">
+    <div class="d-flex flex-column gap-3">
+        <form class="dj-card" id="djNew">
+            <div class="dj-h">Nota nueva</div>
+            <div class="d-flex gap-2 mb-2">
+                <div class="suggestions-container flex-grow-1">
+                    <input class="form-control form-control-sm" name="ticker" id="djTicker" data-ticker-search="#djTickerSug" placeholder="Empresa: nombre o ticker" required value="{{ ticker or '' }}" autocomplete="off">
+                    <div id="djTickerSug" class="search-suggestions mt-1 shadow border rounded-3 bg-body"></div>
+                </div>
+                <input type="date" class="form-control form-control-sm w-auto" name="date" value="{{ today }}" aria-label="Fecha">
+            </div>
+            <textarea class="form-control form-control-sm" name="text" rows="3" maxlength="2000" placeholder="P. ej.: resultados flojos, pero la guía sube; aguanto" required></textarea>
+            <div class="text-end mt-2"><button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Añadir nota</button></div>
+        </form>
+        <div class="dj-card flex-grow-1">
+            <div class="dj-h d-flex"><span>Sin porqué · {{ pending|length }}</span><span class="ms-auto fw-normal text-lowercase" title="Desde el inicio del Rendimiento, como Decisiones">desde el inicio</span></div>
+            <div data-fit="160">
+            {% for p in pending %}
+                <div class="dj-item" data-refs="{{ p.refs|tojson|forceescape }}" data-ticker="{{ p.ticker }}">
+                    <div class="d-flex align-items-center gap-2 small">
+                        <i class="bi bi-arrow-left-right {{ 'text-success' if p.type == 'BUY' else 'text-danger' }}"></i>
+                        <span class="text-muted num-font">{{ dmy(p.date) }}</span>
+                        <a href="/ticker/{{ p.ticker }}#diario" class="fw-bold text-decoration-none">{{ clean_ticker(p.ticker) }}</a>
+                        <span class="text-muted">{{ 'compra' if p.type == 'BUY' else 'venta' }} · {{ num(p.shares, 0 if p.shares == p.shares|int else 2) }} a {{ num(p.price, 2) }} {{ p.cur }}</span>
+                        <button type="button" class="btn btn-link btn-sm p-0 ms-auto text-muted" data-dj-edit title="Anotar el porqué"><i class="bi bi-pencil"></i></button>
+                    </div>
+                </div>
+            {% else %}
+                <div class="small text-muted">Todas tus operaciones tienen su porqué.</div>
+            {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="dj-card">
+        <form class="d-flex align-items-center gap-2 mb-1" method="get" action="/diario">
+            <div class="dj-h mb-0 me-auto" title="Tus notas y el porqué de tus operaciones">Lo que has escrito · {{ notes|length }}</div>
+            <select name="ticker" class="form-select form-select-sm w-auto" onchange="this.form.submit()" aria-label="Empresa">
+                <option value="">Todas las empresas</option>
+                {% for t in choices %}<option value="{{ t }}" {{ 'selected' if t == ticker }}>{{ clean_ticker(t) }}</option>{% endfor %}
+            </select>
+        </form>
+        <div data-fit="200">
+        {% for n in notes %}
+            <div class="dj-item" {% if n.kind == 'op' %}data-refs="{{ n.refs|tojson|forceescape }}" data-ticker="{{ n.ticker }}"{% else %}data-note-id="{{ n.id }}" data-date="{{ n.date }}"{% endif %}>
+                <div class="d-flex align-items-center gap-2 small">
+                    {% if n.kind == 'op' %}<i class="bi bi-arrow-left-right {{ 'text-success' if n.type == 'BUY' else 'text-danger' }}" title="El porqué de una operación"></i>
+                    {% else %}<i class="bi bi-journal-text text-primary" title="Nota"></i>{% endif %}
+                    <span class="text-muted num-font">{{ dmy(n.date) }}</span>
+                    <a href="/ticker/{{ n.ticker }}#diario" class="fw-bold text-decoration-none" title="Su diario, con sus operaciones y su tesis">{{ clean_ticker(n.ticker) }}</a>
+                    {% if n.kind == 'op' %}<span class="text-muted">{{ 'compra' if n.type == 'BUY' else 'venta' }} · {{ num(n.shares, 0 if n.shares == n.shares|int else 2) }} a {{ num(n.price, 2) }} {{ n.cur }}</span>{% endif %}
+                    <span class="ms-auto d-flex gap-1">
+                        <button type="button" class="btn btn-link btn-sm p-0 text-muted" data-dj-edit title="Editar"><i class="bi bi-pencil"></i></button>
+                        {% if n.kind == 'note' %}<button type="button" class="btn btn-link btn-sm p-0 text-muted" data-dj-del title="Borrar"><i class="bi bi-trash"></i></button>{% endif %}
+                    </span>
+                </div>
+                <div class="dj-text small {{ 'fst-italic' if n.kind == 'op' }}" data-text="{{ n.text }}">{{ '«' ~ n.text ~ '»' if n.kind == 'op' else n.text }}</div>
+            </div>
+        {% else %}
+            <div class="small text-muted pt-2">{{ 'Nada escrito de ' ~ clean_ticker(ticker) ~ '.' if ticker else 'Aún no hay nada escrito. Apunta la primera a la izquierda o desde el botón «Diario» de la ficha de cada empresa.' }}</div>
+        {% endfor %}
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+    async function send(url, method, payload) {
+        const r = await fetch(url, {method, headers: {'Content-Type': 'application/json'}, body: payload ? JSON.stringify(payload) : undefined});
+        if (!r.ok) { const d = await r.json().catch(() => ({})); showToast('Diario', d.detail || 'No se pudo guardar', 'error'); return false; }
+        return true;
+    }
+    document.getElementById('djNew').addEventListener('submit', async e => {
+        e.preventDefault();
+        const f = e.target, t = f.ticker.value.trim().toUpperCase();
+        if (t && await send(`/api/ticker/${encodeURIComponent(t)}/notas`, 'POST', {text: f.text.value, date: f.date.value || null})) location.reload();
+    });
+    document.querySelector('.dj-wrap').addEventListener('click', async e => {
+        const item = e.target.closest('.dj-item');
+        if (!item) return;
+        if (e.target.closest('[data-dj-del]')) {
+            if (confirm('¿Borrar esta nota?') && await send(`/api/notas/${item.dataset.noteId}`, 'DELETE')) location.reload();
+        } else if (e.target.closest('[data-dj-edit]') && !item.querySelector('textarea')) {
+            const box = item.querySelector('.dj-text'), old = box ? box.dataset.text : '';
+            const ed = document.createElement('div');
+            ed.className = 'mt-1';
+            ed.innerHTML = `<textarea class="form-control form-control-sm" rows="3" maxlength="${item.dataset.refs ? 1000 : 2000}"
+                placeholder="${item.dataset.refs ? 'Por qué compraste o vendiste' : ''}">${esc(old)}</textarea>
+                <div class="text-end mt-1"><button type="button" class="btn btn-sm btn-link text-muted" data-cancel>Cancelar</button>
+                <button type="button" class="btn btn-sm btn-primary" data-save>Guardar</button></div>`;
+            box?.classList.add('d-none');
+            item.appendChild(ed);
+            ed.querySelector('textarea').focus();
+            ed.querySelector('[data-cancel]').onclick = () => { ed.remove(); box?.classList.remove('d-none'); };
+            ed.querySelector('[data-save]').onclick = async () => {
+                const text = ed.querySelector('textarea').value;
+                const ok = item.dataset.refs
+                    ? await send('/api/portfolio/transaction/note', 'POST', {ticker: item.dataset.ticker, refs: JSON.parse(item.dataset.refs), note: text})
+                    : await send(`/api/notas/${item.dataset.noteId}`, 'POST', {text, date: item.dataset.date});
+                if (ok) location.reload();
+            };
+        }
+    });
+})();
+</script>
+{% endblock %}

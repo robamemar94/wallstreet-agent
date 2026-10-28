@@ -12,7 +12,6 @@ from file_manager import load_agent_config, load_task_config, load_prompts_confi
 from tools.search_tool import (
     search_internet,
     search_bull_bear_thesis,
-    simulate_bull_bear_debate,
     search_financial_data,
     search_capital_allocation,
     get_yfinance_metrics,
@@ -23,17 +22,22 @@ from tools.search_tool import (
     buscar_sec_filings,
     buscar_transcripcion_earnings,
     buscar_noticias_directivos,
-    get_technical_analysis_data
+    get_technical_analysis_data,
+    get_company_events
 )
 
 _agents_cache: Dict[Tuple[str, bool], Agent] = {}
+
+# Pasos de razonamiento/herramientas por agente: cada paso reenvía todo el prompt (antes 30; ninguno necesita tantos)
+MAX_ITER = 12
 
 def get_tools_for_agent(agent_name: str, has_audit_data: bool = False):
     """Devuelve solo las herramientas específicas que necesita cada agente."""
     if agent_name in ['forensic_auditor', 'results_analyst', 'balance_analyst', 'cashflow_analyst']:
         tools = [get_yfinance_metrics, tool_generate_15y_financials, search_internet]
     elif agent_name == 'moat_analyst':
-        tools = [search_bull_bear_thesis, simulate_bull_bear_debate, search_internet]
+        # sin simulate_bull_bear_debate: se inventaba el debate sin fuentes; lo adversarial lo hace el destructor de tesis
+        tools = [search_bull_bear_thesis, search_internet]
     elif agent_name == 'capital_allocation_specialist':
         tools = [search_capital_allocation, search_internet]
     elif agent_name == 'management_specialist':
@@ -41,7 +45,7 @@ def get_tools_for_agent(agent_name: str, has_audit_data: bool = False):
     elif agent_name in ['business_model', 'pe_forensic', 'thesis_destroyer']:
         tools = [search_internet]
     elif agent_name == 'investment_director':
-        tools = [search_bull_bear_thesis, search_internet]
+        tools = [search_bull_bear_thesis, search_internet, get_company_events]
     elif agent_name == 'valuation_agent':
         tools = [get_yfinance_metrics, get_yfinance_financials, get_analyst_estimates, calculate_irr_scenarios, search_internet]
     elif agent_name == 'technical_analyst':
@@ -91,7 +95,7 @@ def get_agent(agent_name: str, has_audit_data: bool = False) -> Agent:
         allow_delegation=False,
         tools=get_tools_for_agent(agent_name, has_audit_data),
         llm=get_llm(agent_config.get('model', '')),
-        max_iter=30
+        max_iter=MAX_ITER
     )
     return agent
 
@@ -112,7 +116,9 @@ def create_task(task_name: str, agent: Agent, format_args: dict, methodology: st
         expected_output = task_config['expected_output'].format(**args_with_methodology) + "\n\n" + prompts['valuation_summary_instruction']
     elif task_name == 'technical_analysis_task':
         expected_output = task_config['expected_output'].format(**args_with_methodology) + "\n\n" + prompts['technical_summary_instruction']
-    elif task_name in ['forensic_audit_task', 'business_model_task', 'moat_analyst_task', 'investment_director_task', 'evaluate_management_task', 'capital_allocation_task', 'rules_auditor_task', 'pe_forensic_task', 'thesis_task', 'thesis_destroyer_task'] or task_name.startswith('rules_pilar'):
+    # business_model_task y evaluate_management_task no llevan <resumen>: son la primera mitad de un Crew
+    # (merge_crew_outputs) y el resumen que cuenta es el del segundo agente
+    elif task_name in ['forensic_audit_task', 'moat_analyst_task', 'investment_director_task', 'capital_allocation_task', 'rules_auditor_task', 'pe_forensic_task', 'thesis_task', 'thesis_destroyer_task'] or task_name.startswith('rules_pilar'):
         expected_output = task_config['expected_output'].format(**args_with_methodology) + "\n\n" + prompts['summary_instruction']
     else:
         # Para tareas intermedias especializadas de analistas, no forzamos la salida del XML de resumen
@@ -132,6 +138,24 @@ def execute_crew(agent: Agent, task: Task) -> str:
     except Exception as e:
         logging.error(f"Error during crew kickoff: {e}", exc_info=True)
         raise
+
+def merge_crew_outputs(crew_result) -> str:
+    """Informe de un Crew secuencial de dos agentes: la sección del primero dentro del informe del segundo, tras su
+    título («# …»). Así no depende de que el segundo agente copie al primero (gastaba tokens y a veces lo omitía)."""
+    outputs = [getattr(t, "raw", "") or "" for t in (getattr(crew_result, "tasks_output", None) or [])]
+    if len(outputs) < 2:
+        return str(crew_result)
+    first, last = outputs[0].strip(), outputs[-1]
+    lines = last.split("\n")
+    title = next((i for i, line in enumerate(lines) if line.startswith("# ")), None)
+    if title is None:
+        return first + "\n\n" + last
+    # tras el título y su subtítulo «> …», si lo hay
+    at = title + 1
+    while at < len(lines) and (not lines[at].strip() or lines[at].startswith(">")):
+        at += 1
+    return "\n".join(lines[:at] + ["", first, ""] + lines[at:])
+
 
 def create_agent_and_task(agent_name: str, task_name: str, format_args: dict, feedback: str = "") -> str:
     """Helper facade to coordinate agent creation, task creation, and execution."""

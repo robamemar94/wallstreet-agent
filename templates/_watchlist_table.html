@@ -16,12 +16,12 @@
 
 {% macro wl_row(r) %}{% set v = r.val %}{% set band = zone_band.get(v.zone) if v else none %}
     {% set m = r.mine %}
-    <tr data-wl-ticker="{{ r.ticker }}" data-group="{{ r.group }}" data-mine="{{ ('hit' if m.hit else 'set') if m else '' }}" data-origins="{{ r.origins|join(' ') }}" data-themes="{{ r.themes|join('|') }}" data-held="{{ 'true' if r.held else 'false' }}" data-role="{{ r.role or '' }}"
+    <tr data-wl-ticker="{{ r.ticker }}" data-group="{{ r.group }}" data-mine="{{ ('hit' if m.hit else 'set') if m else '' }}" data-origins="{{ r.origins|join(' ') }}" data-themes="{{ r.themes|join('|') }}" data-held="{{ 'true' if r.held else 'false' }}" data-only-mine="{{ 'true' if r.only_mine else 'false' }}" data-mine-drop="{{ m.drop if m and m.drop is not none else '' }}" data-role="{{ r.role or '' }}"
         {% if v %}data-price="{{ r.price }}" data-buy="{{ v.buy_price }}" data-cagr="{{ v.cagr if v.cagr is not none else '' }}" data-legacy="{{ 'true' if v.inputs.legacy else 'false' }}"{% endif %}
         data-stale="{{ 'true' if (v and v.inputs.legacy) or (r.stale and r.stale.stale) else 'false' }}">
         <td data-sort="{{ r.ticker }}"><a href="/ticker/{{ r.ticker }}" class="text-decoration-none fw-bold">{{ r.ticker }}</a>
             <span class="text-muted small wl-name" title="{{ r.name }}">{{ r.name }}</span>
-            {% if r.held %}<span class="badge text-bg-secondary">en cartera</span>
+            {% if r.held %}<span class="badge text-bg-secondary" title="En cartera{{ ' · pesa ' ~ num(r.weight, 1) ~ ' %' if r.weight is not none }}{{ ' · tu precio es para ampliar' if m }}">{{ 'Ampliar' if m else 'en cartera' }}{{ ' · ' ~ num(r.weight, 1) ~ ' %' if r.weight is not none }}</span>
             {% elif r.tier == '1' %}<span class="badge text-bg-success" title="Tier 1 · objetivo: la comprarías si llega a precio (todos los avisos)">T1</span>
             {% elif r.tier == '2' %}<span class="badge text-bg-info" title="Tier 2 · vigilancia: aviso solo al entrar en zona de compra">T2</span>{% endif %}
             {% if r.themes %}<i class="bi bi-collection text-muted ms-1" title="Listas: {{ r.themes|join(', ') }}"></i>{% endif %}
@@ -47,7 +47,7 @@
         <td class="text-end num-font" data-sort="{{ m.drop if m and m.drop is not none else '' }}">
             <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none wl-mine {{ '' if m else 'text-muted opacity-50' }}" data-mine-price="{{ m.price if m else '' }}" data-cur="{{ r.cur }}"
                     onclick="wlEditMyPrice('{{ r.ticker }}', this)" aria-label="Tu precio de compra de {{ r.ticker }}"
-                    title="{{ ('Tu precio de compra, puesto el ' ~ m.set_at[8:10] ~ '/' ~ m.set_at[5:7] ~ '/' ~ m.set_at[2:4] ~ ' (hace ' ~ m.age_days ~ ' días)' ~ (' · toca revisarlo: guárdalo de nuevo aunque sea el mismo' if m.review_due else '') ~ '. Pulsa para cambiarlo o quitarlo') if m else 'Poner tu precio de compra (aparte de la valoración): avisa al alcanzarlo' }}">
+                    title="{{ ('Fijado el ' ~ m.set_at[8:10] ~ '/' ~ m.set_at[5:7] ~ '/' ~ m.set_at[2:4] ~ (' · pendiente de revisar' if m.review_due else '')) if m else 'Añadir mi precio' }}">
             {%- if m -%}
                 {{ num(m.price, r.dec|default(2)) }}{% if m.review_due %} <i class="bi bi-clock-history text-warning"></i>{% endif %}
                 <span class="d-block small {{ 'text-success fw-bold' if m.hit else ('text-warning' if m.drop is not none and m.drop <= near else 'text-muted') }}">{{ '✓ alcanzado' if m.hit else ('−' ~ num(m.drop, 1) ~ ' %' if m.drop is not none else '–') }}</span>
@@ -87,9 +87,9 @@
         <th class="sortable" data-type="text">Empresa</th>
         <th class="text-end sortable">Precio</th>
         <th class="text-end sortable">Día</th>
-        <th class="sortable" title="Lo que tendría que caer el precio para llegar al de compra (el que te daría un {{ num(target, 0) }} % anual). El color es la zona de valoración">Distancia a compra</th>
+        <th class="sortable" title="Caída hasta el precio de compra ({{ num(target, 0) }} % anual). Barra: zona de valoración">Distancia a compra</th>
         <th class="text-end sortable" title="Rentabilidad anual estimada comprando hoy según la valoración base (con dividendos); el color es la zona">CAGR est.</th>
-        <th class="text-end sortable" title="Tu precio de compra puesto a mano (aparte de la valoración) y lo que falta para llegar. Avisa al alcanzarlo y pide revisarlo cada {{ my_review }} días">Mi precio</th>
+        <th class="text-end sortable" title="Precio de compra propio; avisa al alcanzarlo">Mi precio</th>
         <th class="text-end sortable" title="Caída desde el máximo de 52 semanas">Máx. 52s</th>
         <th></th>
     </tr></thead>

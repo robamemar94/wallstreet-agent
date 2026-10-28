@@ -8,6 +8,12 @@
 {% macro when(i) %}<span class="font-monospace-data text-nowrap" style="min-width:4.6rem;">{{ i.date.strftime('%d/%m') }}
     <span class="{{ 'text-warning fw-bold' if i.days <= 2 else 'text-muted' }}">{{ 'hoy' if i.days == 0 else ('mañana' if i.days == 1 else i.days ~ ' d') }}</span></span>{% endmacro %}
 
+{# Cuándo publica (hora de Sevilla; la clave interna se llama «madrid» porque es la zona Europe/Madrid): amanecer = antes de la apertura, luna = tras el cierre; en sesión, solo la hora. Sin dato fiable, nada #}
+{% macro rel_time(t, hour=false) %}{% if t %}{% set tip = {'pre': 'Antes de la apertura', 'after': 'Tras el cierre', 'time': 'En sesión'}[t.kind] ~ ' · ' ~ t.madrid ~ ' h (Sevilla)' %}<span class="text-muted ms-1 text-nowrap" title="{{ tip }}"><i class="bi {{ {'pre': 'bi-sunrise', 'after': 'bi-moon-stars', 'time': 'bi-clock'}[t.kind] }}"></i>{% if hour %} {{ t.madrid }}{% endif %}</span>{% endif %}{% endmacro %}
+
+{# Los resultados de un día agrupados por momento (ya ordenados): el icono va una vez por grupo, no por empresa #}
+{% macro kind_icon(k) %}{% if k %}<i class="bi {{ {'pre': 'bi-sunrise', 'after': 'bi-moon-stars', 'time': 'bi-clock'}[k] }} text-muted" title="{{ {'pre': 'Antes de la apertura', 'after': 'Tras el cierre', 'time': 'En sesión'}[k] }}"></i> {% endif %}{% endmacro %}
+
 {% macro heading(text, extra='') %}<div class="text-muted fw-bold mb-2" style="font-size:.72rem;letter-spacing:.05em;">{{ text }}{% if extra %} <span class="fw-normal">{{ extra }}</span>{% endif %}</div>{% endmacro %}
 
 {% macro thesis_link(t, tid) %}{% if tid %}<a href="/tesis/{{ tid }}" class="text-decoration-none fw-bold">{{ t }}</a>{% else %}<strong>{{ t }}</strong>{% endif %}{% endmacro %}
@@ -36,7 +42,7 @@
     {{ heading('RESULTADOS ' ~ span(w)|upper) }}
     <ul class="list-unstyled mb-0">
     {% for i in w.upcoming %}<li class="d-flex gap-2 mb-2">{{ when(i) }}
-        <span><i class="bi bi-clipboard-data text-primary me-1"></i>{{ thesis_link(i.ticker, theses_ids.get(i.ticker)) }} presenta resultados</span>
+        <span><i class="bi bi-clipboard-data text-primary me-1"></i>{{ thesis_link(i.ticker, theses_ids.get(i.ticker)) }} presenta resultados{{ rel_time(i.time) }}</span>
     </li>{% else %}<li class="text-muted">Sin resultados {{ span(w) }}.</li>{% endfor %}
     </ul>
 </div>
@@ -59,7 +65,7 @@
     {{ heading('PRESENTAN ' ~ span(w)|upper) }}
     <ul class="list-unstyled mb-0 agenda-grid">
     {% for i in w.upcoming %}{% set m = meta.get(i.ticker, {}) %}<li class="d-flex gap-2 mb-2">{{ when(i) }}
-        <span><i class="bi bi-clipboard-data text-primary me-1"></i>{{ company(i.ticker, i.thesis_id, m) }}{% if m.zone %} {{ zone_badge(m.zone) }}{% endif %}</span>
+        <span><i class="bi bi-clipboard-data text-primary me-1"></i>{{ company(i.ticker, i.thesis_id, m) }}{{ rel_time(i.time) }}{% if m.zone %} {{ zone_badge(m.zone) }}{% endif %}</span>
     </li>{% else %}<li class="text-muted">Ninguna de las que sigues presenta resultados {{ span(w) }}.</li>{% endfor %}
     </ul>
 </div>
@@ -103,7 +109,7 @@
         {% else %}nada de tu cartera{% endif %}</div>
     {% for d in items %}{% set res = w.upcoming|selectattr('date', 'equalto', d)|list %}{% set divs = w.dividends|selectattr('date', 'equalto', d)|list %}
     <div class="ag-row">{{ day_label(d, (res or divs)[0].days) }}
-        <span class="ag-what">{% if res %}<i class="bi bi-clipboard-data text-primary me-1" title="Presenta resultados"></i>{% for i in res %}{{ thesis_link(clean_ticker(i.ticker), theses_ids.get(i.ticker)) }}{{ ', ' if not loop.last }}{% endfor %} <span class="text-muted">resultados</span>{% endif %}
+        <span class="ag-what">{% if res %}<i class="bi bi-clipboard-data text-primary me-1" title="Presenta resultados"></i>{% for i in res %}{{ thesis_link(clean_ticker(i.ticker), theses_ids.get(i.ticker)) }}{{ rel_time(i.time) }}{{ ', ' if not loop.last }}{% endfor %} <span class="text-muted">resultados</span>{% endif %}
         {% for i in divs %}{{ ' · ' if res or not loop.first }}<i class="bi {{ 'bi-calendar-x' if i.kind == 'ex' else 'bi-cash-coin' }} text-success me-1" title="{{ 'Fecha ex-dividendo' if i.kind == 'ex' else 'Cobro de dividendo' }}"></i><strong>{{ clean_ticker(i.ticker) }}</strong> <span class="{{ 'text-muted' if i.kind == 'ex' else 'text-success' }}">{{ 'ex · ' if i.kind == 'ex' }}≈{{ num(i.gross_eur, 0) }} €</span>{% endfor %}</span>
     </div>
     {% else %}<div class="text-muted">Nada de tu cartera {{ span(w) }}.</div>{% endfor %}
@@ -113,7 +119,7 @@
 <div class="card-body small agenda-window d-none" data-agenda-view="resto" data-agenda-window="{{ key }}">
     <div class="ag-coming">{{ 'Próximos 7 días' if key == 'semana' else 'Próximos 30 días' }}: {% if w.upcoming %}<b>{{ w.upcoming|length }}</b> de las que sigues presenta{{ 'n' if w.upcoming|length > 1 }} resultados{% else %}ninguna de las que sigues presenta resultados{% endif %}</div>
     {% for i in w.upcoming %}{% set m = meta.get(i.ticker, {}) %}
-    <div class="ag-row">{{ day_label(i.date, i.days) }}<span class="ag-what"><i class="bi bi-clipboard-data text-primary me-1"></i>{{ company(clean_ticker(i.ticker), i.thesis_id, m) }}{% if m.zone %} {{ zone_badge(m.zone) }}{% endif %}</span></div>
+    <div class="ag-row">{{ day_label(i.date, i.days) }}<span class="ag-what"><i class="bi bi-clipboard-data text-primary me-1"></i>{{ company(clean_ticker(i.ticker), i.thesis_id, m) }}{{ rel_time(i.time) }}{% if m.zone %} {{ zone_badge(m.zone) }}{% endif %}</span></div>
     {% else %}<div class="text-muted">Ninguna de las que sigues presenta resultados {{ span(w) }}.</div>{% endfor %}
 </div>
 {% endmacro %}
@@ -177,7 +183,7 @@
             <span class="fw-semibold {{ 'text-success' if p.abs_eur > 0 else ('text-danger' if p.abs_eur < 0 else 'text-muted') }}">{{ num(p.abs_eur, 0, sign=True) }} €</span>
             <span class="text-muted">{% if p.benchmark_pct is not none %}· {{ benchmark }} {{ num(p.benchmark_pct, 2, sign=True) }}%{% elif p.benchmark_closed %}· {{ benchmark }} sin abrir{% endif %}
                 {% if p.closed %}· <span title="Su mercado aún no ha abierto (sin variación del precio; en euros solo cuenta la divisa): {% for x in p.closed %}{{ clean_ticker(x) }}{{ ', ' if not loop.last }}{% endfor %}"><i class="bi bi-moon"></i> {{ p.closed|length }} sin abrir</span>{% endif %}
-                <i class="bi bi-info-circle ms-1" title="Con los precios en directo, como la Cartera: en euros incluye la divisa. Las compras y ventas no cuentan como ganancia."></i></span>
+                <i class="bi bi-info-circle ms-1" title="Precios en directo, en € con divisa. Sin compras ni ventas"></i></span>
         </div>
         {% if p.gainers or p.losers %}<div class="mt-1">
             {% for m in p.gainers %}<span class="badge bg-success bg-opacity-10 text-success fw-normal me-1 mb-1">{{ clean_ticker(m.ticker) }} {{ num(m.pnl_eur, 0, sign=True) }} €</span>{% endfor %}
@@ -228,7 +234,7 @@
             <span class="fw-semibold {{ 'text-success' if p.abs_eur > 0 else ('text-danger' if p.abs_eur < 0 else 'text-muted') }}">{{ num(p.abs_eur, 0, sign=True) }} €</span>
         </div>
         <div class="text-muted">{% if p.benchmark_pct is not none %}{{ benchmark }} {{ num(p.benchmark_pct, 2, sign=True) }}% en el mismo periodo{% endif %}
-            <i class="bi bi-info-circle ms-1" title="Días corridos, como la agenda y la banda de variación de Cartera (1S son 7 días; 1M, un mes natural). Las compras y ventas no cuentan como ganancia."></i>
+            <i class="bi bi-info-circle ms-1" title="Días corridos (1S = 7 días; 1M = mes natural). Sin compras ni ventas"></i>
             {% if p.incomplete %}<span class="text-warning" title="Yahoo no ha dado su precio de esa fecha: quedan fuera del cálculo"><i class="bi bi-exclamation-triangle"></i> sin {{ p.incomplete|join(', ') }}</span>{% endif %}</div>
         {% else %}<span class="text-muted">Sin datos de precios.</span>{% endif %}
     </div>

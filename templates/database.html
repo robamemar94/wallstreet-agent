@@ -28,7 +28,6 @@
     .filter-chip-clear { font-size: .72rem; }
 </style>
 {% from "_ui_macros.html" import chg_pill, stale_pill %}
-{% set roles = portfolio_roles() %}{% set roles_by_key = {} %}{% for r in roles %}{% set _ = roles_by_key.update({r.key: r}) %}{% endfor %}
 <style>
     /* Estilos ultra-compactos y profesionales para la Base de Datos */
     .table-modern {
@@ -146,9 +145,20 @@
     h2, h3, h4, h5, h6 {
         color: var(--text-primary) !important;
     }
-    /* rol en cartera junto al ticker: «+ rol» solo al pasar por la fila */
-    .role-tag { white-space: nowrap; font-size: .65rem; border: 1px solid var(--bs-border-color); border-radius: 1rem; padding: 0 .45rem; background: transparent; color: var(--bs-body-color); line-height: 1.4; }
-    .role-cell .role-tag { padding: 0 .35rem; font-size: .75rem; }
+    /* globo sobre la celda (subsector en Sector; Normas y Veredicto en Media) */
+    .tip-cell { position: relative; }
+    .tip-pop { display: none; position: absolute; left: 0; bottom: calc(100% - 6px); z-index: 20; white-space: nowrap; pointer-events: none;
+        padding: .2rem .55rem; border-radius: .4rem; font-size: .72rem; font-weight: 600; background: var(--bs-body-bg); color: var(--bs-body-color);
+        border: 1px solid var(--bs-border-color); box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .3); }
+    .tip-pop-end { left: auto; right: 0; }
+    .tip-pop-mid { left: 50%; transform: translateX(-50%); }
+    .tip-pop-row { gap: .7rem; }
+    .tip-cell:hover .tip-pop { display: block; }
+    .tip-cell:hover .tip-pop-row { display: flex; }
+    /* sector (primera lectura) › subsector (más pequeño y apagado) */
+    .sec-main { font-weight: 500; }
+    .sec-sep { opacity: .45; margin: 0 .3rem; }
+    .sec-sub { font-size: .92em; color: var(--bs-secondary-color); opacity: .85; }
     .var-abs { font-size: .66rem; font-weight: 600; line-height: 1.1; }
     /* Filtros: tantos por línea como quepan (los 8 en una en cuanto hay ~1000 px) */
     .filters-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: .5rem; }
@@ -164,8 +174,6 @@
     .val-none { color: var(--bs-secondary-color); border: 1px dashed var(--bs-border-color); text-decoration: none; opacity: .7; }
     .val-none:hover { opacity: 1; color: var(--bs-primary); border-color: var(--bs-primary); }
     .val-burbuja { color: #dc2626; background: rgba(239, 68, 68, .14); }
-    .role-tag.role-empty { color: var(--bs-secondary-color); border-style: dashed; opacity: .55; }
-    .ticker-row:hover .role-tag.role-empty, .role-dd.show .role-tag { opacity: 1; }
 </style>
 
 <div class="row">
@@ -445,6 +453,9 @@
                 </li>
                 <li class="nav-item db-tabs-sep" role="presentation" aria-hidden="true"></li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="ready-tab" data-bs-toggle="tab" data-bs-target="#tab-ready" type="button" role="tab" title="Con veredicto y normas de calidad, sin aceptar ni nivel"><span class="tab-dot" style="--mark: #58a6ff;"></span>Por aceptar <span class="tab-count" data-tab-count="ready-tab"></span></button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#tab-pending" type="button" role="tab"><span class="tab-dot" style="--mark: #8b949e;"></span>Pendientes <span class="tab-count" data-tab-count="pending-tab"></span></button>
                 </li>
                 <li class="nav-item" role="presentation">
@@ -485,19 +496,19 @@
                 <table class="table table-modern align-middle mb-0" id="dbTable" style="table-layout: fixed; width: 100%;">
                     <thead>
                         <tr style="cursor: pointer;">
-                            <th class="ps-3" style="width: 7.5%;" onclick="sortRows(0)"><input type="checkbox" class="form-check-input me-1" id="dbPickAll" title="Seleccionar las visibles" onclick="event.stopPropagation(); dbPickAll(this.checked)">Ticker</th>
-                            <th style="width: 20%;" onclick="sortRows(1)">Nombre</th>
-                            <th class="text-center" style="width: 4%;" onclick="sortRows(2)">País</th>
-                            <th style="width: 11.5%;" onclick="sortRows(3)">Sector</th>
-                            <th style="width: 11.5%;" onclick="sortRows(4)">Subsector</th>
-                            <th class="text-end" style="width: 9%;" onclick="sortRows(5)" title="Capitalización en USD (acciones en circulación × último precio × tipo de cambio) y su categoría">Capitalización</th>
-                            <th class="text-end" style="width: 7%;" onclick="sortRows(6)" title="Último precio y, debajo, cuánto se ha movido en su moneda en el periodo">Precio</th>
-                            <th class="text-end" style="width: 8.5%;" onclick="sortRows(7)" title="Variación en %">Var. % <span class="var-header-period"></span></th>
-                            <th class="text-center" style="width: 4.5%;" onclick="sortRows(8)" title="Nota de las Normas de Calidad (0-10)">Normas</th>
-                            <th class="text-center" style="width: 4.5%;" onclick="sortRows(9)" title="Nota del Veredicto Final (0-10)">Verd.</th>
-                            <th class="text-center" style="width: 4.5%;" onclick="sortRows(10)" title="Media de Normas y Veredicto">Media</th>
-                            <th class="text-center" style="width: 6%;" onclick="sortRows(11)" title="Zona de valoración">Valor.</th>
-                            <th class="text-center" style="width: 3.5%;" onclick="sortRows(12)" title="Rol en el Portfolio ideal">Rol</th>
+                            <th class="ps-3" style="width: 7%;" onclick="sortRows(0)"><input type="checkbox" class="form-check-input me-1" id="dbPickAll" title="Seleccionar las visibles" onclick="event.stopPropagation(); dbPickAll(this.checked)">Ticker</th>
+                            <th style="width: 19.5%;" onclick="sortRows(1)">Nombre</th>
+                            <th class="text-end" style="width: 6.5%;" onclick="sortRows(2)" title="Último precio y, debajo, cuánto se ha movido en su moneda en el periodo">Precio</th>
+                            <th class="text-end" style="width: 8%;" onclick="sortRows(3)" title="Variación en %">Var. % <span class="var-header-period"></span></th>
+                            <th class="text-center" style="width: 3.5%;" onclick="sortRows(4)">País</th>
+                            <th style="width: 18%;" onclick="sortRows(5)" title="Sector y subsector. Ordena por sector y, dentro de él, por subsector">Sector</th>
+                            <th class="text-center px-1" style="width: 4.5%;" onclick="sortRows(6)" title="Capitalización: tamaño de la empresa. Al pasar el ratón por la etiqueta, su valor en USD">Cap.</th>
+                            <th class="text-end text-nowrap" style="width: 5.5%;" onclick="sortRows(7)" title="Margen operativo del último ejercicio">Mg. oper.</th>
+                            <th class="text-end text-nowrap" style="width: 5.5%;" onclick="sortRows(8)" title="Crecimiento de ventas que esperan los analistas para el año que viene">Vtas. esp.</th>
+                            <th class="text-end text-nowrap" style="width: 5%;" onclick="sortRows(9)" title="PER forward: precio sobre el beneficio esperado (último guardado)">PER fwd</th>
+                            <th class="text-end text-nowrap" style="width: 5.5%;" onclick="sortRows(10)" title="Deuda neta sobre EBITDA del último ejercicio (negativo: más caja que deuda)">ND/EBITDA</th>
+                            <th class="text-center text-nowrap px-1" style="width: 5%;" onclick="sortRows(11)" title="Media de Normas y Veredicto (nota 0-10). Al pasar el ratón, cada una">Media</th>
+                            <th class="text-center" style="width: 5.5%;" onclick="sortRows(12)" title="Zona de valoración">Valor.</th>
                             <th class="text-center actions-column" style="width: 15%; display: none;">Acciones</th>
                         </tr>
                     </thead>
@@ -508,9 +519,9 @@
                         <tr class="ticker-row"
                             data-ticker="{{ t.name }}"
                             data-status="{{ t.status }}"
-                            data-role="{{ t.role or '' }}"
                             data-is-favorite="{{ 'true' if t.is_favorite else 'false' }}"
                             data-tier="{{ t.tier }}"
+                            data-ready="{{ 'true' if t.ready else 'false' }}"
                             data-is-portfolio="{{ 'true' if t.is_portfolio else 'false' }}"
                             data-country="{{ t.country }}"
                             data-region="{{ t.region }}"
@@ -533,12 +544,6 @@
                             <td class="align-middle fw-semibold text-truncate" data-sort-value="{{ t.company_name }}">
                                 <span class="company-name text-truncate" style="max-width: 100%; display: inline-block; vertical-align: middle;">{{ t.company_name }}</span>
                             </td>
-                            {% set ciso = country_iso(t.country) %}<td class="text-muted align-middle text-center country-cell" data-sort-value="{{ t.country }}" data-iso="{{ ciso[0] }}" data-name="{{ ciso[1] }}" title="{{ ciso[1] }}" onclick="event.stopPropagation(); toggleCountry(this)">{{ ciso[0] }}</td>
-                            <td class="text-muted align-middle text-truncate" style="max-width: 180px;" data-sort-value="{{ t.sector }}">{{ t.sector }}</td>
-                            <td class="text-muted align-middle text-truncate" style="max-width: 180px;" data-sort-value="{{ t.subsector }}">{{ t.subsector }}</td>
-                            <td class="text-end align-middle num-font small text-nowrap" data-sort-value="{{ t.mcap.usd if t.mcap else '-' }}" {% if t.mcap %}title="{{ t.mcap.tier.name }} · {{ t.mcap.tier.range }}"{% endif %}>
-                                {% if t.mcap %}{{ t.mcap.label }} <span class="cap-badge cap-{{ t.mcap.tier.key }}">{{ t.mcap.tier.name|replace(' cap', '') }}</span>{% else %}<span class="text-muted" title="Aún sin acciones en circulación: se descargan en segundo plano">–</span>{% endif %}
-                            </td>
                             <td class="text-end align-middle fw-bold num-font text-nowrap" data-sort-value="{{ t.market_data.price }}">
                                 {{ format_euro(t.market_data.price, 2) }} {{ t.currency_symbol }}
                                 {% if t.market_data.not_open %}{% set lc = t.market_data.last_change %}
@@ -555,15 +560,16 @@
                             {% else %}
                             <td class="text-end align-middle var-cell" data-sort-value="{{ t.market_data.pct }}" data-abs-1d="{{ t.market_data.change }}" data-pct-1d="{{ t.market_data.pct }}" data-price="{{ t.market_data.price }}">{{ chg_pill(t.market_data.pct) }}</td>
                             {% endif %}
+                            {% set ciso = country_iso(t.country) %}<td class="text-muted align-middle text-center country-cell" data-sort-value="{{ t.country }}" data-iso="{{ ciso[0] }}" data-name="{{ ciso[1] }}" title="{{ ciso[1] }}" onclick="event.stopPropagation(); toggleCountry(this)">{{ ciso[0] }}</td>
+                            <td class="align-middle text-truncate small" data-sort-value="{{ t.sector }} · {{ t.subsector }}"><span class="sec-main">{{ t.sector }}</span>{% if t.subsector and t.subsector != '-' %}<span class="sec-sep">›</span><span class="sec-sub">{{ t.subsector }}</span>{% endif %}</td>
+                            <td class="tip-cell text-center align-middle small text-nowrap" data-sort-value="{{ t.mcap.usd if t.mcap else '-' }}">
+                                {% if t.mcap %}<span class="cap-badge cap-{{ t.mcap.tier.key }}">{{ t.mcap.tier.name|replace(' cap', '') }}</span><span class="tip-pop tip-pop-mid num-font">{{ t.mcap.label }}</span>{% else %}<span class="text-muted" title="Aún sin acciones en circulación: se descargan en segundo plano">–</span>{% endif %}
+                            </td>
                             {% set r_score = t.get('rules_score', '-') %}
-                            <td class="text-center fw-bold align-middle num-font {% if r_score != '-' %}{% if r_score|float >= 8.0 %}text-success{% elif r_score|float <= 5.0 %}text-danger{% else %}text-warning{% endif %}{% else %}text-muted{% endif %}" data-sort-value="{{ r_score }}">
-                                {{ r_score }}
-                            </td>
-                            {% set tooltip_title = t.get('score_tooltip', 'Sin notas registradas') %}
-                            <td class="text-center fw-bold align-middle num-font {% if v_score != '-' %}{% if v_score|float >= 8.0 %}text-success{% elif v_score|float <= 5.0 %}text-danger{% else %}text-warning{% endif %}{% else %}text-muted{% endif %}"
-                                title="{{ tooltip_title }}" style="cursor: help;" data-sort-value="{{ v_score }}">
-                                <span>{{ v_score }}</span>
-                            </td>
+                            <td class="text-end align-middle num-font small text-nowrap{% if t.op_margin is not none %}{% if t.op_margin >= 20 %} text-success{% elif t.op_margin < 5 %} text-danger{% endif %}{% endif %}" data-sort-value="{{ t.op_margin if t.op_margin is not none else '-' }}">{% if t.op_margin is not none %}{{ num(t.op_margin, 1) }} %{% else %}<span class="text-muted">–</span>{% endif %}</td>
+                            <td class="text-end align-middle num-font small text-nowrap{% if t.sales_est is not none %}{% if t.sales_est >= 10 %} text-success{% elif t.sales_est < 0 %} text-danger{% endif %}{% endif %}" data-sort-value="{{ t.sales_est if t.sales_est is not none else '-' }}">{% if t.sales_est is not none %}{{ num(t.sales_est, 1, sign=True) }} %{% else %}<span class="text-muted">–</span>{% endif %}</td>
+                            <td class="text-end align-middle num-font small text-nowrap" data-sort-value="{{ t.fwd_pe if t.fwd_pe is not none else '-' }}">{% if t.fwd_pe is not none %}{{ num(t.fwd_pe, 1) }}x{% else %}<span class="text-muted">–</span>{% endif %}</td>
+                            <td class="text-end align-middle num-font small text-nowrap{% if t.net_debt_ebitda is not none %}{% if t.net_debt_ebitda <= 1 %} text-success{% elif t.net_debt_ebitda > 3 %} text-danger{% endif %}{% endif %}" data-sort-value="{{ t.net_debt_ebitda if t.net_debt_ebitda is not none else '-' }}">{% if t.net_debt_ebitda is not none %}{{ num(t.net_debt_ebitda, 1) }}x{% else %}<span class="text-muted" title="Sin cuentas o sin EBITDA positivo">–</span>{% endif %}</td>
                             {# Calcular la nota media de calidad (Normas + Veredicto) #}
                             {% set has_v = (v_score != '-') %}
                             {% set has_r = (r_score != '-') %}
@@ -581,8 +587,11 @@
                                 {% set media_str = "-" %}
                             {% endif %}
                             {% if media_str != '-' %}
-                            <td class="text-center fw-bold align-middle num-font {% if media_val >= 8.0 %}text-success{% elif media_val <= 5.0 %}text-danger{% else %}text-warning{% endif %}" data-sort-value="{{ media_val }}">
-                                {{ media_str }}
+                            <td class="tip-cell text-center fw-bold align-middle num-font {% if media_val >= 8.0 %}text-success{% elif media_val <= 5.0 %}text-danger{% else %}text-warning{% endif %}" data-sort-value="{{ media_val }}">
+                                <span class="nota-main">{{ num(media_val, 2) }}</span>
+                                <span class="tip-pop tip-pop-end tip-pop-row">
+                                    {% for lab, sc, ok in [('Normas', r_score, has_r), ('Verd.', v_score, has_v)] %}<span class="{% if not ok %}text-muted{% elif sc|float >= 8.0 %}text-success{% elif sc|float <= 5.0 %}text-danger{% else %}text-warning{% endif %}">{{ lab }} {{ num(sc|float, 1) if ok else '–' }}</span>{% endfor %}
+                                </span>
                             </td>
                             {% else %}
                             <td class="text-center fw-bold align-middle text-muted num-font" data-sort-value="-">
@@ -595,22 +604,17 @@
                                     {% if vz %}<span class="val-tag val-{{ vz[0] }}">{{ vz[1] }}</span>{% else %}<a class="val-tag val-none" href="/ticker/{{ t.name }}#valoracion" onclick="event.stopPropagation();" title="Sin valoración: pulsa para hacerla en la ficha">Valorar</a>{% endif %}
                                 </div>
                             </td>
-                            <td class="text-center align-middle role-cell" data-sort-value="{{ t.role if t.role in roles_by_key else '' }}" onclick="event.stopPropagation();">
-                                    <span class="dropdown role-dd">
-                                        <button type="button" class="role-tag {{ 'role-empty' if t.role not in roles_by_key }}" data-bs-toggle="dropdown" aria-expanded="false" title="{{ t.role ~ ' · ' ~ roles_by_key[t.role].name if t.role in roles_by_key else 'Asignar rol en cartera' }}">{{ roles_by_key[t.role].emoji if t.role in roles_by_key else '+' }}</button>
-                                        <ul class="dropdown-menu dropdown-menu-sm dropdown-menu-end">
-                                            {% for r in roles %}<li><a class="dropdown-item small" href="#" onclick="event.preventDefault(); updateTickerRole('{{ t.name }}', '{{ r.key }}', this)">{{ r.emoji }} {{ r.name }}</a></li>{% endfor %}
-                                            <li><hr class="dropdown-divider"></li>
-                                            <li><a class="dropdown-item small text-muted" href="#" onclick="event.preventDefault(); updateTickerRole('{{ t.name }}', '', this)">Quitar rol</a></li>
-                                        </ul>
-                                    </span>
-                            </td>
                             <td class="text-center actions-column" style="display: none;" onclick="event.stopPropagation();">
                                 {% if t.status == 'PENDING' %}
                                 <div class="d-flex justify-content-center gap-1">
+                                    {% if t.ready %}{% for k, lab in [('1', 'T1'), ('2', 'T2'), ('seg', 'T3')] %}<button class="btn btn-xs btn-outline-success py-0 px-1 fw-semibold" style="font-size: 0.68rem;" onclick="acceptAsTier('{{ t.name }}', '{{ k }}', this)" title="Aceptar como {{ lab }}">{{ lab }}</button>{% endfor %}
+                                    <button class="btn btn-xs btn-outline-warning py-0 px-1" style="font-size: 0.68rem;" onclick="updateTickerStatus('{{ t.name }}', 'STANDBY', this)" title="Mover a Dudas" aria-label="Dudas">🤔</button>
+                                    <button class="btn btn-xs btn-outline-danger py-0 px-1" style="font-size: 0.68rem;" onclick="updateTickerStatus('{{ t.name }}', 'REJECTED', this)" title="Descartar" aria-label="Descartar">❌</button>
+                                    {% else %}
                                     <button class="btn btn-xs btn-outline-success py-0 px-2 fw-semibold" style="font-size: 0.68rem;" onclick="updateTickerStatus('{{ t.name }}', 'ACCEPTED', this)" title="Aceptar (Tier 3)">✅ Aceptar</button>
                                     <button class="btn btn-xs btn-outline-warning py-0 px-2 fw-semibold text-dark" style="font-size: 0.68rem;" onclick="updateTickerStatus('{{ t.name }}', 'STANDBY', this)" title="Mover a Dudas">🤔 Dudas</button>
                                     <button class="btn btn-xs btn-outline-danger py-0 px-2 fw-semibold" style="font-size: 0.68rem;" onclick="updateTickerStatus('{{ t.name }}', 'REJECTED', this)" title="Descartar">❌ Descartar</button>
+                                    {% endif %}
                                 </div>
                                 {% else %}
                                 <div class="d-flex justify-content-center gap-1">
@@ -669,7 +673,7 @@
                 cell.setAttribute('data-sort-value', cell.getAttribute('data-pct-1d'));
                 renderVarCell(cell, pct, abs);
             });
-            if (currentSort.col === 7) sortRows(currentSort.col, false);
+            if (currentSort.col === 3) sortRows(currentSort.col, false);
             return;
         }
 
@@ -713,7 +717,7 @@
             cell.setAttribute('data-sort-value', pct);
             renderVarCell(cell, pct, null);
         });
-        if (currentSort.col === 7) sortRows(currentSort.col, false);
+        if (currentSort.col === 3) sortRows(currentSort.col, false);
     }
 
     // Var. % (píldora) y, debajo del precio, lo movido en su moneda. Para otros periodos solo llega el %: lo movido se saca del precio de hoy
@@ -815,7 +819,7 @@
     }
 
     const TAB_FILTER = {'all-tab': 'ALL', 'follow-tab': 'FOLLOW', 'fav-tab': 'FAVORITES', 'tier2-tab': 'TIER2', 'portfolio-tab': 'PORTFOLIO', 'accepted-tab': 'ACCEPTED',
-                        'pending-tab': 'PENDING', 'standby-tab': 'STANDBY', 'rejected-tab': 'REJECTED'};
+                        'ready-tab': 'READY', 'pending-tab': 'PENDING', 'standby-tab': 'STANDBY', 'rejected-tab': 'REJECTED'};
     const TAB_IDS = Object.keys(TAB_FILTER);
     // Si una fila va en una pestaña: Favoritas y los estados no repiten lo que ya está en cartera; Todas no incluye descartadas
     function inTab(row, tabFilter) {
@@ -830,6 +834,7 @@
         if (tabFilter === "ACCEPTED") return tier === "seg" && !isPort;
         if (tabFilter === "PORTFOLIO") return isPort;
         if (tabFilter === "ALL") return rowStatus !== "REJECTED";
+        if (tabFilter === "READY") return row.getAttribute("data-ready") === "true" && rowStatus === "PENDING" && !isPort;
         return rowStatus === tabFilter && !isPort;
     }
 
@@ -890,7 +895,7 @@
                     q: document.getElementById('filter-search').value.trim(),
                     nota: document.getElementById('filter-score')?.value || '',
                     periodo: typeof currentPeriod !== 'undefined' && currentPeriod !== '1d' ? currentPeriod : '',
-                    orden: currentSort.col !== null && !(currentSort.col === 10 && !currentSort.asc) ? `${currentSort.col}-${currentSort.asc ? 'asc' : 'desc'}` : ''};
+                    orden: currentSort.col !== null && !(currentSort.col === 11 && !currentSort.asc) ? `${currentSort.col}-${currentSort.asc ? 'asc' : 'desc'}` : ''};
         DB_URL_GROUPS.forEach(g => { const v = getSelectedValues(g); st[g] = v.includes('ALL') ? '' : v.join('|'); });
         urlState.set(st);
     }
@@ -923,9 +928,9 @@
         
         const tabFilter = TAB_FILTER[activeTab] || "ALL";
 
-        // Mostrar u ocultar dinámicamente la columna de Acciones según la pestaña activa (solo visible en Pendientes)
+        // Mostrar u ocultar dinámicamente la columna de Acciones según la pestaña activa (solo en Por aceptar y Pendientes)
         const actionsCols = document.querySelectorAll('.actions-column');
-        const showActions = (activeTab === 'pending-tab');
+        const showActions = (activeTab === 'pending-tab' || activeTab === 'ready-tab');
         actionsCols.forEach(col => {
             col.style.setProperty('display', showActions ? '' : 'none', 'important');
         });
@@ -1119,7 +1124,6 @@
                         </div>
                     `;
                 }
-                if (status === 'REJECTED') setRowRole(row, '');   // al descartarla pierde el rol
                 
                 // Aplicar filtros y volver a renderizar la tabla inmediatamente en memoria sin recargar la página
                 applyFilters(false);
@@ -1127,6 +1131,17 @@
         } else {
             alert("Error al actualizar el estado del activo.");
         }
+    }
+
+    // Por aceptar: la acepta con su nivel (Tier 1, 2 o 3) y sale de la pestaña
+    async function acceptAsTier(ticker, tier, btn) {
+        const r = await fetch(`/api/ticker/${encodeURIComponent(ticker)}/nivel`, {method: 'POST',
+            headers: {'Content-Type': 'application/json'}, body: JSON.stringify({tier})});
+        if (!r.ok) return alert('No se pudo aceptar');
+        const row = btn.closest('tr');
+        row.setAttribute('data-tier', tier);
+        row.setAttribute('data-is-favorite', tier === '1' ? 'true' : 'false');
+        updateTickerStatus(ticker, 'ACCEPTED', btn);   // pone la celda como las aceptadas y vuelve a filtrar
     }
 
     // País: código ISO; al pulsarlo alterna con el nombre
@@ -1151,29 +1166,6 @@
             download: `empresas_${tab}_${new Date().toISOString().slice(0, 10)}.csv`});
         a.click();
         URL.revokeObjectURL(a.href);
-    }
-
-    // Rol en el Portfolio ideal (CORE, GROWTH…): desplegable en la columna «Rol»
-    const ROLES = {{ portfolio_roles()|tojson }};
-    function setRowRole(row, role) {
-        const r = ROLES.find(x => x.key === role);
-        row.dataset.role = role || '';
-        const tag = row.querySelector('.role-tag');
-        if (!tag) return;
-        tag.textContent = r ? r.emoji : '+';
-        tag.title = r ? `${r.key} · ${r.name}` : 'Asignar rol en cartera';
-        tag.classList.toggle('role-empty', !r);
-        const cell = row.querySelector('.role-cell');
-        if (cell) cell.dataset.sortValue = r ? r.key : '';
-    }
-    async function updateTickerRole(ticker, role, el) {
-        const row = el.closest('tr');
-        const res = await fetch(`/api/role/${encodeURIComponent(ticker)}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role })
-        });
-        const d = await res.json().catch(() => ({}));
-        if (!res.ok) { showToast('Error', d.detail || 'No se pudo guardar el rol', 'error'); return; }
-        setRowRole(row, role);
     }
 
     async function deleteTicker(ticker, buttonElement) {
@@ -1228,7 +1220,7 @@
         document.querySelectorAll(".filter-input").forEach(el => el.addEventListener("input", applyFilters));
         // Textos cortados (nombre, país, sector, subsector): al pasar el ratón se ve entero
         document.getElementById('dbBody').addEventListener('mouseover', e => {
-            const el = e.target.closest('.company-name, td.text-truncate');
+            const el = e.target.closest('.company-name, td.text-truncate, .sec-name');
             if (el && !el.title && el.scrollWidth > el.clientWidth) el.title = el.textContent.trim();
         });
         dbRestoreUrl();
@@ -1238,7 +1230,7 @@
         // Ordenar inicialmente por nota media de forma descendente (de mayor a menor), o como estaba en la dirección
         const ord = (DB_URL0.get('orden') || '').match(/^(\d+)-(asc|desc)$/);
         if (ord) { currentSort = { col: parseInt(ord[1]), asc: ord[2] === 'asc' }; sortRows(currentSort.col, false); }
-        else { currentSort = { col: 10, asc: true }; sortRows(10); }
+        else { currentSort = { col: 11, asc: true }; sortRows(11); }
         dbRestoring = false;
         dbSaveUrl();
         const per = DB_URL0.get('periodo');

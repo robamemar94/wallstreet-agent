@@ -48,6 +48,7 @@ master_questions:
   - "¿Qué evidencia resolvería la incertidumbre?"
   - "¿Hay ya dato de CAC/LTV por canal, churn residencial o clientes nuevos netos?"
   - "¿Cuánto del deterioro residencial procede de AI/search frente a demanda, clima, mix y estacionalidad?"
+  - "¿Se estabilizan los leads residenciales en el 4T al nivel del 3T (punto medio de la guía) o siguen cayendo?"
 valuation:
   question: "Método principal: FCF/share (EBITA ~$780–790M y ~20–24x EV/EBITA solo como comprobación). Base: precio ~$30,35 (6-oct-2026), ~481M acciones, FCF normalizado ~$620M → FCF/share ~$1,29, FCF yield ~4,25%, P/FCF ~23,5x. Zonas: <$25 muy atractiva · $25–30 atractiva · $30–35 interesante · $35–40 razonable · $40–50 ≈ valor base · >$50 exige más crecimiento, margen o múltiplo."
   columns:

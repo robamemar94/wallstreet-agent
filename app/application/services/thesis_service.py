@@ -110,6 +110,7 @@ def evaluate_kpi(kpi: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "status": last["status"] if last else None,
         "last": last,
+        "prev": obs[-2] if len(obs) > 1 else None,   # el periodo anterior, para ver de dónde viene el último
         "trend": _trend(obs),
         "red_streak": red_streak,
         "kill_state": kill_state,

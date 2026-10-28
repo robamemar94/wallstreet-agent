@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from app.application.services import agenda_service, base_valuation_service, cache_warmer, thesis_review_service
+from app.application.services import agenda_service, base_valuation_service, cache_warmer, market_cache, thesis_review_service
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.thesis_service import (
     fetch_ttm_fcf_per_share, live_valuation,
@@ -98,8 +98,10 @@ def positions_tracking(repo: SqlAlchemyThesisRepository, asset_repo: SqlAlchemyA
             "ticker": t, "name": company, "thesis_id": (thesis or {}).get("id"),
             "last_session": last_session.get(t), "closed_today": bool(session_today and last_session.get(t) and last_session[t] < session_today),
             "cur": get_currency_symbol(data.get("currency", "USD"), t), "stats": st, "position": changes["positions"].get(t),
+            # PER forward (yfinance, la misma caché de 12 h que Fundamentales; solo lo ya guardado, no espera a Yahoo)
+            "fwd_pe": ((market_cache.peek("portfolio_raw", t) or {}).get("metrics") or {}).get("forward_pe"),
             "cagr": cagr, "cagr_src": cagr_src, "cagr_flag": cagr_flag, "cagr_anchor": (bval or {}).get("anchor") if (bval and (bval["anchor"] or {}).get("state") == "active") else None,
-            "next": results_calendar.next_results(t, company, _earnings_info(t).get("next")),
+            "next": results_calendar.next_results(t, company, *(lambda i: (i.get("next"), i.get("next_time")))(_earnings_info(t))),
         })
     rows.sort(key=lambda r: -(r["position"] or {}).get("weight", -1))
     today = datetime.date.today()
@@ -162,6 +164,7 @@ def portfolio_tracking_fragment(
     """Vista «Seguimiento» de la tabla de posiciones de la Cartera (se carga aparte: descarga el histórico de precios)."""
     from concurrent.futures import ThreadPoolExecutor
     from app.application.services import price_monitor_service as pm
+    from app.interfaces.views.watchlist_views import my_price
     pt = positions_tracking(repo, asset_repo, portfolio_service, db_session)
     rows = [r for r in pt["rows"] if r["ticker"] in pt["open_tickers"]]
     from app.application.services import estimate_revisions_service as est
@@ -172,6 +175,7 @@ def portfolio_tracking_fragment(
         price = (INDEX_CACHE["data"].get(r["ticker"]) or {}).get("price") or (r["stats"] or {}).get("price")
         r["ath"], r["from_ath"] = aths.get(r["ticker"]), pm.from_all_time_high(aths.get(r["ticker"]), price)
         r["rev"], r["rev_cut"] = revs.get(r["ticker"]), est.signal(revs.get(r["ticker"]))
+        r["mine"] = my_price(r["ticker"], asset_repo.get_asset_data(r["ticker"]), price)   # tu precio para ampliar
         th = pt["theses"].get(r["ticker"])
         r["thesis_verdict"] = th.get("verdict") if th else None
     chart = chart_rows(rows)

@@ -25,7 +25,7 @@ from app.interfaces.views.market_views import get_currency_symbol, is_reload_req
 from app.infrastructure.db.models import DBAsset
 from app.interfaces.views.thesis_views import portfolio_exposure
 from app.interfaces.views.watchlist_views import proximity
-from utils.financial_math import calculate_position_cagr
+from utils.financial_math import calculate_position_cagr, xirr
 # from tools.download_logos import download_logo
 
 logger = logging.getLogger(__name__)
@@ -51,6 +51,34 @@ FALLBACK_RATES = {
 def get_current_rate(currency_code: str) -> float:
     ccy = (currency_code or "USD").upper()
     return GLOBAL_CACHE.get("rates", {}).get(ccy) or FALLBACK_RATES.get(ccy, 1.0)
+
+
+def holding_since(ledger: list) -> Optional[datetime.date]:
+    """La compra que abrió la posición actual: la primera tras quedarse a 0 acciones (con los splits en cuenta)."""
+    shares, start = 0.0, None
+    for e in sorted(ledger, key=lambda e: str(e.get('date'))):
+        kind = str(getattr(e.get('type'), 'value', e.get('type')))
+        if kind == 'BUY':
+            if shares <= 1e-4:
+                start = str(e.get('date'))[:10]
+            shares += e.get('shares') or 0
+        elif kind == 'SELL':
+            shares = max(0.0, shares - (e.get('shares') or 0))
+        elif kind == 'SPLIT':
+            shares *= e.get('shares') or 1
+    return datetime.date.fromisoformat(start) if start else None
+
+
+def held_label(first_buy: Optional[datetime.date], today: Optional[datetime.date] = None) -> str:
+    """Desde cuándo tienes la posición, corto: «2a 4m», «7m», «12 d»."""
+    if not first_buy:
+        return ""
+    days = ((today or datetime.date.today()) - first_buy).days
+    months = int(days / 30.44)
+    if months < 1:
+        return f"{max(days, 0)} d"
+    years, months = divmod(months, 12)
+    return f"{years}a {months}m" if years and months else (f"{years}a" if years else f"{months}m")
 
 
 def day_change(shares: float, price: Optional[float], prev: Optional[float], last_date, currency: str,
@@ -116,7 +144,7 @@ def portfolio_overview(positions: Dict[str, Any], div_forecast: Dict[str, Any], 
     horizon = (today + datetime.timedelta(days=30)).isoformat()
     results = []
     for t in held:
-        nxt = (market_cache.peek("earnings_v2", t) or {}).get("next")
+        nxt = (market_cache.peek("earnings_v4", t) or {}).get("next")
         if nxt and today.isoformat() <= nxt[:10] <= horizon:
             results.append({"ticker": t, "date": nxt[:10], "days": (datetime.date.fromisoformat(nxt[:10]) - today).days})
     payments = sorted((e for e in div_forecast.get("events", []) if e["date"] >= today), key=lambda e: e["date"])
@@ -125,10 +153,23 @@ def portfolio_overview(positions: Dict[str, Any], div_forecast: Dict[str, Any], 
     from app.application.services import report_service
     reports = report_service.list_reports(db_session)
     last = {k: next((r for r in reports if r["kind"] == k), None) for k in ("W", "M")}
-    return {"up": [m for m in month[:3] if m[1] > 0], "down": [m for m in month[::-1][:3] if m[1] < 0], "reports": last,
+    return {"up": [m for m in month[:5] if m[1] > 0], "down": [m for m in month[::-1][:5] if m[1] < 0], "reports": last,
             "results": sorted(results, key=lambda r: r["date"])[:4], "payments": payments[:max(2, 6 - len(results))],
             "cuts": [n["ticker"] for n in estimate_revisions_service.signal_notices(held)],
             "theses": sorted(theses, key=lambda t: ("ROTA", "DEBILITADA", "VIGILANCIA").index(t["verdict"]))}
+
+
+def risk_since_start(port: list, bench: list) -> Optional[Dict[str, Any]]:
+    """Resumen → Riesgo, desde el inicio del Rendimiento: volatilidad y beta medidas con la cartera (como los informes),
+    lo que daba el riesgo asumido frente a lo que sumó tu selección y cuánto está por debajo de su máximo."""
+    from app.application.services import report_service
+    rk = report_service.risk({"port": port, "bench": bench if len(bench) == len(port) else None, "from": None})
+    if not rk:
+        return None
+    if rk.get("beta") is not None and rk.get("bench_twr") is not None:
+        rk["alpha"] = rk["twr"] - rk["beta"] * rk["bench_twr"]
+    rk["dd_now"] = 100 * (port[-1] / max(port) - 1) if max(port) else None
+    return rk
 
 
 def _shares_held_at(ledger_entries, as_of_date):
@@ -377,6 +418,8 @@ def portfolio_page(
     asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository),
     db_session: Session = Depends(get_db)
 ):
+    from app.application.services import report_service
+    report_service.warm_live()   # los informes en curso, listos para cuando se abra Informes
     portfolio_data = [p.model_dump() for p in portfolio_service.get_active_portfolio()]
     closed_portfolio_data = [p.model_dump() for p in portfolio_service.get_closed_portfolio()]
 
@@ -518,7 +561,10 @@ def portfolio_page(
         current_value = item['shares'] * p_price
         current_value_eur = current_value * rate
         invested_value = item['shares'] * item['average_price']
-        invested_value_eur = invested_value * rate
+        # Lo pagado en euros (cambio de cada compra): así el P&L incluye el efecto divisa
+        cost_eur = item.get('total_cost_eur') or 0.0
+        invested_value_eur = cost_eur if (curr or 'EUR').upper() != 'EUR' and cost_eur > 0 else invested_value * rate
+        fx_avg = invested_value_eur / invested_value if invested_value > 0 else rate
 
         total_fees = item.get('total_fees') or 0.0
         total_fees_eur = total_fees * rate
@@ -541,12 +587,17 @@ def portfolio_page(
         })
         item['total_profit_closed_eur'] = item['total_profit_closed'] * rate
         item['ext_day'] = ext_day_eur(item['shares'], ext_day(ticker), day, rate) if item['shares'] > 0 else None
-        item['return_pct'] = (current_value / invested_value - 1) * 100 if invested_value > 0 else 0
-        
+        item['return_pct'] = (current_value_eur / invested_value_eur - 1) * 100 if invested_value_eur > 0 else 0
+        item['pnl_price_eur'] = item['shares'] * (p_price - item['average_price']) * fx_avg
+        item['pnl_fx_eur'] = current_value * (rate - fx_avg)
+
         ledger_entries = portfolio_service.get_ledger(ticker)
         ledger_list = [l.model_dump() for l in ledger_entries] if ledger_entries else []
         item['cagr'] = calculate_position_cagr(ticker, ledger_list, item['return_pct'], is_active=True)
-        
+        item['first_buy'] = holding_since(ledger_list)   # desde que se abrió la posición actual (si se cerró, empieza de nuevo)
+        item['held_label'] = held_label(item['first_buy'])
+        item['held_years'] = (datetime.date.today() - item['first_buy']).days / 365.25 if item['first_buy'] else 0
+
         total_invested_eur += item['invested_value_eur']
         total_current_value_eur += item['current_value_eur']
         total_prev_value_eur += item['shares'] * p_prev * rate_prev
@@ -598,44 +649,48 @@ def portfolio_page(
     # 3.1 Calcular efectos precio vs divisa globales
     realized_trades_data = portfolio_service.get_realized_trades(GLOBAL_CACHE.get("rates", {}))
     
-    global_unrealized_price_pnl = 0.0
-    global_unrealized_fx_pnl = 0.0
-    
-    for item in portfolio_data:
-        ticker = item['ticker']
-        curr = asset_repo.get_asset_data(ticker).get("currency", "USD").upper()
-        rate = get_current_rate(curr)
-        p_data = GLOBAL_CACHE["prices"].get(ticker, {'price': item['average_price'], 'prev': item['average_price']})
-        
-        current_price = p_data['price']
-        average_price = item['average_price']
-        shares = item['shares']
-        
-        if curr != 'EUR':
-            total_cost_eur = item.get('total_cost_eur', 0.0)
-            if total_cost_eur > 0 and item.get('total_cost', 0) > 0:
-                fx_avg_purchase = total_cost_eur / item['total_cost']
-            else:
-                fx_avg_purchase = rate
-            pnl_price_eur = shares * (current_price - average_price) * fx_avg_purchase
-            pnl_fx_eur = shares * current_price * (rate - fx_avg_purchase)
-        else:
-            pnl_price_eur = shares * (current_price - average_price)
-            pnl_fx_eur = 0.0
-            
-        global_unrealized_price_pnl += pnl_price_eur
-        global_unrealized_fx_pnl += pnl_fx_eur
+    # El desglose acción/divisa de cada fila (paso 3): así la Rent. latente y su globo cuadran
+    global_unrealized_price_pnl = sum(item['pnl_price_eur'] for item in portfolio_data)
+    global_unrealized_fx_pnl = sum(item['pnl_fx_eur'] for item in portfolio_data)
 
     global_realized_price_pnl = 0.0
     global_realized_fx_pnl = 0.0
     global_total_dividends = 0.0
-    
+    dividends_12m = 0.0   # cobrados en los últimos 12 meses (el Resumen los pone junto a los previstos)
+    since_12m = (datetime.date.today() - datetime.timedelta(days=365)).isoformat()
+
     for trade in realized_trades_data:
         if trade['type'] == 'VENTA':
             global_realized_price_pnl += trade.get('pnl_price_eur', 0.0)
             global_realized_fx_pnl += trade.get('pnl_fx_eur', 0.0)
         elif trade['type'] == 'DIVIDENDO':
             global_total_dividends += trade.get('pnl_eur', 0.0)
+            if trade['date'][:10] >= since_12m:
+                dividends_12m += trade.get('pnl_eur', 0.0)
+
+    # De la posición actual (desde que se abrió; lo de antes de cerrarla es otra inversión), en €:
+    # - resultado total = latente + ventas parciales + dividendos;
+    # - TIR: cada compra, venta y dividendo desde su fecha, más lo que vale hoy (solo con un año o más).
+    today = datetime.date.today()
+    for item in portfolio_data:
+        t, since = item['ticker'].upper(), (item.get('first_buy') or datetime.date.min).isoformat()
+        sold = divs = 0.0
+        flows = []
+        for trade in realized_trades_data:
+            if trade['ticker'] != t or str(trade['date'])[:10] < since:
+                continue
+            amount = trade['shares'] * trade['price'] * (trade.get('fx_rate') or 1.0)
+            if trade['type'] == 'COMPRA':
+                flows.append((trade['date'], -(amount + trade.get('fee_eur', 0.0))))
+            elif trade['type'] == 'VENTA':
+                sold += trade.get('pnl_eur', 0.0)
+                flows.append((trade['date'], amount - trade.get('fee_eur', 0.0)))
+            elif trade['type'] == 'DIVIDENDO':
+                divs += trade.get('pnl_eur', 0.0)
+                flows.append((trade['date'], trade.get('pnl_eur', 0.0)))
+        item['sold_pnl_eur'], item['dividends_eur'] = sold, divs
+        item['total_result_eur'] = item['current_value_eur'] - item['invested_value_eur'] + sold + divs
+        item['irr'] = xirr(flows + [(today, item['current_value_eur'])]) if item.get('held_years', 0) >= 1 else None
 
     global_total_price_pnl = global_unrealized_price_pnl + global_realized_price_pnl
     global_total_fx_pnl = global_unrealized_fx_pnl + global_realized_fx_pnl
@@ -677,19 +732,7 @@ def portfolio_page(
             "Austria": "Austria",
         }
 
-        SECTOR_TRANSLATIONS = {
-            "Technology": "Tecnología",
-            "Healthcare": "Salud",
-            "Financial Services": "Servicios Financieros",
-            "Consumer Cyclical": "Consumo Cíclico",
-            "Industrials": "Industria",
-            "Communication Services": "Servicios de Comunicación",
-            "Consumer Defensive": "Consumo Defensivo",
-            "Energy": "Energía",
-            "Utilities": "Servicios Públicos",
-            "Real Estate": "Inmobiliario",
-            "Basic Materials": "Materiales Básicos",
-        }
+        SECTOR_TRANSLATIONS = distribution_service.SECTOR_ES
 
         positions = []
         for item in portfolio_data:
@@ -757,6 +800,19 @@ def portfolio_page(
         except (ValueError, TypeError):
             return None
 
+    def frac_pct(val):
+        """ROIC, márgenes, crecimiento y rentabilidad FCF: siempre vienen como fracción (0,348 = 34,8 %), también los
+        extremos (−27,5 = −2.750 %), así que no se puede adivinar la escala por el tamaño."""
+        try:
+            return None if val is None or val == "N/A" else float(val) * 100
+        except (ValueError, TypeError):
+            return None
+
+    # Para la media de la cartera, cada empresa con un tope razonable: un dato extremo de una posición pequeña (un margen
+    # del −2.750 % de una empresa casi sin ventas) no hunde la media; en su fila se ve el dato real.
+    CAP = {"roic": 100.0, "margin": 100.0, "growth": 100.0, "fcf_yield": 20.0}
+    capped = lambda v, k: max(-CAP[k], min(CAP[k], v))
+
     def to_pct_direct(val):
         if val is None or val == "N/A":
             return None
@@ -783,10 +839,10 @@ def portfolio_page(
             except (ValueError, TypeError): pass
             
         # 2. ROIC
-        r = to_pct_from_fraction(asset_info.get("roic"))
+        r = frac_pct(asset_info.get("roic"))
         item["roic"] = r
         if r is not None:
-            weighted_roic += val_eur * r
+            weighted_roic += val_eur * capped(r, "roic")
             weight_sum_roic += val_eur
             
         # 3. Dividend Yield
@@ -803,24 +859,24 @@ def portfolio_page(
             weight_sum_yield += val_eur
             
         # 4. Expected Revenue Growth
-        g = to_pct_from_fraction(asset_info.get("expected_growth"))
+        g = frac_pct(asset_info.get("expected_growth"))
         item["expected_growth"] = g
         if g is not None:
-            weighted_growth += val_eur * g
+            weighted_growth += val_eur * capped(g, "growth")
             weight_sum_growth += val_eur
             
         # 5. Gross Margin
-        gm = to_pct_from_fraction(asset_info.get("gross_margin"))
+        gm = frac_pct(asset_info.get("gross_margin"))
         item["gross_margin"] = gm
         if gm is not None:
-            weighted_gross_margin += val_eur * gm
+            weighted_gross_margin += val_eur * capped(gm, "margin")
             weight_sum_gross_margin += val_eur
             
         # 6. Operating Margin
-        om = to_pct_from_fraction(asset_info.get("operating_margin"))
+        om = frac_pct(asset_info.get("operating_margin"))
         item["operating_margin"] = om
         if om is not None:
-            weighted_operating_margin += val_eur * om
+            weighted_operating_margin += val_eur * capped(om, "margin")
             weight_sum_operating_margin += val_eur
 
         # 7. Trailing P/E
@@ -845,10 +901,10 @@ def portfolio_page(
             weight_sum_peg_ratio += val_eur
             
         # 10. FCF Yield
-        fy = to_pct_from_fraction(asset_info.get("fcf_yield"))
+        fy = frac_pct(asset_info.get("fcf_yield"))
         item["fcf_yield"] = fy
         if fy is not None:
-            weighted_fcf_yield += val_eur * fy
+            weighted_fcf_yield += val_eur * capped(fy, "fcf_yield")
             weight_sum_fcf_yield += val_eur
             
         # 11. Net Debt / EBITDA
@@ -910,7 +966,9 @@ def portfolio_page(
     overview.update(cash=cash_service.status(db_session), drops=drops, since_start={"pct": perf_data.get("total_return"),
                                               "bench": 100 * (ref_series[-1] / ref_series[0] - 1) if ref_series and ref_series[0] else None,
                                               "start": perf_dates[0] if perf_dates else None},
-                    sector=((distribution or {}).get("sector") or [None])[0])
+                    sector=((distribution or {}).get("sector") or [None])[0],
+                    top5=sorted(((t, p["weight"]) for t, p in period_positions.items()), key=lambda x: -x[1])[:5],
+                    risk=risk_since_start(port_series, ref_series))
     return templates.TemplateResponse("portfolio.html", {
         "request": request, "portfolio": portfolio_data, "closed_portfolio": closed_portfolio_data,
         **prices_banner_context(),
@@ -930,11 +988,13 @@ def portfolio_page(
         "global_total_price_pnl": global_total_price_pnl,
         "global_total_fx_pnl": global_total_fx_pnl,
         "global_total_dividends": global_total_dividends,
+        "dividends_12m": dividends_12m,
         "global_total_profits": global_total_profits,
         # Nuevos datos de performance
         "perf_dates":       perf_data["dates"],
         "perf_portfolio":   perf_data["portfolio_uv"],
         "perf_values_eur":  perf_data.get("portfolio_values_eur", []),
+        "perf_contributed_eur": perf_data.get("contributed_eur", []),
         "perf_benchmarks":  perf_data.get("benchmarks", {}),
         "perf_benchmark":   perf_data.get("benchmark_uv", []),   # compatibilidad
         "max_drawdown":     perf_data.get("max_drawdown", 0.0),
@@ -1026,9 +1086,15 @@ def portfolio_reports_fragment(request: Request, key: Optional[str] = None, db_s
     """Pestaña «Informes» de la Cartera: el archivo (semanal, mensual, trimestral, anual) y el informe elegido (o el último)."""
     from app.application.services import report_service as rs
     reports = rs.list_reports(db_session)
+    for kind in reversed(rs.LIVE_KINDS):   # el mes, el trimestre y el año en curso, los primeros de su lista
+        try:
+            live = rs.live_report(db_session, kind)
+            reports.insert(0, {k: live.get(k) for k in ("key", "kind", "label", "start", "end", "live")} | {"pct": (live.get("performance") or {}).get("pct")})
+        except Exception:
+            logger.exception("Informes: no se pudo calcular el periodo en curso %s", kind)
     chosen = key or next((r["key"] for r in reports if r["kind"] == "M"), reports[0]["key"] if reports else None)
     return templates.TemplateResponse("_reports.html", {"request": request, "reports": reports, "kinds": rs.KINDS,
-                                                        "report": rs.load(db_session, chosen) if chosen else None,
+                                                        "report": rs.get(db_session, chosen) if chosen else None,
                                                         "ai_kinds": rs.AI_KINDS, "pending": rs.due(db_session)})
 
 
@@ -1037,7 +1103,7 @@ def portfolio_report_fragment(request: Request, key: str, db_session: Session = 
     """Un informe (el panel de la derecha de la pestaña «Informes»)."""
     from app.application.services import report_service as rs
     return templates.TemplateResponse("_reports.html", {"request": request, "only_report": True, "kinds": rs.KINDS,
-                                                        "report": rs.load(db_session, key), "ai_kinds": rs.AI_KINDS})
+                                                        "report": rs.get(db_session, key), "ai_kinds": rs.AI_KINDS})
 
 
 @router.get("/ideal-portfolio", response_class=HTMLResponse)

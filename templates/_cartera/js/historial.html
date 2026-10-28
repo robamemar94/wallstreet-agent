@@ -307,68 +307,23 @@ function exportTableToCSV(tableId, filename) {
         applyHistFilters();
     }
 
-    // Configuración visual de comisiones de Brokers cargadas de la DB
-    const BROKER_SETTINGS = {
-        degiro_fee_eur: {{ settings.get('brokers', {}).get('degiro_fee_eur', 1.0) }},
-        degiro_fee_usd: {{ settings.get('brokers', {}).get('degiro_fee_usd', 1.0) }},
-        degiro_fee_sek: {{ settings.get('brokers', {}).get('degiro_fee_sek', 3.90) }},
-        degiro_autofx_pct: {{ settings.get('brokers', {}).get('degiro_autofx_pct', 0.25) }},
-        ibkr_fee_usd_per_share: {{ settings.get('brokers', {}).get('ibkr_fee_usd_per_share', 0.005) }},
-        ibkr_fee_usd_min: {{ settings.get('brokers', {}).get('ibkr_fee_usd_min', 1.00) }},
-        ibkr_fee_usd_max_pct: {{ settings.get('brokers', {}).get('ibkr_fee_usd_max_pct', 1.0) }},
-        ibkr_autofx_usd_min: {{ settings.get('brokers', {}).get('ibkr_autofx_usd_min', 2.00) }},
-        ibkr_autofx_usd_pct: {{ settings.get('brokers', {}).get('ibkr_autofx_usd_pct', 0.2) }},
-        ibkr_fee_sek_min: {{ settings.get('brokers', {}).get('ibkr_fee_sek_min', 40.0) }},
-        ibkr_fee_sek_pct: {{ settings.get('brokers', {}).get('ibkr_fee_sek_pct', 0.05) }},
-        ibkr_fee_eur_min: {{ settings.get('brokers', {}).get('ibkr_fee_eur_min', 1.25) }},
-        ibkr_fee_eur_pct: {{ settings.get('brokers', {}).get('ibkr_fee_eur_pct', 0.05) }}
-    };
-
+    // Comisión estimada al escribir la operación: la calcula el servidor con la misma cuenta que el recálculo (broker_fees)
+    let feeTimer = null;
     function calculateEstimatedFee() {
-        const shares = parseFloat(document.getElementById('add-shares').value) || 0;
-        const price = parseFloat(document.getElementById('add-price').value) || 0;
-        const broker = document.getElementById('add-broker').value;
-        const currency = document.getElementById('add-currency').value.toUpperCase();
-
-        if (shares <= 0 || price <= 0) {
-            document.getElementById('add-fee').value = "0.00";
-            return;
-        }
-
-        let estFee = 0;
-        const value = shares * price;
-
-        if (broker === 'DEGIRO') {
-            if (currency === 'EUR') {
-                estFee = BROKER_SETTINGS.degiro_fee_eur;
-            } else if (currency === 'USD') {
-                // Fijo USD convertido a USD + AutoFX
-                const usdRate = 1.08; // fallback aproximado para estimación local
-                estFee = BROKER_SETTINGS.degiro_fee_usd + (BROKER_SETTINGS.degiro_autofx_pct / 100.0) * value;
-            } else if (currency === 'SEK') {
-                estFee = BROKER_SETTINGS.degiro_fee_sek + (BROKER_SETTINGS.degiro_autofx_pct / 100.0) * value;
-            } else {
-                estFee = BROKER_SETTINGS.degiro_fee_eur + (BROKER_SETTINGS.degiro_autofx_pct / 100.0) * value;
-            }
-        } else {
-            // IBKR
-            if (currency === 'USD') {
-                let comm = Math.max(BROKER_SETTINGS.ibkr_fee_usd_min, BROKER_SETTINGS.ibkr_fee_usd_per_share * shares);
-                comm = Math.min(comm, (BROKER_SETTINGS.ibkr_fee_usd_max_pct / 100.0) * value);
-                const fx = Math.max(BROKER_SETTINGS.ibkr_autofx_usd_min, (BROKER_SETTINGS.ibkr_autofx_usd_pct / 100.0) * value);
-                estFee = comm + fx;
-            } else if (currency === 'SEK') {
-                const comm = Math.max(BROKER_SETTINGS.ibkr_fee_sek_min, (BROKER_SETTINGS.ibkr_fee_sek_pct / 100.0) * value);
-                const fx = 22.0; // aprox 2 USD en SEK
-                estFee = comm + fx;
-            } else if (currency === 'EUR') {
-                estFee = Math.max(BROKER_SETTINGS.ibkr_fee_eur_min, (BROKER_SETTINGS.ibkr_fee_eur_pct / 100.0) * value);
-            } else {
-                estFee = Math.max(BROKER_SETTINGS.ibkr_fee_eur_min, (BROKER_SETTINGS.ibkr_fee_eur_pct / 100.0) * value);
-            }
-        }
-
-        document.getElementById('add-fee').value = estFee.toFixed(2);
+        clearTimeout(feeTimer);
+        feeTimer = setTimeout(async () => {
+            const q = new URLSearchParams({
+                broker: document.getElementById('add-broker').value,
+                currency: document.getElementById('add-currency').value,
+                shares: parseFloat(document.getElementById('add-shares').value) || 0,
+                price: parseFloat(document.getElementById('add-price').value) || 0,
+                date: document.getElementById('add-date').value || '',
+            });
+            try {
+                const r = await fetch(`/api/portfolio/fee_estimate?${q}`).then(r => r.ok ? r.json() : null);
+                if (r) document.getElementById('add-fee').value = r.fee.toFixed(2);
+            } catch (err) {}
+        }, 250);
     }
 
     // Inicializar fecha de hoy

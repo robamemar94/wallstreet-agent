@@ -1,5 +1,5 @@
     <div class="tab-pane fade" id="nav-financials" role="tabpanel">
-        
+        {% if extracting %}<script>document.body.classList.add('fin-extracting');</script>{% endif %}
         {# Estado del histórico financiero: completo (estados cargados), básico (4 cifras de Yahoo/Alpha Vantage) o vacío #}
         {% set fin_years = financials_hist.get('years') or [] %}
         {% set fin_full = financials_hist.get('income_statement') or financials_hist.get('balance_sheet') or financials_hist.get('cash_flow') %}
@@ -24,14 +24,16 @@
             </ul>
             <div class="fin-source ms-auto d-flex align-items-center gap-2" id="finSource">
                 {% if fin_full %}
-                    <span class="text-muted"><i class="bi bi-database-check text-success me-1"></i>Histórico de {{ fin_src }} · {{ fin_years|min }}–{{ fin_years|max }} ({{ fin_years|length }} años)</span>
+                    <span class="text-muted"><i class="bi bi-database-check text-success me-1"></i>Histórico de {{ fin_src }} · {{ fin_years|min }}–{{ fin_years|max }} ({{ fin_years|length }} años){% set fy = financials_hist.get('updated_from_yahoo') %}{% if fy %} · <span title="Añadido solo desde Yahoo el {{ fy.at[8:10] }}/{{ fy.at[5:7] }}/{{ fy.at[:4] }}, con las cifras que cuadran con tu año anterior{{ ' · sin: ' ~ fy.skipped|join(', ') if fy.skipped }}">{{ fy.years|join(', ') }} desde Yahoo{% if fy.skipped %} <i class="bi bi-info-circle"></i>{% endif %}</span>{% endif %}</span>
                 {% elif fin_years %}
-                    <span class="text-warning-emphasis" title="Solo ingresos, beneficio neto, BPA y FCF. Carga los estados financieros para ver la cuenta de resultados, el balance y los flujos de caja completos">
+                    <span class="fin-busy text-primary"><span class="spinner-border spinner-border-sm me-1" role="status"></span>Extrayendo las cuentas…</span>
+                    <span class="fin-idle text-warning-emphasis" title="Solo ingresos, beneficio, BPA y FCF. Carga los estados financieros para el detalle">
                         <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>Sin estados financieros cargados · solo cifras básicas de {{ fin_src }} ({{ fin_years|length }} años)</span>
-                    <button class="btn btn-warning btn-sm py-0 px-2 fw-bold" style="font-size: .72rem;" onclick="switchToFinancialsAndOpenAuditData()"><i class="bi bi-database-add me-1"></i>Cargar datos</button>
+                    <button class="fin-idle btn btn-warning btn-sm py-0 px-2 fw-bold" style="font-size: .72rem;" onclick="switchToFinancialsAndOpenAuditData()"><i class="bi bi-database-add me-1"></i>Cargar datos</button>
                 {% else %}
-                    <span class="text-danger"><i class="bi bi-database-x me-1"></i>Sin datos financieros cargados</span>
-                    <button class="btn btn-warning btn-sm py-0 px-2 fw-bold" style="font-size: .72rem;" onclick="switchToFinancialsAndOpenAuditData()"><i class="bi bi-database-add me-1"></i>Cargar datos</button>
+                    <span class="fin-busy text-primary"><span class="spinner-border spinner-border-sm me-1" role="status"></span>Extrayendo las cuentas…</span>
+                    <span class="fin-idle text-danger"><i class="bi bi-database-x me-1"></i>Sin datos financieros cargados</span>
+                    <button class="fin-idle btn btn-warning btn-sm py-0 px-2 fw-bold" style="font-size: .72rem;" onclick="switchToFinancialsAndOpenAuditData()"><i class="bi bi-database-add me-1"></i>Cargar datos</button>
                 {% endif %}
             </div>
         </div>
@@ -326,7 +328,12 @@
                     </div>
                     <div class="card-body p-0 flex-grow-1">
                         {% if not fin_years %}
-                        <div class="fin-empty">
+                        <div class="fin-empty fin-busy">
+                            <span class="spinner-border text-primary" role="status"></span>
+                            <strong>Extrayendo las cuentas…</strong>
+                            <span class="small">Las tablas y el gráfico aparecerán al terminar.</span>
+                        </div>
+                        <div class="fin-empty fin-idle">
                             <i class="bi bi-bar-chart"></i>
                             <strong>Sin datos financieros cargados</strong>
                             <span class="small">No hay histórico de ingresos, beneficio, BPA ni FCF para dibujar.</span>
@@ -453,7 +460,12 @@
             {% for id, key in [('income', 'income_statement'), ('balance', 'balance_sheet'), ('cashflow', 'cash_flow')] %}
             <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="hist-{{ id }}" role="tabpanel">
                 {% if not fin_years %}
-                <div class="fin-empty">
+                <div class="fin-empty fin-busy">
+                    <span class="spinner-border text-primary" role="status"></span>
+                    <strong>Extrayendo las cuentas…</strong>
+                    <span class="small">Las tablas y el gráfico aparecerán al terminar.</span>
+                </div>
+                <div class="fin-empty fin-idle">
                     <i class="bi bi-table"></i>
                     <strong>Sin datos financieros cargados</strong>
                     <span class="small">Pega el texto o adjunta una imagen de los estados financieros para ver aquí la cuenta de resultados, el balance y los flujos de caja.</span>

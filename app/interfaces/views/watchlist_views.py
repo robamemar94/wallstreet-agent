@@ -29,6 +29,7 @@ router = APIRouter(tags=["Watchlist"])
 NOTE_KEY = "watchlist_note"
 # «Mi precio»: un precio de compra puesto a mano, aparte de la valoración. Avisa al alcanzarlo y pide revisarlo cada 90 días
 MY_PRICE_KEY, MY_PRICE_REVIEW_DAYS = "my_buy_price", 90
+MY_PRICE_LOG_KEY = "my_buy_price_log"   # [{date, price}] cada vez que pones, cambias o quitas (None) tu precio: para los informes
 # Cercanía al precio de compra: caída necesaria para llegar a él (como la antigua página de Oportunidades)
 NEAR_PCT, WATCH_PCT = 15, 30
 LIST_LIMIT = 6   # avisos visibles en cada lista del panel; el resto tras «Ver N más»
@@ -77,17 +78,18 @@ def my_price(ticker: str, d: Dict[str, Any], price: Optional[float], today: Opti
 
 
 def watchlist_rows(repo: SqlAlchemyWatchlistRepository, asset_repo: SqlAlchemyAssetRepository,
-                   held: Set[str], benchmark: str) -> List[Dict[str, Any]]:
+                   held: Set[str], benchmark: str, weights: Optional[Dict[str, float]] = None) -> List[Dict[str, Any]]:
     """Watchlist = añadidas a mano + Tier 1 (favoritas) + las de las listas que sigues, con la valoración base
-    de su ficha al precio de hoy.
-    Un solo histórico de precios da el precio, la variación del día, la distancia al máximo de 52 semanas y el monitor."""
+    de su ficha al precio de hoy. Además, las de la cartera con «Mi precio» para ampliar (solo_mine: salen solo en ese
+    filtro). Un solo histórico de precios da el precio, la variación del día, la distancia al máximo de 52 semanas y el monitor."""
     from app.application.services import tier_service
     manual = {i["ticker"]: i for i in repo.list_items()}
     auto = asset_repo.get_watch_candidates()
     themes = tier_service.themes_by_ticker(asset_repo.db)
     favs = {a.ticker for a in asset_repo.db.query(DBAsset.ticker).filter(DBAsset.is_favorite.is_(True)).all()}
     muted = tier_service.muted_tickers(asset_repo.db)
-    tickers = sorted(set(manual) | set(auto))
+    held_mine = {t for t in held - set(manual) - set(auto) if (asset_repo.get_asset_data(t).get(MY_PRICE_KEY) or {}).get("price")}
+    tickers = sorted(set(manual) | set(auto) | held_mine)
     data = {t: asset_repo.get_asset_data(t) for t in tickers}
     try:
         df = pm.download_history(tickers + [benchmark]) if tickers else None
@@ -116,7 +118,7 @@ def watchlist_rows(repo: SqlAlchemyWatchlistRepository, asset_repo: SqlAlchemyAs
         if added_price:
             added_price = added_price / split_service.factor_since(split_service.fetch_splits(t), item.get("added_at"))
         return {"ticker": t, "name": d.get("company_name") or t, "cur": get_currency_symbol(d.get("currency", "USD"), t), "dec": price_decimals(d.get("currency")),
-                "price": price, "held": t in held, "origins": origins, "tier": tier, "themes": [th["name"] for th in themes.get(t, []) if th["watch"] and not th["muted"]],
+                "price": price, "held": t in held, "only_mine": t in held_mine, "weight": (weights or {}).get(t), "origins": origins, "tier": tier, "themes": [th["name"] for th in themes.get(t, []) if th["watch"] and not th["muted"]],
                 "silent": t in muted, "muted_self": bool(d.get(tier_service.MUTE_KEY)), "role": d.get("portfolio_role"), "note": d.get(NOTE_KEY) or "", "stats": st,
                 # solo si su mercado ha abierto hoy; si no, la última sesión va en el título
                 "day_pct": (st.get("change") or {}).get("1d") if st and st.get("date") == today else None,
@@ -145,8 +147,9 @@ def _names(rows: List[Dict[str, Any]], limit: int = 8) -> str:
 
 
 def watchlist_attention(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Lo accionable de la watchlist (sin las que ya tienes en cartera), ordenado por prioridad."""
-    rows = [r for r in rows if not r["held"] and not r.get("silent")]   # las silenciadas no avisan
+    """Lo accionable de la watchlist (sin las que ya tienes en cartera, salvo tu precio para ampliar), por prioridad."""
+    mine_rows = [r for r in rows if not r.get("silent")]   # las silenciadas no avisan
+    rows = [r for r in mine_rows if not r["held"]]
     fresh = [r for r in rows if r["val"] and not r["val"]["inputs"].get("legacy")]
     out = []
     for r in fresh:
@@ -160,18 +163,17 @@ def watchlist_attention(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         elif r["group"] == "cerca" and r.get("tier") == "1":   # cerca de compra: solo las Tier 1 (objetivo)
             warn = f" · {r['reality_warn']}" if r.get("reality_warn") else ""
             out.append({"prio": 1, "type": "cerca", "ticker": r["ticker"], "href": f"/ticker/{r['ticker']}#valoracion", "text": f"A un {es(r['drop_pct'], 1)}% de su precio de compra ({es(v['buy_price'], 2)}){cagr}{warn}"})
-    for r in rows:   # tu precio puesto a mano (no depende de la valoración)
+    for r in mine_rows:   # tu precio puesto a mano (no depende de la valoración); en las de cartera, para ampliar
         m = r.get("mine")
         if not m:
             continue
-        when = f"{m['set_at'][8:10]}/{m['set_at'][5:7]}/{m['set_at'][2:4]}" if m["set_at"] else ""
         if m["hit"]:
+            what = "para ampliar" if r["held"] else "de compra"
             out.append({"prio": 0, "type": "mi_precio", "ticker": r["ticker"], "ref": f"{m['price']:.4f}", "href": f"/ticker/{r['ticker']}",
-                        "text": f"Cotiza a {es(r['price'], 2)}, por debajo de tu precio de compra ({es(m['price'], 2)}" + (f"; lo fijaste el {when})" if when else ")")})
+                        "text": f"{'Ampliar: c' if r['held'] else 'C'}otiza a {es(r['price'], 2)}, bajo tu precio {what} ({es(m['price'], 2)})"})
         if m["review_due"]:
-            out.append({"prio": 2, "type": "mi_precio_revisar", "ticker": r["ticker"], "ref": m["set_at"], "href": "/watchlist",
-                        "text": f"Fijaste tu precio de compra ({es(m['price'], 2)}) hace {m['age_days']} días: revisa si sigue valiendo "
-                                f"(guárdalo de nuevo en la Watchlist, aunque sea el mismo)"})
+            out.append({"prio": 2, "type": "mi_precio_revisar", "ticker": r["ticker"], "ref": m["set_at"], "href": "/watchlist?distancia=mine",
+                        "text": f"Revisar tu precio {'para ampliar' if r['held'] else 'de compra'} ({es(m['price'], 2)}), fijado hace {m['age_days']} días"})
     for r in fresh:   # el año corregido a mano ya tiene dato real: la corrección ha dejado de aplicarse
         a = r["val"]["anchor"]
         if a and a["state"] == "expired":
@@ -233,9 +235,11 @@ def watchlist_fragment(
     notice_repo: SqlAlchemyNoticeRepository = Depends(get_notice_repository),
 ):
     """Contenido de la página Watchlist: avisos, monitor y tabla (se carga aparte para no frenar la página)."""
-    held = {i.ticker for i in portfolio_service.get_active_portfolio() if i.shares > 0}
+    from app.interfaces.views.market_views import portfolio_weights
+    active = [i for i in portfolio_service.get_active_portfolio() if i.shares > 0]
+    held = {i.ticker for i in active}
     benchmark = (get_settings_from_db(db_session).get("performance") or {}).get("benchmark_ticker") or "URTH"
-    rows = watchlist_rows(repo, asset_repo, held, benchmark)
+    rows = watchlist_rows(repo, asset_repo, held, benchmark, portfolio_weights(active, asset_repo))
     # alertas (cambios de zona y caídas) con los precios que ya tenemos, en segundo plano
     alerts_service.scan_in_background({r["ticker"]: r["price"] for r in rows if r["price"]}, {r["ticker"] for r in rows})
     # el Tier 2 y 3 que no está en la watchlist no sale en la tabla, pero avisa igual (monitor y compras de directivos)
@@ -292,6 +296,14 @@ def update_my_price(
     if payload.price is not None and payload.price <= 0:
         raise HTTPException(status_code=400, detail="El precio tiene que ser mayor que cero")
     value = {"price": payload.price, "set_at": date.today().isoformat()} if payload.price else None
+    data = asset_repo.get_asset_data(ticker.upper()) or {}
+    log = list(data.get(MY_PRICE_LOG_KEY) or [])
+    prev = data.get(MY_PRICE_KEY) or {}
+    if not log and prev.get("price"):   # el que había antes de llevar el historial
+        log.append({"date": (prev.get("set_at") or date.today().isoformat())[:10], "price": prev["price"]})
+    if (log[-1]["price"] if log else None) != (value or {}).get("price"):
+        log.append({"date": date.today().isoformat(), "price": (value or {}).get("price")})   # None: lo quitaste
+        asset_repo.save_asset_data(ticker.upper(), MY_PRICE_LOG_KEY, log)
     asset_repo.save_asset_data(ticker.upper(), MY_PRICE_KEY, value)
     return {"status": "success", "mine": value}
 

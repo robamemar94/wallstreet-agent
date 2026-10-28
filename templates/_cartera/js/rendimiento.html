@@ -2,6 +2,7 @@
     const perfDates      = {{ perf_dates | tojson | safe }};
     const perfPortfolio  = {{ perf_portfolio | tojson | safe }};
     const perfValuesEur  = {{ perf_values_eur | tojson | safe }};
+    const perfContributed = {{ perf_contributed_eur | default([]) | tojson | safe }};   // lo puesto y no retirado, día a día
     const perfPatrimony  = {{ perf_patrimony | tojson | safe }};   // con la liquidez (null antes del saldo de partida)
     const PAT = 'Con liquidez', hasPat = (perfPatrimony.uv || []).some(v => v !== null);
     const perfBenchmarks = {{ perf_benchmarks | tojson | safe }};
@@ -109,6 +110,7 @@
             renderPerfChart();
         };
 
+        const PERF_ML = 72;   // margen izquierdo común: valor y drawdown alinean sus fechas
         // ── Render principal ────────────────────────────────────────────────
         // Se pinta toda la serie con un navegador debajo (como Fiscal.ai): los botones de periodo y el arrastre del
         // navegador solo eligen la ventana visible [si, ei]; el índice se rebasa a 10 en su primer día y el drawdown y
@@ -144,16 +146,27 @@
             const [si, ei] = perfWindow();
             const dates = perfDates;
             const cfg   = { responsive: true, displayModeBar: false };
-            const xaxis = { showgrid: false, tickfont: { color: textColor }, type: 'date',
-                            range: [dates[si], dates[ei]], rangeslider: rangeSliderStyle() };
+            // sin navegador de rango; las fechas van bajo el gráfico de valor y el drawdown no las repite (mismos márgenes laterales)
+            const xaxis = { showgrid: false, tickfont: { color: textColor }, type: 'date', range: [dates[si], dates[ei]] };
             const traces = [];
 
             if (currentMode === 'real') {
+                // como «Mi dinero» de la ficha: lo que vale la cartera, lo que has puesto en escalón y el relleno entre ambos
+                const hasContrib = perfContributed.length === perfValuesEur.length && perfContributed.length > 0;
                 if (seriesVisibility['Mi Cartera'] !== false) {
+                    if (hasContrib) {
+                        traces.push({
+                            x: dates, y: perfContributed, mode: 'lines', name: 'Aportado',
+                            line: { color: '#64748b', width: 1.2, dash: 'dash', shape: 'hv' },
+                            hovertemplate: '%{y:,.0f} €<extra>Aportado</extra>'
+                        });
+                    }
                     traces.push({
                         x: dates, y: perfValuesEur, mode: 'lines', name: 'Cartera (€)',
-                        line: { color: '#0d6efd', width: 3 },
-                        fill: 'tozeroy', fillcolor: 'rgba(13,110,253,0.08)'
+                        line: { color: '#0d6efd', width: 2.4 },
+                        fill: hasContrib ? 'tonexty' : 'tozeroy', fillcolor: 'rgba(13,110,253,0.08)',
+                        customdata: hasContrib ? perfValuesEur.map((v, i) => v - perfContributed[i]) : undefined,
+                        hovertemplate: hasContrib ? '%{y:,.0f} € (%{customdata:+,.0f} €)<extra>Cartera</extra>' : '%{y:,.0f} €<extra>Cartera</extra>'
                     });
                 }
                 if (hasPat && seriesVisibility[PAT] !== false) {
@@ -164,7 +177,7 @@
                     xaxis,
                     yaxis: { tickformat: ',.0f', ticksuffix: ' €', tickfont: { color: textColor }, gridcolor: gridColor, showgrid: true,
                              range: yRangeFor(traces.map(t => t.y), si, ei) || undefined },
-                    margin: { t: 10, b: 34, l: 75, r: 10 },
+                    margin: { t: 30, b: 26, l: PERF_ML, r: 10 },   // arriba, sitio para la leyenda
                     hovermode: 'x unified', showlegend: false,
                     separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
                 };
@@ -198,7 +211,7 @@
                     xaxis,
                     yaxis: { title: { text: 'Valor Cuota', font: { color: textColor } }, showgrid: true, gridcolor: gridColor,
                              tickfont: { color: textColor }, range: yRangeFor(traces.map(t => t.y), si, ei) || undefined },
-                    margin: { t: 10, b: 34, l: 50, r: 10 },
+                    margin: { t: 30, b: 26, l: PERF_ML, r: 10 },   // arriba, sitio para la leyenda
                     showlegend: false, // Ocultar nativo, usamos el nuestro interactivo
                     hovermode: 'x unified',
                     separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
@@ -214,7 +227,6 @@
             const el = document.getElementById('perf-chart');
             if (el && el.on && !el._rangeHooked) {
                 el._rangeHooked = true;
-                rangeSliderYears(el);   // años bajo el navegador
                 el.on('plotly_relayout', ev => {
                     const rg = relayoutXRange(ev);
                     if (rg === undefined) return;
@@ -249,7 +261,7 @@
                 card.style.height = h + 'px';
                 if (table) table.style.height = wide ? h + 'px' : '';
                 document.getElementById('drawdown-chart').style.height = dd + 'px';
-                document.getElementById('perf-chart').style.height = (h - dd - 16 - 38 - 14) + 'px';   // padding · leyenda · rótulo
+                document.getElementById('perf-chart').style.height = (h - dd - 16 - 14) + 'px';   // padding · rótulo (la leyenda va sobre el gráfico)
             };
             // lo que la página deja por debajo de la tarjeta (su margen y los rellenos de los contenedores) también cabe;
             // se mide con la tarjeta muy alta para que la página sea más larga que la ventana
@@ -272,10 +284,10 @@
                 line: { color: '#dc3545', width: 1 },
                 fillcolor: 'rgba(220,53,69,0.2)', showlegend: false
             }], {
-                xaxis: { showgrid: false, tickfont: { color: textColor } },
+                xaxis: { showgrid: false, showticklabels: false },
                 yaxis: { tickformat: '.1f', ticksuffix: '%',
                          tickfont: { color: textColor }, gridcolor: gridColor },
-                margin: { t: 5, b: 35, l: 50, r: 10 },
+                margin: { t: 5, b: 6, l: PERF_ML, r: 10 },
                 separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
                 showlegend: false
             }, { responsive: true, displayModeBar: false });
@@ -331,7 +343,7 @@
             elTotal.textContent   = fmt(totalRet);
             elTotal.className     = 'fw-bold fs-4 ' + colorClass(totalRet);
             document.getElementById('kpiTotalLabel').innerHTML =
-                `Rentabilidad Total <span class="opacity-50">(${periodLabel})</span>`;
+                `Rentabilidad <span class="opacity-50">(${periodLabel})</span>`;
 
             // CAGR (Badge superior)
             const elCagr = document.getElementById('kpiCagr');
@@ -482,7 +494,7 @@
             // aclaración del modo junto a los botones (antes buscaba un título que ya no existe y el modo € no cambiaba)
             const hint = document.getElementById('perfModeHint');
             if (hint) hint.textContent = isReal
-                ? 'Valor en € de la cartera, con aportaciones (no comparable con los índices)'
+                ? 'Lo que vale la cartera frente a lo aportado (no comparable con los índices)'
                 : 'Índice que empieza en 10: las aportaciones no cuentan como rentabilidad';
             if (perfChartInit) renderPerfChart();
         };

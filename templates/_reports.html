@@ -9,12 +9,12 @@
 
 {% macro ai_list(title, items, icon='bi-dot') %}{% if items %}<div class="rep-label mt-2"><i class="bi {{ icon }} me-1"></i>{{ title }}</div><ul class="mb-0 ps-3">{% for x in items %}<li>{{ x }}</li>{% endfor %}</ul>{% endif %}{% endmacro %}
 {% macro ai_big(r) %}{% set a = r.ai %}
-<div class="card border-0 shadow-sm rep-ai"><div class="card-body py-2 px-3 small" data-fit="160">
+<div class="card border-0 shadow-sm rep-ai"><div class="card-body py-2 px-3 small">
     <div class="d-flex align-items-center gap-2 mb-1">
         <span class="fw-bold"><i class="bi bi-stars me-1 text-info"></i>{{ 'Revisión trimestral' if r.kind == 'Q' else 'Carta anual' }}</span>
         {% if a %}<span class="text-muted">· {{ a.created_at[8:10] }}/{{ a.created_at[5:7] }}/{{ a.created_at[:4] }}{% if a.model %} · {{ a.model }}{% endif %}</span>{% endif %}
         <button type="button" class="btn btn-sm {{ 'btn-outline-secondary' if a else 'btn-info' }} ms-auto py-0" data-report-ai="{{ r.key }}"
-                title="Una llamada a Gemini Pro, sin búsqueda, con los datos de la app: la cartera, tus tesis y sus revisiones de resultados y tus decisiones (unos céntimos; el coste sale en Ajustes › IA)">
+                title="Gemini Pro con los datos de la app (céntimos; coste en Ajustes › IA)">
             <i class="bi bi-stars me-1"></i>{{ 'Volver a generar' if a else ('Generar la revisión' if r.kind == 'Q' else 'Escribir la carta') }}</button>
     </div>
     {% if not a %}
@@ -61,57 +61,45 @@
 </div></div>
 {% endmacro %}
 
-{% macro panel(r) %}
-{% if not r %}
-<div class="p-4 text-muted small">Aún no hay informes. Se generan solos al cerrar cada semana, mes, trimestre y año (y, la primera vez, hacia atrás desde el inicio de tu cartera).</div>
-{% else %}
-{% set p = r.performance or {} %}{% set f = r.flows or {} %}{% set dv = r.dividends or {} %}
-<div class="d-flex align-items-center flex-wrap gap-2 mb-2">
-    <h6 class="fw-bold mb-0">{{ r.label }}</h6>
-    <span class="badge text-bg-secondary">{{ kinds[r.kind] }}</span>
-    <span class="small text-muted">{{ dmy(r.start) }}/{{ r.start[:4] }} – {{ dmy(r.end) }}/{{ r.end[:4] }}</span>
-    {% if r.reconstructed %}<span class="badge bg-secondary bg-opacity-25 text-secondary-emphasis border" title="Generado después: la rentabilidad, las operaciones y los dividendos se han recalculado; lo que no se guardó en su día (p. ej. la agenda de entonces) no está">reconstruido</span>{% endif %}
-    {% if p.incomplete %}<span class="small text-warning" title="Sin precio al inicio del periodo: quedan fuera del cálculo">sin precio: {{ p.incomplete|join(', ') }}</span>{% endif %}
-</div>
+{% macro rank(rows, cls) %}{% for b in rows %}<div class="d-flex justify-content-between"><span><a href="/ticker/{{ b.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(b.ticker) }}</a>{% if b.sold %} <span class="text-muted">vendida</span>{% endif %}</span><span class="{{ cls }} num-font">{{ eur(b.pnl_eur, True) }}</span></div>{% endfor %}{% endmacro %}
 
-{% if r.kind in ('Q', 'Y') %}
-{# trimestral y anual: el informe y, en su subpestaña, la revisión o la carta de IA #}
-<ul class="nav nav-tabs rep-subtabs mb-2" role="tablist">
-    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#rep-numbers" type="button" role="tab" id="rep-numbers-tab"><i class="bi bi-bar-chart me-1"></i>Informe</button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rep-ai" type="button" role="tab" id="rep-ai-tab">
-        <i class="bi bi-stars me-1 text-info"></i>{{ 'Revisión trimestral' if r.kind == 'Q' else 'Carta anual' }}{% if not r.ai %} <span class="badge text-bg-info ms-1">IA</span>{% endif %}</button></li>
-</ul>
-<div class="tab-content">
-    <div class="tab-pane fade show active" id="rep-numbers" role="tabpanel">
-{# 1) las cifras #}
+{# 1) las cifras: iguales en todos; en el trimestral y el anual, la peor caída bajo la rentabilidad #}
+{% macro tiles(r) %}{% set p = r.performance or {} %}{% set f = r.flows or {} %}{% set dv = r.dividends or {} %}{% set dd = r.drawdown %}
 <div class="rep-tiles mb-3">
     <div class="rep-tile {{ 'good' if (p.vs_bench or 0) > 0 else 'bad' if p.vs_bench is not none and p.vs_bench < 0 }}" title="Rentabilidad del periodo (Modified Dietz: las compras y ventas son aportaciones, no ganancias) frente al {{ r.benchmark }} en euros">
         <div class="q">Rentabilidad</div><div class="a">{{ pct(p.pct) }}</div>
-        <div class="d">{{ r.benchmark }} {{ pct(p.bench_pct) }}{% if p.vs_bench is not none %} · <b>{{ num(p.vs_bench, 1, sign=True) }} pp</b>{% endif %}</div></div>
+        <div class="d">{{ r.benchmark }} {{ pct(p.bench_pct) }}{% if p.vs_bench is not none %} · <b>{{ num(p.vs_bench, 1, sign=True) }} pp</b>{% endif %}</div>
+        {% if dd and dd.pct is not none %}<div class="d" title="Peor caída desde un máximo dentro del periodo (sin contar lo que metiste o sacaste){{ ' · desde el ' ~ dmy(dd['from']) ~ ', inicio del Rendimiento' if dd['from'] }}">peor caída {{ num(dd.pct, 1) }} %{% if dd.bench_pct is not none %} · {{ r.benchmark }} {{ num(dd.bench_pct, 1) }} %{% endif %}</div>{% endif %}</div>
     <div class="rep-tile"><div class="q">Resultado</div><div class="a {{ 'text-success' if (p.pnl_eur or 0) >= 0 else 'text-danger' }}">{{ eur(p.pnl_eur, True) }}</div>
-        <div class="d">{% if p.fx_eur is defined and p.fx_eur is not none and p.pnl_eur is not none %}<span title="Empresas: lo que hicieron en su moneda. Divisa: lo que movió el cambio a euros. Sin contar lo que metiste o sacaste">empresas {{ eur(p.pnl_eur - p.fx_eur, True) }} · divisa {{ eur(p.fx_eur, True) }}</span>{% else %}sin contar lo que metiste o sacaste{% endif %}</div></div>
+        <div class="d">{% if p.fx_eur is defined and p.fx_eur is not none and p.pnl_eur is not none %}<span title="Empresas: en su moneda · Divisa: efecto del cambio. Sin aportaciones">empresas {{ eur(p.pnl_eur - p.fx_eur, True) }} · divisa {{ eur(p.fx_eur, True) }}</span>{% else %}sin contar lo que metiste o sacaste{% endif %}</div></div>
     <div class="rep-tile"><div class="q">Valor de la cartera</div><div class="a">{{ eur(p.value_end) }}</div>
         <div class="d">al empezar {{ eur(p.value_start) }}</div></div>
     <div class="rep-tile" title="Compras {{ eur(f.buys) }} · ventas {{ eur(f.sells) }}"><div class="q">Aportaciones netas</div><div class="a">{{ eur(f.net, True) }}</div>
         <div class="d">compras {{ eur(f.buys) }}{% if f.sells %} · ventas {{ eur(f.sells) }}{% endif %}</div></div>
     <div class="rep-tile"><div class="q">Dividendos</div><div class="a">{{ eur(dv.total) }}</div>
-        <div class="d">{{ dv['items']|length }} cobro{{ 's' if dv['items']|length != 1 }}</div></div>
+        <div class="d">{{ (dv['items'] or [])|length }} cobro{{ 's' if (dv['items'] or [])|length != 1 }}</div></div>
 </div>
+{% endmacro %}
 
-{# 3) el detalle, en tres columnas #}
+{# 3) el detalle, en tres columnas: resultado · lo que hiciste · cartera y contexto #}
+{% macro columns(r) %}{% set p = r.performance or {} %}{% set dv = r.dividends or {} %}{% set big = r.kind in ('Q', 'Y') %}
 <div class="row g-3">
     <div class="col-lg-4">
         <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small">
             <div class="rep-label"><i class="bi bi-bar-chart me-1"></i>Lo que más sumó y restó</div>
             <div data-fit="80">
-            {% for b in p.best or [] %}<div class="d-flex justify-content-between"><span><a href="/ticker/{{ b.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(b.ticker) }}</a></span><span class="text-success num-font">{{ eur(b.pnl_eur, True) }}</span></div>{% endfor %}
+            {{ rank(p.best or [], 'text-success') }}
             {% if p.best and p.worst %}<hr class="my-1">{% endif %}
-            {% for b in p.worst or [] %}<div class="d-flex justify-content-between"><span><a href="/ticker/{{ b.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(b.ticker) }}</a></span><span class="text-danger num-font">{{ eur(b.pnl_eur, True) }}</span></div>{% endfor %}
+            {{ rank(p.worst or [], 'text-danger') }}
             {% if r.months %}
             <div class="rep-label mt-2">Mes a mes</div>
             {% for m in r.months %}<div class="d-flex justify-content-between"><span>{{ m.label }}</span><span>{{ pct(m.pct) }} <span class="text-muted">· {{ r.benchmark }} {{ pct(m.bench_pct) }}</span></span></div>{% endfor %}
             {% endif %}
-            {% if dv['items'] %}
+            {% if r.div_top %}
+            <div class="rep-label mt-2">Quién más pagó</div>
+            {% for d in r.div_top %}<div class="d-flex justify-content-between"><span>{{ clean_ticker(d.ticker) }} <span class="text-muted">{{ d.n }} cobro{{ 's' if d.n != 1 }}</span></span><span class="num-font">{{ num(d.eur, 2) }} €</span></div>{% endfor %}
+            {% if r.div_rest > 0 %}<div class="text-muted">y {{ r.div_rest }} empresa{{ 's' if r.div_rest != 1 }} más</div>{% endif %}
+            {% elif dv['items'] and r.kind != 'W' %}
             <div class="rep-label mt-2">Dividendos cobrados</div>
             {% for d in dv['items'] %}<div class="d-flex justify-content-between"><span>{{ clean_ticker(d.ticker) }} <span class="text-muted">{{ dmy(d.date) }}</span></span><span class="num-font">{{ num(d.eur, 2) }} €</span></div>{% endfor %}
             {% endif %}
@@ -122,27 +110,73 @@
         <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small">
             <div class="rep-label"><i class="bi bi-clipboard-data me-1"></i>Tus decisiones <span class="fw-normal text-lowercase">· {{ (r.decisions or [])|length }}</span></div>
             <div data-fit="80">
-            {% for d in r.decisions or [] %}
-            <div class="py-1 {{ 'border-top' if not loop.first }}">
-                <span class="badge {{ 'text-bg-success' if d.type == 'BUY' else 'text-bg-danger' }} bg-opacity-75">{{ 'Compra' if d.type == 'BUY' else 'Venta' }}</span>
-                <a href="/ticker/{{ d.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(d.ticker) }}</a>
-                <span class="text-muted">{{ dmy(d.date) }} · {{ eur(d.amount_eur) }}{% if d.orders > 1 %} · {{ d.orders }} órdenes{% endif %}</span>
-                {% if d.note %}<div class="text-muted fst-italic">«{{ d.note }}»</div>{% endif %}
+            {% set t = r.dec_totals %}
+            {% set dr = r.decision_results %}
+            {% if dr and (dr.best or dr.worst) %}
+            <div class="text-muted" title="Desde la decisión hasta hoy, frente al {{ r.benchmark }} (en una venta, acertar es que caiga después)">Las que mejor y peor salieron</div>
+            {% for o in dr.best + dr.worst %}<div class="d-flex"><span>{{ 'Compra' if o.type == 'BUY' else 'Venta' }} <b>{{ clean_ticker(o.ticker) }}</b> <span class="text-muted">{{ dmy(o.date) }}</span></span>
+                <span class="ms-auto num-font {{ 'text-success' if o.result > 0 else 'text-danger' }}">{{ num(o.result, 1, sign=True) }} pp</span></div>{% endfor %}
+            {% endif %}
+            {% for typ, label in [('BUY', 'Compras'), ('SELL', 'Ventas')] if t[typ].n %}
+            <div class="text-muted mt-2 d-flex"><span class="fw-bold">{{ label }} · {{ t[typ].n }}</span><span class="ms-auto num-font">{{ eur(t[typ].eur) }}</span></div>
+            {% if r.dec_groups %}
+            {% for g in r.dec_groups if g.type == typ %}
+            <details class="rep-dec border-top">
+                <summary class="py-1 d-flex align-items-center gap-1">
+                    <b>{{ clean_ticker(g.ticker) }}</b>
+                    <span class="text-muted">{{ g.n }} {{ 'vez' if g.n == 1 else 'veces' }}{% if g.avg_price %} · media {{ num(g.avg_price, 2) }} {{ g.cur }}{% endif %}{% if g.notes %} <i class="bi bi-chat-left-text" title="Con tu porqué"></i>{% endif %}</span>
+                    <span class="ms-auto num-font">{{ eur(g.amount_eur) }}</span>
+                </summary>
+                <div class="ps-2 pb-1 text-muted">
+                    {% for d in g['items'] %}<div class="d-flex"><span>{{ dmy(d.date) }} · {{ num(d.shares, 0 if d.shares == d.shares|int else 2) }} acc. a {{ num(d.price, 2) }} {{ g.cur }}</span><span class="ms-auto num-font">{{ eur(d.amount_eur) }}</span></div>
+                    {% if d.note %}<div class="fst-italic ps-2">«{{ d.note }}»</div>{% endif %}{% endfor %}
+                </div>
+            </details>
+            {% endfor %}
+            {% else %}
+            {% for d in r.decisions or [] if d.type == typ %}
+            <div class="py-1 border-top d-flex flex-wrap">
+                <a href="/ticker/{{ d.ticker }}" class="fw-bold text-decoration-none me-1">{{ clean_ticker(d.ticker) }}</a>
+                <span class="text-muted">{{ dmy(d.date) }}{% if d.orders > 1 %} · {{ d.orders }} órdenes{% endif %}</span>
+                <span class="ms-auto num-font">{{ eur(d.amount_eur) }}</span>
+                {% if d.note %}<div class="w-100 text-muted fst-italic">«{{ d.note }}»</div>{% endif %}
             </div>
-            {% else %}<div class="text-muted">Sin compras ni ventas en el periodo.</div>{% endfor %}
+            {% endfor %}
+            {% endif %}
+            {% else %}<div class="text-muted">Sin compras ni ventas en el periodo.</div>
+            {% endfor %}
             </div>
         </div></div>
     </div>
     <div class="col-lg-4">
         <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small">
             <div data-fit="80">
-            <div class="rep-label"><i class="bi bi-journal-text me-1"></i>Tesis y noticias</div>
+            {% set sh = r.shift %}
+            {% if sh %}
+            <div class="rep-label"><i class="bi bi-pie-chart me-1"></i>Cómo cambió la cartera</div>
+            {% if sh.entered %}<div><span class="text-muted">Entraron</span> {% for t in sh.entered %}<b>{{ clean_ticker(t) }}</b>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+            {% if sh.exited %}<div><span class="text-muted">Salieron</span> {% for t in sh.exited %}<b>{{ clean_ticker(t) }}</b>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+            {% if not sh.entered and not sh.exited %}<div class="text-muted">Las mismas empresas que al empezar.</div>{% endif %}
+            {% if r.kind == 'Y' and sh.top %}
+            <div class="text-muted mt-1">Más peso al cierre</div>
+            {% for t in sh.top %}<div class="d-flex"><b>{{ clean_ticker(t.ticker) }}</b><span class="ms-auto num-font">{{ num(t.weight, 1) }} %
+                <span class="text-muted">{{ '(' ~ num(t.weight_start, 1) ~ ' %)' if t.weight_start is not none else '(nueva)' }}</span></span></div>{% endfor %}
+            {% endif %}
+            {% endif %}
+            {% if r.theses_close %}
+            <div class="rep-label mt-2"><i class="bi bi-journal-text me-1"></i>Tus tesis al cierre</div>
+            {% set vc = {'REFORZADA': 'text-success', 'INTACTA': 'text-primary', 'VIGILANCIA': 'text-warning', 'DEBILITADA': 'text-danger', 'ROTA': 'text-danger'} %}
+            {% for t in r.theses_close %}<div class="d-flex"{% if t.changes %} title="{{ t.changes|join(' · ') }}"{% endif %}><b>{{ clean_ticker(t.ticker) }}</b>
+                <span class="ms-auto {{ vc.get(t.verdict, 'text-muted') }}">{{ t.verdict|lower }}{% if t.changes %} <i class="bi bi-arrow-left-right text-muted" title="{{ t.changes|join(' · ') }}"></i>{% endif %}</span></div>{% endfor %}
+            {% elif r.theses or r.news or not big %}
+            <div class="rep-label {{ 'mt-2' if sh }}"><i class="bi bi-journal-text me-1"></i>Tesis y noticias</div>
             {% for e in r.theses or [] %}<div><span class="text-muted">{{ dmy(e.date) }}</span> <b>{{ clean_ticker(e.ticker) }}</b> {{ e.title }}</div>{% endfor %}
             {% for n in r.news or [] %}<div class="text-truncate" title="{{ n.title }}"><span class="fw-bold {{ 'text-danger' if n.materiality >= 5 else 'text-warning' }}">{{ n.materiality }}/5</span>
                 <b>{{ clean_ticker(n.ticker) }}</b> {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" class="text-decoration-none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>{% endfor %}
             {% if not r.theses and not r.news %}<div class="text-muted">Sin cambios en las tesis ni noticias muy relevantes.</div>{% endif %}
+            {% endif %}
             {% if r.watchlist or r.insiders %}
-            <div class="rep-label mt-2"><i class="bi bi-eye me-1"></i>Watchlist y directivos</div>
+            <div class="rep-label mt-2"><i class="bi bi-eye me-1"></i>{{ 'Watchlist y directivos' if r.watchlist else 'Directivos' }}</div>
             {% for w in r.watchlist %}<div><span class="badge text-bg-success">en zona</span> <a href="/ticker/{{ w.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(w.ticker) }}</a> <span class="text-muted">{{ dmy(w.date) }}</span></div>{% endfor %}
             {% for i in r.insiders %}<div><i class="bi bi-person-badge text-success"></i> <b>{{ clean_ticker(i.ticker) }}</b>: compran {{ i.insiders }} directivo{{ 's' if i.insiders > 1 }} ({{ num(i.value / 1000, 0) }} mil)</div>{% endfor %}
             {% endif %}
@@ -154,34 +188,222 @@
         </div></div>
     </div>
 </div>
-    </div>
-    <div class="tab-pane fade" id="rep-ai" role="tabpanel">{{ ai_big(r) }}</div>
-</div>
-{% else %}
-{# 1) las cifras #}
-<div class="rep-tiles mb-3">
-    <div class="rep-tile {{ 'good' if (p.vs_bench or 0) > 0 else 'bad' if p.vs_bench is not none and p.vs_bench < 0 }}" title="Rentabilidad del periodo (Modified Dietz: las compras y ventas son aportaciones, no ganancias) frente al {{ r.benchmark }} en euros">
-        <div class="q">Rentabilidad</div><div class="a">{{ pct(p.pct) }}</div>
-        <div class="d">{{ r.benchmark }} {{ pct(p.bench_pct) }}{% if p.vs_bench is not none %} · <b>{{ num(p.vs_bench, 1, sign=True) }} pp</b>{% endif %}</div></div>
-    <div class="rep-tile"><div class="q">Resultado</div><div class="a {{ 'text-success' if (p.pnl_eur or 0) >= 0 else 'text-danger' }}">{{ eur(p.pnl_eur, True) }}</div>
-        <div class="d">{% if p.fx_eur is defined and p.fx_eur is not none and p.pnl_eur is not none %}<span title="Empresas: lo que hicieron en su moneda. Divisa: lo que movió el cambio a euros. Sin contar lo que metiste o sacaste">empresas {{ eur(p.pnl_eur - p.fx_eur, True) }} · divisa {{ eur(p.fx_eur, True) }}</span>{% else %}sin contar lo que metiste o sacaste{% endif %}</div></div>
-    <div class="rep-tile"><div class="q">Valor de la cartera</div><div class="a">{{ eur(p.value_end) }}</div>
-        <div class="d">al empezar {{ eur(p.value_start) }}</div></div>
-    <div class="rep-tile" title="Compras {{ eur(f.buys) }} · ventas {{ eur(f.sells) }}"><div class="q">Aportaciones netas</div><div class="a">{{ eur(f.net, True) }}</div>
-        <div class="d">compras {{ eur(f.buys) }}{% if f.sells %} · ventas {{ eur(f.sells) }}{% endif %}</div></div>
-    <div class="rep-tile"><div class="q">Dividendos</div><div class="a">{{ eur(dv.total) }}</div>
-        <div class="d">{{ dv['items']|length }} cobro{{ 's' if dv['items']|length != 1 }}</div></div>
-</div>
+{% endmacro %}
 
+{# trimestral y anual: todas las secciones seguidas, con scroll solo dentro del informe (la página no). Las gráficas las pinta repCharts (JS) #}
+{% macro dec_list(groups, empty) %}
+{% for g in groups %}
+<div class="rep-op d-flex align-items-center gap-1 border-top py-1" role="button" tabindex="0" data-rep-op="{{ {'ticker': clean_ticker(g.ticker), 'type': g.type, 'cur': g.cur, 'avg': g.avg_price, 'items': g['items']}|tojson|forceescape }}">
+    <b>{{ clean_ticker(g.ticker) }}</b>
+    <span class="text-muted">{{ g.n }} {{ 'vez' if g.n == 1 else 'veces' }}{% if g.avg_price %} · media {{ num(g.avg_price, 2) }} {{ g.cur }}{% endif %}{% if g.notes %} <i class="bi bi-chat-left-text" title="Con tu porqué"></i>{% endif %}</span>
+    <span class="ms-auto num-font">{{ eur(g.amount_eur) }}</span>
+</div>
+{% else %}<div class="text-muted">{{ empty }}</div>{% endfor %}
+{% endmacro %}
+
+{% macro card(title, icon) %}<div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small"><div class="rep-label"><i class="bi {{ icon }} me-1"></i>{{ title }}</div>{{ caller() }}</div></div>{% endmacro %}
+
+{% macro stacked(r) %}{% set p = r.performance or {} %}{% set dv = r.dividends or {} %}{% set Y = r.kind == 'Y' %}{% set sh = r.shift or {} %}{% set dr = r.decision_results or {} %}{% set t = r.dec_totals %}
+
+{% set secs = [('res', 'Resumen', 'bi-speedometer2'), ('ret', 'Rentabilidad', 'bi-graph-up'), ('ops', 'Compras y ventas', 'bi-arrow-left-right'),
+                ('pf', 'Cartera y tesis' if Y else 'Cartera', 'bi-pie-chart')] + ([('div', 'Dividendos', 'bi-cash-coin')] if Y else [])
+   + ([('ai', 'Carta del año' if Y else 'Revisión', 'bi-stars')] if not r.live else []) %}
+{# índice: va a cada sección y marca en la que estás al bajar #}
+<ul class="nav nav-tabs rep-index mb-2">
+    {% for k, label, icon in secs %}<li class="nav-item"><button type="button" class="nav-link {{ 'active' if loop.first }}" data-rep-goto="rep-{{ k }}">
+        <i class="bi {{ icon }} me-1 {{ 'text-info' if k == 'ai' }}"></i>{{ label }}{% if k == 'ai' and not r.ai %} <span class="badge text-bg-info ms-1">IA</span>{% endif %}</button></li>{% endfor %}
+</ul>
+<div class="rep-scroll" data-fit="300">
+    {# 1) Resumen: las cifras, la gráfica del periodo y lo esencial en frases #}
+    <div class="rep-sec" id="rep-res">
+        {{ tiles(r) }}
+        {% set rk = r.risk or {} %}{% set dd = r.drawdown or {} %}{% set ina = r.inaction or {} %}{% set cc = r.cash or {} %}
+        <div class="row g-3">
+            {# a la izquierda, la curva y lo esencial y, debajo, riesgo y gestión; a la derecha, a todo el alto, cómo se llegó al valor #}
+            <div class="col-lg-9">
+                <div class="row g-3">
+                    <div class="col-md-8">{% call card('Cartera frente al ' ~ r.benchmark ~ ' (base 100)', 'bi-graph-up') %}
+                        {% if r.curve %}<div class="rep-chart" data-rep-chart="curve" data-spec="{{ r.curve|tojson|forceescape }}"></div>
+                        {% else %}<div class="text-muted">Sin la serie del Rendimiento para este periodo.</div>{% endif %}{% endcall %}</div>
+                    <div class="col-md-4">{% call card('Lo esencial', 'bi-lightbulb') %}
+                        <ul class="ps-3 mb-0 rep-take">{% for x in r.takeaways or [] %}<li>{{ x }}</li>{% endfor %}</ul>{% endcall %}</div>
+                </div>
+                <div class="row g-3 mt-0">
+                    <div class="col-md-6">{% call card('Riesgo frente al ' ~ r.benchmark, 'bi-activity') %}
+                        {% if rk %}
+                        <div class="d-flex text-muted"><span></span><span class="ms-auto rep-col">Cartera</span><span class="rep-col">{{ r.benchmark }}</span></div>
+                        <div class="d-flex" title="Sin aportaciones (valor por participación){{ ' · desde el ' ~ dmy(rk['from']) ~ ', inicio del Rendimiento' if rk['from'] }}"><span class="text-muted">Rentabilidad{{ ' desde el ' ~ dmy(rk['from']) if rk['from'] }}</span>
+                            <span class="ms-auto rep-col">{{ pct(rk.twr) }}</span><span class="rep-col num-font">{{ num(rk.bench_twr, 1, sign=True) ~ ' %' if rk.bench_twr is not none else '–' }}</span></div>
+                        <div class="d-flex" title="Desviación de los rendimientos diarios, anualizada"><span class="text-muted">Volatilidad</span>
+                            <span class="ms-auto rep-col num-font">{{ num(rk.vol, 1) }} %</span><span class="rep-col num-font">{{ num(rk.bench_vol, 1) ~ ' %' if rk.bench_vol is not none else '–' }}</span></div>
+                        <div class="d-flex"><span class="text-muted">Peor caída</span>
+                            <span class="ms-auto rep-col num-font">{{ num(dd.pct, 1) ~ ' %' if dd.pct is not none else '–' }}</span><span class="rep-col num-font">{{ num(dd.bench_pct, 1) ~ ' %' if dd.bench_pct is not none else '–' }}</span></div>
+                        {% if rk.beta is not none %}<div class="d-flex" title="Cuánto se mueve la cartera por cada 1 % del índice"><span class="text-muted">Beta</span><span class="ms-auto rep-col num-font">{{ num(rk.beta, 2) }}</span><span class="rep-col"></span></div>{% endif %}
+                        {% if rk.alpha is defined %}<div class="d-flex border-top mt-1 pt-1" title="Beta × rentabilidad del {{ r.benchmark }}: lo que tocaba solo por el riesgo asumido"><span class="text-muted">Por el riesgo asumido</span><span class="ms-auto rep-col num-font">{{ num(rk.beta_ret, 1, sign=True) }} %</span><span class="rep-col"></span></div>
+                        <div class="d-flex" title="Rentabilidad de la cartera menos lo que daba su riesgo (sin descontar el tipo sin riesgo)"><span class="text-muted">Por tu selección</span><span class="ms-auto rep-col fw-bold num-font {{ 'text-success' if rk.alpha >= 0 else 'text-danger' }}">{{ num(rk.alpha, 1, sign=True) }} pp</span><span class="rep-col"></span></div>{% endif %}
+                        {% else %}<div class="text-muted">Sin la serie del Rendimiento para este periodo.</div>{% endif %}{% endcall %}</div>
+                    <div class="col-md-6">{% call card('Tu gestión', 'bi-person-check') %}
+                        {% if ina.pct is not none and p.pct is not none %}{% set gap = p.pct - ina.pct %}
+                        <div class="d-flex" title="La cartera del principio, sin comprar ni vender nada en el periodo: {{ num(ina.pct, 1, sign=True) }} % ({{ eur(ina.pnl_eur, True) }})"><span class="text-muted">Tus operaciones frente a no tocar nada</span>
+                            <span class="ms-auto text-nowrap fw-bold num-font {{ 'text-success' if gap >= 0 else 'text-danger' }}">{{ num(gap, 1, sign=True) }} pp</span></div>{% endif %}
+                        {% if r.timing_pp is defined %}<div class="d-flex" title="Tu rentabilidad ({{ num(p.pct, 1, sign=True) }} %, con el momento de tus compras y ventas) frente a la de la cartera"><span class="text-muted">Momento de tus aportaciones</span>
+                            <span class="ms-auto num-font">{{ num(r.timing_pp, 1, sign=True) }} pp</span></div>{% endif %}
+                        {% if cc %}<div class="d-flex" title="Patrimonio con liquidez frente a la cartera{{ ' · desde el ' ~ dmy(cc['from']) if cc['from'] }}{{ ' · efectivo medio ' ~ num(cc.avg_pct, 1) ~ ' %' if cc.avg_pct is not none }}"><span class="text-muted">Coste de la liquidez</span>
+                            <span class="ms-auto num-font">{{ num(cc.pp, 2, sign=True) }} pp</span></div>{% endif %}
+                        {% if p.n_up is defined and (p.n_up or p.n_down) %}<div class="d-flex"><span class="text-muted">Empresas en positivo</span><span class="ms-auto num-font">{{ p.n_up }} de {{ p.n_up + p.n_down }}</span></div>{% endif %}
+                        {% endcall %}</div>
+                </div>
+            </div>
+            <div class="col-lg-3">
+                <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small d-flex flex-column">
+                    <div class="rep-label"><i class="bi bi-bar-chart-steps me-1"></i>Cómo se llegó al valor</div>
+                    {% if r.bridge and r.bridge.steps %}{% set bg = r.bridge %}
+                    <div class="d-flex gap-2 flex-grow-1 mt-1">
+                        <div class="rep-stack" title="De abajo arriba: valor al empezar y lo que se le sumó o restó">
+                            {% for x in bg.steps %}<span class="rep-stack-{{ 'neg' if x.eur < 0 and x.kind != 'base' else x.kind }}" style="bottom: {{ x.bottom }}%; height: {{ x.height }}%"></span>{% endfor %}
+                            <span class="rep-stack-end" style="bottom: {{ bg.end_pct }}%"></span>
+                        </div>
+                        <div class="position-relative flex-grow-1">
+                            {% for x in bg.steps %}<div class="rep-stack-lab d-flex align-items-center gap-1" style="bottom: {{ x.label_pct }}%"><i class="rep-dot rep-stack-{{ 'neg' if x.eur < 0 and x.kind != 'base' else x.kind }}"></i>
+                                <span class="text-muted text-truncate">{{ x.label }}</span><span class="ms-auto text-nowrap num-font">{{ eur(x.eur, x.kind != 'base') }}</span></div>{% endfor %}
+                        </div>
+                    </div>
+                    <div class="d-flex border-top mt-2 pt-1"><span class="fw-bold">Al cierre</span><span class="ms-auto fw-bold text-nowrap num-font">{{ eur(bg.end) }}</span></div>
+                    {% else %}<div class="text-muted">Sin datos de valor para este periodo.</div>{% endif %}
+                </div></div>
+            </div>
+        </div>
+    </div>
+    {# 2) Rentabilidad: mes a mes y quién la explica #}
+    <div class="rep-sec" id="rep-ret"><div class="rep-sec-h">Rentabilidad</div>
+        <div class="row g-3">
+            <div class="col-lg-7">{% call card('Mes a mes frente al ' ~ r.benchmark, 'bi-bar-chart') %}
+                <div class="rep-chart" data-rep-chart="months" data-spec="{{ {'months': r.months or [], 'bench': r.benchmark}|tojson|forceescape }}"></div>{% endcall %}</div>
+            <div class="col-lg-5">{% call card('Lo que más sumó y restó', 'bi-sort-down') %}
+                {{ rank(p.best or [], 'text-success') }}
+                {% if p.best and p.worst %}<hr class="my-1">{% endif %}
+                {{ rank(p.worst or [], 'text-danger') }}
+                {% if p.fx_eur is defined and p.fx_eur is not none and p.pnl_eur is not none %}
+                <div class="rep-label mt-3">De dónde salió el resultado</div>
+                <div class="d-flex"><span class="text-muted">Lo que hicieron las empresas</span><span class="ms-auto num-font">{{ eur(p.pnl_eur - p.fx_eur, True) }}</span></div>
+                <div class="d-flex"><span class="text-muted">Efecto divisa</span><span class="ms-auto num-font">{{ eur(p.fx_eur, True) }}</span></div>
+                {% endif %}
+                {% if not Y and dv['items'] %}
+                <div class="rep-label mt-3">Dividendos · {{ eur(dv.total) }}</div>
+                {% for d in r.div_by_company[:5] %}<div class="d-flex"><span>{{ clean_ticker(d.ticker) }} <span class="text-muted">{{ d.n }} cobro{{ 's' if d.n != 1 }}</span></span><span class="ms-auto num-font">{{ num(d.eur, 2) }} €</span></div>{% endfor %}
+                {% endif %}{% endcall %}</div>
+        </div>
+        {% set g = r.gains or {} %}
+        <div class="row g-3 mt-0">
+            <div class="col-lg-7">{% call card('Por sector', 'bi-diagram-3') %}
+                {% set smax = (r.sectors or [])|map(attribute='pnl_eur')|map('abs')|max if r.sectors else 0 %}
+                {% for x in r.sectors or [] %}<div class="d-flex align-items-center gap-2" title="{% for t in x.tickers %}{{ clean_ticker(t.ticker) }} {{ num(t.pnl_eur, 0, sign=True) }} €{{ ' · ' if not loop.last }}{% endfor %}">
+                    <span class="rep-s-t text-truncate">{{ x.sector }}</span>
+                    <span class="rep-s-bar flex-grow-1"><span class="{{ 'pos' if x.pnl_eur >= 0 else 'neg' }}" style="width: {{ (100 * (x.pnl_eur|abs) / smax) if smax else 0 }}%"></span></span>
+                    <span class="num-font text-end" style="min-width: 4.5rem;">{{ eur(x.pnl_eur, True) }}</span></div>
+                {% else %}<div class="text-muted">Sin datos por sector.</div>{% endfor %}{% endcall %}</div>
+            <div class="col-lg-5">{% call card('Ganancias', 'bi-cash-stack') %}
+                {% if g %}
+                {% if g.latent_eur is not none %}<div class="d-flex" title="Lo que vale lo que tenías al cierre frente a lo que te costó"><span class="text-muted">Plusvalía latente al cierre</span>
+                    <span class="ms-auto fw-bold num-font">{{ eur(g.latent_eur, True) }}{% if g.latent_pct is not none %} <span class="text-muted fw-normal">· {{ num(g.latent_pct, 1, sign=True) }} %</span>{% endif %}</span></div>{% endif %}
+                <div class="d-flex" title="Ventas del periodo frente a su precio medio de compra en euros, sin comisiones"><span class="text-muted">Realizada con las ventas</span>
+                    <span class="ms-auto fw-bold num-font">{{ eur(g.realized_eur, True) }}</span></div>
+                {% for x in g.realized %}<div class="d-flex ps-2"><span>{{ clean_ticker(x.ticker) }}</span><span class="ms-auto num-font {{ 'text-success' if x.eur >= 0 else 'text-danger' }}">{{ eur(x.eur, True) }}</span></div>{% endfor %}
+                {% else %}<div class="text-muted">Sin datos.</div>{% endif %}{% endcall %}</div>
+        </div>
+    </div>
+    {# 3) Compras y ventas: por empresa; al pulsar una, sus órdenes en el recuadro de la derecha #}
+    <div class="rep-sec" id="rep-ops"><div class="rep-sec-h">Compras y ventas</div>
+        <div class="row g-3">
+            <div class="col-lg-4">{% call card('Compras · ' ~ t.BUY.n ~ ' · ' ~ eur(t.BUY.eur), 'bi-bag-plus') %}{{ dec_list(r.buy_groups or [], 'Sin compras en el periodo.') }}{% endcall %}</div>
+            <div class="col-lg-4">{% call card('Ventas · ' ~ t.SELL.n ~ ' · ' ~ eur(t.SELL.eur), 'bi-bag-dash') %}{{ dec_list(r.sell_groups or [], 'Sin ventas en el periodo.') }}{% endcall %}</div>
+            <div class="col-lg-4 d-flex flex-column gap-3">
+                {% if dr.best or dr.worst %}<div>{% call card('Las que mejor y peor salieron', 'bi-trophy') %}
+                    <div class="text-muted mb-1">Desde la decisión hasta hoy, frente al {{ r.benchmark }}{% if dr.n_buys %} · {{ dr.buys_beat }} de {{ dr.n_buys }} compras por delante{% endif %}</div>
+                    {% for o in dr.best + dr.worst %}<div class="d-flex"><span>{{ 'Compra' if o.type == 'BUY' else 'Venta' }} <b>{{ clean_ticker(o.ticker) }}</b> <span class="text-muted">{{ dmy(o.date) }}</span></span>
+                        <span class="ms-auto num-font {{ 'text-success' if o.result > 0 else 'text-danger' }}">{{ num(o.result, 1, sign=True) }} pp</span></div>{% endfor %}{% endcall %}</div>{% endif %}
+
+            </div>
+        </div>
+    </div>
+    {# 4) Cartera (y tesis) #}
+    <div class="rep-sec" id="rep-pf"><div class="rep-sec-h">{{ 'Cartera y tesis' if Y else 'Cartera' }}</div>
+        <div class="row g-3">
+            <div class="col-lg-4">{% call card('Cómo cambió', 'bi-arrow-repeat') %}
+                <div class="d-flex"><span class="text-muted">Empresas</span><span class="ms-auto num-font">{{ sh.n_start if sh.n_start is not none else '–' }} → {{ sh.n_end if sh.n_end is not none else '–' }}</span></div>
+                <div class="d-flex" title="Lo que suman las 5 posiciones más grandes"><span class="text-muted">Las 5 mayores</span><span class="ms-auto num-font">{{ num(sh.top5_start, 1) ~ ' %' if sh.top5_start else '–' }} → {{ num(sh.top5_end, 1) ~ ' %' if sh.top5_end else '–' }}</span></div>
+                {% if sh.eff_end %}<div class="d-flex" title="Cuántas posiciones iguales equivaldrían a tu reparto (1/Σpeso²)"><span class="text-muted">Posiciones efectivas</span><span class="ms-auto num-font">{{ num(sh.eff_start, 1) if sh.eff_start else '–' }} → {{ num(sh.eff_end, 1) }}</span></div>{% endif %}
+                {% if sh.entered %}<div class="rep-label mt-2">Entraron</div><div>{% for x in sh.entered %}<b>{{ clean_ticker(x) }}</b>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+                {% if sh.exited %}<div class="rep-label mt-2">Salieron</div><div>{% for x in sh.exited %}<b>{{ clean_ticker(x) }}</b>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+                {% if not sh.entered and not sh.exited %}<div class="text-muted mt-2">Las mismas empresas que al empezar.</div>{% endif %}{% endcall %}</div>
+            <div class="col-lg-4">{% call card('Pesos: al empezar → al cierre', 'bi-pie-chart') %}
+                {% for x in sh.top or [] %}<div class="d-flex align-items-center gap-2"><b class="rep-w-t">{{ clean_ticker(x.ticker) }}</b>
+                    <span class="rep-w-bar flex-grow-1"><span style="width: {{ [x.weight * 4, 100]|min }}%"></span></span>
+                    <span class="num-font text-muted text-end" style="min-width: 3.2rem;">{{ num(x.weight_start, 1) ~ ' %' if x.weight_start is not none else 'nueva' }}</span>
+                    <span class="num-font text-end" style="min-width: 3.2rem;">{{ num(x.weight, 1) }} %</span></div>{% endfor %}{% endcall %}</div>
+            <div class="col-lg-4">
+                {% if Y %}{% call card('Tus tesis al cierre', 'bi-journal-text') %}
+                {% set vc = {'REFORZADA': 'text-success', 'INTACTA': 'text-primary', 'VIGILANCIA': 'text-warning', 'DEBILITADA': 'text-danger', 'ROTA': 'text-danger'} %}
+                {% for x in r.theses_close or [] %}<div class="d-flex"><b>{{ clean_ticker(x.ticker) }}</b>
+                    <span class="ms-auto {{ vc.get(x.verdict, 'text-muted') }}">{{ x.verdict|lower }}{% if x.changes %} <i class="bi bi-arrow-left-right text-muted" title="{{ x.changes|join(' · ') }}"></i>{% endif %}</span></div>
+                {% else %}<div class="text-muted">Sin tesis abiertas.</div>{% endfor %}{% endcall %}
+                {% else %}{% call card('Tesis y noticias', 'bi-journal-text') %}
+                {% for e in r.theses or [] %}<div><span class="text-muted">{{ dmy(e.date) }}</span> <b>{{ clean_ticker(e.ticker) }}</b> {{ e.title }}</div>{% endfor %}
+                {% for n in r.news or [] %}<div class="text-truncate" title="{{ n.title }}"><span class="fw-bold {{ 'text-danger' if n.materiality >= 5 else 'text-warning' }}">{{ n.materiality }}/5</span>
+                    <b>{{ clean_ticker(n.ticker) }}</b> {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" class="text-decoration-none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>{% endfor %}
+                {% if not r.theses and not r.news %}<div class="text-muted">Sin cambios de veredicto ni noticias muy relevantes.</div>{% endif %}
+                {% if r.insiders %}<div class="rep-label mt-2">Directivos</div>
+                {% for i in r.insiders %}<div><i class="bi bi-person-badge text-success"></i> <b>{{ clean_ticker(i.ticker) }}</b>: compran {{ i.insiders }} directivo{{ 's' if i.insiders > 1 }} ({{ num(i.value / 1000, 0) }} mil)</div>{% endfor %}{% endif %}
+                {% endcall %}{% endif %}
+            </div>
+        </div>
+    </div>
+    {% if Y %}
+    {# 5) Dividendos (en esta cartera de crecimiento, lo de menos) #}
+    <div class="rep-sec" id="rep-div"><div class="rep-sec-h">Dividendos</div>
+        <div class="rep-tiles mb-3">
+            <div class="rep-tile"><div class="q">Cobrado en el año</div><div class="a">{{ eur(dv.total) }}</div><div class="d">{{ (dv['items'] or [])|length }} cobros · {{ (r.div_by_company or [])|length }} empresas</div></div>
+            <div class="rep-tile"><div class="q">Frente al año anterior</div><div class="a">{% if r.div_prev %}{{ pct(100 * (dv.total / r.div_prev - 1)) }}{% else %}<span class="text-muted">–</span>{% endif %}</div><div class="d">{{ 'antes ' ~ eur(r.div_prev) if r.div_prev else 'sin informe del año anterior' }}</div></div>
+        </div>
+        <div class="row g-3">
+            <div class="col-lg-7">{% call card('Cobros mes a mes', 'bi-bar-chart') %}<div class="rep-chart" data-rep-chart="div" data-spec="{{ (r.div_by_month or [])|tojson|forceescape }}"></div>{% endcall %}</div>
+            <div class="col-lg-5">{% call card('Por empresa', 'bi-building') %}
+                {% for d in r.div_by_company or [] %}<div class="d-flex"><b>{{ clean_ticker(d.ticker) }}</b><span class="text-muted ms-1">{{ d.n }} cobro{{ 's' if d.n != 1 }}</span><span class="ms-auto num-font">{{ num(d.eur, 2) }} €</span></div>
+                {% else %}<div class="text-muted">Sin dividendos en el año.</div>{% endfor %}{% endcall %}</div>
+        </div>
+    </div>
+    {% endif %}
+    {% if not r.live %}<div class="rep-sec" id="rep-ai"><div class="rep-sec-h">{{ 'Revisión del trimestre' if not Y else 'Carta del año' }}</div>{{ ai_big(r) }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro panel(r) %}
+{% if not r %}
+<div class="p-4 text-muted small">Aún no hay informes. Se generan solos al cerrar cada semana, mes, trimestre y año (y, la primera vez, hacia atrás desde el inicio de tu cartera).</div>
+{% else %}
+{% set p = r.performance or {} %}
+<div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+    <h6 class="fw-bold mb-0">{{ r.label }}</h6>
+    <span class="badge text-bg-secondary">{{ kinds[r.kind] }}</span>
+    <span class="small text-muted">{{ dmy(r.start) }}/{{ r.start[:4] }} – {{ dmy(r.end) }}/{{ r.end[:4] }}</span>
+    {% if r.live %}<span class="badge bg-info bg-opacity-10 text-info border border-info-subtle" title="Hasta hoy, con los precios de ahora. El definitivo se guarda al cerrar el periodo">en curso</span>{% endif %}
+    {% if r.since %}<span class="small text-muted" title="Lo de antes era la cartera vieja: el estudio empieza con el Rendimiento">· desde el {{ dmy(r.since) }}, inicio del Rendimiento</span>{% endif %}
+    {% if r.reconstructed %}<span class="badge bg-secondary bg-opacity-25 text-secondary-emphasis border" title="Reconstruido: cifras recalculadas; falta lo que no se guardó en su día">reconstruido</span>{% endif %}
+    {% if p.incomplete %}<span class="small text-warning" title="Sin precio al inicio del periodo: quedan fuera del cálculo">sin precio: {{ p.incomplete|join(', ') }}</span>{% endif %}
+</div>
+{% if r.kind in ('Q', 'Y') %}
+{{ stacked(r) }}
+{% else %}
+{{ tiles(r) }}
 {# 2) el comentario de IA (mensual, trimestral y anual): destacado, y solo si se pide #}
-{% if r.kind == "M" %}
+{% if r.kind == "M" and not r.live %}
 <div class="card border-0 shadow-sm mb-3 rep-ai">
     <div class="card-body py-2 px-3">
         <div class="d-flex align-items-center gap-2">
             <span class="fw-bold small"><i class="bi bi-stars me-1 text-info"></i>Comentario de IA</span>
             {% if r.ai %}<span class="small text-muted">· {{ dmy(r.ai.created_at) }}/{{ r.ai.created_at[:4] }}</span>{% endif %}
             <button type="button" class="btn btn-sm {{ 'btn-outline-secondary' if r.ai else 'btn-info' }} ms-auto py-0" data-report-ai="{{ r.key }}"
-                    title="Una llamada a Gemini, sin búsqueda, con las cifras de este informe (céntimos o menos; el coste sale en Ajustes › IA)">
+                    title="Gemini con las cifras del informe (céntimos; coste en Ajustes › IA)">
                 <i class="bi bi-stars me-1"></i>{{ 'Volver a comentar' if r.ai else 'Comentar con IA' }}</button>
         </div>
         {% if r.ai %}
@@ -197,63 +419,7 @@
     </div>
 </div>
 {% endif %}
-
-{# 3) el detalle, en tres columnas #}
-<div class="row g-3">
-    <div class="col-lg-4">
-        <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small">
-            <div class="rep-label"><i class="bi bi-bar-chart me-1"></i>Lo que más sumó y restó</div>
-            <div data-fit="80">
-            {% for b in p.best or [] %}<div class="d-flex justify-content-between"><span><a href="/ticker/{{ b.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(b.ticker) }}</a></span><span class="text-success num-font">{{ eur(b.pnl_eur, True) }}</span></div>{% endfor %}
-            {% if p.best and p.worst %}<hr class="my-1">{% endif %}
-            {% for b in p.worst or [] %}<div class="d-flex justify-content-between"><span><a href="/ticker/{{ b.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(b.ticker) }}</a></span><span class="text-danger num-font">{{ eur(b.pnl_eur, True) }}</span></div>{% endfor %}
-            {% if r.months %}
-            <div class="rep-label mt-2">Mes a mes</div>
-            {% for m in r.months %}<div class="d-flex justify-content-between"><span>{{ m.label }}</span><span>{{ pct(m.pct) }} <span class="text-muted">· {{ r.benchmark }} {{ pct(m.bench_pct) }}</span></span></div>{% endfor %}
-            {% endif %}
-            {% if dv['items'] %}
-            <div class="rep-label mt-2">Dividendos cobrados</div>
-            {% for d in dv['items'] %}<div class="d-flex justify-content-between"><span>{{ clean_ticker(d.ticker) }} <span class="text-muted">{{ dmy(d.date) }}</span></span><span class="num-font">{{ num(d.eur, 2) }} €</span></div>{% endfor %}
-            {% endif %}
-            </div>
-        </div></div>
-    </div>
-    <div class="col-lg-4">
-        <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small">
-            <div class="rep-label"><i class="bi bi-clipboard-data me-1"></i>Tus decisiones <span class="fw-normal text-lowercase">· {{ (r.decisions or [])|length }}</span></div>
-            <div data-fit="80">
-            {% for d in r.decisions or [] %}
-            <div class="py-1 {{ 'border-top' if not loop.first }}">
-                <span class="badge {{ 'text-bg-success' if d.type == 'BUY' else 'text-bg-danger' }} bg-opacity-75">{{ 'Compra' if d.type == 'BUY' else 'Venta' }}</span>
-                <a href="/ticker/{{ d.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(d.ticker) }}</a>
-                <span class="text-muted">{{ dmy(d.date) }} · {{ eur(d.amount_eur) }}{% if d.orders > 1 %} · {{ d.orders }} órdenes{% endif %}</span>
-                {% if d.note %}<div class="text-muted fst-italic">«{{ d.note }}»</div>{% endif %}
-            </div>
-            {% else %}<div class="text-muted">Sin compras ni ventas en el periodo.</div>{% endfor %}
-            </div>
-        </div></div>
-    </div>
-    <div class="col-lg-4">
-        <div class="card border-0 shadow-sm h-100"><div class="card-body py-2 px-3 small">
-            <div data-fit="80">
-            <div class="rep-label"><i class="bi bi-journal-text me-1"></i>Tesis y noticias</div>
-            {% for e in r.theses or [] %}<div><span class="text-muted">{{ dmy(e.date) }}</span> <b>{{ clean_ticker(e.ticker) }}</b> {{ e.title }}</div>{% endfor %}
-            {% for n in r.news or [] %}<div class="text-truncate" title="{{ n.title }}"><span class="fw-bold {{ 'text-danger' if n.materiality >= 5 else 'text-warning' }}">{{ n.materiality }}/5</span>
-                <b>{{ clean_ticker(n.ticker) }}</b> {% if n.url %}<a href="{{ n.url }}" target="_blank" rel="noopener" class="text-decoration-none">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}</div>{% endfor %}
-            {% if not r.theses and not r.news %}<div class="text-muted">Sin cambios en las tesis ni noticias muy relevantes.</div>{% endif %}
-            {% if r.watchlist or r.insiders %}
-            <div class="rep-label mt-2"><i class="bi bi-eye me-1"></i>Watchlist y directivos</div>
-            {% for w in r.watchlist %}<div><span class="badge text-bg-success">en zona</span> <a href="/ticker/{{ w.ticker }}" class="fw-bold text-decoration-none">{{ clean_ticker(w.ticker) }}</a> <span class="text-muted">{{ dmy(w.date) }}</span></div>{% endfor %}
-            {% for i in r.insiders %}<div><i class="bi bi-person-badge text-success"></i> <b>{{ clean_ticker(i.ticker) }}</b>: compran {{ i.insiders }} directivo{{ 's' if i.insiders > 1 }} ({{ num(i.value / 1000, 0) }} mil)</div>{% endfor %}
-            {% endif %}
-            {% if r.agenda %}
-            <div class="rep-label mt-2"><i class="bi bi-calendar-event me-1"></i>Lo que viene</div>
-            {% for a in r.agenda %}<div><span class="text-muted">{{ dmy(a.date) }}</span> <b>{{ clean_ticker(a.ticker) }}</b> {{ a.what }}</div>{% endfor %}
-            {% endif %}
-            </div>
-        </div></div>
-    </div>
-</div>
+{{ columns(r) }}
 {% endif %}
 {% endif %}
 {% endmacro %}
@@ -268,10 +434,38 @@
     .rep-tile .a { font-size: 1.15rem; font-weight: 700; line-height: 1.25; }
     .rep-tile .d { font-size: .72rem; color: var(--bs-secondary-color); }
     .rep-ai { border-left: 4px solid #0dcaf0 !important; }
-    .rep-subtabs .nav-link { padding: .25rem .75rem; font-size: .8rem; }
     .rep-label { font-size: .66rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--bs-secondary-color); margin-bottom: .25rem; }
     .rep-list .list-group-item { font-size: .78rem; padding: .3rem .6rem; cursor: pointer; }
-    .rep-list .list-group-item.active { z-index: 0; }
+    .rep-list .list-group-item.active, [data-bs-theme="dark"] .rep-list .list-group-item.active {
+        z-index: 0; background: rgba(13, 110, 253, .16); color: inherit; border-left: 3px solid #0d6efd; font-weight: 600; }
+    .rep-dec summary { cursor: pointer; list-style: none; }
+    .rep-dec summary::-webkit-details-marker { display: none; }
+    .rep-dec[open] summary { font-weight: 600; }
+    .rep-chart { height: 300px; }
+    .rep-scroll { overflow-y: auto; padding-right: .4rem; position: relative; }   /* offsetTop de las secciones, respecto al informe */
+    .rep-index .nav-link { padding: .25rem .75rem; font-size: .8rem; }
+    .rep-sec + .rep-sec { margin-top: 1.4rem; }
+    .rep-sec-h { font-size: .8rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--bs-secondary-color);
+                 border-bottom: 1px solid var(--bs-border-color); padding-bottom: .25rem; margin-bottom: .6rem; }
+    .rep-take li { margin-bottom: .45rem; }
+    .rep-op { cursor: default; } .rep-op:hover, .rep-op.active { background: var(--bs-tertiary-bg); }
+    .rep-op-pop { position: fixed; z-index: 1080; min-width: 260px; max-width: 360px; padding: .5rem .7rem; font-size: .78rem; pointer-events: none;
+                  background: var(--fin-card-bg, var(--bs-body-bg)); border: 1px solid var(--bs-border-color); border-radius: .5rem; box-shadow: 0 .5rem 1.2rem rgba(0,0,0,.35); }
+    .rep-stack { position: relative; width: 34px; min-height: 150px; background: var(--bs-tertiary-bg); border-radius: 3px; }
+    .rep-stack > span { position: absolute; left: 0; right: 0; }
+    .rep-stack-base { background: #0d6efd; } .rep-stack-flow { background: #6c757d; } .rep-stack-pnl { background: #198754; } .rep-stack-fx { background: #20c997; } .rep-stack-neg { background: #dc3545; }
+    .rep-stack > .rep-stack-neg { opacity: .75; background-image: repeating-linear-gradient(45deg, transparent 0 3px, rgba(0,0,0,.25) 3px 6px); }
+    .rep-stack-end { height: 0; border-top: 2px solid var(--bs-body-color); left: -4px !important; right: -4px !important; }
+    .rep-stack-lab { position: absolute; left: 0; right: 0; transform: translateY(50%); }
+    .rep-dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; flex: none; }
+    .rep-col { min-width: 4.6rem; text-align: right; }
+    .rep-s-t { width: 11rem; }
+    .rep-s-bar { height: 6px; background: var(--bs-tertiary-bg); border-radius: 3px; overflow: hidden; }
+    .rep-s-bar span { display: block; height: 100%; opacity: .55; } .rep-s-bar .pos { background: #198754; } .rep-s-bar .neg { background: #dc3545; }
+    .rep-w-t { min-width: 3.4rem; }
+    .rep-w-bar { height: 6px; background: var(--bs-tertiary-bg); border-radius: 3px; overflow: hidden; }
+    .rep-w-bar span { display: block; height: 100%; background: #0d6efd; opacity: .55; }
+    .rep-month { font-size: .66rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--bs-secondary-color); padding: .35rem .6rem .15rem; }
 </style>
 <div class="row g-3">
     {# archivo #}
@@ -279,16 +473,27 @@
         <div class="btn-group btn-group-sm w-100 mb-2" id="repKinds">
             {% for k, label in kinds.items() %}<button type="button" class="btn btn-outline-secondary {{ 'active' if report and report.kind == k }}" data-rep-kind="{{ k }}">{{ label }}</button>{% endfor %}
         </div>
-        <div class="list-group rep-list" id="repList" data-fit="120">
+        <div class="list-group rep-list" id="repList">
+            {% set rm = namespace(cur=none) %}
             {% for r in reports %}
+            {% if r.kind == 'W' and (r.start or '')[:7] != rm.cur %}{% set rm.cur = (r.start or '')[:7] %}
+            <div class="rep-month {{ 'd-none' if report and report.kind != 'W' }}" data-kind="W">{{ ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][rm.cur[5:7]|int - 1] }} {{ rm.cur[:4] }}</div>
+            {% endif %}
             <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center {{ 'active' if report and r.key == report.key }} {{ 'd-none' if report and r.kind != report.kind }}"
                data-rep-key="{{ r.key }}" data-kind="{{ r.kind }}">
-                <span>{{ r.label }}{% if r.reconstructed %} <i class="bi bi-arrow-counterclockwise small opacity-50" title="Reconstruido"></i>{% endif %}</span>
+                <span>{{ r.label }}{% if r.live %} <span class="small text-info">· en curso</span>{% endif %}{% if r.reconstructed %} <i class="bi bi-arrow-counterclockwise small opacity-50" title="Reconstruido"></i>{% endif %}</span>
                 <span class="small">{{ pct(r.pct) }}</span>
             </a>
             {% else %}
             <div class="small text-muted p-2">{% if pending %}Generando los informes de las semanas y meses anteriores… ({{ pending|length }} pendientes). Vuelve a abrir la pestaña en un momento.{% else %}Aún no hay informes.{% endif %}</div>
             {% endfor %}
+        </div>
+        <div class="d-flex align-items-center gap-2 mt-1 d-none" id="repPager">
+            <span class="small text-muted me-auto" id="repPagerInfo"></span>
+            <div class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-secondary" data-rep-page="-1" title="Más recientes"><i class="bi bi-chevron-left"></i></button>
+                <button type="button" class="btn btn-outline-secondary" data-rep-page="1" title="Más antiguos"><i class="bi bi-chevron-right"></i></button>
+            </div>
         </div>
     </div>
     {# el informe #}

@@ -1,0 +1,632 @@
+{% extends "base.html" %}
+{# Roboadvisor (MyInvestor), en pestañas (#resumen, #meses, #fondos, #aportaciones, #ajustar):
+   - Resumen: cifras; evolución en € (valor frente a lo aportado) o en % (sin el efecto de las aportaciones, frente al
+     MSCI World en euros y a tu cartera de acciones), con periodo; los años frente al índice y la exposición por zonas.
+   - Por meses: mapa de calor año × mes (% o €), como la tabla de MyInvestor.
+   - Fondos: cada fondo (peso, valor, variaciones, curva de un año) y la exposición por zonas.
+   - Aportaciones: barras por mes y totales por año. Ajustar: aportación mensual y ajuste con MyInvestor.
+   Sin scroll de página: las gráficas toman el alto que queda y las listas largas tienen el suyo.
+   Colores de series: paleta validada (azul robo, naranja índice, aguamarina cartera; zonas en ese orden + amarillo, rosa). #}
+{% block title %}Alpha-Flow · Roboadvisor{% endblock %}
+{% block content %}
+{% macro dmy(d) %}{{ d[8:10] }}/{{ d[5:7] }}/{{ d[:4] }}{% endmacro %}
+{% macro sgn(v, d=2) %}{{ num(v, d, sign=True) }}{% endmacro %}
+{% macro cls(v) %}{{ 'text-success' if v and v > 0 else ('text-danger' if v and v < 0 else 'text-muted') }}{% endmacro %}
+{% macro spark(vals, w=110, h=26) %}{% if vals|length > 1 %}{% set lo = vals|min %}{% set hi = vals|max %}{% set rng = (hi - lo) or 1 %}
+<svg width="{{ w }}" height="{{ h }}" viewBox="0 0 {{ w }} {{ h }}" class="rb-spark {{ 'up' if vals[-1] >= vals[0] else 'down' }}" aria-hidden="true"><polyline fill="none" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" points="{% for v in vals %}{{ '%.1f'|format(loop.index0 * (w - 2) / (vals|length - 1) + 1) }},{{ '%.1f'|format(h - 2 - (v - lo) * (h - 4) / rng) }} {% endfor %}"/></svg>{% endif %}{% endmacro %}
+{% set MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'] %}
+{% set ZC = {'EE. UU.': 'var(--rb-robo)', 'Europa': 'var(--rb-idx)', 'Japón': 'var(--rb-port)', 'Emergentes': 'var(--rb-z4)', 'Pacífico y otros': 'var(--rb-z5)'} %}
+<style>
+    .rb-root { --rb-robo: #2a78d6; --rb-idx: #eb6834; --rb-port: #1baf7a; --rb-z4: #eda100; --rb-z5: #e87ba4; }
+    [data-bs-theme="dark"] .rb-root { --rb-robo: #3987e5; --rb-idx: #d95926; --rb-port: #199e70; --rb-z4: #c98500; --rb-z5: #d55181; }
+    .rb-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .6rem; }
+    .rb-tile, .rb-card { background: var(--fin-card-bg, var(--bs-tertiary-bg)); border-radius: .6rem; padding: .6rem .85rem; }
+    .rb-l, .rb-h { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--bs-secondary-color); }
+    .rb-v { font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
+    .rb-s { font-size: .75rem; color: var(--bs-secondary-color); }
+    .rb-band { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin-top: .6rem;
+               background: var(--fin-card-bg, var(--bs-tertiary-bg)); border-radius: .6rem; }
+    .rb-band-i { display: flex; align-items: baseline; gap: .5rem; padding: .45rem .85rem; border-left: 1px solid var(--bs-border-color); white-space: nowrap; overflow: hidden; }
+    .rb-band-i:first-child { border-left: 0; }
+    /* liquidativo de días atrás: atenuado y con borde discontinuo, como lo que aún no ha abierto */
+    .rb-band-i.rb-stale { opacity: .6; outline: 1px dashed var(--bs-border-color); outline-offset: -3px; border-radius: .6rem; }
+    .rb-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: .75rem; margin-top: .75rem; }
+    .rb-seg .btn, .rb-seg-one { font-size: .72rem !important; padding: .1rem .55rem !important; }
+    .rb-key { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; color: var(--bs-secondary-color); }
+    .rb-key i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+    .rb-key i.dot { border-top: 2px dotted var(--bs-secondary-color); height: 0; background: none !important; }
+    /* años frente al índice: dos barras finas por año */
+    .rb-year { display: grid; grid-template-columns: 2.6rem 1fr 3.6rem; gap: .15rem .6rem; align-items: center; font-size: .78rem; padding: .3rem 0; border-top: 1px solid var(--bs-border-color); }
+    .rb-year:first-of-type { border-top: 0; }
+    .rb-bar { height: 6px; border-radius: 3px; min-width: 2px; }
+    .rb-diff { font-size: .7rem; font-weight: 600; text-align: right; }
+    /* zonas */
+    .rb-zone { display: flex; align-items: center; gap: .45rem; font-size: .78rem; padding: .12rem 0; }
+    .rb-zone i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+    .rb-zone b { margin-left: auto; font-weight: 600; }
+    .rb-stack { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; margin: .35rem 0 .5rem; }
+    /* mapa de calor */
+    .rb-heat { width: 100%; border-collapse: separate; border-spacing: 3px; font-size: .8rem; }
+    .rb-heat th { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--bs-secondary-color); text-align: center; padding: .2rem; }
+    .rb-heat td { text-align: center; padding: .75rem .2rem; border-radius: .35rem; white-space: nowrap; }
+    .rb-heat td.rb-y { text-align: left; font-weight: 700; color: var(--bs-body-color); padding-left: .5rem; }
+    .rb-heat td.rb-sum { font-weight: 700; background: var(--bs-secondary-bg); }
+    .rb-heat td.rb-ix { color: var(--bs-secondary-color); background: var(--bs-secondary-bg); }
+    .rb-heat td.rb-live { font-style: italic; outline: 1px dashed var(--bs-border-color); outline-offset: -1px; }
+    .rb-heat td.rb-empty { color: var(--bs-tertiary-color); }
+    /* fondos */
+    .rb-funds { width: 100%; font-size: .8rem; }
+    .rb-funds th { font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--bs-secondary-color); padding: .3rem .4rem; text-align: right; white-space: nowrap; }
+    .rb-funds td { padding: .5rem .4rem; border-top: 1px solid var(--bs-border-color); text-align: right; white-space: nowrap; vertical-align: middle; }
+    .rb-funds th:first-child, .rb-funds td:first-child { text-align: left; }
+    .rb-wbar { display: inline-block; width: 54px; height: 5px; border-radius: 3px; background: var(--bs-secondary-bg); vertical-align: middle; margin-right: .4rem; overflow: hidden; }
+    .rb-wbar span { display: block; height: 100%; background: var(--rb-robo); border-radius: 3px; }
+    .rb-spark.up polyline { stroke: var(--bs-success); } .rb-spark.down polyline { stroke: var(--bs-danger); }
+    .rb-fund-row { cursor: pointer; }
+    .rb-fund-row:hover td { background: var(--bs-secondary-bg); }
+    .rb-fund-row.sel td { background: rgba(var(--bs-primary-rgb), .1); }
+    .rb-chev { font-size: .65rem; margin-right: .35rem; color: var(--bs-secondary-color); transition: transform .15s; display: inline-block; }
+    .rb-fund-row.sel .rb-chev { transform: rotate(90deg); color: var(--bs-primary); }
+    .rb-fstats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .4rem; }
+    .rb-fstat { background: var(--bs-secondary-bg); border-radius: .4rem; padding: .3rem .45rem; text-align: center; }
+    .rb-fstat .rb-l { font-size: .6rem; }
+    .rb-fstat b { font-size: .85rem; display: block; }
+    .rb-list { font-size: .8rem; }
+    .rb-list > div { display: flex; justify-content: space-between; align-items: center; padding: .32rem 0; border-bottom: 1px solid var(--bs-border-color); }
+    .rb-est { font-size: .65rem; padding: .05rem .35rem; border-radius: .25rem; background: var(--bs-secondary-bg); color: var(--bs-secondary-color); }
+    @media (max-width: 1199px) { .rb-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } .rb-grid { grid-template-columns: 1fr; } }
+</style>
+<div class="rb-root">
+<div class="d-flex align-items-end justify-content-between flex-wrap gap-2 mb-3 pf-navbar">
+    <div>
+        <h4 class="fw-bold mb-1"><i class="bi bi-robot me-2"></i>Roboadvisor <span class="fs-6 fw-normal text-muted">· MyInvestor</span></h4>
+        <ul class="nav nav-tabs border-0" role="tablist" id="rbTabs">
+            <li class="nav-item"><button type="button" class="nav-link fw-bold {{ 'active' if st.configured }}" data-bs-toggle="tab" data-bs-target="#rb-resumen" data-hash="resumen"><i class="bi bi-speedometer2 me-1"></i>Resumen</button></li>
+            <li class="nav-item"><button type="button" class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#rb-meses" data-hash="meses"><i class="bi bi-calendar3 me-1"></i>Por meses</button></li>
+            <li class="nav-item"><button type="button" class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#rb-fondos" data-hash="fondos"><i class="bi bi-pie-chart me-1"></i>Fondos</button></li>
+            <li class="nav-item"><button type="button" class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#rb-aportaciones" data-hash="aportaciones"><i class="bi bi-piggy-bank me-1"></i>Aportaciones</button></li>
+            <li class="nav-item"><button type="button" class="nav-link fw-bold {{ 'active' if not st.configured }}" data-bs-toggle="tab" data-bs-target="#rb-ajustar" data-hash="ajustar"><i class="bi bi-sliders me-1"></i>Ajustar{% if st.adjust_due %} <i class="bi bi-circle-fill text-warning" style="font-size: .45rem; vertical-align: middle;" title="Toca ajustar con MyInvestor"></i>{% endif %}</button></li>
+        </ul>
+    </div>
+    <span class="small text-muted mb-2">Aparte de tu cartera de acciones · suma al patrimonio del Resumen de Cartera</span>
+</div>
+
+{% set this_year = ((st.table or {}).years or [{}])[0] %}
+<div class="tab-content">
+{% if st.configured %}
+<!-- ===================================== Resumen ===================================== -->
+<div class="tab-pane fade show active" id="rb-resumen" role="tabpanel">
+    <div class="rb-tiles" style="grid-template-columns: repeat(5, minmax(0, 1fr))">
+        <div class="rb-tile" title="{{ 'Estimado desde el ajuste del ' ~ dmy(st.snapshot.date) ~ (' con el liquidativo del ' ~ dmy(st.nav_date) if st.nav_date else '') if st.estimated else 'Lo que dice MyInvestor (ajuste del ' ~ dmy(st.snapshot.date) ~ ')' }}">
+            <div class="rb-l">Valor</div>
+            <div class="rb-v num-font">{{ '~' if st.estimated }}{{ num(st.value, 2) }} €</div>
+            <div class="rb-s">{{ ('estimado' ~ (' · liquidativo del ' ~ st.nav_date[8:10] ~ '/' ~ st.nav_date[5:7] if st.nav_date else '')) if st.estimated else 'ajustado el ' ~ dmy(st.snapshot.date) }}{% if st.adjust_due %} · <a href="#ajustar" class="text-warning text-decoration-none" data-rb-go="ajustar">toca ajustar</a>{% endif %}</div>
+        </div>
+        <div class="rb-tile">
+            <div class="rb-l">Invertido</div>
+            <div class="rb-v num-font">{{ num(st.invested, 2) }} €</div>
+            <div class="rb-s">desde {{ MES[(st.first[5:7]|int) - 1] ~ ' ' ~ st.first[:4] if st.first else '–' }}</div>
+        </div>
+        <div class="rb-tile">
+            <div class="rb-l">Ganancia</div>
+            <div class="rb-v num-font {{ cls(st.gain) }}">{{ sgn(st.gain) }} €</div>
+            <div class="rb-s num-font">{{ sgn(st.pct) }} % sobre lo invertido</div>
+        </div>
+        <div class="rb-tile" title="Rentabilidad anual del dinero aportado: cada aportación cuenta desde su fecha">
+            <div class="rb-l">TIR</div>
+            <div class="rb-v num-font {{ cls(st.irr) }}">{{ sgn(st.irr, 1) if st.irr is not none else '–' }} %</div>
+            <div class="rb-s">al año</div>
+        </div>
+        <div class="rb-tile">
+            <div class="rb-l">Aportación</div>
+            <div class="rb-v num-font">{{ num(st.plan.amount, 0) if st.plan else '–' }} €<span class="rb-s fw-normal"> /mes</span></div>
+            <div class="rb-s">{% if st.plan %}el día {{ st.plan.day }} · {% endif %}<a href="#ajustar" class="text-decoration-none" data-rb-go="ajustar" data-rb-focus="rbPlanAmount">cambiar</a></div>
+        </div>
+    </div>
+    {# banda de periodos, como la de Cartera: lo ganado en € y % #}
+    <div class="rb-band">{% for b in bands %}
+        <div class="rb-band-i{{ ' rb-stale' if b.stale }}" title="{{ b.note or b.label }}{{ ' · encadenando los meses' if b.key in ('3m', 'ytd', '1y') }}">
+            <span class="rb-l">{{ b.label }}</span>
+            <span class="num-font fw-bold {{ cls(b.gain) }}">{{ sgn(b.gain, 0) }} €</span>
+            <span class="num-font small {{ cls(b.pct) }}">{{ sgn(b.pct) }} %</span>
+            {% if b.key == 'ytd' and this_year.index is not none %}<span class="rb-s" title="Índice de MyInvestor en {{ this_year.year }} (hasta su última tabla)">índ. {{ sgn(this_year.index, 1) }} %</span>{% endif %}
+        </div>{% endfor %}
+    </div>
+    <div class="rb-grid">
+        <div class="rb-card">
+            <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
+                <span class="rb-h me-1">Evolución</span>
+                <div class="btn-group rb-seg" role="group" aria-label="Unidades">
+                    <input type="radio" class="btn-check" name="rbMode" id="rbModeEur" value="eur" checked>
+                    <label class="btn btn-outline-secondary" for="rbModeEur" title="Valor frente a lo aportado">Valor</label>
+                    <input type="radio" class="btn-check" name="rbMode" id="rbModeGain" value="gain">
+                    <label class="btn btn-outline-secondary" for="rbModeGain" title="Lo ganado (valor − aportado)">Ganado</label>
+                    <input type="radio" class="btn-check" name="rbMode" id="rbModePct" value="pct">
+                    <label class="btn btn-outline-secondary" for="rbModePct" title="Rentabilidad sin el efecto de las aportaciones">%</label>
+                </div>
+                <div class="btn-group rb-seg" role="group" aria-label="Periodo">
+                    {% for k, l in [('6m', '6M'), ('ytd', 'YTD'), ('1y', '1A'), ('3y', '3A'), ('all', 'Todo')] %}
+                    <input type="radio" class="btn-check" name="rbRange" id="rbRange{{ k }}" value="{{ k }}" {{ 'checked' if k == 'all' }}>
+                    <label class="btn btn-outline-secondary" for="rbRange{{ k }}">{{ l }}</label>{% endfor %}
+                </div>
+                <input type="checkbox" class="btn-check" id="rbLog" autocomplete="off">
+                <label class="btn btn-outline-secondary rb-seg-one" for="rbLog" title="Escala logarítmica: la misma subida en % ocupa lo mismo (solo en Valor)">Log</label>
+                <span class="ms-auto d-flex gap-3" id="rbKeys"></span>
+            </div>
+            <div id="rbChart"></div>
+            <div class="rb-s mt-1" id="rbFoot"></div>
+        </div>
+        <div class="d-flex flex-column gap-3">
+            <div class="rb-card">
+                <div class="d-flex align-items-center mb-1"><span class="rb-h">Por años</span>
+                    <span class="ms-auto rb-key"><i style="background: var(--rb-robo)"></i>robo</span>
+                    <span class="ms-2 rb-key"><i style="background: var(--rb-idx)"></i>índice</span></div>
+                {% set ymax = namespace(v=1) %}{% for y in st.table.years %}{% for x in [y.pct, y.index] %}{% if x is not none and x|abs > ymax.v %}{% set ymax.v = x|abs %}{% endif %}{% endfor %}{% endfor %}
+                {% for y in st.table.years %}
+                <div class="rb-year" title="{{ y.year }}: robo {{ sgn(y.pct) }} % ({{ sgn(y.gain, 0) }} €){% if y.index is not none %} · índice de MyInvestor {{ sgn(y.index) }} %{% endif %}{{ ' · hasta hoy' if y.live }}">
+                    <span class="fw-bold">{{ y.year }}</span>
+                    <div class="d-flex flex-column gap-1">
+                        <div class="d-flex align-items-center gap-2"><div class="rb-bar" style="width: {{ 78 * (y.pct or 0)|abs / ymax.v }}%; background: var(--rb-robo)"></div><span class="num-font small">{{ sgn(y.pct, 1) }} %</span></div>
+                        {% if y.index is not none %}<div class="d-flex align-items-center gap-2"><div class="rb-bar" style="width: {{ 78 * y.index|abs / ymax.v }}%; background: var(--rb-idx)"></div><span class="num-font small text-muted">{{ sgn(y.index, 1) }} %</span></div>{% endif %}
+                    </div>
+                    {% if y.index is not none and y.pct is not none %}{% set d = y.pct - y.index %}<span class="rb-diff num-font {{ cls(d) }}" title="Diferencia con el índice">{{ sgn(d, 1) }} pp</span>{% else %}<span></span>{% endif %}
+                </div>{% endfor %}
+            </div>
+            <div class="rb-card">
+                <div class="d-flex align-items-center"><span class="rb-h">Dónde está tu dinero</span>
+                    <a href="#fondos" class="ms-auto small text-decoration-none" data-rb-go="fondos">Fondos →</a></div>
+                <div class="rb-stack">{% for z in fd.zones %}<span style="width: {{ z.pct }}%; background: {{ ZC[z.zone] }}" title="{{ z.zone }} {{ num(z.pct, 1) }} %"></span>{% endfor %}</div>
+                {% for z in fd.zones|sort(attribute='pct', reverse=true) %}<div class="rb-zone"><i style="background: {{ ZC[z.zone] }}"></i>{{ z.zone }}<b class="num-font">{{ num(z.pct, 1) }} %</b><span class="num-font text-muted ms-2" style="min-width: 4.5rem; text-align: right">{{ num(st.value * z.pct / 100, 0) }} €</span></div>{% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================================== Por meses ===================================== -->
+<div class="tab-pane fade" id="rb-meses" role="tabpanel">
+    <div class="rb-card">
+        <div class="d-flex align-items-center mb-2">
+            <span class="rb-h me-2">Rentabilidad por meses</span>
+            <div class="btn-group rb-seg" role="group" aria-label="Unidades">
+                <input type="radio" class="btn-check" name="rbUnit" id="rbUnitPct" value="pct" checked>
+                <label class="btn btn-outline-secondary" for="rbUnitPct">%</label>
+                <input type="radio" class="btn-check" name="rbUnit" id="rbUnitEur" value="eur">
+                <label class="btn btn-outline-secondary" for="rbUnitEur">€</label>
+            </div>
+            <span class="ms-auto rb-s">Como la tabla de MyInvestor · con borde discontinuo, lo calculado aquí (mes en curso)</span>
+        </div>
+        <table class="rb-heat">
+            <thead><tr><th></th>{% for m in MES %}<th>{{ m }}</th>{% endfor %}<th>Año</th><th title="El índice de MyInvestor">Índice</th></tr></thead>
+            <tbody>{% for y in st.table.years %}<tr>
+                <td class="rb-y">{{ y.year }}</td>
+                {% for c in y.months %}{% if c %}{% set a = [((c.pct or 0)|abs / 8), 1]|min %}
+                <td class="num-font {{ 'rb-live' if not c.from_table }}" data-pct="{{ sgn(c.pct, 1) ~ ' %' if c.pct is not none else '–' }}" data-eur="{{ sgn(c.gain, 0) }} €"
+                    style="background: rgba(var(--bs-{{ 'success' if (c.pct or 0) >= 0 else 'danger' }}-rgb), {{ '%.2f'|format(0.08 + 0.42 * a) }})"
+                    title="{{ MES[loop.index0] }} {{ y.year }}: {{ sgn(c.pct) }} % · {{ sgn(c.gain) }} €">{{ sgn(c.pct, 1) ~ ' %' if c.pct is not none else '–' }}</td>
+                {% else %}<td class="rb-empty">·</td>{% endif %}{% endfor %}
+                <td class="rb-sum num-font {{ cls(y.pct) }} {{ 'rb-live' if y.live }}" data-pct="{{ sgn(y.pct, 2) ~ ' %' if y.pct is not none else '–' }}" data-eur="{{ sgn(y.gain, 0) }} €">{{ sgn(y.pct, 2) ~ ' %' if y.pct is not none else '–' }}</td>
+                <td class="rb-ix num-font">{{ sgn(y.index, 2) ~ ' %' if y.index is not none else '–' }}</td>
+            </tr>{% endfor %}</tbody>
+        </table>
+        {% set ms = st.series|selectattr('pct', 'ne', none)|list %}
+        {% if ms %}{% set best = ms|sort(attribute='pct')|last %}{% set worst = ms|sort(attribute='pct')|first %}{% set pos = ms|selectattr('pct', 'gt', 0)|list|length %}
+        <div class="d-flex flex-wrap gap-4 mt-3 small">
+            <span><span class="text-muted">Mejor mes</span> <b class="text-success num-font">{{ sgn(best.pct, 2) }} %</b> <span class="text-muted">{{ MES[(best.month[5:]|int) - 1] }} {{ best.month[:4] }}</span></span>
+            <span><span class="text-muted">Peor mes</span> <b class="text-danger num-font">{{ sgn(worst.pct, 2) }} %</b> <span class="text-muted">{{ MES[(worst.month[5:]|int) - 1] }} {{ worst.month[:4] }}</span></span>
+            <span><span class="text-muted">Meses en positivo</span> <b class="num-font">{{ pos }} de {{ ms|length }}</b> <span class="text-muted">({{ num(100 * pos / ms|length, 0) }} %)</span></span>
+            <span><span class="text-muted">Ganado desde el inicio</span> <b class="num-font {{ cls(st.gain) }}">{{ sgn(st.gain, 0) }} €</b></span>
+        </div>{% endif %}
+    </div>
+</div>
+
+<!-- ===================================== Fondos ===================================== -->
+<div class="tab-pane fade" id="rb-fondos" role="tabpanel">
+    <div class="rb-grid" style="margin-top: 0">
+        <div class="rb-card">
+            <div class="d-flex align-items-center mb-1"><span class="rb-h">Los fondos de la cesta</span>
+                <span class="ms-auto rb-s">Liquidativo de Yahoo{{ ' del ' ~ dmy(st.nav_date) if st.nav_date }} · pesos del ajuste del {{ dmy(st.snapshot.date) }}</span></div>
+            <table class="rb-funds">
+                <thead><tr><th>Fondo</th><th>Peso</th><th>Valor</th><th>1M</th><th>3M</th><th>YTD</th><th>1A</th><th title="Liquidativo del último año (semanal)">1 año</th></tr></thead>
+                {% set nav_newest = fd.funds|map(attribute='nav_date')|select|max %}
+                <tbody>{% for f in fd.funds %}<tr class="rb-fund-row" data-fund="{{ loop.index0 }}" title="Ver el detalle del fondo">
+                    <td><div class="fw-semibold"><i class="bi bi-chevron-right rb-chev"></i>{{ f.name }}{% if f.nav_date and f.nav_date < nav_newest %} <span class="rb-est" style="border: 1px dashed var(--bs-border-color)" title="Va por detrás: su último liquidativo es del {{ dmy(f.nav_date) }}">{{ f.nav_date[8:10] }}/{{ f.nav_date[5:7] }}</span>{% endif %}{% if 'Hedged' in f.name %} <span class="rb-est" title="Cubierto a euros: no le afecta el dólar">€ cubierto</span>{% elif f.currency != 'EUR' %} <span class="rb-est" title="Cotiza en {{ f.currency }}: se pasa a euros con el cambio del día">{{ f.currency }}</span>{% endif %}</div>
+                        <div class="text-muted" style="font-size: .7rem">{{ f.isin }} · {{ f.zones.keys()|join(', ') if f.zones|length < 3 else 'Mundo desarrollado' }}</div></td>
+                    <td><span class="rb-wbar"><span style="width: {{ 100 * f.weight / (fd.funds[0].weight or 1) }}%"></span></span><span class="num-font">{{ num(100 * f.weight, 1) }} %</span></td>
+                    <td class="num-font">{{ num(f.value, 0) }} €</td>
+                    {% for k in ['1M', '3M', 'YTD', '1A'] %}{% set x = f.chg[k] %}<td class="num-font {{ cls(x) }}">{{ sgn(x, 1) ~ ' %' if x is not none else '–' }}</td>{% endfor %}
+                    <td>{{ spark(f.spark) }}</td>
+                </tr>{% endfor %}</tbody>
+            </table>
+            <div class="rb-s mt-2">Valor aproximado: el de la cesta por el peso de cada fondo.{% if st.snapshot.cash %} Efectivo sin invertir (aparte): {{ num(st.snapshot.cash, 2) }} €.{% endif %}</div>
+        </div>
+        <div class="rb-card">
+            <div class="rb-h mb-1">Exposición por zonas</div>
+            <div id="rbDonut" style="height: 220px"></div>
+            {% for z in fd.zones|sort(attribute='pct', reverse=true) %}<div class="rb-zone"><i style="background: {{ ZC[z.zone] }}"></i>{{ z.zone }}<b class="num-font">{{ num(z.pct, 1) }} %</b><span class="num-font text-muted ms-2" style="min-width: 4.5rem; text-align: right">{{ num(st.value * z.pct / 100, 0) }} €</span></div>{% endfor %}
+            <div class="rb-s mt-2">EE. UU. llega por tres fondos: US Index, Vanguard y la parte de EE. UU. del Developed World (~72 %, aproximado).</div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================================== Aportaciones ===================================== -->
+<div class="tab-pane fade" id="rb-aportaciones" role="tabpanel">
+    {% set by_year = {} %}{% for r in st.series %}{% set _ = by_year.update({r.month[:4]: (by_year.get(r.month[:4], 0) + r.added)}) %}{% endfor %}
+    <div class="rb-tiles" style="grid-template-columns: repeat({{ by_year|length + 2 }}, minmax(0, 1fr))">
+        {% for y, tot in by_year|dictsort(reverse=true) %}{% set cnt = namespace(n=0) %}{% for r in st.series %}{% if r.month[:4] == y and r.added > 0 %}{% set cnt.n = cnt.n + 1 %}{% endif %}{% endfor %}{% set n = cnt.n %}
+        <div class="rb-tile"><div class="rb-l">{{ y }}</div><div class="rb-v num-font">{{ num(tot, 0) }} €</div><div class="rb-s">{{ n }} meses con aportación · {{ num(tot / (n or 1), 0) }} €/mes</div></div>{% endfor %}
+        <div class="rb-tile"><div class="rb-l">Total</div><div class="rb-v num-font">{{ num(st.invested, 0) }} €</div><div class="rb-s">desde {{ MES[(st.first[5:7]|int) - 1] ~ ' ' ~ st.first[:4] if st.first else '–' }}</div></div>
+        <div class="rb-tile"><div class="rb-l">Ahora</div><div class="rb-v num-font">{{ num(st.plan.amount, 0) if st.plan else '–' }} €</div><div class="rb-s">al mes{% if st.plan %}, el día {{ st.plan.day }}{% endif %}</div></div>
+    </div>
+    <div class="rb-grid">
+        <div class="rb-card">
+            <div class="d-flex align-items-center"><span class="rb-h">Aportaciones por mes</span>
+                <span class="ms-auto d-flex gap-3"><span class="rb-key"><i style="background: var(--rb-robo)"></i>reales</span><span class="rb-key"><i style="background: var(--bs-secondary-color); opacity: .5"></i>estimadas</span>{% if st.series|selectattr('source', 'equalto', 'plan')|list %}<span class="rb-key"><i style="background: var(--rb-port)"></i>del plan</span>{% endif %}</span></div>
+            <div id="rbBars"></div>
+        </div>
+        <div class="rb-card d-flex flex-column">
+            <div class="rb-h mb-1">Últimas aportaciones</div>
+            <div class="rb-list flex-grow-1" id="rbContribList"></div>
+            <div class="d-flex align-items-center justify-content-between pt-2 small" id="rbContribPager">
+                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" data-pg="-1">‹ Más recientes</button>
+                <span class="text-muted" id="rbContribPage"></span>
+                <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" data-pg="1">Ver más ›</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ===================================== Ajustar ===================================== -->
+<div class="tab-pane fade {{ 'show active' if not st.configured }}" id="rb-ajustar" role="tabpanel">
+    <div class="rb-grid" style="margin-top: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)">
+        <div class="d-flex flex-column gap-3">
+            <div class="rb-card">
+                <div class="rb-h mb-2">Aportación mensual</div>
+                <div class="row g-2 align-items-end">
+                    <div class="col-4"><label class="form-label small mb-1" for="rbPlanAmount">Importe (€)</label>
+                        <input type="number" step="1" min="0" class="form-control form-control-sm" id="rbPlanAmount" value="{{ st.plan.amount|int if st.plan else '' }}"></div>
+                    <div class="col-2"><label class="form-label small mb-1" for="rbPlanDay">Día</label>
+                        <input type="number" step="1" min="1" max="28" class="form-control form-control-sm" id="rbPlanDay" value="{{ st.plan.day if st.plan else 3 }}"></div>
+                    <div class="col-3"><label class="form-label small mb-1" for="rbPlanSince">Desde</label>
+                        <input type="month" class="form-control form-control-sm" id="rbPlanSince" value="{{ today[:7] }}"></div>
+                    <div class="col-3"><button type="button" class="btn btn-sm btn-outline-primary w-100" id="rbPlanSave">Guardar</button></div>
+                </div>
+                <div class="rb-s mt-2">Se suma sola cada mes. Los meses anteriores a «Desde» no cambian.</div>
+            </div>
+            <div class="rb-card">
+                <div class="rb-h mb-2">Ajustar con MyInvestor</div>
+                <div class="row g-2 align-items-end">
+                    <div class="col-4"><label class="form-label small mb-1" for="rbValue">Valor de mercado</label>
+                        <input type="number" step="0.01" min="0" class="form-control form-control-sm" id="rbValue" placeholder="0,00"></div>
+                    <div class="col-4"><label class="form-label small mb-1" for="rbInvested">Capital invertido</label>
+                        <input type="number" step="0.01" min="0" class="form-control form-control-sm" id="rbInvested" placeholder="0,00"></div>
+                    <div class="col-4"><label class="form-label small mb-1" for="rbDate">Fecha</label>
+                        <input type="date" class="form-control form-control-sm" id="rbDate" value="{{ today }}"></div>
+                </div>
+                <textarea class="form-control form-control-sm mt-2" id="rbText" rows="3" placeholder="Opcional: pega el resumen de MyInvestor para actualizar también el peso de cada fondo"></textarea>
+                <div class="d-flex align-items-center mt-2">
+                    <div class="small text-danger d-none" id="rbError"></div>
+                    <button type="button" class="btn btn-sm btn-primary ms-auto" id="rbSave">Guardar ajuste</button>
+                </div>
+            </div>
+        </div>
+        <div class="rb-card">
+            <div class="rb-h mb-1">Últimos ajustes <span class="fw-normal text-lowercase">· desvío de la estimación</span></div>
+            <div class="rb-list">{% for h in st.history or [] %}
+                <div><span><span class="text-muted">{{ dmy(h.date) }}</span> <span class="num-font ms-1">{{ num(h.value, 2) }} €</span></span>
+                    <span class="text-nowrap">{% if h.dev_pct is none %}<span class="text-muted">primer ajuste</span>{% else %}<span class="num-font text-muted" title="Se estimaba {{ num(h.est, 2) }} €">{{ sgn(h.dev_pct) }} %</span>{% endif %}
+                    <button type="button" class="btn btn-link btn-sm p-0 ms-2 text-muted" data-rb-del="{{ h.date }}" title="Borrar"><i class="bi bi-trash"></i></button></span></div>{% else %}<div class="text-muted">Aún no hay ajustes.</div>{% endfor %}
+            </div>
+            <div class="rb-s mt-2">Desde el día 10 de cada mes te aviso para ajustar: así la estimación no se desvía.</div>
+        </div>
+    </div>
+</div>
+</div>
+</div>
+
+<!-- Ficha de un fondo (al pulsarlo en la pestaña Fondos) -->
+<div class="modal fade" id="rbFundModal" tabindex="-1" aria-labelledby="rbFundTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content rb-root">
+      <div class="modal-header py-2">
+        <div><h6 class="modal-title fw-bold mb-0" id="rbFundTitle"></h6><div class="rb-s" id="rbFundSub"></div></div>
+        <a class="ms-auto me-3 small text-decoration-none" id="rbFundYahoo" target="_blank" rel="noopener">Yahoo <i class="bi bi-box-arrow-up-right"></i></a>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body" id="rbFundView"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const $ = id => document.getElementById(id);
+    const st = {{ st|tojson }}, cmp = {{ charts|tojson }}, fd = {{ fd|tojson }};
+
+    // --- Pestañas en la dirección (#meses, #fondos…) ---
+    const tabOf = h => document.querySelector(`#rbTabs [data-hash="${h}"]`);
+    const show = h => { const b = tabOf(h); if (b) bootstrap.Tab.getOrCreateInstance(b).show(); };
+    document.querySelectorAll('#rbTabs [data-hash]').forEach(b => b.addEventListener('shown.bs.tab', () => {
+        history.replaceState(null, '', location.pathname + location.search + (b.dataset.hash === 'resumen' ? '' : '#' + b.dataset.hash));
+        drawFor(b.dataset.hash);
+    }));
+    document.addEventListener('click', e => {
+        const go = e.target.closest('[data-rb-go]');
+        if (go) { e.preventDefault(); show(go.dataset.rbGo); if (go.dataset.rbFocus) setTimeout(() => $(go.dataset.rbFocus)?.focus(), 250); }
+    });
+
+    // --- Ajustar ---
+    const post = async (url, body) => {
+        const r = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}).catch(() => null);
+        if (r && r.ok) { location.reload(); return; }
+        const d = r ? await r.json().catch(() => ({})) : {};
+        $('rbError').textContent = d.detail || 'No se pudo guardar'; $('rbError').classList.remove('d-none');
+    };
+    $('rbPlanSave')?.addEventListener('click', () => {
+        const amount = parseFloat($('rbPlanAmount').value);
+        if (isNaN(amount)) return $('rbPlanAmount').focus();
+        post('/api/portfolio/roboadvisor/aportacion', {amount, day: parseInt($('rbPlanDay').value) || 3, since: $('rbPlanSince').value || null});
+    });
+    $('rbSave')?.addEventListener('click', () => {
+        const n = id => { const x = parseFloat($(id).value); return isNaN(x) ? null : x; };
+        const body = {value: n('rbValue'), invested: n('rbInvested'), date: $('rbDate').value || null, text: $('rbText').value.trim() || null};
+        if (!body.text && (!body.value || !body.invested)) return $('rbValue').focus();
+        post('/api/portfolio/roboadvisor/ajuste', body);
+    });
+    document.addEventListener('click', async e => {
+        const del = e.target.closest('[data-rb-del]');
+        if (del && confirm('¿Borrar este ajuste?')) {
+            const r = await fetch('/api/portfolio/roboadvisor/ajuste/' + del.dataset.rbDel, {method: 'DELETE'}).catch(() => null);
+            if (r && r.ok) location.reload();
+        }
+    });
+    document.querySelectorAll('input[name=rbUnit]').forEach(r => r.addEventListener('change', () => {
+        const k = document.querySelector('input[name=rbUnit]:checked').value === 'eur' ? 'eur' : 'pct';
+        document.querySelectorAll('.rb-heat td[data-pct]').forEach(td => td.textContent = td.dataset[k]);
+    }));
+    if (!st.configured) return;
+
+    // --- Gráficas ---
+    const css = getComputedStyle(document.querySelector('.rb-root'));
+    const cv = n => css.getPropertyValue(n).trim();
+    const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const ink = cv('--bs-secondary-color') || (dark ? '#adb5bd' : '#6c757d');
+    const grid = dark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.06)';
+    const surface = cv('--fin-card-bg') || cv('--bs-body-bg');
+    const C = {robo: cv('--rb-robo'), idx: cv('--rb-idx'), port: cv('--rb-port'), z4: cv('--rb-z4'), z5: cv('--rb-z5')};
+    const MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    const lbl = m => MES[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4);
+    const eur = x => fmtNum(x, 0) + ' €';
+    const base = {paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: {color: ink, size: 11}, separators: ',.',
+                  hoverlabel: {font: {size: 12}, bgcolor: surface, bordercolor: grid}, showlegend: false};
+    const xaxisFor = months => {
+        const step = months.length > 30 ? 6 : (months.length > 12 ? 3 : 1);
+        const t = months.filter((m, i) => i % step === 0 || i === months.length - 1);
+        return {showgrid: false, fixedrange: true, tickangle: 0, tickfont: {color: ink}, tickvals: t.map(m => m + '-28'), ticktext: t.map(lbl),
+                showspikes: true, spikemode: 'across', spikethickness: 1, spikecolor: ink, spikedash: 'dot'};
+    };
+    const yaxis = suffix => ({gridcolor: grid, zeroline: false, ticksuffix: suffix, separatethousands: true, fixedrange: true, tickfont: {color: ink}});
+    const fitTo = (el, foot = 0) => { el.style.height = Math.max(220, Math.floor(window.innerHeight - el.getBoundingClientRect().top - 30 - foot)) + 'px'; };
+
+    // Evolución: € (valor frente a lo aportado) o % (rebasado al inicio del periodo, frente al índice y a la cartera)
+    const S = st.series;
+    const startFor = k => {
+        const last = S[S.length - 1].month, y = +last.slice(0, 4), m = +last.slice(5, 7);
+        const back = n => { const d = new Date(y, m - 1 - n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+        return {'6m': back(6), 'ytd': (y - 1) + '-12', '1y': back(12), '3y': back(36), 'all': '0000'}[k];
+    };
+    // marcas del eje log: 1-2-5 por década, con su importe
+    const logTicks = rows => {
+        const lo = Math.min(...rows.map(r => Math.min(r.value, r.invested)).filter(v => v > 0)), hi = Math.max(...rows.map(r => r.value));
+        const t = [];
+        for (let d = Math.pow(10, Math.floor(Math.log10(lo))); d <= hi * 10; d *= 10) [1, 2, 5].forEach(k => { if (d * k >= lo * .8 && d * k <= hi * 1.25) t.push(d * k); });
+        return {tickvals: t, ticktext: t.map(v => fmtNum(v, 0) + ' €'), ticksuffix: ''};
+    };
+    function drawEvolution() {
+        const el = $('rbChart'), mode = document.querySelector('input[name=rbMode]:checked').value;
+        const from = startFor(document.querySelector('input[name=rbRange]:checked').value);
+        $('rbLog').nextElementSibling.classList.toggle('d-none', mode !== 'eur');
+        fitTo(el, 22);
+        let keys, foot = '';
+        if (mode === 'eur') {
+            const log = $('rbLog').checked;
+            const rows = (log ? S : [{month: cmp.months[0], value: 0, invested: 0}, ...S]).filter(r => r.month >= from && (!log || r.invested > 0));
+            const x = rows.map(r => r.month + '-28');
+            const traces = [
+                {x, y: rows.map(r => r.invested), type: 'scatter', mode: 'lines', line: {color: ink, width: 1.5, shape: 'hv', dash: 'dot'},
+                 hovertemplate: 'Aportado %{customdata}<extra></extra>', customdata: rows.map(r => eur(r.invested))},
+                {x, y: rows.map(r => r.value), type: 'scatter', mode: 'lines', line: {color: C.robo, width: 2.4}, fill: 'tonexty',
+                 fillcolor: dark ? 'rgba(57,135,229,.14)' : 'rgba(42,120,214,.10)',
+                 hovertemplate: '<b>%{customdata[0]}</b><br>Valor %{customdata[1]} · ganado %{customdata[2]}<extra></extra>',
+                 customdata: rows.map(r => [lbl(r.month), eur(r.value), fmtNum(r.value - r.invested, 0, true) + ' €'])},
+            ];
+            keys = [['Valor', C.robo], ['Aportado', null]];
+            const a = rows[0], b = rows[rows.length - 1];
+            foot = `En el periodo: aportado ${fmtNum(b.invested - a.invested, 0, true)} € · ganado ${fmtNum((b.value - b.invested) - (a.value - a.invested), 0, true)} €`;
+            Plotly.react(el, traces, {...base, hovermode: 'x unified', margin: {l: 62, r: 12, t: 6, b: 28}, xaxis: xaxisFor(rows.map(r => r.month)),
+                         yaxis: {...yaxis(' €'), type: log ? 'log' : 'linear', ...(log ? logTicks(rows) : {})}}, {displayModeBar: false, responsive: true});
+        } else if (mode === 'gain') {
+            // solo lo ganado: se lee bien en cualquier periodo (con «Valor», las aportaciones aplastan la escala)
+            const rows = [{month: cmp.months[0], value: 0, invested: 0}, ...S].filter(r => r.month >= from);
+            const g = rows.map(r => r.value - r.invested);
+            Plotly.react(el, [{x: rows.map(r => r.month + '-28'), y: g, type: 'scatter', mode: 'lines', line: {color: C.port, width: 2.4},
+                fill: 'tozeroy', fillcolor: dark ? 'rgba(25,158,112,.16)' : 'rgba(27,175,122,.12)',
+                hovertemplate: '<b>%{customdata[0]}</b><br>Ganado %{customdata[1]}<extra></extra>',
+                customdata: rows.map((r, i) => [lbl(r.month), fmtNum(g[i], 0, true) + ' €'])}],
+                {...base, hovermode: 'x unified', margin: {l: 62, r: 12, t: 6, b: 28}, xaxis: xaxisFor(rows.map(r => r.month)),
+                 yaxis: {...yaxis(' €'), zeroline: true, zerolinecolor: grid}}, {displayModeBar: false, responsive: true});
+            keys = [['Ganado (valor − aportado)', C.port]];
+            foot = `En el periodo: ${fmtNum(g[g.length - 1] - g[0], 0, true)} € · ganado en total ${fmtNum(g[g.length - 1], 0, true)} €`;
+        } else {
+            const idx = cmp.months.map((m, i) => i).filter(i => cmp.months[i] >= from);
+            const months = idx.map(i => cmp.months[i]), x = months.map(m => m + '-28');
+            const rebase = arr => { const vals = idx.map(i => arr[i]); const b = vals.find(z => z != null); return vals.map(z => z == null || !b ? null : 100 * (z / b - 1)); };
+            const robo = rebase(cmp.robo), index = rebase(cmp.index);
+            // la cartera empieza más tarde: sale desde el nivel del robo en su primer mes, para comparar desde ahí
+            const pv = idx.map(i => cmp.port[i]), p0 = pv.findIndex(z => z != null);
+            const port = pv.map(z => z == null || p0 < 0 ? null : (100 + robo[p0]) * z / pv[p0] - 100);
+            const tr = (y, name, color, width) => ({x, y, name, type: 'scatter', mode: 'lines', line: {color, width},
+                hovertemplate: `${name} %{y:+.1f} %<extra></extra>`});
+            const traces = [tr(index, 'MSCI World', C.idx, 1.8), tr(robo, 'Robo', C.robo, 2.6)];
+            keys = [['Robo', C.robo], ['MSCI World (€)', C.idx]];
+            if (p0 >= 0) { traces.push(tr(port, 'Tu cartera', C.port, 1.8)); keys.push(['Tu cartera de acciones', C.port]); }
+            const last = a => a.filter(z => z != null).slice(-1)[0];
+            const f = (n, val) => val == null ? '' : `${n} <b class="${val >= 0 ? 'text-success' : 'text-danger'}">${fmtNum(val, 1, true)} %</b>`;
+            foot = 'Desde ' + lbl(months[0]) + ': ' + [f('robo', last(robo)), f('MSCI World', last(index)),
+                    p0 >= 0 ? f('tu cartera', 100 * ((100 + last(port)) / (100 + robo[p0]) - 1)) + (p0 > 0 ? ` <span class="text-muted">(desde ${lbl(months[p0])})</span>` : '') : ''].filter(Boolean).join(' · ');
+            Plotly.react(el, traces, {...base, hovermode: 'x unified', margin: {l: 52, r: 12, t: 6, b: 28}, xaxis: xaxisFor(months),
+                         yaxis: {...yaxis(' %'), zeroline: true, zerolinecolor: grid}}, {displayModeBar: false, responsive: true});
+        }
+        Plotly.Plots.resize(el);
+        $('rbKeys').innerHTML = keys.map(([n, c]) => `<span class="rb-key"><i class="${c ? '' : 'dot'}" style="${c ? 'background:' + c : ''}"></i>${n}</span>`).join('');
+        $('rbFoot').innerHTML = foot;
+    }
+    // el modo y el periodo van en la dirección (?modo=pct&periodo=1y)
+    const pick = (name, val) => { const r = document.querySelector(`input[name=${name}][value="${val}"]`); if (r) r.checked = true; };
+    pick('rbMode', urlState.get('modo')); pick('rbRange', urlState.get('periodo')); $('rbLog').checked = urlState.get('log') === '1';   // de serie: Valor, Todo y lineal (como las plataformas)
+    document.querySelectorAll('input[name=rbMode], input[name=rbRange], #rbLog').forEach(r => r.addEventListener('change', () => {
+        const mode = document.querySelector('input[name=rbMode]:checked').value, range = document.querySelector('input[name=rbRange]:checked').value;
+        urlState.set({modo: mode === 'eur' ? '' : mode, periodo: range === 'all' ? '' : range, log: $('rbLog').checked});
+        drawEvolution();
+    }));
+
+    // Aportaciones por mes
+    function drawBars() {
+        const el = $('rbBars'); fitTo(el);
+        const x = S.map(r => r.month + '-28');
+        // las aportaciones extra no aplastan la escala: tope algo por encima de las habituales (percentil 85 × 1,4) y
+        // las que lo pasan, cortadas con su importe escrito arriba
+        const tot = S.map(r => r.added), sorted = tot.filter(a => a > 0).sort((a, b) => a - b);
+        const p85 = sorted[Math.floor(sorted.length * .85)] || 1, top = Math.max(...tot);
+        const cap = top > p85 * 1.6 ? Math.ceil(p85 * 1.4 / 100) * 100 : top * 1.1;
+        let prevOver = -2, alt = 0;
+        const over = S.map((r, i) => [r, i]).filter(([r]) => r.added > cap).map(([r, i]) => {
+            alt = i === prevOver + 1 ? 1 - alt : 0; prevOver = i;   // dos meses seguidos: uno más abajo, para no pisarse
+            return {x: r.month + '-28', y: cap, yanchor: 'top', yshift: -2 - 16 * alt, showarrow: false,
+                    text: fmtNum(r.added / 1000, 1) + 'k €', font: {size: 10, color: cv('--bs-body-color')}, bgcolor: surface, borderpad: 1};
+        });
+        // cada mes, la parte real (o del plan) y encima la estimada, apiladas
+        const real = S.map(r => r.added - (r.est_added || 0)), est = S.map(r => r.est_added || 0);
+        const tip = S.map(r => `<b>${lbl(r.month)}</b><br>${eur(r.added)}${r.est_added ? ` (${eur(r.est_added)} estimados)` : ''}${r.source === 'plan' ? ' · del plan' : ''}`);
+        Plotly.react(el, [
+            {x, y: real, type: 'bar', marker: {color: S.map(r => r.source === 'plan' ? C.port : C.robo), line: {color: surface, width: 1}},
+             hovertemplate: '%{customdata}<extra></extra>', customdata: tip},
+            {x, y: est, type: 'bar', marker: {color: ink, opacity: .45, line: {color: surface, width: 1}},
+             hovertemplate: '%{customdata}<extra></extra>', customdata: tip},
+        ], {...base, barmode: 'stack', hovermode: 'closest', bargap: .3, margin: {l: 62, r: 12, t: 6, b: 28}, xaxis: {...xaxisFor(S.map(r => r.month)), showspikes: false},
+            yaxis: {...yaxis(' €'), range: [0, cap]}, annotations: over},
+            {displayModeBar: false, responsive: true});
+        contribPage(0);
+    }
+    // Últimas aportaciones: las que caben, agrupadas por año; «Ver más» pasa a las anteriores (sin scroll)
+    const CL = st.contributions || [];
+    let cPage = 0, cPer = 10;
+    function contribPage(delta) {
+        const list = $('rbContribList'); if (!list) return;
+        if (delta === 0) {   // filas que caben a la altura de la gráfica de al lado (≈ 30 px por fila, cuenta los años)
+            const h = $('rbBars').offsetHeight - 10;
+            cPer = Math.max(5, Math.floor(h / 31) - 2);
+        }
+        const pages = Math.max(1, Math.ceil(CL.length / cPer));
+        cPage = Math.min(pages - 1, Math.max(0, cPage + delta));
+        let year = null;
+        list.innerHTML = CL.slice(cPage * cPer, (cPage + 1) * cPer).map(c => {
+            const head = c.date.slice(0, 4) !== year ? `<div class="border-0 pt-2 pb-1"><span class="rb-h">${(year = c.date.slice(0, 4))}</span></div>` : '';
+            const tag = c.source === 'estimado' ? ' <span class="rb-est" title="Estimada para cuadrar con el capital invertido">estimada</span>' : (c.source === 'plan' ? ' <span class="rb-est">del plan</span>' : '');
+            return head + `<div><span class="text-muted">${c.date.slice(8, 10)}/${c.date.slice(5, 7)}</span><span class="num-font">${fmtNum(c.amount, 2)} €${tag}</span></div>`;
+        }).join('');
+        $('rbContribPage').textContent = `${cPage + 1} de ${pages}`;
+        document.querySelector('#rbContribPager [data-pg="-1"]').classList.toggle('invisible', cPage === 0);
+        document.querySelector('#rbContribPager [data-pg="1"]').classList.toggle('invisible', cPage >= pages - 1);
+    }
+    document.querySelectorAll('#rbContribPager [data-pg]').forEach(b => b.addEventListener('click', () => contribPage(+b.dataset.pg)));
+    // Exposición por zonas (anillo; los nombres y % van escritos debajo)
+    function drawDonut() {
+        const ZC = {'EE. UU.': C.robo, 'Europa': C.idx, 'Japón': C.port, 'Emergentes': C.z4, 'Pacífico y otros': C.z5};
+        const z = fd.zones, us = z.find(a => a.zone === 'EE. UU.');
+        Plotly.react('rbDonut', [{type: 'pie', hole: .68, labels: z.map(a => a.zone), values: z.map(a => a.pct), sort: false,
+            marker: {colors: z.map(a => ZC[a.zone]), line: {color: surface, width: 2}}, textinfo: 'none',
+            hovertemplate: '%{label} %{value:.1f} %<extra></extra>'}],
+            {...base, margin: {l: 8, r: 8, t: 8, b: 8}, annotations: [{text: `<b>${fmtNum(us ? us.pct : 0, 0)} %</b><br><span style="font-size:11px">EE. UU.</span>`,
+             showarrow: false, font: {size: 20, color: cv('--bs-body-color')}}]}, {displayModeBar: false, responsive: true});
+    }
+    // un mes de cada dos, con su nombre en español
+    const periodTicks = ds => {   // meses (cada 1, 2 o 6 según el tramo), con el año si cambia
+        const firsts = ds.filter((d, i) => i && d.slice(5, 7) !== ds[i - 1].slice(5, 7));
+        const step = firsts.length > 30 ? 6 : (firsts.length > 8 ? 2 : 1);
+        const t = firsts.filter((d, i) => i % step === 0);
+        return {tickvals: t, ticktext: t.map(d => MES[+d.slice(5, 7) - 1] + (step >= 6 || d.slice(5, 7) === '01' ? ' ' + d.slice(2, 4) : ''))};
+    };
+    // Ficha de un fondo, en una ventana (?fondo=ISIN mientras está abierta)
+    const fundModal = $('rbFundModal');
+    let fundOpen = null;
+    fundModal.addEventListener('hidden.bs.modal', () => {
+        fundOpen = null; urlState.set({fondo: ''});
+        document.querySelectorAll('.rb-fund-row').forEach(r => r.classList.remove('sel'));
+    });
+    // al acabar de abrirse, ya con su ancho real: sin esto se queda con el provisional y deja hueco a la derecha
+    fundModal.addEventListener('shown.bs.modal', () => { if (fundOpen) { drawFundChart(fundOpen); Plotly.Plots.resize('rbFundChart'); } });
+    function showFund(i) {
+        const f = fd.funds[i], view = $('rbFundView');
+        if (!f) return;
+        fundOpen = f;
+        document.querySelectorAll('.rb-fund-row').forEach(r => r.classList.toggle('sel', +r.dataset.fund === i));
+        urlState.set({fondo: f.isin});
+        const sym = f.currency === 'USD' ? '$' : '€', pc = x => x == null ? '–' : fmtNum(x, 1, true) + ' %';
+        const k = x => x == null ? 'text-muted' : (x >= 0 ? 'text-success' : 'text-danger');
+        const zones = Object.entries(f.zones).map(([z, p]) => p === 100 ? z : `${z} ${p} %`).join(' · ');
+        $('rbFundTitle').textContent = f.name;
+        $('rbFundSub').textContent = `${f.isin} · ${zones}${f.name.includes('Hedged') ? ' · cubierto a euros' : (f.currency !== 'EUR' ? ' · en ' + f.currency : '')}`;
+        $('rbFundYahoo').href = 'https://finance.yahoo.com/quote/' + encodeURIComponent(f.yahoo);
+        view.innerHTML = `
+            <div class="d-flex align-items-baseline gap-2"><span class="rb-v num-font">${f.nav ? fmtNum(f.nav, 2) + ' ' + sym : '–'}</span>
+                <span class="rb-s">liquidativo${f.nav_date ? ' del ' + f.nav_date.slice(8, 10) + '/' + f.nav_date.slice(5, 7) : ''}</span>
+                <span class="ms-auto num-font small ${k(f.from_hi)}" title="Desde el máximo de 52 semanas">${f.from_hi == null ? '' : fmtNum(f.from_hi, 1, true) + ' % desde máx.'}</span></div>
+            <div class="d-flex align-items-center gap-2 mt-2">
+                <div class="btn-group rb-seg" role="group" aria-label="Periodo">${['6M', '1A', '3A', '5A'].map((p, j) =>
+                    `<input type="radio" class="btn-check" name="rbFundRange" id="rbFR${p}" value="${p}" ${p === '1A' ? 'checked' : ''}><label class="btn btn-outline-secondary" for="rbFR${p}">${p}</label>`).join('')}</div>
+                <span class="rb-s ms-auto" id="rbFundPeriod"></span></div>
+            <div id="rbFundChart" style="height: 260px"></div>
+            <div class="rb-fstats mt-1" style="grid-template-columns: repeat(7, minmax(0, 1fr))">${['1S', '1M', '3M', 'YTD', '1A', '3A', '5A'].map(p => `<div class="rb-fstat"><div class="rb-l">${p}</div><b class="num-font ${k(f.chg[p])}">${pc(f.chg[p])}</b></div>`).join('')}</div>
+            <div class="robo-parts mt-2 small" style="display: grid; grid-template-columns: 1fr auto; gap: .2rem 1rem">
+                <span class="text-muted">Máximo / mínimo 52 semanas</span><span class="num-font">${f.hi52 ? fmtNum(f.hi52, 2) : '–'} / ${f.lo52 ? fmtNum(f.lo52, 2) : '–'} ${sym}</span>
+                <span class="text-muted">Peso en la cesta</span><span class="num-font">${fmtNum(100 * f.weight, 1)} %</span>
+                <span class="text-muted">Valor aproximado</span><span class="num-font">${fmtNum(f.value, 0)} €</span>
+            </div>`;
+        view.querySelectorAll('input[name=rbFundRange]').forEach(r => r.addEventListener('change', () => { drawFundChart(f); Plotly.Plots.resize('rbFundChart'); }));
+        bootstrap.Modal.getOrCreateInstance(fundModal).show();
+        if (fundModal.classList.contains('show')) drawFundChart(f);   // si ya estaba abierta (otro fondo); si no, al abrirse
+    }
+    function drawFundChart(f) {
+        const sym = f.currency === 'USD' ? '$' : '€';
+        const p = (document.querySelector('input[name=rbFundRange]:checked') || {}).value || '1A';
+        const days = {'6M': 182, '1A': 365, '3A': 3 * 365, '5A': 5 * 365}[p];
+        const lastD = new Date(f.hist.d[f.hist.d.length - 1]); lastD.setDate(lastD.getDate() - days);
+        const from = lastD.toISOString().slice(0, 10);
+        const ix = f.hist.d.map((d, i) => i).filter(i => f.hist.d[i] >= from);
+        const d = ix.map(i => f.hist.d[i]), y = ix.map(i => f.hist.v[i]);
+        const chg = y.length > 1 ? 100 * (y[y.length - 1] / y[0] - 1) : null;
+        const short = f.since && f.since > from;   // el fondo (o su histórico en Yahoo) no llega tan atrás
+        $('rbFundPeriod').innerHTML = chg == null ? '' : `En el periodo <b class="${chg >= 0 ? 'text-success' : 'text-danger'}">${fmtNum(chg, 1, true)} %</b>${short ? ' · desde ' + f.since.slice(8, 10) + '/' + f.since.slice(5, 7) + '/' + f.since.slice(0, 4) : ''}`;
+        const col = cv((chg ?? 0) >= 0 ? '--bs-success' : '--bs-danger');
+        Plotly.react('rbFundChart', [{x: d, y, type: 'scatter', mode: 'lines', line: {color: col, width: 1.8},
+            hovertemplate: `%{x|%d/%m/%Y} · %{y:,.2f} ${sym}<extra></extra>`}],
+            {...base, hovermode: 'x unified', margin: {l: 44, r: 6, t: 6, b: 24},
+             xaxis: {showgrid: false, fixedrange: true, tickfont: {color: ink}, tickangle: 0, ...periodTicks(d)},
+             yaxis: {gridcolor: grid, zeroline: false, fixedrange: true, tickfont: {color: ink}}}, {displayModeBar: false, responsive: true});
+    }
+    document.querySelectorAll('.rb-fund-row').forEach(r => r.addEventListener('click', () => showFund(+r.dataset.fund)));
+
+    const f0 = fd.funds.findIndex(f => f.isin === urlState.get('fondo'));
+    const drawn = {};
+    function drawFor(h) {
+        if (!h || h === 'resumen') drawEvolution();
+        if (h === 'aportaciones' && !drawn.bars) { drawBars(); drawn.bars = 1; }
+        if (h === 'fondos' && !drawn.donut) { drawDonut(); drawn.donut = 1; if (f0 >= 0) showFund(f0); }
+    }
+    const h0 = location.hash.slice(1);
+    if (h0 && tabOf(h0)) show(h0); else drawEvolution();
+    window.addEventListener('resize', () => { drawn.bars = drawn.donut = 0; drawFor(document.querySelector('#rbTabs .active')?.dataset.hash); });
+});
+</script>
+{% endblock %}

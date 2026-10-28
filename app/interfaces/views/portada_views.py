@@ -1,9 +1,10 @@
 """Portada (Mercado + Centro de mando): Mi Cartera, Bandeja de hoy, Agenda, noticias de la semana y notas del Centro."""
 import datetime
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -38,7 +39,8 @@ def portfolio_agenda(pt: Dict[str, Any], portfolio_service: PortfolioService, as
     ensure_prices_cached(sorted(held), asset_repo)   # cotización y cambio de hoy para pasar los dividendos a euros
     prices = INDEX_CACHE["data"]
     forecast = dividend_forecast.portfolio_forecast(portfolio_service, asset_repo, prices, portfolio_raw, today)
-    results = [{"ticker": r["ticker"], "date": r["next"]["date"], "thesis_id": r["thesis_id"], "held": True}
+    results = [{"ticker": r["ticker"], "name": r.get("name"), "date": r["next"]["date"], "thesis_id": r["thesis_id"], "held": True,
+                "time": r["next"].get("time")}
                for r in pt["rows"] if r["ticker"] in held and r["next"] and r["next"].get("date")]
 
     def to_eur(ticker: str, amount: float) -> Optional[float]:
@@ -110,12 +112,13 @@ def centro_pulse(
     notifications = notification_service.collect(db_session, repo, notice_repo)
     results = []
     for t in held:
-        nxt = results_calendar.next_results(t, asset_repo.get_asset_data(t).get("company_name") or t, _earnings_info(t).get("next"))
+        info = _earnings_info(t)
+        nxt = results_calendar.next_results(t, asset_repo.get_asset_data(t).get("company_name") or t, info.get("next"), info.get("next_time"))
         if nxt and nxt.get("date"):
             results.append({"ticker": t, "date": nxt["date"][:10]})
     ensure_prices_cached(held, asset_repo)
     forecast = dividend_forecast.portfolio_forecast(portfolio_service, asset_repo, INDEX_CACHE["data"], portfolio_raw, today)
-    period, periods = None, {}
+    period, periods, benchmark = None, {}, None
     try:   # mismos valores que el Centro de mando: comparte su caché de históricos
         settings = get_settings_from_db(db_session)
         benchmark = (settings.get("performance") or {}).get("benchmark_ticker") or "URTH"
@@ -127,11 +130,41 @@ def centro_pulse(
         logger.warning("Resumen del Centro: sin variación de 30 días: %s", e)
     out = agenda_service.pulse(today, notifications, results, forecast["events"], period)
     out["benchmark"] = benchmark if period else None
-    # el selector 7 / 30 días de la tarjeta «Mi Cartera»: lo ganado en cada periodo frente al índice
+    # el selector 7 / 30 días / YTD / 1 año de la tarjeta «Mi Cartera»: lo ganado en cada periodo frente al índice
     out["periods"] = {k: {"pct": p.get("pct"), "abs_eur": p.get("abs_eur"), "benchmark_pct": p.get("benchmark_pct")}
-                      for k, p in (periods or {}).items() if k in ("7d", "30d") and p and p.get("pct") is not None}
+                      for k, p in (periods or {}).items() if k in MC_PERIODS and p and p.get("pct") is not None}
+    spark, since_start = portfolio_since_start(portfolio_service, db_session, benchmark)
+    out["spark"] = spark
+    if since_start:
+        out["periods"]["max"] = since_start
     return out
 
+
+MC_PERIODS = ("7d", "30d", "ytd", "1y")
+
+
+def portfolio_since_start(portfolio_service: PortfolioService, db_session: Session,
+                          benchmark: Optional[str]) -> tuple:
+    """Del Rendimiento (su caché, 1 h), para la tarjeta «Mi Cartera»: la minigráfica (valor por participación, sin
+    aportaciones ni retiradas; la tarjeta recorta el periodo elegido) y «Máx», lo mismo que «Desde el inicio» de
+    Cartera, con lo ganado en € sin contar lo aportado."""
+    from app.application.services.performance_service import PerformanceService, reference_benchmark
+    try:
+        start = (get_settings_from_db(db_session).get("performance") or {}).get("start_date")
+        perf = PerformanceService(portfolio_service).get_performance_data(start)
+    except Exception as e:
+        logger.warning("Mi Cartera: sin datos del Rendimiento: %s", e)
+        return None, None
+    dates, uv = perf.get("dates") or [], perf.get("portfolio_uv") or []
+    if len(dates) < 2 or len(uv) != len(dates):
+        return None, None
+    spark = {"dates": dates, "uv": [round(v, 4) for v in uv]}
+    values, contributed = perf.get("portfolio_values_eur") or [], perf.get("contributed_eur") or []
+    ref = (perf.get("benchmarks") or {}).get(reference_benchmark(benchmark)) or []
+    since_start = {"pct": perf.get("total_return"), "since": dates[0],
+                   "abs_eur": (values[-1] - contributed[-1]) - (values[0] - contributed[0]) if values and contributed else None,
+                   "benchmark_pct": 100 * (ref[-1] / ref[0] - 1) if ref and ref[0] else None}
+    return spark, since_start
 
 def other_agenda(open_tickers, theses: Dict[str, Any], asset_repo: SqlAlchemyAssetRepository,
                  watch_repo: SqlAlchemyWatchlistRepository, db_session: Session) -> Dict[str, Any]:
@@ -146,6 +179,7 @@ def other_agenda(open_tickers, theses: Dict[str, Any], asset_repo: SqlAlchemyAss
     favs = {t for t, a in assets.items() if a.is_favorite}
     following = {t for t, a in assets.items() if (a.data or {}).get("status") == "ACCEPTED"}
     watch = favs | {i["ticker"] for i in watch_repo.list_items()}
+    tier2 = {t for t, a in assets.items() if str((a.data or {}).get("watch_tier") or "") == "2"}
     tickers = sorted((favs | following | watch | set(theses)) - set(open_tickers))
     cache_warmer.prefetch(earnings=tickers)   # caché en disco de 12 h: solo descarga lo que falte
     results, meta, reported = [], {}, []
@@ -155,9 +189,12 @@ def other_agenda(open_tickers, theses: Dict[str, Any], asset_repo: SqlAlchemyAss
         last = info.get("last") or {}
         if last.get("date"):
             reported.append({"ticker": t, "date": last["date"], "surprise_pct": last.get("surprise_pct"), "thesis_id": tid})
-        nxt = results_calendar.next_results(t, data.get("company_name") or t, info.get("next"))
+        nxt = results_calendar.next_results(t, data.get("company_name") or t, info.get("next"), info.get("next_time"))
+        # nivel: ordena el día (Tier 1 primero) y da el formato (Tier 1 destacado; Tier 2, Tier 3 y el resto, igual, en gris)
+        tier = "T1" if t in favs else ("T2" if t in tier2 else ("T3" if t in following else None))
         if nxt and nxt.get("date"):
-            results.append({"ticker": t, "date": nxt["date"][:10], "thesis_id": tid})
+            results.append({"ticker": t, "name": data.get("company_name") or t, "date": nxt["date"][:10], "thesis_id": tid, "time": nxt.get("time"),
+                            "tier": tier, "rank": 0 if tier == "T1" else 1})
         zone = None
         price = (INDEX_CACHE["data"].get(t) or {}).get("price")
         if t in watch and price:
@@ -291,7 +328,7 @@ def agenda_weeks(results: List[Dict[str, Any]], dividends: Optional[List[Dict[st
     weeks: Dict[datetime.date, List[Dict[str, Any]]] = {}
     for i in list(results) + list(dividends or []):
         d = i["date"] if isinstance(i["date"], datetime.date) else datetime.date.fromisoformat(str(i["date"])[:10])
-        weeks.setdefault(d - datetime.timedelta(days=d.weekday()), []).append({**i, "date": d})
+        weeks.setdefault(d - datetime.timedelta(days=d.weekday()), []).append({**i, "date": d, "rank": i.get("rank", 0)})
     meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
     this_monday = (today or datetime.date.today()) - datetime.timedelta(days=(today or datetime.date.today()).weekday())
     out = []
@@ -315,12 +352,68 @@ def home_agenda_fragment(request: Request,
     pt = positions_tracking(repo, asset_repo, portfolio_service, db_session)
     agenda = portfolio_agenda(pt, portfolio_service, asset_repo)
     other = other_agenda(pt["open_tickers"], pt["theses"], asset_repo, watch_repo, db_session)
+    from app.application.services import results_calendar
+    missing = results_calendar.pending(db_session, set(pt["open_tickers"]))
     return templates.TemplateResponse("_portada_agenda.html", {
         "request": request, "agenda": agenda, "other": other,
+        # fechas por buscar con IA: el botón solo sale si hay varias cerca (una sola llamada para todas)
+        "dates_pending": [t for t, _ in missing] if len(missing) >= results_calendar.MIN_BATCH else [],
         # 30 días, por semanas (tu cartera con los cobros; lo que sigues, resultados)
         "weeks_mine": agenda_weeks(agenda["mes"]["upcoming"], [d for d in agenda["mes"]["dividends"] if d.get("kind") != "ex"]),
         "weeks_other": agenda_weeks(other["mes"]["upcoming"]),
         "theses_ids": {t: th["id"] for t, th in pt["theses"].items()}})
+
+
+@router.post("/api/agenda/fechas")
+def agenda_find_dates(portfolio_service: PortfolioService = Depends(get_portfolio_service), db_session: Session = Depends(get_db)):
+    """Busca con IA, en una sola llamada, las fechas de resultados que faltan (cartera y favoritas con su ciclo ya cerca)."""
+    from app.application.services import results_calendar
+    held = {i.ticker for i in portfolio_service.get_active_portfolio() if i.shares > 0}
+    missing = results_calendar.pending(db_session, held)
+    if len(missing) < results_calendar.MIN_BATCH:
+        return {"searched": 0, "found": 0}
+    try:
+        return {"searched": len(missing), "found": results_calendar.refresh(missing)}
+    except Exception as e:
+        logger.warning("No se pudieron buscar las fechas de resultados: %s", e)
+        raise HTTPException(status_code=502, detail="No se pudo consultar la IA")
+
+
+RELEASE_LABEL = {"pre": "Antes de abrir", "time": "En sesión", "after": "Tras el cierre"}   # en este orden
+
+
+def results_today(db_session: Session, today: Optional[datetime.date] = None) -> List[Dict[str, Any]]:   # [{label, tickers}]
+    """Mensaje «Hoy presentan» de la Bandeja: las empresas en cartera o que sigues (favoritas, en seguimiento, watchlist o
+    con tesis) con resultados hoy, cartera primero. Solo lo ya guardado (las mismas fechas que la Agenda): nunca descarga
+    nada ni llama a la IA, para que la Bandeja siga siendo rápida. No es un aviso: no se marca leído ni se descarta."""
+    from app.application.services import market_cache, results_calendar
+    from app.infrastructure.db.models import DBAsset
+    today = today or datetime.date.today()
+    held = thesis_review_service.held_tickers(db_session)
+    assets = db_session.query(DBAsset).all()
+    theses = {t["ticker"]: t["id"] for t in SqlAlchemyThesisRepository(db_session).list_theses()}
+    followed = ({a.ticker for a in assets if a.is_favorite or (a.data or {}).get("status") == "ACCEPTED"}
+                | {i["ticker"] for i in SqlAlchemyWatchlistRepository(db_session).list_items()} | set(theses))
+    out = []
+    for t in sorted(held | followed):
+        info = market_cache.peek("earnings_v4", t) or {}
+        nxt = results_calendar.next_results(t, t, info.get("next"), info.get("next_time"))
+        if not nxt or (nxt.get("date") or "")[:10] != today.isoformat():
+            continue
+        tm = nxt.get("time") or {}
+        kind = tm.get("kind") if tm.get("kind") in RELEASE_LABEL else None
+        out.append({"ticker": t, "held": t in held, "kind": kind, "madrid": tm.get("madrid") if kind else None,
+                    "href": f"/tesis/{theses[t]}" if t in theses else f"/ticker/{t}"})
+    # por momento de publicación (antes de abrir, en sesión, tras el cierre, sin hora); dentro, la cartera primero
+    order = list(RELEASE_LABEL) + [None]
+    groups = []
+    for kind in order:
+        items = sorted((r for r in out if r["kind"] == kind), key=lambda r: (not r["held"], r["ticker"]))
+        if items:
+            hours = sorted({r["madrid"] for r in items if r["madrid"]})
+            label = RELEASE_LABEL.get(kind, "Sin hora")
+            groups.append({"label": f"{label} ({', '.join(hours)})" if hours else label, "tickers": items})
+    return groups
 
 
 def centro_inbox(db_session: Session) -> Dict[str, Any]:
@@ -329,8 +422,76 @@ def centro_inbox(db_session: Session) -> Dict[str, Any]:
     from app.interfaces.views.alerts_views import notices_context
     ctx = notices_context(db_session)
     items = [i for i in ctx["items"] if i["filter"] != "otros"]
+    try:
+        presenting = results_today(db_session)
+    except Exception as e:   # el mensaje es un extra: si falla, la Bandeja sigue
+        logger.warning("Bandeja: sin «Hoy presentan»: %s", e)
+        presenting = []
     return {"inbox": items, "inbox_filters": [f for f in ctx["filters"] if f["key"] != "otros"],
-            "inbox_today": ctx["today"]}
+            "inbox_today": ctx["today"], "results_today": presenting, "inbox_subs": bandeja_subs(items)}
+
+
+_PCT = re.compile(r"([+-−]?\d+(?:[.,]\d+)?)\s?%")
+_SIGMA = re.compile(r"(\d+(?:,\d+)?)σ")
+_ZONE_TO = re.compile(r"Pasa de \w+ a (\w+)", re.I)
+
+
+def bandeja_compact(i: Dict[str, Any]) -> Dict[str, Any]:
+    """Para la Bandeja resumida: el subtipo del aviso (una línea por subtipo), su cifra clave, si es un movimiento
+    raro para ese valor (σ ≥ 2) y si ya no se cumple. La frase completa sigue en el globo y en el detalle."""
+    text, typ, kind = i.get("text") or "", i.get("type"), i.get("kind") or ""
+    m = _PCT.search(text)
+    num = float(m.group(1).replace("−", "-").replace(".", "").replace(",", ".")) if m else None
+    sig = _SIGMA.search(text)
+    sigma = float(sig.group(1).replace(",", ".")) if sig else None
+    sub, label, metric = typ or kind, kind, ""
+    if i.get("filter") == "precio":
+        if typ == "anormal":
+            day = "|1d" in (i.get("key") or "") or "en el día" in text
+            sub, label = ("dia", "En el día") if day else ("5d", "En 5 sesiones")
+            metric = (m.group(1) + " %") if m else ""
+        elif typ == "nivel":
+            sub, label = ("max52", "Máximo de 52 s") if "máximo" in text else ("min52", "Mínimo de 52 s")
+        elif "desde el máximo" in text:
+            sub, label = "lejos", "Lejos del máximo"
+            num = -abs(num) if num is not None else None
+            metric = f"−{m.group(1)} %" if m else ""
+    elif i.get("filter") == "comprar" and _ZONE_TO.search(text):
+        to = _ZONE_TO.search(text).group(1).lower()
+        sub, label = "to_" + to, "Pasa a " + to
+        cagr = re.search(r"CAGR estimado ([\d,]+%)", text)
+        metric = cagr.group(1).replace("%", " %") if cagr else ""
+        num = float(cagr.group(1)[:-1].replace(",", ".")) if cagr else 0.0
+    elif m:
+        metric = m.group(1) + " %"
+    if metric and metric[0] not in "+-−" and i.get("filter") == "precio" and num is not None and num > 0:
+        metric = "+" + metric
+    metric = metric.replace("-", "−")
+    direction = "down" if metric[:1] == "−" else ("up" if metric[:1] == "+" else "")
+    return {"sub": sub or "otros", "label": label or "Otros", "metric": metric, "dir": direction,
+            "size": abs(num) if num is not None else 0.0, "strong": bool(sigma and sigma >= 2),
+            "stale": "ya no se cumple" in text}
+
+
+def bandeja_subs(items: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    """Los avisos de cada grupo, por subtipo y empresa: {grupo: [{sub, label, chips: [{ticker, items, bj}]}]}.
+    Dentro de cada subtipo, primero lo que baja (▼) y luego lo que sube (▲), de mayor a menor; lo que ya no se cumple,
+    al final de su lado. Sin destacar ninguno: todo en una línea."""
+    out: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for i in items:
+        bj = bandeja_compact(i)
+        sub = out.setdefault(i["filter"], {}).setdefault(bj["sub"], {"sub": bj["sub"], "label": bj["label"], "chips": {}})
+        chip = sub["chips"].setdefault(i.get("ticker") or i.get("kind") or "", {"ticker": i.get("ticker"), "items": [], "bj": bj})
+        chip["items"].append(i)
+    res = {}
+    for g, subs in out.items():
+        rows = []
+        for sub in subs.values():
+            chips = sorted(sub["chips"].values(), key=lambda c: ({"down": 0, "up": 1}.get(c["bj"]["dir"], 2), c["bj"]["stale"],
+                                                                  -c["bj"]["size"]))
+            rows.append({**sub, "chips": chips})
+        res[g] = sorted(rows, key=lambda r: -max(c["bj"]["size"] for c in r["chips"]))
+    return res
 
 
 @router.get("/api/noticias/semana")

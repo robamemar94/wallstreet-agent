@@ -109,6 +109,9 @@ def _run_due() -> None:
                          "new_items": new_items, "failed": sorted(failed)}
         with _lock:
             _running = False
+    if ran:   # el informe semanal espera a la pasada del radar (sus noticias son las de esta pasada)
+        from app.application.services import report_service
+        report_service.trigger()
 
 
 def radar_due(thesis: dict, held: set) -> bool:
@@ -133,6 +136,22 @@ def any_due() -> bool:
     try:
         held = held_tickers(db)
         return any(radar_due(t, held) for t in SqlAlchemyThesisRepository(db).list_theses())
+    finally:
+        db.close()
+
+
+def radar_pending() -> bool:
+    """¿Queda radar por hacer esta semana? En curso o con tesis pendientes (las que acaban de fallar no cuentan: no bloquean
+    el informe semanal)."""
+    if not auto_enabled():
+        return False
+    if _running:
+        return True
+    failed = set((_last_run or {}).get("failed") or [])
+    db = SessionLocal()
+    try:
+        held = held_tickers(db)
+        return any(radar_due(t, held) for t in SqlAlchemyThesisRepository(db).list_theses() if t["ticker"] not in failed)
     finally:
         db.close()
 

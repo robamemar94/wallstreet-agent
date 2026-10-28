@@ -9,6 +9,22 @@ OTHERS = "Otros"
 NO_ROLE = "Sin rol"
 
 
+# Sectores de yfinance, en español (Distribución e informes)
+SECTOR_ES = {
+    "Technology": "Tecnología",
+    "Healthcare": "Salud",
+    "Financial Services": "Servicios Financieros",
+    "Consumer Cyclical": "Consumo Cíclico",
+    "Industrials": "Industria",
+    "Communication Services": "Servicios de Comunicación",
+    "Consumer Defensive": "Consumo Defensivo",
+    "Energy": "Energía",
+    "Utilities": "Servicios Públicos",
+    "Real Estate": "Inmobiliario",
+    "Basic Materials": "Materiales Básicos",
+}
+
+
 def _slices(totals: Dict[str, float], total: float, min_pct: float = MIN_PCT) -> List[Dict[str, Any]]:
     """[{label, value, pct}] de mayor a menor; lo de menos de min_pct, junto en «Otros» (con quién lo forma)."""
     rows = sorted(({"label": k, "value": v, "pct": 100 * v / total} for k, v in totals.items() if v > 0),

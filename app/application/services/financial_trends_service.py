@@ -153,3 +153,24 @@ def build(fin: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for t in tiles:
         t["empty"] = not any(v is not None for s in t["series"] for v in s["values"])
     return tiles
+
+
+EBITDA = ("ebitda",)
+
+
+def net_debt_to_ebitda(fin: Optional[Dict[str, Any]], tiles: Optional[List[Dict[str, Any]]] = None) -> Optional[float]:
+    """Deuda neta / EBITDA del último ejercicio con deuda, caja y EBITDA a la vez (negativo = más caja que deuda).
+    Sin ratio (None) si falta algún dato o el EBITDA no es positivo. `tiles`: el resultado de build(fin), si ya se tiene."""
+    fin = fin or {}
+    tiles = tiles if tiles is not None else build(fin)
+    debt_tile = next((t for t in tiles if t["key"] == "debt"), None)
+    row = _row(fin.get("income_statement") or {}, EBITDA)
+    if not debt_tile or not row:
+        return None
+    ebitda = {str(y): _num(v) for y, v in zip(fin.get("years") or [], row)}
+    series = {s["name"]: s["values"] for s in debt_tile["series"]}
+    for i in range(len(debt_tile["years"]) - 1, -1, -1):
+        d, c, e = series["Deuda"][i], series["Caja"][i], ebitda.get(debt_tile["years"][i])
+        if d is not None and c is not None and e is not None:
+            return (d - c) / e if e > 0 else None
+    return None

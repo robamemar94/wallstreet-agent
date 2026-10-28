@@ -12,17 +12,56 @@
         }
     }
 
-    async function extractDataOnly(ticker) {
+    function setExtractBusy(busy) {
+        document.body.classList.toggle('fin-extracting', busy);
         const btn = document.getElementById('btn-extract');
-        const launchBtn = document.getElementById('btn-audit-launch');
-        
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Extrayendo...';
-        
+        if (!btn) return;
+        btn.disabled = busy;
+        if (busy) {
+            btn.dataset.label = btn.dataset.label || btn.innerHTML;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Extrayendo...';
+        } else if (btn.dataset.label) {
+            btn.innerHTML = btn.dataset.label;
+        }
+    }
+
+    function extractDone(data) {
+        if (data.status === 'success') {
+            if (typeof showToast === 'function') {
+                showToast('✅ Datos Guardados', 'Los datos han sido extraídos. Revisa la tabla de verificación.', 'success');
+            }
+            const launchBtn = document.getElementById('btn-audit-launch');
+            if (launchBtn) launchBtn.classList.remove('disabled');
+            // Recargamos para que el servidor pinte la tabla de financials_hist_manual
+            location.reload();
+        } else {
+            setExtractBusy(false);
+            alert("Error extrayendo datos: " + (data.message || 'desconocido'));
+        }
+    }
+
+    // La extracción seguía en el servidor al cargar la página (se recargó mientras se extraía): se espera a que acabe
+    async function waitExtraction(ticker) {
+        setExtractBusy(true);
+        while (true) {
+            await new Promise(r => setTimeout(r, 3000));
+            try {
+                const data = await (await fetch(`/api/audit/extract_status/${ticker}`)).json();
+                if (data.status === 'running') continue;
+                if (data.status === 'none') { setExtractBusy(false); return; }
+                return extractDone(data);
+            } catch (e) { /* servidor reiniciándose: se reintenta */ }
+        }
+    }
+    {% if extracting %}document.addEventListener('DOMContentLoaded', () => waitExtraction('{{ ticker }}'));{% endif %}
+
+    async function extractDataOnly(ticker) {
+        setExtractBusy(true);
+
         const inc = document.getElementById('audit-income').value.trim();
         const bal = document.getElementById('audit-balance').value.trim();
         const csh = document.getElementById('audit-cashflow').value.trim();
-        
+
         const payload = JSON.stringify({
             income: inc,
             balance: bal,
@@ -36,24 +75,10 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ feedback: payload })
             });
-            
-            const data = await response.json();
-            if (data.status === 'success') {
-                if (typeof showToast === 'function') {
-                    showToast('✅ Datos Guardados', 'Los datos han sido extraídos. Revisa la tabla de verificación.', 'success');
-                }
-                // Habilitar el segundo botón y recargar la tabla de verificación (haciendo un reload parcial o completo)
-                if (launchBtn) launchBtn.classList.remove('disabled');
-                // Recargamos para que el servidor pinte la tabla de financials_hist_manual
-                location.reload();
-            } else {
-                alert("Error extrayendo datos: " + data.message);
-            }
+            extractDone(await response.json());
         } catch (err) {
+            setExtractBusy(false);
             alert("Error de conexión durante la extracción.");
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-database-down me-2"></i> 1. Guardar y Extraer Datos';
         }
     }
 
@@ -90,22 +115,23 @@
 
     window.activeReports = window.activeReports || {};
 
-    // Dependencias entre informes: el Veredicto necesita Franquicia, Auditoría y Dirección; Valoración, Tesis y el
-    // Destructor de tesis necesitan el Veredicto. El servidor pinta el estado al cargar; esto lo mantiene al día sin
+    // Dependencias entre informes: el Veredicto y el Abogado del Diablo (que va antes, para que el Veredicto lo use)
+    // necesitan Franquicia, Auditoría y Dirección; Valoración y Tesis necesitan el Veredicto. El servidor pinta el estado al cargar; esto lo mantiene al día sin
     // recargar cuando se termina un informe previo.
     const REPORT_DONE = new Set();
     {% for k in ['franchise', 'audit', 'mgmt_alloc', 'verdict', 'val', 'thesis', 'thesis_destroyer', 'pe_forensic'] %}{% if db.get(k) %}REPORT_DONE.add('{{ k }}');{% endif %}{% endfor %}
     const REPORT_DEPS = {
         verdict: ['franchise', 'audit', 'mgmt_alloc'],
-        val: ['verdict'], thesis: ['verdict'], thesis_destroyer: ['verdict'],
+        thesis_destroyer: ['franchise', 'audit', 'mgmt_alloc'],
+        val: ['verdict'], thesis: ['verdict'],
     };
     const REPORT_NAMES = {franchise: 'Franquicia', audit: 'Auditoría', mgmt_alloc: 'Dirección', verdict: 'Veredicto Final'};
     function refreshReportDeps() {
         Object.entries(REPORT_DEPS).forEach(([key, deps]) => {
             const missing = deps.filter(d => !REPORT_DONE.has(d));
             const msg = missing.length
-                ? (key === 'verdict'
-                    ? `No se puede ejecutar el Veredicto Final porque aún faltan análisis previos. Por favor, ejecuta primero: ${missing.map(m => REPORT_NAMES[m]).join(', ')}.`
+                ? (key === 'verdict' || key === 'thesis_destroyer'
+                    ? `Aún faltan análisis previos. Ejecuta primero: ${missing.map(m => REPORT_NAMES[m]).join(', ')}.`
                     : 'No se puede ejecutar este informe porque aún falta el Veredicto Final. Por favor, ejecuta primero el Veredicto Final.')
                 : '';
             [`btn-${key}`, `feedback-start-${key}`, `empty-btn-${key}`].forEach(id => {
@@ -343,6 +369,12 @@
                         
                         if (statusData.status === 'success') {
                             clearInterval(pollInterval);
+                            // El veredicto genera antes el abogado del diablo si no existía: avisar en su pestaña
+                            if (type === 'verdict' && !REPORT_DONE.has('thesis_destroyer')) {
+                                const dc = document.getElementById('content-thesis_destroyer');
+                                if (dc) dc.innerHTML = '<p class="text-muted small mb-0">Generado junto al veredicto. <a href="#" onclick="location.reload(); return false;">Recarga</a> para verlo.</p>';
+                                window.markReportDone?.('thesis_destroyer');
+                            }
                             window.markReportDone?.(type);
                             
                             try {

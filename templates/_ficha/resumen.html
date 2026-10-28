@@ -65,12 +65,14 @@
                     {% set v_score_str = db.get('verdict_score') or 'N/A' %}
                     {% set v_score_num = v_score_str.split('/')[0]|trim|float(-1.0) if v_score_str != 'N/A' else -1.0 %}
                     {% set tone = 'text-success' if v_score_num >= 8.5 else 'text-warning' if v_score_num >= 7.0 else 'text-orange' if v_score_num >= 5.0 else 'text-danger' if v_score_num >= 0 else 'text-muted' %}
-                    {# la nota y el perfil en una línea; debajo, por qué (entero) #}
+                    {# la nota y el perfil en una línea (su porqué, plegado tras la ⓘ); debajo, a qué se dedica #}
                     <div class="d-flex align-items-baseline gap-2 flex-wrap" title="Nota ponderada de calidad del veredicto de inversión">
                         <span class="fs-3 fw-bold num-font lh-1 {{ tone }}">{{ num(v_score_num, 1) if v_score_num >= 0 else 'N/A' }}</span><span class="text-muted small text-nowrap">/ 10</span>
                         {% if profile %}<span class="fw-semibold ms-1" title="Perfil de inversión según el veredicto">{{ profile.name }}</span>{% endif %}
+                        {% if profile and profile.why %}<a class="text-muted small" data-bs-toggle="collapse" href="#profileWhy" role="button" aria-expanded="false" aria-controls="profileWhy" title="Por qué este perfil"><i class="bi bi-info-circle"></i></a>{% endif %}
                     </div>
-                    {% if profile and profile.why %}<div class="text-muted lh-sm mt-1 dash-why">{{ profile.why }}</div>{% endif %}
+                    {% if profile and profile.why %}<div class="collapse" id="profileWhy"><div class="text-muted lh-sm mt-1 dash-why">{{ profile.why }}</div></div>{% endif %}
+                    {% if business_summary %}<div class="lh-sm mt-1 dash-biz">{{ business_summary }}</div>{% endif %}
                     {# los factores clave (pros, riesgos y la línea roja), plegados: solo si los abres #}
                     {% set verdict_pros = reports_meta.get('verdict', {}).get('pros', []) %}
                     {% set verdict_cons = reports_meta.get('verdict', {}).get('cons', []) %}
@@ -109,7 +111,7 @@
                         <span class="ms-auto sig-count" id="sigCount" style="text-transform: none; letter-spacing: 0;"></span></div>
                     <div class="sig-rows">
                         <a href="#valoracion" class="sig-row" id="sigVal" data-tone="none" onclick="document.getElementById('nav-projection-tab').click(); return false;"
-                           title="Lo que tendría que caer el precio para llegar al de compra de tu valoración base. Verde: en zona de compra; ámbar: a menos de un 15 %">
+                           title="Caída hasta el precio de compra. Verde: en zona · ámbar: a menos del 15 %">
                             <span class="sig-dot"></span><span class="sig-name">Valoración</span><span class="sig-word" id="sigValWord">–</span>
                             <span class="sig-detail" id="sigValDetail">sin valoración base</span><i class="bi bi-chevron-right sig-go"></i></a>
                         {% if th %}{% set tt = 'bad' if th.killed else vd_tone.get(th.verdict, 'none') %}
@@ -127,7 +129,7 @@
                             <span class="sig-word">{{ '–' if c90 is none else 'Suben' if c90 >= 2 else 'Bajan' if c90 <= -2 else 'Estables' }}</span>
                             <span class="sig-detail">{% if rev and c90 is not none %}BPA {{ num(c90, 1, sign=True) }} % en 90 días{% if rev.up_30 is not none %} · 30 d: <span class="text-success">{{ rev.up_30 }}↑</span> <span class="{{ 'text-danger' if rev.down_30 }}">{{ rev.down_30 or 0 }}↓</span>{% endif %}{% else %}sin datos de los analistas{% endif %}</span></div>
                         <a href="#" class="sig-row" id="sigTech" data-tone="none" onclick="bootstrap.Tab.getOrCreateInstance(document.getElementById('nav-technical-top-tab')).show(); return false;"
-                           title="Calculado al momento con el histórico de precios: distancia a la media de 200 sesiones, RSI de 14 sesiones (por debajo de 30, sobreventa; por encima de 70, sobrecompra) y caída desde el máximo de 52 semanas. Pulsa para el informe técnico de IA">
+                           title="Media de 200 sesiones, RSI 14 y caída desde máximos de 52 semanas. Pulsa para el informe técnico">
                             <span class="sig-dot"></span><span class="sig-name">Técnico</span><span class="sig-word" id="sigTechWord">–</span>
                             <span class="sig-detail" id="sigTechDetail">calculando…</span><i class="bi bi-chevron-right sig-go"></i></a>
                         {# directivos y acciones en circulación: llegan aparte #}

@@ -1,0 +1,12 @@
+    // --- Roboadvisor: su parte del «Patrimonio» del Resumen (/api/portfolio/roboadvisor). El detalle, en /roboadvisor ---
+    (function () {
+        const v = document.getElementById('resPatrimony'), chip = document.querySelector('[data-robo-chip]');
+        if (!v || !chip) return;
+        const dmy = s => `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
+        fetch('/api/portfolio/roboadvisor').then(r => r.ok ? r.json() : null).then(st => {
+            if (!st) return;
+            if (!st.configured) { chip.innerHTML = '<a href="/roboadvisor" class="text-decoration-none">+ roboadvisor</a> · '; return; }
+            v.textContent = fmtNum((parseFloat(v.dataset.base) || 0) + st.value, 0) + ' €';
+            chip.innerHTML = `robo <a href="/roboadvisor" class="text-decoration-none" title="${st.estimated ? 'Estimado desde el ajuste del ' + dmy(st.snapshot.date) : 'Ajustado el ' + dmy(st.snapshot.date)}">${st.estimated ? '~' : ''}${fmtNum(st.value, 0)} €</a> · `;
+        }).catch(() => {});
+    })();

@@ -20,6 +20,8 @@ from app.interfaces.views.seguimiento_views import router as seguimiento_views_r
 from app.interfaces.views.portada_views import router as portada_views_router
 from app.interfaces.api.thesis_api import router as thesis_api_router
 from app.interfaces.views.watchlist_views import router as watchlist_router
+from app.interfaces.views.diary_views import router as diary_router
+from app.interfaces.views.robo_views import router as robo_router
 from app.interfaces.api.notifications_api import router as notifications_router
 from app.infrastructure.db.database import SessionLocal
 from app.infrastructure.dependencies import get_settings_from_db
@@ -58,6 +60,16 @@ async def settings_middleware(request, call_next):
 
 
 @app.middleware("http")
+async def no_store_html(request, call_next):
+    # Las páginas no se guardan en el navegador: al volver con «Atrás» se piden de nuevo y salen con lo último
+    # (p. ej. el nivel cambiado en la ficha se ve al volver a Listas sin recargar a mano)
+    response = await call_next(request)
+    if response.headers.get("content-type", "").startswith("text/html") and "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.middleware("http")
 async def llm_usage_middleware(request, call_next):
     # Contabiliza los tokens/coste de Gemini de cada petición y los expone en la cabecera X-LLM-Usage
     if request.url.path.startswith(("/static", "/logos")):
@@ -85,6 +97,8 @@ app.include_router(seguimiento_views_router)
 app.include_router(portada_views_router)
 app.include_router(thesis_api_router, prefix="/api")
 app.include_router(watchlist_router)
+app.include_router(diary_router)
+app.include_router(robo_router)
 app.include_router(notifications_router, prefix="/api")
 
 if __name__ == "__main__":

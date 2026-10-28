@@ -409,13 +409,16 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
                                                      quote_unit_factor(info.get('currency')))
 
     # Informes que se están generando ahora: al recargar, la ficha los sigue esperando en vez de ofrecer «Generar ahora»
-    from app.interfaces.api.analysis_api import running_tasks
+    from app.interfaces.api.analysis_api import running_tasks, EXTRACTIONS
     running = running_tasks(db_session, ticker)
+    extracting = (EXTRACTIONS.get(ticker.upper()) or {}).get("status") == "running"
 
     return templates.TemplateResponse("ticker.html", {
         "request": request, 
         "ticker": ticker, 
         "running_tasks": running,
+        "extracting": extracting,
+        "diary_count": _diary_count(db_session, ticker),
         "info": info, 
         "currency_symbol": get_currency_symbol(info.get('currency', 'USD'), ticker), 
         "custom_metrics": metrics, 
@@ -431,7 +434,8 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         "high": hi, 
         "low": lo, 
         "close": cl, 
-        "db": db_d, "profile": investment_profile(db_d.get("verdict")), 
+        "db": db_d, "profile": investment_profile(db_d.get("verdict")), "business_summary": business_summary(db_d),
+
         "reports_html": reports_h, 
         "reports_meta": reports_m, 
         "is_favorite": is_fav, 
@@ -447,7 +451,8 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         "bval_stale": _valuation_staleness(ticker, base_valuation_service.stored(db_d)),
         # BPA y dividendo de Yahoo van en la divisa principal; en Londres el precio va en peniques
         "unit_factor": quote_unit_factor(info.get('currency')),
-        "bval_ttm": {"eps": (info.get('trailingEps') or 0) * quote_unit_factor(info.get('currency')) or None,
+        # si Yahoo no da el BPA (algunas de Corea), el mismo cálculo que el resto de la app: beneficio 12 meses / acciones
+        "bval_ttm": {"eps": (info.get('trailingEps') or 0) * quote_unit_factor(info.get('currency')) or base_valuation_service.fetch_ttm_eps(ticker),
                      "fcf": fetch_ttm_fcf_per_share(ticker)},
         # cierre del último trimestre publicado: la fecha del TTM (el año en curso suma lo que le falta hasta el 31/12)
         "bval_ttm_end": datetime.datetime.fromtimestamp(info['mostRecentQuarter'], datetime.timezone.utc).date().isoformat() if info.get('mostRecentQuarter') else None,
@@ -463,9 +468,20 @@ def ticker_page(request: Request, ticker: str, asset_repo: SqlAlchemyAssetReposi
         "in_watchlist": watchlist_repo.get_by_ticker(ticker) is not None,   # añadida a mano
         "watch_auto": ["Tier 1"] if is_fav else (["Tier 2"] if str(db_d.get("watch_tier") or "") == "2" else []),
         "tier": tier_level(is_fav, db_d), "muted": bool(db_d.get("muted")),
+        # «Mi precio»: de compra o, si la tienes, para ampliar
+        "mine": _my_price(ticker, db_d, metrics.get("currentPrice")),
         # previsiones de los analistas (BPA a 90 días), de la caché: el indicador del Resumen
         "rev": _estimate_revisions(ticker),
     })
+
+
+def _my_price(ticker: str, data, price):
+    from app.interfaces.views.watchlist_views import my_price
+    try:
+        return my_price(ticker, data, price)
+    except Exception:
+        logger.exception("Mi precio de %s", ticker)
+        return None
 
 
 def _estimate_revisions(ticker: str):
@@ -523,19 +539,20 @@ def price_valuation_api(ticker: str, db_session: Session = Depends(get_db),
             "valuation": {k: val.get(k) for k in ("buy_price", "cagr", "margin_pct", "zone", "target", "metric", "years")} if val else None}
 
 
-def _insiders(ticker: str) -> dict:
-    from app.application.services import insider_service
-    return insider_service.summary(ticker.upper())
-
-
 @router.get("/ticker/{ticker}/directivos", response_class=HTMLResponse)
 def insiders_fragment(request: Request, ticker: str, db_session: Session = Depends(get_db)):
     """«Directivos y acciones» del Resumen ejecutivo de la ficha (se pide aparte: Yahoo puede tardar)."""
     from app.application.services import insider_service
-    s = _insiders(ticker)
+    asset = db_session.query(DBAsset).filter(DBAsset.ticker == ticker.upper()).first()
+    # precio de hoy para compararlo con el de las operaciones: solo si están en la misma moneda (Yahoo las da en USD; las
+    # de empresas canadienses vienen del registro canadiense, en CAD, aunque coticen en Nueva York)
+    d = (asset.data or {}) if asset else {}
+    comparable = (d.get("currency") or "USD") == "USD" and (d.get("country") or "").lower() != "canada"
+    price_now = (INDEX_CACHE["data"].get(ticker.upper()) or {}).get("price") if comparable else None
+    s = insider_service.summary(ticker.upper(), price_now=price_now)
+    s["cur"] = "$" if comparable else ""
     # acciones en circulación: mejor de las cuentas anuales de la ficha (oficiales, 10 años); si no, la serie de Yahoo
     s["shares_source"] = "Yahoo Finance (mensual, ajustado por splits)"
-    asset = db_session.query(DBAsset).filter(DBAsset.ticker == ticker.upper()).first()
     if asset:
         try:
             fin = insider_service.shares_from_financials(get_financials_history(ticker.upper(), yf.Ticker(ticker.upper()), asset.data or {}))
@@ -605,6 +622,14 @@ def enrich_ledger(portfolio_service, db_session: Session, ticker: str, ledger_da
     return ledger_data
 
 
+def _diary_count(db_session: Session, ticker: str) -> int:
+    from app.application.services import company_notes_service
+    try:
+        return company_notes_service.count(db_session, ticker)
+    except Exception:   # sin la tabla (migración pendiente): el botón sale sin número
+        return 0
+
+
 @router.get("/ticker/{ticker}/mi-posicion", response_class=HTMLResponse)
 def my_position_fragment(request: Request, ticker: str, db_session: Session = Depends(get_db),
                          portfolio_service: PortfolioService = Depends(get_portfolio_service),
@@ -643,6 +668,7 @@ def my_position_fragment(request: Request, ticker: str, db_session: Session = De
         kind = getattr(row["type"], "value", row["type"])
         row["kind"], row["op"] = kind, by_day.get((str(row["date"])[:10], kind))
         row["fx"] = dr._fx_at(df, currency, str(row["date"])) if kind in ("BUY", "SELL", "DIVIDEND") else None
+        row["days"] = (datetime.date.today() - datetime.date.fromisoformat(str(row["date"])[:10])).days
     ledger.sort(key=lambda r: str(r["date"]), reverse=True)
     exposure = portfolio_exposure(portfolio_service, asset_repo)
     pos = exposure["positions"].get(t) or {}
@@ -652,6 +678,7 @@ def my_position_fragment(request: Request, ticker: str, db_session: Session = De
         # todo el histórico (para «Máx» y los periodos largos aunque la posición sea reciente); se abre desde la compra
         close = yf.Ticker(t).history(period="max", auto_adjust=False)["Close"].dropna()
         chart = {"dates": [d.strftime("%Y-%m-%d") for d in close.index], "close": [round(float(v), 4) for v in close]}
+        chart["money"] = prs.money_series(txs, divs, close, df, currency, splits)
     except Exception:
         logger.warning("Mi posición: sin histórico de precios para el gráfico de %s", t)
     chart["markers"] = prs.markers(txs, splits)
@@ -660,7 +687,8 @@ def my_position_fragment(request: Request, ticker: str, db_session: Session = De
     ctx.update(vs=prs.versus_index(txs, divs, df, currency, splits), ops=review["ops"], entries=review["entries"], ledger=ledger, pence=currency == "GBp",
                weight=pos.get("weight"), value_eur=pos.get("value_eur"), divs=sorted(divs, key=lambda d: d["date"], reverse=True),
                div_years=prs.dividends_by_year(divs), active=bool(item and item.shares > 0),
-               currency_symbol=get_currency_symbol(currency, t), chart_json=json.dumps(chart))
+               currency_symbol=get_currency_symbol(currency, t), chart_json=json.dumps(chart), has_money=bool(chart.get("money")),
+               stats=prs.position_stats(review["ops"], txs, item if item and item.shares > 0 else None))
     return templates.TemplateResponse("_my_position.html", ctx)
 
 
@@ -695,6 +723,15 @@ PROFILE_NAMES = [   # (palabra clave en el arquetipo, nombre); en orden: «COMPO
 ]
 
 
+def business_summary(db_d: dict) -> Optional[str]:
+    """A qué se dedica, en dos frases, para la tarjeta Calidad: el guardado (asset.data['business_summary']) o el del
+    informe de franquicia («A qué se dedica: …», lo pide su prompt)."""
+    if db_d.get("business_summary"):
+        return db_d["business_summary"]
+    m = re.search(r"A qu[eé] se dedica[^:\n]*:\**\s*(.+)", db_d.get("franchise") or "")
+    return re.sub(r"[*_`«»\[\]]+", "", m.group(1)).strip().rstrip(".") if m else None
+
+
 def investment_profile(verdict: Optional[str]) -> Optional[dict]:
     """{name, why} a partir del informe de veredicto («Arquetipo de Inversión: …» y «Justificación del Arquetipo: …»)."""
     if not verdict:
@@ -710,15 +747,18 @@ def investment_profile(verdict: Optional[str]) -> Optional[dict]:
 
 
 def upcoming_events(ticker: str, info: dict) -> list:
-    """Próximos resultados (la misma fecha que la agenda, cacheada) y fecha ex-dividendo, para la franja del precio.
-    [{label, date (ISO), detail}], el más cercano primero."""
+    """Próximos resultados (la misma fecha y hora que la agenda: Yahoo o la búsqueda guardada) y fecha ex-dividendo, para la
+    cabecera y la franja de eventos. [{label, date (ISO), detail, time}], el más cercano primero."""
+    from app.application.services import results_calendar
     from app.application.services.thesis_review_service import _earnings_info
     today = datetime.date.today()
     events = []
     try:
-        nxt = (_earnings_info(ticker) or {}).get("next")
-        if nxt and str(nxt)[:10] >= today.isoformat():
-            events.append({"label": "Resultados", "date": str(nxt)[:10], "detail": "Presentación de resultados"})
+        ei = _earnings_info(ticker) or {}
+        nxt = results_calendar.next_results(ticker, info.get("longName") or ticker, ei.get("next"), ei.get("next_time"))
+        if nxt and nxt.get("date") and str(nxt["date"])[:10] >= today.isoformat():
+            events.append({"label": "Resultados", "date": str(nxt["date"])[:10], "time": nxt.get("time"),
+                           "detail": "Presentación de resultados" + (f" · {nxt['event']}" if nxt.get("event") else "")})
     except Exception:
         pass
     ts = info.get("exDividendDate")

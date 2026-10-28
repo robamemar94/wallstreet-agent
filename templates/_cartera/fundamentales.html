@@ -122,8 +122,6 @@
       <div class="card-header bg-white border-bottom border-light-subtle py-3">
         <h5 class="fw-bold mb-0 " style="font-size:0.95rem;">
           <i class="bi bi-building text-primary me-1.5"></i>Desglose de Fundamentales por Compañía
-          <i class="bi bi-info-circle text-muted ms-1" style="font-size:.8rem;" title="Verde = bueno · rojo = flojo · sin color = normal. ROIC ≥15 % / <8 % · Crecimiento ≥12 % / <5 % · M. bruto ≥50 % / <25 % · M. oper. ≥20 % / <10 % · PER fwd ≤20x / >35x · PEG ≤1,5 / >2,5 · Yield FCF ≥4 % / <2 % · Deuda/EBITDA ≤1x / >3x. Dividendo y beta, sin color: no son buenos ni malos por sí solos."></i>
-          <span class="small text-muted fw-normal ms-2" style="font-size:.7rem;"><span class="text-success">verde</span> bueno · <span class="text-danger">rojo</span> flojo</span>
         </h5>
       </div>
       <div class="card-body p-0">
@@ -143,14 +141,14 @@
                 <th class="ps-4" onclick="sortTable('fundamentalsTable', 0, false)">Activo <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
                 <th class="" onclick="sortTable('fundamentalsTable', 1, false)">Compañía <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
                 <th class="text-end" onclick="sortTable('fundamentalsTable', 2, true)">Peso % <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 3, true)">ROIC <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 4, true)">M. bruto <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 5, true)">M. oper. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 6, true)">Crec. NTM <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 7, true)">PER fwd <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 8, true)">PEG <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end" onclick="sortTable('fundamentalsTable', 9, true)">Yield FCF <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
-                <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 10, true)">Deuda/EBITDA <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" data-bs-toggle="tooltip" data-bs-html="true" title="<span class=&quot;tip-good&quot;>≥15 %</span> · <span class=&quot;tip-bad&quot;>&amp;lt;8 %</span>" onclick="sortTable('fundamentalsTable', 3, true)">ROIC <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" data-bs-toggle="tooltip" data-bs-html="true" title="<span class=&quot;tip-good&quot;>≥50 %</span> · <span class=&quot;tip-bad&quot;>&amp;lt;25 %</span>" onclick="sortTable('fundamentalsTable', 4, true)">M. bruto <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" data-bs-toggle="tooltip" data-bs-html="true" title="<span class=&quot;tip-good&quot;>≥20 %</span> · <span class=&quot;tip-bad&quot;>&amp;lt;10 %</span>" onclick="sortTable('fundamentalsTable', 5, true)">M. oper. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" data-bs-toggle="tooltip" data-bs-html="true" title="<span class=&quot;tip-good&quot;>≥12 %</span> · <span class=&quot;tip-bad&quot;>&amp;lt;5 %</span>" onclick="sortTable('fundamentalsTable', 6, true)">Crec. NTM <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" data-bs-toggle="tooltip" data-bs-html="true" title="<span class=&quot;tip-good&quot;>≤20x</span> · <span class=&quot;tip-bad&quot;>&amp;gt;35x</span>" onclick="sortTable('fundamentalsTable', 7, true)">PER fwd <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" data-bs-toggle="tooltip" data-bs-html="true" title="<span class=&quot;tip-good&quot;>≤1,5</span> · <span class=&quot;tip-bad&quot;>&amp;gt;2,5</span>" onclick="sortTable('fundamentalsTable', 8, true)">PEG <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end" data-bs-toggle="tooltip" data-bs-html="true" title="<span class=&quot;tip-good&quot;>≥4 %</span> · <span class=&quot;tip-bad&quot;>&amp;lt;2 %</span>" onclick="sortTable('fundamentalsTable', 9, true)">Yield FCF <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
+                <th class="text-end fund-sep" data-bs-toggle="tooltip" data-bs-html="true" title="<span class=&quot;tip-good&quot;>≤1x</span> · <span class=&quot;tip-bad&quot;>&amp;gt;3x</span>" onclick="sortTable('fundamentalsTable', 10, true)">Deuda/EBITDA <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
                 <th class="text-end fund-sep" onclick="sortTable('fundamentalsTable', 11, true)">Yield div. <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
                 <th class="text-end fund-sep pe-4" onclick="sortTable('fundamentalsTable', 12, true)">Beta <i class="bi bi-arrow-down-up ms-1 text-muted" style="font-size: 0.6rem; opacity: 0.6;"></i></th>
               </tr>

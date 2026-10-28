@@ -6,11 +6,13 @@
 - Frente al S&P 500: el mismo dinero en el índice en las mismas fechas (cada compra compra índice; cada venta vende la
   misma parte del índice que de la acción). Cierres ajustados del índice (con dividendos), en euros.
 - Cada operación con su porqué y su balance (lo de Decisiones, solo para esta empresa: decision_review_service.build).
+- Mi dinero día a día: lo que vale lo que te queda + lo sacado + los dividendos, frente a lo que pusiste.
 - Las compras y ventas sobre el gráfico de precio (precio por acción de hoy: ajustado por los splits del ledger).
 Sin IA: solo precios y lo que ya hay guardado.
 """
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 
 from app.application.services import decision_review_service as dr
@@ -89,3 +91,69 @@ def dividends_by_year(dividends: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         y["eur"] += d["eur"] or 0
         y["n"] += 1
     return sorted(years.values(), key=lambda y: y["year"], reverse=True)
+
+
+def money_series(txs: List[Dict[str, Any]], dividends: List[Dict[str, Any]], close: Optional[pd.Series], df: Optional[pd.DataFrame],
+                 currency: Optional[str], splits: Optional[List[tuple]] = None) -> Dict[str, Any]:
+    """Tu dinero en esta empresa cada día desde la primera compra, en euros. close: cierres sin ajustar por dividendos (en
+    acciones de hoy, como los da yfinance). -> {dates, total, invested}: total = valor de lo que te queda + lo sacado al
+    vender + dividendos cobrados; invested = suma de compras. El último punto da el Resultado de versus_index."""
+    if close is None or close.empty or not txs:
+        return {}
+    close = close.dropna()
+    if close.index.tz is not None:
+        close.index = close.index.tz_localize(None)
+    close.index = close.index.normalize()
+    idx = close.index[close.index >= pd.Timestamp(min(t["date"] for t in txs)[:10])]
+    if idx.empty:
+        return {}
+    ccy, pence = dr._fx_currency(currency), currency == "GBp"
+    if ccy == "EUR":
+        fx_day = pd.Series(1.0, index=idx)
+    else:
+        col = f"{ccy}EUR=X"
+        if df is None or col not in df.columns:
+            return {}
+        fx_day = df[col].dropna().reindex(idx, method="ffill").bfill()
+    n = len(idx)
+    shares, invested, sold, divs = (np.zeros(n) for _ in range(4))
+
+    def at(date: str) -> int:
+        return min(int(idx.searchsorted(pd.Timestamp(date[:10]))), n - 1)
+
+    for t in txs:
+        fx = t.get("fx") or dr._fx_at(df, t.get("currency") or currency, t["date"])
+        if not fx:
+            return {}
+        amount = t["shares"] * t["price"] * (0.01 if (t.get("currency") or currency) == "GBp" else 1) * fx
+        today = t["shares"] * dr._split_factor(t["date"], splits or [])
+        i = at(t["date"])
+        if t["type"] == "BUY":
+            invested[i] += amount
+            shares[i] += today
+        else:
+            sold[i] += amount
+            shares[i] -= today
+    for d in dividends:
+        divs[at(d["date"])] += d["eur"] or 0
+    value = np.cumsum(shares).clip(min=0) * close.reindex(idx).to_numpy() * fx_day.to_numpy() * (0.01 if pence else 1)
+    total = value + np.cumsum(sold) + np.cumsum(divs)
+    return {"dates": [d.strftime("%Y-%m-%d") for d in idx], "total": [round(float(v), 2) for v in total],
+            "invested": [round(float(v), 2) for v in np.cumsum(invested)]}
+
+
+def position_stats(ops: List[Dict[str, Any]], txs: List[Dict[str, Any]], active_item: Any = None,
+                   today: Optional[pd.Timestamp] = None) -> Dict[str, Any]:
+    """Cifras de la tarjeta «Tu posición»: tiempo desde la primera compra, mejor y peor compra y cuántas compras
+    superaron al índice a 12 meses. ops: las decisiones de decision_review_service.build."""
+    today = today or pd.Timestamp.today().normalize()
+    first = pd.Timestamp(min(t["date"] for t in txs)[:10]) if txs else today
+    months = max(0, (today.year - first.year) * 12 + today.month - first.month - (today.day < first.day))
+    buys = [o for o in ops if o["type"] == "BUY" and (o.get("review") or {}).get("since") is not None]
+    h12 = [o["review"]["horizons"]["12m"] for o in buys if "12m" in (o["review"].get("horizons") or {})]
+    pick = lambda o: {"date": o["date"][:10], "since": o["review"]["since"]} if o else None
+    return {"years": months // 12, "months": months % 12,
+            "avg": getattr(active_item, "average_price", None) if active_item else None,
+            "best": pick(max(buys, key=lambda o: o["review"]["since"], default=None)),
+            "worst": pick(min(buys, key=lambda o: o["review"]["since"], default=None)) if len(buys) > 1 else None,
+            "n12": len(h12), "beat12": sum(1 for x in h12 if x > 0)}

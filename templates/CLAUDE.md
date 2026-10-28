@@ -16,6 +16,9 @@ el `CLAUDE.md` de la raíz; los conceptos de dominio, en `app/CLAUDE.md`; el det
   - la cifra del día de la cartera (`/api/portfolio/day`, con `portfolio_day()`, la misma cuenta que la tarjeta
     «Mi Cartera»).
 - **`_base/js/buscador_y_varios.html`:** buscador, modo oscuro, `showToast`, aviso de consumo de IA y pestañas.
+  - Otro campo de empresa con el mismo buscador (nombre o ticker): `<input id="x" data-ticker-search="#xSug">` y su
+    `<div id="xSug" class="search-suggestions">` dentro de un `.suggestions-container`. Elegir rellena el ticker sin
+    enviar el formulario.
 - **`_base/ventanas.html`:** las ventanas de noticias de la semana y del calendario.
 - **En `base.html`:** el acceso «Inicio», la barra de búsqueda y el globo de color del pre/post-market (`[data-ext-tip]`).
 - **Macros comunes:** en `_ui_macros.html` (`chg_pill`, `stale_pill`, `ext_tag`, `ext_title`, `ext_eur`) y
@@ -36,7 +39,9 @@ el `CLAUDE.md` de la raíz; los conceptos de dominio, en `app/CLAUDE.md`; el det
   - en las tablas va a la izquierda de la píldora, para que queden alineadas;
   - el dato sale al pasar el ratón, en un globo verde o rojo (`data-ext-tip`/`data-ext-tone`);
   - en la Actividad del día, el globo sale al pasar por toda la fila (`ext_title`);
-  - si se mueve ±2 % o más (`EXT_BIG_PCT`, global de Jinja), además el valor en negrita;
+  - si se mueve ±1,5 % o más (`EXT_BIG_PCT`, global de Jinja), además el valor en negrita;
+  - excepción: en la Actividad del día, un valor que aún no ha abierto con un pre-market de ±1,5 % o más lo
+    enseña como cifra principal (el post-market, no) (`ext_lead`); ver `docs/pantallas/portada.md`;
   - sin moverse (0,00 %), nada.
 - **En la ficha:** siempre el dato completo junto al precio.
 - **En Cartera:** Var. día € con el horario extendido; ver `docs/pantallas/cartera.md`.

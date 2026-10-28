@@ -197,6 +197,9 @@
                         {% endif %}
                     </td>
                     <td class="text-center">
+                        {% if tx.is_manual and tx.type in ('BUY', 'SELL') %}
+                        <a class="btn btn-sm btn-outline-secondary border-0 p-0 me-1" href="/portfolio?editar={{ ticker|urlencode }}|{{ (tx.date|string)[:10] }}|{{ tx.type }}|{{ tx.shares }}|{{ tx.price }}" onclick="event.stopPropagation();" title="Editar operación">✏️</a>
+                        {% endif %}
                         {% if tx.type != 'DIVIDEND' and tx.type != 'SPLIT' %}
                         <button class="btn btn-sm btn-outline-danger border-0 p-0" onclick="event.stopPropagation(); deleteTransaction('{{ tx.date }}', '{{ tx.type }}', {{ tx.shares }}, {{ tx.price }})" title="Eliminar Transacción">🗑️</button>
                         {% endif %}

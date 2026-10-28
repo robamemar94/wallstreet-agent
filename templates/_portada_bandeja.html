@@ -1,6 +1,6 @@
 {# Bandeja de hoy de la portada (la pide index.html a /portada/bandeja; se pinta sola, sin esperar al resto) #}
 {# Bandeja de hoy: los avisos de Avisos (mismo leído), por grupos (Comprar, Directivos y analistas, Resultados, Precio,
-   Tu cartera): una línea por grupo con las empresas como etiquetas; al pulsar una, su detalle; cada grupo enlaza a Avisos
+   Tu cartera) y, dentro, una línea por subtipo con las empresas en fila y su cifra (`bandeja_subs`); al pulsar una, su detalle; cada grupo enlaza a Avisos
    con ese grupo. Arriba, Todo / Cartera / Seguimiento. Solo lo de hoy (lo de antes y lo vigente, en Avisos). El
    filtrado y las acciones, en el JS de la portada (initBandeja). #}
 {% macro bj_origin(i) %}{{ 'general' if i.type in ('report', 'ia_budget', 'cash_deposit', 'news_weekly') or i.ticker in (none, '', 'Watchlist', 'Informe', 'Liquidez', 'IA', 'Noticias') else ('cartera' if i.portfolio else 'seguimiento') }}{% endmacro %}
@@ -16,22 +16,35 @@
         <a href="/avisos" class="small fw-normal text-decoration-none" id="bjAll" title="Ver todos en Avisos">Avisos →</a>
     </div>
     <div class="fixed-body bj-body">
+    {# «Hoy presentan»: un mensaje del día, no un aviso (ni leído ni ✕). Cartera en negrita; la hora si Yahoo la da fiable #}
+    {% if results_today %}<div class="bj-today small" title="Empresas en cartera o que sigues que presentan resultados hoy">
+        <i class="bi bi-calendar-event text-warning me-1"></i><b>Hoy presentan:</b>
+        {% for g in results_today %}<span class="text-nowrap-md"><span class="text-muted">{{ g.label }}:</span>
+        {% for r in g.tickers %}<a href="{{ r.href }}" class="text-decoration-none {{ 'fw-bold text-body' if r.held else 'text-body-secondary' }}">{{ clean_ticker(r.ticker) }}</a>{{ ', ' if not loop.last }}{% endfor %}</span>{{ ' · ' if not loop.last }}{% endfor %}
+    </div>{% endif %}
     {% for f in inbox_filters %}{% set mine = inbox|selectattr('filter', 'equalto', f.key)|list %}
         <div class="bj-group bj-{{ f.key }}" data-filter="{{ f.key }}">
             <div class="bj-label"><a class="bj-pill text-decoration-none" href="/avisos?tipo={{ f.key }}" title="Ver todos en Avisos: {{ f.label|lower }}"><i class="bi {{ f.icon }}"></i>{{ f.label }}</a></div>
             <div class="bj-chips">
-            {% for t, its in mine|groupby('ticker') %}{% set first = its[0] %}{% set keys = its|map(attribute='keys')|sum(start=[]) %}{% set dkeys = its|map(attribute='dismiss_keys')|sum(start=[]) %}
+            {# una línea por subtipo (en el día, en 5 sesiones, pasa a barata…) con las empresas en fila y su cifra: ▼ lo que baja
+               y ▲ lo que sube (las flechas y los «·» los pone el JS, que es el que filtra lo de hoy) #}
+            {% for row in (inbox_subs or {}).get(f.key, []) %}<div class="bj-sub" data-sub="{{ row.sub }}">
+                <span class="bj-sublabel">{{ row.label[:1]|upper ~ row.label[1:] }}</span>
+                <div class="bj-row">
+            {% for c in row.chips %}{% set its = c['items'] %}{% set t = c.ticker %}{% set bj = c.bj %}{% set first = its[0] %}{% set keys = its|map(attribute='keys')|sum(start=[]) %}{% set dkeys = its|map(attribute='dismiss_keys')|sum(start=[]) %}
                 {% set unread = its|rejectattr('read')|list|length > 0 %}{% set live = its|selectattr('vigente')|list|length > 0 %}{% set last = its|map(attribute='date')|map('string')|max %}
                 {# buena o mala noticia: el código de la empresa en verde o en rojo #}
-                {% set bad = its|selectattr('kind', 'equalto', 'caída')|list or its|selectattr('tone', 'equalto', 'down')|list or its|selectattr('type', 'in', ['estimate_cut', 'portfolio_risk', 'concentración', 'cara'])|list %}
+                {% set bad = its|selectattr('kind', 'equalto', 'caída')|list or its|selectattr('tone', 'equalto', 'down')|list or its|selectattr('type', 'in', ['estimate_cut', 'portfolio_risk', 'concentración', 'cara'])|list or bj.metric[:1] == '−' %}
                 {% set good = f.key == 'comprar' or its|selectattr('tone', 'equalto', 'up')|list or its|selectattr('type', 'in', ['insider_buy', 'estimate_rise'])|list %}
-                <div class="bj-chip {{ 'unread' if unread }} {{ 'bj-bad' if bad else 'bj-good' if good }}" role="button" tabindex="0" data-keys="{{ keys|tojson|forceescape }}" data-dismiss="{{ dkeys|tojson|forceescape }}" data-hide="{{ f.key }}|{{ t }}"
+                <div class="bj-chip {{ 'unread' if unread }} {{ 'bj-bad' if bad else 'bj-good' if good }} {{ 'bj-stale' if bj.stale }}" data-dir="{{ bj.dir }}" role="button" tabindex="0" data-keys="{{ keys|tojson|forceescape }}" data-dismiss="{{ dkeys|tojson|forceescape }}" data-hide="{{ f.key }}|{{ t }}"
                      data-origin="{{ bj_origin(first)|trim }}" data-vigente="{{ '1' if live }}" data-date="{{ last[:10] }}"
-                     title="{{ its|map(attribute='text')|join(' · ') }}">
+                     title="{{ (first.name ~ ' — ') if first.name }}{{ its|map(attribute='text')|join(' · ') }}">
                     <b>{{ clean_ticker(t) if t and bj_origin(first)|trim != 'general' else (t or first.kind) }}</b>
+                    {% if t and first.name and clean_ticker(t)[:1] in '0123456789' %}<span class="bj-name" title="{{ first.name }}">{{ first.name|truncate(16, True, '…') }}</span>{% endif %}
+                    {% if bj.metric %}<span class="bj-m num-font">{{ bj.metric }}</span>{% endif %}
                     <span class="bj-text">{{ first.text }}</span>{% if its|length > 1 %}<span class="bj-n">+{{ its|length - 1 }}</span>{% endif %}
-                    <span class="bj-acts"><button type="button" class="btn btn-link btn-sm p-0" data-act="read" title="Marcar como leído"><i class="bi bi-check2"></i></button><button type="button" class="btn btn-link btn-sm p-0" data-act="hide" title="Quitar de la bandeja de hoy (sigue en Avisos)"><i class="bi bi-x-lg"></i></button></span>
-                    <template>{% for i in its %}<div class="bj-line">
+                    <span class="bj-acts">{% if first.url or first.href %}<a class="btn btn-link btn-sm p-0" data-act="go" href="{{ first.url or first.href }}"{% if first.url %} target="_blank" rel="noopener"{% endif %} title="Abrir y marcar como leído"><i class="bi bi-arrow-right"></i></a>{% endif %}<button type="button" class="btn btn-link btn-sm p-0" data-act="read" title="Marcar como leído"><i class="bi bi-check2"></i></button><button type="button" class="btn btn-link btn-sm p-0" data-act="hide" title="Quitar de la bandeja de hoy (sigue en Avisos)"><i class="bi bi-x-lg"></i></button></span>
+                    <template>{% if first.name %}<div class="bj-co">{{ first.name }}{% if t %} <span class="text-muted">· {{ clean_ticker(t) }}</span>{% endif %}</div>{% endif %}{% for i in its %}<div class="bj-line">
                         <span class="bj-when">{{ (i.date or '')[8:10] }}/{{ (i.date or '')[5:7] }}</span>
                         <span class="bj-kind">{{ i.kind }}</span>
                         <span class="bj-what">{{ i.text }}{% if i.vigente %} <span class="av-live" title="{{ i.rule }}">vigente{% if i.since %} desde el {{ i.since[8:10] }}/{{ i.since[5:7] }}{% endif %}</span>{% endif %}
@@ -40,6 +53,8 @@
                     </div>{% endfor %}</template>
                 </div>
             {% endfor %}
+                </div>
+            </div>{% endfor %}
             </div>
             <div class="bj-detail d-none"></div>
         </div>

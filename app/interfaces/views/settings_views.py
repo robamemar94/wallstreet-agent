@@ -80,3 +80,21 @@ def save_ai_budget(payload: AIBudget, db_session: Session = Depends(get_db)):
     from app.application.services import ai_usage_service
     save_settings_to_db(db_session, {ai_usage_service.BUDGET_KEY: payload.model_dump()})
     return {"status": "success"}
+
+
+@router.get("/api/backup/status")
+def backup_status():
+    """Copias de seguridad (Ajustes): última, cuántas hay y dónde."""
+    from app.application.services import backup_service
+    return backup_service.status()
+
+
+@router.post("/api/backup/run")
+def backup_run():
+    """Hace una copia completa ahora (también la duplica en BACKUP_EXTRA_DIR, si está configurada)."""
+    from app.application.services import backup_service
+    try:
+        m = backup_service.create_backup(extra=backup_service.extra_dir())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo hacer la copia: {e}")
+    return {"status": "success", "file": m["file"], "bytes": m["bytes"], "extra_error": m.get("extra_error")}

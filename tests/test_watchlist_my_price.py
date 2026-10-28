@@ -35,5 +35,7 @@ def test_attention_my_price(monkeypatch):
     types = [a["type"] for a in out]
     assert "mi_precio" in types and "mi_precio_revisar" in types
     assert out[0]["type"] == "mi_precio"   # prioridad 0, como la zona de compra
-    # en cartera o silenciada: no avisa
-    assert not [a for a in wv.watchlist_attention([{**row, "held": True}]) if a["type"].startswith("mi_precio")]
+    # en cartera: avisa para ampliar; silenciada: no avisa
+    held = [a for a in wv.watchlist_attention([{**row, "held": True}]) if a["type"].startswith("mi_precio")]
+    assert [a["type"] for a in held] == ["mi_precio", "mi_precio_revisar"] and held[0]["text"].startswith("Ampliar")
+    assert not [a for a in wv.watchlist_attention([{**row, "silent": True}]) if a["type"].startswith("mi_precio")]

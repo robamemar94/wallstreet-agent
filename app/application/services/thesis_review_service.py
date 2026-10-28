@@ -35,6 +35,7 @@ EXTRACT_MODEL = os.getenv("THESIS_REVIEW_MODEL", GEMINI_MODEL)
 JUDGE_MODEL = os.getenv("THESIS_JUDGE_MODEL", os.getenv("GEMINI_PRO_MODEL", "gemini-3.1-pro-preview"))
 VERDICTS = ("REFORZADA", "INTACTA", "VIGILANCIA", "DEBILITADA", "ROTA")
 PROMISE_RESULTS = {"cumplida": 1.0, "parcial": 0.5, "incumplida": 0.0}
+CHECK_RESULTS = ("cumplido", "no cumplido", "sin datos")   # cómo quedan las comprobaciones que dejó la revisión anterior
 DOC_CHARS_FOR_EXTRACTION = 120_000
 EARNINGS_TTL = 12 * 3600
 
@@ -45,20 +46,47 @@ def _earnings_info(ticker: str) -> Dict[str, Any]:
     """Última presentación publicada (fecha + BPA real vs consenso), fechas de las publicadas antes («reported», de la más
     reciente a la más antigua) y próxima fecha prevista. Caché en disco de 12 h."""
     from app.application.services.market_cache import cached
-    return cached("earnings_v2", ticker, lambda: _download_earnings_info(ticker), EARNINGS_TTL / 3600)
+    return cached("earnings_v4", ticker, lambda: _download_earnings_info(ticker), EARNINGS_TTL / 3600)
+
+
+TIME_MAX_DAYS = 45   # más allá, la hora de Yahoo suele ser un valor por defecto: mejor no enseñarla
+
+
+def release_time(ts, ticker: str, today: Optional[date] = None) -> Optional[Dict[str, str]]:
+    """Cuándo publica: «pre» (antes de la apertura), «after» (tras el cierre) o «time» (en sesión), con la hora de Sevilla (misma zona que Madrid: la clave se llama «madrid»).
+    Solo EE. UU. (la hora de Yahoo fuera de ahí no es fiable), con fecha cercana y hora real (no medianoche)."""
+    from zoneinfo import ZoneInfo
+    today = today or date.today()
+    if "." in ticker or ticker.startswith("^") or (ts.date() - today).days > TIME_MAX_DAYS:
+        return None
+    tz = ZoneInfo("America/New_York")
+    ny = ts.astimezone(tz)
+    if (ny.hour, ny.minute) == (0, 0):
+        return None
+    # Yahoo fija la hora en UTC con el horario (verano/invierno) de hoy: si el cambio de hora cae antes de la fecha, la hora
+    # se corre una (BKNG, «tras el cierre» a las 16:00, salía 15:00 «en sesión»). Se recupera la hora de Nueva York que quería.
+    from datetime import datetime as dt, time as dtime
+    now_off = dt.combine(today, dtime(12), tz).utcoffset()
+    if ny.utcoffset() != now_off:
+        ny = ny + (now_off - ny.utcoffset())
+    kind = "pre" if (ny.hour, ny.minute) < (9, 30) else ("after" if ny.hour >= 16 else "time")
+    return {"kind": kind, "madrid": ny.astimezone(ZoneInfo("Europe/Madrid")).strftime("%H:%M")}
 
 
 def _download_earnings_info(ticker: str) -> Dict[str, Any]:
-    info: Dict[str, Any] = {"last": None, "next": None, "reported": []}
+    info: Dict[str, Any] = {"last": None, "next": None, "next_time": None, "reported": []}
     try:
         import math
         import yfinance as yf
         df = yf.Ticker(ticker).get_earnings_dates(limit=12)
+        if df is None or df.empty:  # yfinance no tiene calendario (habitual fuera de EE. UU., p. ej. .AX)
+            return info
         for ts, row in df.iterrows():  # más reciente primero
             reported = row.get("Reported EPS")
             if reported is None or (isinstance(reported, float) and math.isnan(reported)):
                 if not info["last"]:
                     info["next"] = ts.date().isoformat()    # aún sin publicar: la más cercana queda la última vista
+                    info["next_time"] = release_time(ts, ticker)
                 continue
             info["reported"].append(ts.date().isoformat())
             if info["last"]:
@@ -74,6 +102,18 @@ def _download_earnings_info(ticker: str) -> Dict[str, Any]:
 
 def fetch_last_earnings(ticker: str) -> Optional[Dict[str, Any]]:
     return _earnings_info(ticker)["last"]
+
+
+def last_published(ticker: str) -> Optional[Dict[str, Any]]:
+    """Lo último publicado: lo que registra Yahoo (con BPA) o, si es más reciente, lo del calendario propio (ventas
+    trimestrales que Yahoo no apunta, p. ej. Hermès en abril y octubre). {date, …} o None. Lo usan el aviso de resultados
+    sin revisar y la revisión con IA (qué resultados buscar)."""
+    from app.application.services import results_calendar
+    last = fetch_last_earnings(ticker)
+    own = results_calendar.published(ticker)
+    if own and (not last or own[-1]["date"] > last["date"]):
+        return {"date": own[-1]["date"], "event": own[-1]["event"]}
+    return last
 
 
 def fetch_reported_dates(ticker: str) -> List[str]:
@@ -97,7 +137,7 @@ def company_terms(thesis: Dict[str, Any]) -> List[str]:
 # --- Paso 1: documentos ---
 
 def build_locate_prompt(thesis: Dict[str, Any], last: Optional[Dict[str, Any]]) -> str:
-    when = f"publicados el {last['date']}" if last else "más recientes"
+    when = (f"publicados el {last['date']}" + (f" ({last['event']})" if last.get("event") else "")) if last else "más recientes"
     return f"""Busca en Google los documentos de los resultados trimestrales {when} de {thesis['ticker']} ({thesis['title']}):
 1. El comunicado oficial de resultados (web de relación con inversores, GlobeNewswire, BusinessWire o SEC).
 2. La transcripción COMPLETA de la conference call de esos resultados (por ejemplo fool.com/earnings/call-transcripts).
@@ -148,6 +188,9 @@ TRANSCRIPCIÓN DE LA CALL (para cifras que se den en los comentarios de la direc
 REGLAS:
 - Cita en "evidence" la frase exacta del documento. Si un dato no aparece en los documentos, puedes buscarlo;
   si no lo encuentras en una fuente fiable, "value": null. NO inventes cifras.
+- Cada cifra tiene que ser DEL PERIODO de estos resultados. Si la empresa no publica ese dato en este periodo (p. ej. solo
+  publica ventas trimestrales y el margen o la caja van por semestre), no incluyas ese KPI: nunca repitas el de un periodo
+  anterior.
 - Valores en la unidad del KPI (12.5 para 12.5%). Crecimientos YoY en %.
 - "status" (green|amber|red) según las zonas del KPI; obligatorio en los cualitativos.
 - "confidence": high = cifra literal de la compañía; medium = cálculo o lectura razonable; low = inferencia.
@@ -218,6 +261,9 @@ def build_expectations(ev: Dict[str, Any], previous_reports: List[Dict[str, Any]
                          f"{' (' + g['period'] + ')' if g.get('period') else ''}: {g.get('value')}")
         for p in (prev.get("call") or {}).get("promises") or []:
             lines.append(f"- Promesa de la dirección: {p.get('promise')} (plazo: {p.get('deadline') or '-'})")
+        for c in prev.get("next_checks") or []:
+            lines.append(f"- Comprobación pendiente (prioridad {c.get('priority') or 'media'}): {c.get('check')}"
+                         f"{' — se da por buena si ' + c['target'] if c.get('target') else ''}")
         for k in prev.get("kill_switch_watch") or []:
             lines.append(f"- Vigilancia de kill switch: {k.get('kill_switch')}: {k.get('comment')}")
     for p in ev["pillars"]:
@@ -263,7 +309,7 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO:
 # --- Paso 5: juez de la tesis ---
 
 def build_judge_prompt(thesis, ev, kpi_items, call: Dict[str, Any], consensus: Optional[Dict[str, Any]],
-                       expectations: str = "") -> str:
+                       expectations: str = "", prev_checks: Optional[List[Dict[str, Any]]] = None) -> str:
     kpis_by_id = {k["id"]: k for p in ev["pillars"] for k in p["kpis"]}
     kpi_txt = "\n".join(
         f"- {kpis_by_id[i['kpi_id']]['name']}: {i['value'] if i['value'] is not None else 's/d'}"
@@ -275,6 +321,10 @@ def build_judge_prompt(thesis, ev, kpi_items, call: Dict[str, Any], consensus: O
     steps = "\n".join(f"{n}. {p['name']}: {p.get('description') or ''}" for n, p in enumerate(ev["pillars"], 1))
     rules = "\n".join(f"- {r}" for r in extra.get("rules") or [])
     masters = "\n".join(f"- {q}" for q in extra.get("master_questions") or []) or "(no hay)"
+    from app.application.services.thesis_changes_service import document_outline
+    outline = "\n".join(f"- {h}" for h in document_outline(extra.get("document_md"))) or "(la tesis no tiene documento)"
+    checks = "\n".join(f"- {c.get('check')} (se da por buena si: {c.get('target') or '-'})" for c in prev_checks or []) \
+        or "(ninguna: deja checks_result vacío)"
     return f"""Eres el responsable de la tesis de inversión de {thesis['ticker']}. Integra los resultados del trimestre y decide qué
 significan PARA LA TESIS. Sé riguroso: reconoce lo bueno, pero haz también de abogado del diablo.
 
@@ -303,6 +353,14 @@ ANÁLISIS DE LA CALL:
 PREGUNTAS MAESTRAS:
 {masters}
 
+COMPROBACIONES QUE DEJÓ LA REVISIÓN ANTERIOR (responde TODAS en checks_result, con el texto exacto de cada una):
+{checks}
+
+PARA EL PRÓXIMO TRIMESTRE (next_checks): 3-5 comprobaciones, las más importantes para la tesis AHORA, ordenadas por
+prioridad. Cada una verificable con el próximo informe (una cifra o un hecho concreto). No repitas el semáforo de un KPI:
+di la exigencia concreta de este momento (cumplir la guía, segundo trimestre seguido, cuantificar un riesgo nuevo, algo que
+ningún KPI mide). Si una comprobación anterior sigue abierta (no cumplida o sin datos), vuelve a incluirla.
+
 CRONOLOGÍA: distingue los hechos DEL TRIMESTRE analizado de los hechos POSTERIORES (noticias, cambios regulatorios, puntos
 en vigilancia surgidos después del cierre). Un buen dato del trimestre NO desmiente ni resuelve un riesgo aparecido después:
 en ese caso di explícitamente que el trimestre todavía no lo recoge y márcalo "sin datos" en vs_expectations.
@@ -313,6 +371,15 @@ title = el texto EXACTO de la pregunta actual) si ya está resuelta o ha perdido
 
 Propuestas de cambio: SOLO si hay un motivo económico nuevo (p.ej. la empresa empieza a publicar una métrica clave, cambia el
 modelo de negocio, aparece un riesgo material). No propongas KPIs por el mero hecho de que haya datos. Pocas y bien justificadas.
+
+ACTUALIZACIÓN DEL DOCUMENTO DE LA TESIS: el documento se va completando con el tiempo, pero NO en cada trimestre. Propón
+«document_updates» SOLO si los resultados traen un cambio IMPORTANTE para la tesis: cambia el modelo de negocio o la
+economía unitaria, se confirma o rompe una hipótesis, aparece o se resuelve un riesgo material, cambia el moat, la
+asignación de capital o la trayectoria. Un trimestre normal (en línea con lo esperado) → lista vacía y material=false.
+Cada actualización va a UN apartado existente (copia su título EXACTO de la lista), es un texto breve y denso con cifras y
+evidencia del trimestre (3-8 frases, en español), y no repite lo que el apartado ya dice. Máximo 4.
+APARTADOS DEL DOCUMENTO:
+{outline}
 
 DEVUELVE ÚNICAMENTE UN JSON VÁLIDO:
 {{"headline": "1 frase: qué ha pasado este trimestre para la tesis",
@@ -325,8 +392,21 @@ DEVUELVE ÚNICAMENTE UN JSON VÁLIDO:
   "devil_advocate": "3-4 frases: qué de este trimestre favorece la contra-tesis",
   "kill_switch_watch": [{{"kill_switch": "…", "comment": "¿se acerca? por qué"}}],
   "proposals": [{{"type": "nuevo_kpi|umbral|riesgo|catalizador|pregunta_maestra|retirar_pregunta|otro", "title": "…", "rationale": "…"}}],
+  "document_updates": {{"material": false, "reason": "por qué cambia (o no) lo que dice la tesis",
+      "sections": [{{"section": "título exacto del apartado", "text": "texto a añadir", "why": "qué cambio justifica añadirlo"}}]}},
+  "checks_result": [{{"check": "texto exacto de la comprobación anterior", "result": "cumplido|no cumplido|sin datos", "evidence": "la cifra o el hecho"}}],
+  "next_checks": [{{"check": "qué comprobar en los próximos resultados", "target": "cifra o señal que lo da por bueno", "why": "hipótesis o KPI y por qué importa ahora", "priority": "alta|media"}}],
   "verdict": "REFORZADA|INTACTA|VIGILANCIA|DEBILITADA|ROTA  (= Strengthening / Intact / Watch / Weakening / Broken)",
   "verdict_rationale": "2-4 frases"}}"""
+
+
+def _document_updates(raw: Any) -> Dict[str, Any]:
+    raw = raw if isinstance(raw, dict) else {}
+    sections = [{"section": str(x["section"]).strip(), "text": str(x["text"]).strip(), "why": str(x.get("why") or "").strip()}
+                for x in raw.get("sections") or []
+                if isinstance(x, dict) and str(x.get("section") or "").strip() and str(x.get("text") or "").strip()][:4]
+    return {"material": bool(raw.get("material")) and bool(sections), "reason": str(raw.get("reason") or "").strip(),
+            "sections": sections if raw.get("material") else []}
 
 
 def normalize_judgement(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -346,6 +426,12 @@ def normalize_judgement(data: Dict[str, Any]) -> Dict[str, Any]:
         "devil_advocate": (data.get("devil_advocate") or "").strip(),
         "kill_switch_watch": [k for k in _list("kill_switch_watch") if isinstance(k, dict)],
         "proposals": [p for p in _list("proposals") if isinstance(p, dict) and p.get("title")],
+        "document_updates": _document_updates(data.get("document_updates")),
+        "checks_result": [c for c in _list("checks_result")
+                          if isinstance(c, dict) and c.get("check") and c.get("result") in CHECK_RESULTS],
+        "next_checks": [{"check": c["check"].strip(), "target": (c.get("target") or "").strip(), "why": (c.get("why") or "").strip(),
+                         "priority": c.get("priority") if c.get("priority") in ("alta", "media") else "media"}
+                        for c in _list("next_checks") if isinstance(c, dict) and (c.get("check") or "").strip()][:5],
         "verdict": verdict if verdict in VERDICTS else None,
         "verdict_rationale": (data.get("verdict_rationale") or "").strip(),
     }
@@ -378,7 +464,9 @@ def run_review(thesis: Dict[str, Any], previous_reports: List[Dict[str, Any]]) -
 
     client = _client()
     with llm_usage.track_usage(f"{thesis['ticker']}/results-review") as tracker:
-        docs = locate_documents(client, thesis, consensus)
+        # qué resultados buscar: los últimos publicados, aunque Yahoo no los registre (solo ventas); el consenso de BPA
+        # sigue siendo el de Yahoo
+        docs = locate_documents(client, thesis, last_published(thesis["ticker"]))
         pr_text = (docs["press_release"] or {}).get("text", "")
         tr_text = (docs["transcript"] or {}).get("text", "")
 
@@ -401,7 +489,9 @@ def run_review(thesis: Dict[str, Any], previous_reports: List[Dict[str, Any]]) -
         calls.append(call_resp)
         call_analysis = parse_json_or_repair(client, call_resp["text"])
 
-        judge_resp = _generate(client, JUDGE_MODEL, build_judge_prompt(thesis, ev, items, call_analysis, consensus, expectations))
+        prev_checks = (previous_reports[0].get("next_checks") if previous_reports else None) or []
+        judge_resp = _generate(client, JUDGE_MODEL, build_judge_prompt(thesis, ev, items, call_analysis, consensus, expectations,
+                                                                       prev_checks))
         calls.append(judge_resp)
         judgement = normalize_judgement(parse_json_or_repair(client, judge_resp["text"]))
 
@@ -472,6 +562,25 @@ def start_review(thesis_id: int) -> Optional[int]:
     return review_id
 
 
+def review_changes(prev: Optional[Dict[str, Any]], report: Dict[str, Any], kpis: Dict[int, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Qué cambia de una revisión a la anterior: veredicto propuesto, hipótesis que cambian de estado y KPIs comunes a las
+    dos (valor y semáforo). prev/report: los informes; kpis: {id: kpi} de la tesis. None si no hay anterior."""
+    if not prev:
+        return None
+    hyp_prev = {h["id"]: h["status"] for h in prev.get("hypotheses") or [] if h.get("id")}
+    hyps = [{"id": h["id"], "prev": hyp_prev[h["id"]], "now": h["status"], "reason": h.get("reason")}
+            for h in report.get("hypotheses") or [] if h.get("id") in hyp_prev and hyp_prev[h["id"]] != h.get("status")]
+    items_prev = {it["kpi_id"]: it for it in prev.get("items") or []}
+    moved = []
+    for it in report.get("items") or []:
+        before, kpi = items_prev.get(it["kpi_id"]), kpis.get(it["kpi_id"])
+        if before and kpi and (before.get("value"), before.get("status")) != (it.get("value"), it.get("status")):
+            moved.append({"name": kpi["name"], "unit": kpi.get("unit") or "", "prev_value": before.get("value"),
+                          "value": it.get("value"), "prev_status": before.get("status"), "status": it.get("status")})
+    return {"prev_period": prev.get("period"), "prev_verdict": prev.get("verdict"), "verdict": report.get("verdict"),
+            "hypotheses": hyps, "kpis": moved}
+
+
 def held_tickers(db) -> set:
     """Empresas con acciones en cartera: sus tesis son «de cartera»; las demás, «en seguimiento» (sin IA automática)."""
     from app.application.services.portfolio_service import PortfolioService
@@ -503,7 +612,7 @@ def compute_notices(repo, weights: Optional[Dict[str, float]] = None) -> List[Di
                             "text": f"Revisión de resultados {r['report'].get('period') or ''} lista para revisar"})
         if any(r["status"] == "running" for r in reviews) or is_running(t["id"]):
             continue
-        last = fetch_last_earnings(t["ticker"])
+        last = last_published(t["ticker"])
         if not last:
             continue
         # una revisión cubre los resultados que analizó (report_date) y todo lo publicado antes de lanzarla
@@ -516,5 +625,6 @@ def compute_notices(repo, weights: Optional[Dict[str, float]] = None) -> List[Di
             # en seguimiento solo informa: el análisis lo pides tú cuando quieras
             tracking = t["ticker"] not in held
             notices.append({"thesis_id": t["id"], "ticker": t["ticker"], "type": "new_results", "tracking": tracking,
-                            "text": f"Resultados publicados el {last['date']}" + (" (en seguimiento: analízalos si te interesa)" if tracking else " sin revisar")})
+                            "text": f"Resultados publicados el {last['date']}" + (" (en seguimiento: analízalos si te interesa)" if tracking else " sin revisar")
+                            + (f" · {last['event']}" if last.get("event") else "")})
     return notices

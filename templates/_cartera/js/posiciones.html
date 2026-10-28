@@ -40,7 +40,6 @@
     }
     function showSub(sub) {
         ptSub = sub;
-        document.querySelectorAll('[data-pt-sub]').forEach(b => b.classList.toggle('active', b.dataset.ptSub === sub));
         document.getElementById('ptTable').classList.toggle('d-none', sub !== 'tabla');
         document.getElementById('ptMap').classList.toggle('d-none', sub !== 'mapa');
         history.replaceState(null, '', sub === 'mapa' ? '#mapa' : '#seguimiento');
@@ -67,16 +66,16 @@
         document.querySelectorAll('.pt-period-label').forEach(el => el.textContent = PT_LABELS[ptPeriod]);
         document.querySelectorAll('#ptBody tr[data-ticker]').forEach(tr => {
             const c = ptData.chart.find(x => x.ticker === tr.dataset.ticker);
-            const cells = ['.cell-change', '.cell-eur', '.cell-contrib'].map(sel => tr.querySelector(sel)), cm = tr.querySelector('.cell-move');
+            const cells = ['.cell-change', '.cell-contrib'].map(sel => tr.querySelector(sel)), cm = tr.querySelector('.cell-move');
             // su mercado aún no ha abierto hoy: sin variación del día (lo que se mueve en € es solo la divisa)
             if (c && c.closed_today && ptPeriod === '1d') {
                 const fx = c.pnl_eur ? c.pnl_eur['1d'] : null, d = c.last_session;
-                const why = `Su mercado no ha abierto hoy (última sesión ${d.slice(8, 10)}/${d.slice(5, 7)})` +
-                    (fx ? ` · el cambio de divisa mueve ${(fx >= 0 ? '+' : '') + fmtNum(fx, 2)} € su valor` : '');
+                const why = `Mercado cerrado · última sesión ${d.slice(8, 10)}/${d.slice(5, 7)}` +
+                    (fx ? ` · divisa ${(fx >= 0 ? '+' : '') + fmtNum(fx, 2)} €` : '');
                 cells.forEach(cell => { cell.textContent = '–'; cell.className = 'text-end num-font align-middle text-body-secondary ' + cell.className.split(' ').find(k => k.startsWith('cell-')); cell.dataset.sort = ''; cell.dataset.grp = '1'; cell.title = why; });
                 // la variación: la de su última sesión, con la luna (stalePill), para que no se confunda con la de hoy
                 const cc = tr.querySelector('.cell-change'); cc.innerHTML = stalePill(c.last_pct, d, false, c.ext); cc.className = 'text-end align-middle cell-change'; cc.dataset.sort = c.last_pct ?? '';
-                if (c.ext_day) { const ce = tr.querySelector('.cell-eur'); ce.innerHTML = extEur(c.ext_day, c.cur); ce.title = ''; ce.className = 'text-end num-font align-middle cell-eur'; ce.dataset.sort = c.ext_day.total; }
+                cc.title = why;
                 const lmv = c.price && c.last_pct != null ? c.price - c.price / (1 + c.last_pct / 100) : null;
                 cm.innerHTML = lmv === null ? '–' : `<i class="bi bi-moon-fill" style="font-size: .6rem;"></i> ${fmtNum(lmv, 2, true)} ${c.cur || ''}`;
                 cm.className = 'price-move cell-move opacity-50 ' + (lmv === null ? 'text-body-secondary' : cls(lmv)); cm.title = why;
@@ -88,15 +87,19 @@
             const mv = c && c.price && ch !== null && ch !== undefined ? c.price - c.price / (1 + ch / 100) : null;
             cm.textContent = mv === null ? '–' : fmtNum(mv, 2, true) + ' ' + (c.cur || ''); cm.className = 'price-move cell-move ' + cls(mv);
             const cc = tr.querySelector('.cell-change'); cc.innerHTML = chgPill(ch); cc.className = 'text-end align-middle cell-change'; cc.dataset.sort = ch ?? '';
-            const pe = c && c.pnl_eur ? c.pnl_eur[ptPeriod] : null, ce = tr.querySelector('.cell-eur');
-            ce.innerHTML = pe === null || pe === undefined ? '–' : `<span class="eur-open ${cls(pe)}">${(pe > 0 ? '+' : '') + fmtNum(pe, 2)} €</span>`;   // como Contable: destacado
-            ce.className = 'text-end num-font align-middle cell-eur'; ce.dataset.sort = pe ?? '';
-            if (c && c.ext_day && ptPeriod === '1d') { ce.innerHTML = extEur(c.ext_day, c.cur); ce.className = 'text-end num-font align-middle cell-eur'; ce.dataset.sort = c.ext_day.total; }   // post-market de hoy
+            // el resultado en € del periodo (con divisa) ya no tiene columna: va en el globo de la variación
+            const pe = c && c.pnl_eur ? c.pnl_eur[ptPeriod] : null;
+            if (pe !== null && pe !== undefined) cc.title = `${PT_LABELS[ptPeriod]}: ${(pe > 0 ? '+' : '') + fmtNum(pe, 2)} € (con divisa, sin compras ni ventas)`;
+            if (c && c.ext_day && ptPeriod === '1d') cc.title += ` · con el horario extendido ${(c.ext_day.total > 0 ? '+' : '') + fmtNum(c.ext_day.total, 2)} €`;   // post-market de hoy
             const ct = tr.querySelector('.cell-contrib'); ct.textContent = cv === null || cv === undefined ? '–' : (cv > 0 ? '+' : '') + fmtNum(cv, 2) + ' pp'; ct.className = 'text-end num-font align-middle cell-contrib ' + cls(cv); ct.dataset.sort = cv ?? '';
         });
         ptSortRows();   // si está ordenada por variación o contribución, se reordena con el nuevo periodo
         ptRenderMap();
     }
+    // «Mi precio» para ampliar (columna de Seguimiento): al guardar, se vuelve a pedir la vista
+    window.ptEditMyPrice = async (ticker, cur, current) => {
+        if (await editMyPrice(ticker, cur, current, true)) { ptLoading = null; await ptLoad(); }
+    };
     async function ptLoad() {
         if (ptLoading) return ptLoading;
         ptLoading = (async () => {
@@ -244,15 +247,17 @@
     document.querySelectorAll('#portfolioTabs [data-bs-toggle="tab"]:not(#dist-tab):not(#dec-tab):not(#rep-tab)').forEach(b => b.addEventListener('shown.bs.tab', () => {
         if (location.hash === '#distribucion' || location.hash === '#decisiones' || location.hash.startsWith('#informes')) history.replaceState(null, '', location.pathname + location.search);
     }));
+    // Tres vistas en la cabecera: Contable · Seguimiento (tabla) · Mapa (mapa de calor, comparte datos y periodo con Seguimiento)
     function showView(view) {
+        const seg = view === 'seguimiento' || view === 'mapa';
+        window.posViewNow = view;
         document.querySelectorAll('[data-pos-view]').forEach(b => b.classList.toggle('active', b.dataset.posView === view));
         document.getElementById('viewContable').classList.toggle('d-none', view !== 'contable');
-        document.getElementById('viewSeguimiento').classList.toggle('d-none', view !== 'seguimiento');
-        document.querySelector('.var-band').classList.toggle('picking', view === 'seguimiento');
-        document.getElementById('ptSubviews').classList.toggle('d-none', view !== 'seguimiento');
+        document.getElementById('viewSeguimiento').classList.toggle('d-none', !seg);
+        document.querySelector('.var-band').classList.toggle('picking', seg);
         document.getElementById('ptInfo').classList.toggle('d-none', view !== 'seguimiento');
-        history.replaceState(null, '', view === 'seguimiento' ? (ptSub === 'mapa' ? '#mapa' : '#seguimiento') : location.pathname + location.search);
-        if (view === 'seguimiento') ptLoad().then(() => window.fitCartera && window.fitCartera()); else window.fitCartera && window.fitCartera();
+        if (seg) { showSub(view === 'mapa' ? 'mapa' : 'tabla'); ptLoad().then(() => window.fitCartera && window.fitCartera()); }
+        else { history.replaceState(null, '', location.pathname + location.search); window.fitCartera && window.fitCartera(); }
     }
     document.querySelectorAll('[data-pos-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.posView)));
     // la banda de variación hace de selector de periodo: lo abre en Seguimiento
@@ -262,6 +267,5 @@
         if (document.getElementById('viewSeguimiento').classList.contains('d-none')) showView('seguimiento');
         ptRender();
     }));
-    document.querySelectorAll('[data-pt-sub]').forEach(b => b.addEventListener('click', () => showSub(b.dataset.ptSub)));
     if (location.hash === '#seguimiento') showView('seguimiento');
-    if (location.hash === '#mapa') { showView('seguimiento'); showSub('mapa'); }
+    if (location.hash === '#mapa') showView('mapa');

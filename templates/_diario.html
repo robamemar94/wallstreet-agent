@@ -1,0 +1,37 @@
+{# Diario de una empresa (se carga al abrir el panel de la ficha): tus notas y, en la misma línea de tiempo, tus operaciones
+   con su porqué y lo de la tesis. Lo pinta y lo maneja _ficha/js/diario.html #}
+{% macro dmy(d) %}{{ d[8:10] }}/{{ d[5:7] }}/{{ d[:4] }}{% endmacro %}
+<form class="mb-3" data-diary-new>
+    <div class="d-flex gap-2 mb-1">
+        <input type="date" class="form-control form-control-sm w-auto" name="date" value="{{ today }}" aria-label="Fecha">
+        <span class="small text-muted align-self-center">Lo que piensas hoy de {{ clean_ticker(ticker) }}</span>
+    </div>
+    <textarea class="form-control form-control-sm" name="text" rows="3" maxlength="2000" placeholder="P. ej.: resultados flojos, pero la guía sube; aguanto" required></textarea>
+    <div class="text-end mt-1"><button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Añadir nota</button></div>
+</form>
+{% if fixed_note %}<div class="diary-fixed small mb-3" title="La nota fija de la Watchlist"><i class="bi bi-sticky me-1"></i>{{ fixed_note }}</div>{% endif %}
+{% set icons = {'note': 'bi-journal-text text-primary', 'op': 'bi-arrow-left-right', 'verdict': 'bi-flag', 'earnings': 'bi-clipboard-data text-warning', 'thesis_note': 'bi-journal'} %}
+<div class="diary-list">
+{% for i in items %}
+    <div class="diary-item" {% if i.kind == 'note' %}data-note-id="{{ i.id }}" data-date="{{ i.date }}"{% elif i.kind == 'op' %}data-refs="{{ i.refs|tojson|forceescape }}"{% endif %}>
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi {{ icons[i.kind] }}{% if i.kind == 'op' %} {{ 'text-success' if i.type == 'BUY' else 'text-danger' }}{% elif i.kind == 'verdict' %} {{ 'text-success' if i.impact == 'positive' else 'text-danger' if i.impact == 'negative' else 'text-muted' }}{% endif %}"></i>
+            <span class="small text-muted num-font">{{ dmy(i.date) }}</span>
+            {% if i.kind == 'op' %}<span class="small fw-bold">{{ 'Compra' if i.type == 'BUY' else 'Venta' }}</span>
+                <span class="small text-muted">{{ num(i.shares, 0 if i.shares == i.shares|int else 2) }} acc. a {{ num(i.price, 2) }} {{ cur }}{{ ' · ' ~ i.orders ~ ' órdenes' if i.orders > 1 }}</span>
+            {% elif i.kind == 'verdict' %}<span class="small fw-bold">{{ i.title }}</span>
+            {% elif i.kind == 'earnings' %}<span class="small fw-bold text-truncate" title="{{ i.text or '' }}">{{ i.title }}</span>
+            {% elif i.kind == 'thesis_note' %}<span class="small fw-bold">{{ i.title }}</span> <span class="small text-muted">· tesis</span>{% endif %}
+            {% if i.kind in ('note', 'op') %}<span class="ms-auto d-flex gap-1">
+                <button type="button" class="btn btn-link btn-sm p-0 text-muted" data-diary-edit title="{{ 'Editar' if i.text else 'Anotar el porqué' }}"><i class="bi bi-pencil"></i></button>
+                {% if i.kind == 'note' %}<button type="button" class="btn btn-link btn-sm p-0 text-muted" data-diary-del title="Borrar"><i class="bi bi-trash"></i></button>{% endif %}
+            </span>{% endif %}
+        </div>
+        {% if i.kind == 'op' %}
+        <div class="diary-text small {{ 'fst-italic' if i.text }}" data-text="{{ i.text or '' }}">{% if i.text %}«{{ i.text }}»{% else %}<span class="text-muted">Sin porqué anotado</span>{% endif %}</div>
+        {% elif i.kind in ('note', 'thesis_note') and i.text %}<div class="diary-text small" data-text="{{ i.text }}">{{ i.text }}</div>{% endif %}
+    </div>
+{% else %}
+    <div class="small text-muted">Aún no hay nada. Apunta lo que piensas al leer resultados, al comprar o al descartarla: la carta anual lo usa para juzgar tus razones.</div>
+{% endfor %}
+</div>

@@ -1,4 +1,4 @@
-from agents.utils import get_current_date, get_agent, create_task, load_agent_config
+from agents.utils import get_current_date, get_agent, create_task, load_agent_config, merge_crew_outputs
 from crewai import Crew
 import logging
 
@@ -33,7 +33,7 @@ def run_management_crew(ticker: str, company_name: str = "", feedback: str = "",
     try:
         result = crew.kickoff()
         logging.info("Crew de Dirección completada con éxito.")
-        return str(result)
+        return merge_crew_outputs(result)
     except Exception as e:
         logging.error(f"Error during management crew kickoff: {e}", exc_info=True)
         raise

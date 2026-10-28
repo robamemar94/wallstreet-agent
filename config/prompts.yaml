@@ -46,3 +46,31 @@ technical_summary_instruction: |
   </resumen>
 
   A continuación de esto, escribe tu informe de análisis técnico detallado siguiendo la estructura definida en tu tarea (Matriz de Decisión y Veredicto Final primero, luego Diagnóstico del Dip, Escenario Técnico y Flujo de Volumen, y Justificación/Plan de Acumulación). Basa cada afirmación exclusivamente en los datos devueltos por la herramienta `get_technical_analysis_data`.
+
+# --- Bloques comunes de la auditoría forense (agents/forensic_auditor.py los inyecta en las 4 tareas) ---
+forensic_data_rules: |
+  REGLA DE DATOS (CRÍTICA): las cuentas pegadas por el usuario y los ratios calculados en Python son tu fuente de verdad. No busques cifras financieras en internet si tienes los números; úsalos y cítalos. No recalcules los ratios que ya te damos. Usa internet solo para el contexto cualitativo detrás de una anomalía, o si no hay datos en absoluto. Como mucho 4 búsquedas.
+
+forensic_red_flag_rule: |
+  REGLA DE VERIFICACIÓN DE LÍNEAS ROJAS (CRÍTICA): ante una anomalía o posible bandera roja, investiga si es un riesgo estructural real o un bache coyuntural justificado (ciclo de inversión, adquisición, efecto puntual). No seas laxo ni justifiques sin pruebas, pero tampoco califiques de línea roja letal lo que el contexto de la empresa o el sector justifica. Un año malo aislado no es una tendencia: mira al menos 3-5 ejercicios.
+
+forensic_score_scale: |
+  ESCALA DE NOTA (0-10), úsala de forma literal:
+  - 9-10: Excepcional y sostenido (≥ 7 de los últimos 10 años): sin banderas rojas; conversión a caja, márgenes o balance de élite.
+  - 7-8: Sólido: alguna debilidad menor o puntual y explicada.
+  - 5-6: Aceptable con reservas: una debilidad relevante o una tendencia que empeora, todavía reversible.
+  - 3-4: Débil: varias banderas rojas o un deterioro estructural en marcha.
+  - 0-2: Línea roja: manipulación contable probable, riesgo de insolvencia o quema de caja crónica.
+  Sin datos suficientes, no subas de 6 y dilo.
+
+# --- Normas de Calidad: método común a los 5 pilares (agents/rules_auditor.py lo inyecta) ---
+rules_pillar_method: |
+  CÓMO EVALUAR (exigente pero sensato):
+  1. La NORMA DEL USUARIO (abajo) manda: aplica sus criterios y umbrales de forma literal. Si algo de este texto la contradice, gana la norma.
+  2. Usa las MÉTRICAS DEL PILAR y los ratios forenses ya calculados en Python. No los recalcules; calcula solo lo que la norma pida y no esté (muestra la cuenta). Si un dato falta (N/A), dilo y no lo inventes; con datos insuficientes, no pases de 1.0 y explícalo.
+  3. Lee siempre la tendencia (3, 5 y 10 años), no un año suelto. Distingue lo ESTRUCTURAL (deterioro permanente: puntúa bajo) de lo COYUNTURAL o cíclico ya revertido (2020, un ciclo de inversión, una adquisición puntual): no apliques el 0.0 automático por un bache explicado.
+  4. Adapta la lectura a la naturaleza del negocio (software, industrial, retail, serial acquirer, financiero): el mismo margen o la misma deuda no significan lo mismo en todos.
+  5. Usa todo el rango de la escala. 2.0 solo si cumple la norma con holgura y de forma sostenida; 0.0 solo ante un incumplimiento estructural claro.
+  6. <rejection> solo para una línea roja estructural de ESTE pilar (no por una nota baja ni por algo de otro pilar).
+  7. En <score> pon SOLO la nota de este pilar con el formato X.X/2.0 (ej. 1.5/2.0). Nunca una nota sobre 10 ni un resumen de los otros pilares.
+  8. Como mucho 2 búsquedas en internet, y solo para contexto cualitativo (causa de un bache, gobernanza, litigios).

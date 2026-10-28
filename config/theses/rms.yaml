@@ -49,6 +49,7 @@ master_questions:
   - "¿Qué evidencia favorece a Bear?"
   - "¿Tenemos que modificar la valoración?"
   - "¿Es la caída del crecimiento del FCF/acción (<5%) un efecto temporal de divisas/capex o un deterioro estructural de la conversión de caja?"
+  - "¿Es la caída de prêt-à-porter, relojes y joyería un efecto de China y de la base comparable o una pérdida de deseabilidad fuera de marroquinería?"
 valuation:
   question: "FCF normalizado H1 2026 × 2 ≈ €4.364M / ~105,6M acciones ≈ €41,3 de FCF/acción; caja neta ≈ €122/acción (la tesis la suma al valor terminal, el recálculo vivo no). Valor justo base ≈ €1.700 (WACC 8,5%)."
   columns:

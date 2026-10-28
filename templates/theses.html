@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% from "_thesis_macros.html" import status_icon, verdict_badge, thesis_styles, money %}
+{% from "_thesis_macros.html" import status_icon, verdict_badge, thesis_styles, money, earnings_when %}
+{% from "_ui_macros.html" import chg_pill, stale_pill %}
 {% block title %}Tesis · Alpha-Flow{% endblock %}
 
 {% block content %}
@@ -45,12 +46,12 @@
     {{ centro_tabs('tesis') }}
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
         <div class="d-flex align-items-center flex-wrap gap-3">
-            <h4 class="fw-bold mb-0" title="Cada tesis se mide con sus KPIs. El score solo cuenta los KPIs con dato; la cobertura indica cuántos lo tienen."><i class="bi bi-clipboard2-pulse me-2 text-primary"></i>Seguimiento de tesis</h4>
+            <h4 class="fw-bold mb-0" title="Score sobre los KPIs con dato; la cobertura dice cuántos lo tienen"><i class="bi bi-clipboard2-pulse me-2 text-primary"></i>Seguimiento de tesis</h4>
         <ul class="nav nav-pills nav-sm mb-0 thesis-group-tabs" role="tablist">
             <li class="nav-item"><button class="nav-link active py-1 px-3" data-bs-toggle="pill" data-bs-target="#grpCartera" type="button" data-group="cartera">
                 <i class="bi bi-briefcase me-1"></i>Cartera <span class="badge rounded-pill text-bg-secondary ms-1">{{ cards|length }}</span></button></li>
             <li class="nav-item"><button class="nav-link py-1 px-3" data-bs-toggle="pill" data-bs-target="#grpSeguimiento" type="button" data-group="seguimiento"
-                    title="Empresas que no tienes en cartera: sin radar automático de noticias ni análisis automáticos; los resultados los analizas cuando quieras desde su tesis. Pasan solas a Cartera cuando compras.">
+                    title="Fuera de cartera: sin radar ni análisis automáticos. Pasan a Cartera al comprar">
                 <i class="bi bi-binoculars me-1"></i>Seguimiento <span class="badge rounded-pill text-bg-secondary ms-1">{{ tracking_cards|length }}</span></button></li>
         </ul>
         </div>
@@ -112,7 +113,7 @@
                 <div class="text-end thesis-price">
                     {% if c.price %}
                     <div class="fw-bold font-monospace-data">{{ money(c.price.price, c.cur) }}</div>
-                    <div class="small font-monospace-data {{ 'text-success' if c.price.pct >= 0 else 'text-danger' }}">{{ num(c.price.pct, 2, sign=True) }}%</div>
+                    <div class="small mt-1">{% if c.price.not_open %}{{ stale_pill(c.price.pct, c.price.last_iso, day=false, ext=ext_quote(c.thesis.ticker)) }}{% else %}{{ chg_pill(c.price.pct) }}{% endif %}</div>
                     {% endif %}
                 </div>
             </div>
@@ -157,7 +158,8 @@
                 {% else %}<span title="No está en cartera"><i class="bi bi-briefcase me-1"></i>–</span>{% endif %}
                 {% set watch = ev.kill_switches|selectattr('state', 'equalto', 'watch')|list %}
                 <span title="Kill switches: {{ ev.kill_triggered|length }} disparados · {{ watch|length }} en vigilancia"><i class="bi bi-shield-check me-1"></i>{{ ev.kill_triggered|length }} · {{ watch|length }}</span>
-                <span title="Próximos resultados"><i class="bi bi-calendar-event me-1"></i>{% if c.next_earnings %}{{ c.next_earnings.strftime('%d/%m') }} ({{ c.days_to_earnings }} d){% else %}sin fecha{% endif %}</span>
+                {% if c.new_results %}<span class="badge {{ 'bg-secondary-subtle text-body-secondary border' if c.new_results.tracking else 'bg-info-subtle text-info-emphasis border border-info-subtle' }}" style="font-size: .74rem;" title="{{ c.new_results.text }}{{ ' · próximos: ' ~ c.next_earnings.strftime('%d/%m') if c.next_earnings }}"><i class="bi bi-clipboard-check me-1"></i>Resultados sin revisar</span>
+                {% else %}<span title="Próximos resultados"><i class="bi bi-calendar-event me-1"></i>{{ earnings_when(c.next_earnings, c.days_to_earnings) }}</span>{% endif %}
                 {% set nitems = (c.news.digest['items'] if c.news.digest else []) or [] %}
                 {% if nitems %}{% set critical = nitems|selectattr('materiality', 'ge', 5)|list %}
                 <span class="{{ 'st-red' if critical else 'st-amber' }}" title="Radar {{ c.news.digest.created_at[8:10] }}/{{ c.news.digest.created_at[5:7] }}: {{ nitems|length }} noticia{{ 's' if nitems|length > 1 }} muy relevante{{ 's' if nitems|length > 1 }}{% if critical %} · {{ critical|length }} puede{{ 'n' if critical|length > 1 }} cambiar la tesis{% endif %}"><i class="bi bi-broadcast me-1"></i>{{ nitems|length }}</span>{% endif %}

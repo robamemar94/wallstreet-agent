@@ -11,11 +11,12 @@
         {{ th('Empresa', end=false, text=true) }}
         {{ th('Último', title='Precio y, debajo, cuánto se ha movido en el periodo, en su moneda') }}
         <th class="sortable text-end">Var. <span class="pt-period-label">1D</span> % {{ sort_icon|safe }}</th>
-        <th class="sortable text-end" title="Lo que has ganado o perdido en euros con esta posición en el periodo, con el cambio de la divisa (las compras y ventas del periodo no cuentan como ganancia)">Var. <span class="pt-period-label">1D</span> € {{ sort_icon|safe }}</th>
         {{ th('Contrib.', title='Contribución: aportación a la variación de la cartera en el periodo, en puntos de % (respeta fechas de compra)') }}
         {{ th('Máx. 52s', title='Caída desde el máximo de 52 semanas') }}
         {{ th('Máx. hist.', title='Caída desde el máximo histórico (cierre ajustado por splits y dividendos)') }}
+        {{ th('PER fwd', title='PER forward: precio sobre el beneficio esperado a 12 meses (analistas). Verde 20x o menos, rojo más de 35x; sin valor si se esperan pérdidas. Mismos umbrales que Fundamentales') }}
         {{ th('CAGR est.', title='CAGR estimado: rentabilidad anual estimada comprando hoy según la valoración base de la ficha (con dividendos)') }}
+        {{ th('Ampliar', title='Lo que falta para tu precio para ampliar (avisa al alcanzarlo). Todos en Watchlist → Mi precio') }}
         {{ th('Prev. 90 d', title='Previsiones de los analistas: cuánto ha cambiado en 90 días el BPA que esperan para el año que viene (o este). Suele moverse antes que el precio; en rojo, un recorte del 5 % o más (avisa)') }}
         <th class="sortable" title="Próximos resultados (ordena por días que faltan)">Resultados {{ sort_icon|safe }}</th>
         <th class="sortable pe-4" data-type="text" title="Veredicto de la tesis: pulsa para abrirla">Tesis {{ sort_icon|safe }}</th>
@@ -30,17 +31,25 @@
             <div class="price-main">{{ num(st.get('price'), 2) ~ ' ' ~ r.cur if st.get('price') else '–' }}</div>
             <div class="price-move cell-move">–</div></td>
         <td class="text-end num-font align-middle cell-change">–</td>
-        <td class="text-end num-font align-middle cell-eur">–</td>
         <td class="text-end num-font align-middle cell-contrib">–</td>
         {% set fh = st.get('from_high_pct') %}
         <td class="text-end num-font align-middle {{ 'text-danger' if fh is not none and fh <= -20 else '' }}" data-sort="{{ fh if fh is not none else '' }}">{{ num(fh, 1, sign=True) ~ '%' if fh is not none else '–' }}</td>
         {% set fa = r.from_ath %}
         <td class="text-end num-font align-middle {{ 'text-danger' if fa is not none and fa <= -20 else '' }}" data-sort="{{ fa if fa is not none else '' }}" title="{{ 'Máximo histórico: ' ~ num(r.ath.high, 2) ~ ' ' ~ r.cur ~ ' (' ~ r.ath.date[8:10] ~ '/' ~ r.ath.date[5:7] ~ '/' ~ r.ath.date[:4] ~ ')' if r.ath else 'Sin histórico' }}">{{ num(fa, 1, sign=True) ~ '%' if fa is not none else '–' }}</td>
+        {% set fp = r.fwd_pe if r.fwd_pe is not none and r.fwd_pe > 0 else none %}
+        <td class="text-end num-font align-middle {{ 'text-success' if fp is not none and fp <= 20 else ('text-danger' if fp is not none and fp > 35 else '') }}" data-sort="{{ fp if fp is not none else '' }}"
+            title="{{ ('PER forward ' ~ num(fp, 1) ~ 'x: precio sobre el beneficio esperado a 12 meses') if fp is not none else ('Se esperan pérdidas: sin PER forward' if r.fwd_pe is not none else 'Sin dato de PER forward') }}">{{ (num(fp, 1) ~ 'x') if fp is not none else '–' }}</td>
         {% set band = none if r.cagr is none else ('green' if r.cagr >= ZONE.ganga else ('amber' if r.cagr >= ZONE.barata else ('orange' if r.cagr >= ZONE.justo else 'red'))) %}
         <td class="text-end num-font align-middle" data-sort="{{ r.cagr if r.cagr is not none else '' }}" title="{{ (r.cagr_src ~ (' · ' ~ r.cagr_flag[1] if r.cagr_flag else '') ~ ' · ' ~ {'green': 'ganga ≥%.0f%%'|format(ZONE.ganga), 'amber': 'barata %.0f–%.0f%%'|format(ZONE.barata, ZONE.ganga), 'orange': 'justo %.0f–%.0f%%'|format(ZONE.justo, ZONE.barata), 'red': 'cara <%.0f%%'|format(ZONE.justo)}[band]) if band else 'Sin valoración base en la ficha' }}">
             <a href="/ticker/{{ r.ticker }}#valoracion" class="text-decoration-none fw-bold {{ 'cagr-' ~ band if band else 'text-muted' }}" aria-label="Valoración de {{ r.ticker }}">{{ num(r.cagr, 1) ~ '%' if band else '–' }}</a>
             {%- if r.cagr_anchor %} <i class="bi bi-pencil-fill text-primary" style="font-size: .6rem;" title="{{ r.cagr_anchor.year }} corregido a mano: {{ num(r.cagr_anchor.value, 2) }} (automático {{ num(r.cagr_anchor.auto, 2) }}){% if r.cagr_anchor.cagr_auto is not none %} · sin corrección: {{ num(r.cagr_anchor.cagr_auto, 1) }}%{% endif %}"></i>{% endif %}
             {%- if r.cagr_flag %} <i class="bi {{ 'bi-exclamation-triangle text-warning' if r.cagr_flag[0] == 'legacy' else 'bi-clock-history text-danger' }}" style="font-size: .65rem;" title="{{ r.cagr_flag[1] }}"></i>{% endif %}</td>
+        {% set m = r.mine %}
+        <td class="text-end num-font align-middle" data-sort="{{ m.drop if m and m.drop is not none else '' }}">
+            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none num-font {{ ('text-success fw-bold' if m.hit else 'text-body') if m else 'text-muted opacity-25' }}" onclick="ptEditMyPrice('{{ r.ticker }}', '{{ r.cur }}', {{ m.price if m else 'null' }})"
+                    aria-label="Tu precio para ampliar {{ r.ticker }}" title="{{ ('Tu precio para ampliar: ' ~ num(m.price, 2) ~ ' ' ~ r.cur ~ ' · fijado el ' ~ m.set_at[8:10] ~ '/' ~ m.set_at[5:7] ~ '/' ~ m.set_at[2:4] ~ (' · pendiente de revisar' if m.review_due else '')) if m else 'Poner un precio para ampliar' }}">
+            {%- if m -%}{{ '✓' if m.hit else ('−' ~ num(m.drop, 1) ~ '%' if m.drop is not none else '–') }}{% if m.review_due %} <i class="bi bi-clock-history text-warning"></i>{% endif %}
+            {%- else -%}<i class="bi bi-plus-circle"></i>{%- endif -%}</button></td>
         {% set c90 = ((r.rev or {}).get('chg') or {}).get('90d') %}
         <td class="text-end num-font align-middle {{ 'text-danger fw-bold' if r.rev_cut else 'text-success' if c90 is not none and c90 >= 1 else 'text-muted' }}" data-sort="{{ c90 if c90 is not none else '' }}"
             title="{% if r.rev %}BPA esperado ({{ {'+1y': 'año que viene', '0y': 'este año'}[r.rev.period] }}): {{ num(r.rev.current, 2) }} · 30 días {{ num(r.rev.chg.get('30d'), 1, sign=True) if r.rev.chg.get('30d') is not none else '–' }} %{% if r.rev.up_30 is not none %} · en 30 días lo suben {{ r.rev.up_30 }} y lo bajan {{ r.rev.down_30 or 0 }} analistas{% endif %}{% else %}Sin previsiones de analistas{% endif %}">{{ num(c90, 1, sign=True) ~ '%' if c90 is not none else '–' }}</td>

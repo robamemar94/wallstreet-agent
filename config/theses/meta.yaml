@@ -43,6 +43,7 @@ master_questions:
   - "¿Hay evidencia nueva sobre WhatsApp/Business AI/Meta One?"
   - "¿La nueva infraestructura está produciendo más beneficio por dólar invertido?"
   - "¿Qué evidencia nueva favorece a Bull y qué evidencia favorece a Bear?"
+  - "¿Muse empieza a ingresar (suscripciones, comisiones por compras) y baja más de 10x su coste de servir?"
 valuation:
   target_year: 2036
   question: "Parte del BPA 2026E ≈ $31,2 (consenso, solo como punto de partida). El retorno depende mucho más del crecimiento sostenible del BPA que del múltiplo. Escenarios ilustrativos, no predicciones."
@@ -147,9 +148,9 @@ pillars:
          frequency: Trimestral, source: yfinance, auto_metric: fcf_per_share_yoy,
          is_kill_switch: true, kill_rule: "Contra-tesis: crecimiento ↓ + monetización ↓ + CapEx ↑ + margen ↓ + FCF/share ↓ a la vez",
          observations: [{period: Q2 2026, date: "2026-06-30", status: amber, note: "Deprimido en 2026"}]}
-      - {key: share_count, name: Acciones en circulación YoY, unit: "%", direction: lower, green_threshold: 0, red_threshold: 0,
+      - {key: share_count, name: Acciones en circulación YoY, unit: "%", direction: lower, green_threshold: 0.5, red_threshold: 2,
          how_to_measure: "Acciones diluidas YoY (autocompletado); sin recompras en H1 2026",
-         green_text: "Bajan (reducción neta a largo plazo)", amber_text: "—", red_text: "Suben (dilución)",
+         green_text: "Planas o bajan (≤ +0,5%): sin dilución neta", amber_text: "+0,5% a +2%: dilución leve, vigilar", red_text: "> +2%: dilución material",
          frequency: Trimestral, source: yfinance, auto_metric: diluted_shares_yoy,
          observations: [{period: Q2 2026, date: "2026-06-30", value: -1.1, note: "~−1,1%"}]}
 

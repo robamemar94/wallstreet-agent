@@ -6,6 +6,16 @@
             v = Number(v);
             return (sign && v > 0 ? '+' : '') + v.toLocaleString('de-DE', {minimumFractionDigits: d, maximumFractionDigits: d});
         };
+        // «Mi precio» (de compra o, en las de cartera, para ampliar): lo pide, lo guarda y devuelve true si cambió. Vacío lo quita.
+        window.editMyPrice = async (ticker, cur, current, held = false) => {
+            const txt = prompt(`Mi precio ${held ? 'para ampliar' : 'de compra'} de ${ticker} (${cur}). Vacío para quitarlo:`, current ? fmtNum(current, 2) : '');
+            if (txt === null) return false;
+            const clean = txt.trim().replace(/[^\d.,]/g, ''), price = clean ? parseFloat(clean.includes(',') ? clean.replace(/\./g, '').replace(',', '.') : clean) : null;   // 1.234,5 o 1234.5
+            if (clean && !(price > 0)) { alert('Escribe un precio válido, p. ej. 123,45'); return false; }
+            const r = await fetch(`/api/watchlist/${encodeURIComponent(ticker)}/mi-precio`, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({price})});
+            if (!r.ok) { alert('No se pudo guardar tu precio: ' + ((await r.json().catch(() => ({}))).detail || r.statusText)); return false; }
+            return true;
+        };
         // Variación en % como píldora (igual que la macro chg_pill de _ui_macros.html): más intensa cuanto mayor el movimiento
         window.chgPill = p => {
             if (p === null || p === undefined || isNaN(p)) return '<span class="text-muted">–</span>';
@@ -24,24 +34,23 @@
         window.extTag = (ext, iso = null) => {
             if (!ext || !ext.pct) return '';   // sin dato o sin moverse fuera de horario (0,00 %): nada
             const e = ext.pct, k = e > 0 ? 'text-success' : (e < 0 ? 'text-danger' : 'text-body-secondary');
-            const big = Math.abs(e) >= {{ EXT_BIG_PCT }};   // ±2 % o más: el valor, destacado; si no, solo el icono
+            const big = Math.abs(e) >= {{ EXT_BIG_PCT }};   // ±1,5 % o más: el valor, destacado; si no, solo el icono
             return `<span class="ext-tag ${k}${big ? ' ext-big' : ''}" data-ext-tone="${e > 0 ? 'up' : 'down'}" data-ext-tip="${ext.kind === 'pre' ? 'Pre-market' : 'Post-market'}: ${ext.price ? fmtNum(ext.price, 2) + ' ' : ''}(${fmtNum(e, 2, true)} %)${ext.time ? ' · ' + ext.time : ''}"><i class="bi ${ext.kind === 'pre' ? 'bi-sunrise-fill' : 'bi-moon-stars-fill'}"></i>${big ? ' ' + fmtNum(e, 1, true) + '%' : ''}</span>`;
         };
         // Var. día € fuera de horario (igual que la macro ext_eur; x de ext_day_eur)
         window.extEur = (x, cur = '') => {
             const v = x.total, k = v > 0 ? 'text-success' : (v < 0 ? 'text-danger' : 'text-body-secondary');
             const quote = `${fmtNum(x.price, 2)} ${cur} (${fmtNum(x.pct, 2, true)} %)${x.time ? ' · ' + x.time : ''}`;
-            const tip = (x.kind === 'pre' ? `Pre-market ${quote}: lo que llevas antes de que abra su mercado`
-                : `Sesión ${x.today ? 'de hoy' : 'anterior'}: ${fmtNum(x.session, 2, true)} € · post-market ${quote}: ${fmtNum(x.eur, 2, true)} €. Con el post-market: ${fmtNum(v, 2, true)} €`) + '. No cuenta en las cifras de hoy';
+            const tip = x.kind === 'pre' ? `Pre-market ${quote}` : `Sesión ${fmtNum(x.session, 2, true)} € · post-market ${fmtNum(x.eur, 2, true)} €`;
             return `<span class="ext-eur ${k}" data-ext-tone="${v > 0 ? 'up' : 'down'}" data-ext-tip="${tip.replace(/"/g, '&quot;')}"><i class="bi ${x.kind === 'pre' ? 'bi-sunrise-fill' : 'bi-moon-stars-fill'}"></i>${fmtNum(v, 2, true)} €</span>`;
         };
         window.stalePill = (p, iso, showDay = true, ext = null) => {
             const more = extTag(ext, iso);
             if (more) return `<span class="text-nowrap">${more}${stalePill(p, iso, showDay)}</span>`;   // icono a la izquierda: píldoras alineadas
             const lab = sessionLabel(iso), day = lab && showDay ? `<span class="chg-stale-day">${lab}</span>` : '';
-            if (p === null || p === undefined || isNaN(p)) return `<span class="chg-pill chg-stale chg-flat" title="Su mercado aún no ha abierto hoy"><i class="bi bi-moon-fill"></i> –</span>` + more;
+            if (p === null || p === undefined || isNaN(p)) return `<span class="chg-pill chg-stale chg-flat" title="Mercado cerrado"><i class="bi bi-moon-fill"></i> –</span>` + more;
             const k = p > 0 ? 'chg-up' : (p < 0 ? 'chg-down' : 'chg-flat');
-            return `<span class="chg-pill chg-stale ${k}" title="Su mercado aún no ha abierto hoy: es la variación de su última sesión${lab ? ' (' + lab + ')' : ''}"><i class="bi bi-moon-fill"></i> ${fmtNum(p, 2, true)}%${day}</span>` + more;
+            return `<span class="chg-pill chg-stale ${k}" title="Mercado cerrado · última sesión${lab ? ' (' + lab + ')' : ''}"><i class="bi bi-moon-fill"></i> ${fmtNum(p, 2, true)}%${day}</span>` + more;
         };
         // Alto de un gráfico para que la página quepa en la ventana: se mide lo que queda por debajo con el gráfico muy alto
         // (así la página siempre es más larga que la ventana) y se le da el resto.

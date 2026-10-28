@@ -1,0 +1,142 @@
+# Normas de Calidad de serie: los 5 pilares (0-2.0 puntos cada uno, 10 en total).
+# Son las de partida: el usuario las edita en Ajustes y las suyas se guardan en la BD (settings «custom_evaluation_rules»).
+# Criterio: exigentes pero sensatas. Las métricas (CAGR, medias, ROIIC…) las calcula Python y llegan al agente.
+
+- title: "Pilar 1: Foso Competitivo, Pricing Power y Riesgo Terminal"
+  content: |
+    Evalúa si la empresa tiene una ventaja competitiva duradera que se vea en sus números (0-2.0 puntos).
+
+    Datos a usar:
+    - Margen bruto y operativo de los últimos 10 años: nivel, estabilidad (mínimo frente a media) y tendencia.
+    - Evidencia de pricing power: márgenes que aguantan en años malos (2020, inflación 2022-23), subidas de precio sin perder volumen.
+    - Riesgo de obsolescencia o pérdida de relevancia a 10 años (competencia, regulación, sustitución tecnológica/IA, cambio de hábitos).
+
+    Cómo juzgar el margen (según la naturaleza del negocio):
+    - Software, marcas, plataformas: se espera margen bruto alto (> 50-60%); por debajo, exige explicación.
+    - Industrial, distribución, retail: un margen bruto bajo NO es falta de foso si es estable y viene de escala, rotación o costes imbatibles (Costco, distribuidores de nicho). Ahí manda la estabilidad del margen operativo y el ROIC.
+    - Un margen alto es condición necesaria pero no suficiente: no califiques alto si el foso depende de modas, no hay costes de cambio reales o el crecimiento se frena en seco.
+
+    Criterio de puntuación:
+    - 1.6 a 2.0 (Foso ancho): barreras claras (costes de cambio, red, escala, regulación, intangibles) y márgenes altos para su sector y estables durante 10 años, incluidos los años malos. Riesgo terminal bajo.
+    - 1.0 a 1.5 (Foso estrecho): ventajas reales pero atacables (sector abierto, costes de cambio bajos, dependencia de marketing o de una moda), o márgenes buenos pero volátiles.
+    - 0.0 a 0.9 (Sin foso): producto comoditizado, márgenes en deterioro persistente frente a sus pares, o riesgo de obsolescencia con tracción real.
+    Un riesgo disruptivo solo baja la nota si tiene indicios reales (clientes perdidos, caída de márgenes o cuota), no por hipótesis.
+    El crecimiento NO se juzga aquí (es el Pilar 2): un negocio maduro que crece a un dígito puede tener un foso ancho.
+    Con menos de 5 años de historia, como mucho 1.5: la durabilidad aún no se puede demostrar.
+
+    Salida requerida:
+    - Tabla con margen bruto y operativo por año (últimos 10 años).
+    - Diagnóstico del foso (Ancho / Estrecho / Sin foso) y de dónde viene.
+    - Riesgos de obsolescencia y relevancia, con su probabilidad.
+    - Puntuación final del pilar sobre 2.0.
+
+- title: "Pilar 2: Crecimiento de Ventas, FCF Total y BPA"
+  content: |
+    Evalúa la trayectoria de crecimiento del negocio a escala (0-2.0 puntos).
+
+    Datos a usar (vienen calculados):
+    - CAGR de ventas, FCF total y BPA a 3, 5 y 10 años (o el máximo disponible).
+    - Evolución del número de acciones (solo como contexto: la dilución se juzga en el Pilar 5).
+    - Crecimiento orgánico frente a adquirido, si los datos lo permiten (pagos por adquisiciones en el flujo de caja).
+
+    Reglas:
+    - El ancla es el largo plazo (10 años o el máximo disponible): buscamos ventas > 8% CAGR y FCF total > 10% CAGR.
+    - 3 y 5 años son tendencia y contexto, no barreras eliminatorias: un bache coyuntural o cíclico es aceptable si el motor de largo plazo sigue intacto.
+    - El FCF de un año suelto puede estar distorsionado (capex de expansión, circulante): para el largo plazo usa como referencia el CAGR de medias de 3 años (viene calculado), que no depende de un año extremo.
+    - Si el crecimiento es casi todo adquirido, dilo y no lo puntúes como orgánico.
+
+    Criterio de puntuación:
+    - 2.0: ventas > 8% y FCF total > 10% CAGR a largo plazo, con el corto plazo sano o con frenazos temporales explicados.
+    - 1.6 a 1.9: cumple uno de los dos umbrales con holgura y se queda cerca del otro, o los cumple pero el corto plazo se frena sin causa clara.
+    - 1.0 a 1.5: largo plazo sólido pero algo por debajo de los umbrales (p. ej. ventas 6-8%), o un bache temporal claro que deprime los CAGR a 3-5 años sin deterioro estructural.
+    - 0.5: crecimiento bajo pero positivo y estable (negocio maduro).
+    - 0.0: estancamiento o caída estructural de ventas o FCF.
+
+    Salida requerida:
+    - Tabla de los últimos 10 años: ventas, FCF total, BPA y acciones.
+    - Diagnóstico del ciclo de crecimiento (orgánico/adquirido, acelera/frena).
+    - Puntuación final del pilar sobre 2.0.
+
+- title: "Pilar 3: ROIC, Márgenes y Eficiencia del Capital"
+  content: |
+    Evalúa la rentabilidad del capital invertido (0-2.0 puntos).
+
+    Datos a usar (vienen calculados):
+    - ROIC medio a 10 años con fondo de comercio, ROIC tangible medio y años con ROIC > 10%.
+    - Márgenes operativo y FCF medios; cascada margen bruto → operativo → FCF.
+
+    Reglas:
+    - Compara con el coste de capital (asume 8-10%). Lo que importa es superarlo de forma sostenida.
+    - Una rentabilidad baja con alta rotación de activos no es lo mismo que un negocio mediocre: explícalo.
+    - Serial acquirers: si el ROIC total medio está por debajo del 15% por el fondo de comercio pero el ROIC tangible es excepcional (> 20%) y el FCF es abundante, ni 0.0 ni 2.0: entre 1.0 y 1.5 (aprobado con advertencia por el riesgo de sobrepago).
+    - Si el capital tangible es casi nulo (ROIC tangible N/A), no lo uses para subir la nota.
+    - Bancos y aseguradoras: el ROIC no tiene sentido; usa el ROE (viene calculado) frente al coste del capital (~10%) con los mismos tramos.
+
+    Criterio de puntuación:
+    - 2.0: ROIC con fondo de comercio > 15% de media y por encima del 10% en al menos 7 de 10 años.
+    - 1.6 a 1.9: ROIC medio > 15% pero solo 5-6 años de 10 por encima del 10%, o > 15% con una tendencia que empieza a bajar.
+    - 1.0 a 1.5: ROIC entre el coste de capital y el 15%, o el caso serial acquirer descrito, o ROIC alto pero con tendencia a la baja.
+    - 0.5: ROIC cercano al coste de capital (8-10%) de forma persistente.
+    - 0.0: ROIC por debajo del coste de capital de forma persistente (destruye valor).
+
+    Salida requerida:
+    - Tabla de ratios de los últimos 10 años (ROIC, márgenes).
+    - Explicación de la estructura de rentabilidad.
+    - Puntuación final del pilar sobre 2.0.
+
+- title: "Pilar 4: Solvencia, Liquidez y Riesgo de Refinanciación"
+  content: |
+    Evalúa la capacidad de la empresa para aguantar un periodo de estrés financiero (0-2.0 puntos).
+
+    Datos a usar (vienen calculados):
+    - Deuda neta (con arrendamientos) / EBITDA y deuda económica / FCF del último año, y su evolución.
+    - Cobertura de intereses, quick ratio, FCF / EBITDA y Altman Z''.
+    - Vencimientos relevantes si los encuentras.
+
+    Reglas:
+    - Distingue la deuda peligrosa de la deuda funcional (financiar activos de larga vida, una adquisición con plan de desapalancamiento).
+    - Un quick ratio bajo no es un problema si el negocio cobra antes de pagar (software con cobros anticipados, retail con proveedores que financian): explícalo.
+    - Patrimonio negativo por recompras con caja fuerte no es insolvencia. En ese caso el Altman Z'' sale bajo sin significar nada: el Altman es una señal de alerta que hay que explicar, nunca una nota automática.
+    - Negocios muy recurrentes y estables (suscripciones, peajes, agencias de rating, infraestructuras reguladas) cuyo FCF no cayó en las crisis: sube medio escalón (máximo 2.0), porque aguantan más deuda con el mismo riesgo.
+    - Bancos y aseguradoras: deuda/EBITDA no aplica; juzga el capital regulatorio (CET1, ratio de solvencia) frente al mínimo exigido y a sus pares.
+    - Si FCF / EBITDA es débil, explica si el capex es de mantenimiento, expansión o recuperación.
+
+    Criterio de puntuación:
+    - 2.0: caja neta, o deuda neta / EBITDA < 1x con cobertura de intereses > 10x. Sin dependencia de refinanciar.
+    - 1.5: deuda neta / EBITDA 1-2x y cobertura > 6x; vencimientos cómodos.
+    - 1.0: deuda neta / EBITDA 2-3x, o dependencia moderada de refinanciar, con FCF que la cubre.
+    - 0.5: deuda neta / EBITDA 3-4x o cobertura < 4x.
+    - 0.0: deuda neta / EBITDA > 4x de forma recurrente o cobertura < 2x: fragilidad seria.
+
+    Salida requerida:
+    - Tabla de ratios de los últimos 10 años.
+    - Riesgos de balance.
+    - Puntuación final del pilar sobre 2.0.
+
+- title: "Pilar 5: Asignación de Capital, ROIIC, Recompra, SBC y Gobernanza"
+  content: |
+    Evalúa qué hace la directiva con la caja que genera el negocio (0-2.0 puntos).
+
+    Datos a usar (vienen calculados):
+    - ROIIC a 3, 5 y 10 años (ΔNOPAT / Δcapital invertido). Solo se calcula si el capital invertido creció al menos un 10%; N/A = sin reinversión relevante (suele ser una empresa que devuelve el capital): no es malo en sí, y entonces manda cómo devuelve ese capital.
+    - Evolución de las acciones (CAGR 3/5 años), recompras y SBC / FCF.
+    - Fondo de comercio, deterioros y adquisiciones; sanciones, litigios o señales de mala gobernanza.
+
+    Reglas:
+    - Recompras: crean valor si reducen de verdad el número de acciones y se hacen a precios razonables; si solo neutralizan la SBC, son neutrales; si se hacen con deuda en máximos, restan.
+    - SBC: normal hasta ~10-15% del FCF si las acciones no crecen; resta si supera el 15-20% o diluye de forma sostenida (> 2% al año).
+    - Dividendos: bien si están cubiertos por el FCF; mal si se pagan con deuda.
+    - ROIIC reciente: si el de 10 años es bajo (< 12%) pero el de 3-5 años es excelente (> 15-20%), entre 1.0 y 1.5 (mejora real aún por demostrar).
+    - Una empresa que no necesita reinvertir y devuelve el capital con disciplina puede puntuar alto aunque el ROIIC sea N/A.
+
+    Criterio de puntuación:
+    - 2.0: ROIIC alto (> 15%) o devolución disciplinada del capital, acciones estables o bajando, SBC controlada y buena gobernanza.
+    - 1.6 a 1.9: muy buena asignación con un punto mejorable (SBC algo alta pero compensada, o una adquisición todavía por demostrar).
+    - 1.0 a 1.5: asignación aceptable o con mejora reciente clara; recompras neutrales o SBC moderada con algún rezago.
+    - 0.5: dilución moderada sostenida o M&A de resultado dudoso.
+    - 0.0: M&A destructivo (deterioros recurrentes), dilución fuerte y constante, recompras para maquillar la SBC o problemas serios de gobernanza.
+
+    Salida requerida (solo de este pilar):
+    - Tabla con ROIIC, acciones, recompras y SBC / FCF de los últimos 10 años.
+    - Análisis forense de recompras frente a SBC, y de adquisiciones y gobernanza.
+    - Puntuación final del pilar sobre 2.0.

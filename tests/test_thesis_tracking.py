@@ -201,6 +201,21 @@ def test_normalize_judgement_filters_bad_fields():
     assert [p["title"] for p in j["proposals"]] == ["Networking separado"] and j["results_summary"] == []
 
 
+def test_checks_pass_to_next_review_and_are_normalized():
+    from app.application.services.thesis_review_service import build_expectations, build_judge_prompt, normalize_judgement
+    j = normalize_judgement({"next_checks": [{"check": " Margen Q4 ≥ 66,5% ", "target": "guía FY 66%", "priority": "urgente"},
+                                             {"target": "sin qué comprobar"}] + [{"check": f"c{i}"} for i in range(6)],
+                             "checks_result": [{"check": "Asia ≥ 0%", "result": "cumplido"}, {"check": "Europa", "result": "quizá"}]})
+    assert j["next_checks"][0] == {"check": "Margen Q4 ≥ 66,5%", "target": "guía FY 66%", "why": "", "priority": "media"}
+    assert len(j["next_checks"]) == 5 and [c["check"] for c in j["checks_result"]] == ["Asia ≥ 0%"]
+    prev = [{"period": "Q3 2026", "next_checks": j["next_checks"][:1]}]
+    assert "Comprobación pendiente (prioridad media): Margen Q4 ≥ 66,5% — se da por buena si guía FY 66%" in \
+        build_expectations({"pillars": []}, prev, None)
+    prompt = build_judge_prompt({"ticker": "EVO.ST", "title": "t"}, {"pillars": []}, [], {}, None, "", prev[0]["next_checks"])
+    assert "- Margen Q4 ≥ 66,5% (se da por buena si: guía FY 66%)" in prompt
+    assert "deja checks_result vacío" in build_judge_prompt({"ticker": "EVO.ST", "title": "t"}, {"pillars": []}, [], {}, None)
+
+
 def test_credibility_score_across_reviews():
     from app.application.services.thesis_review_service import credibility_score
     reports = [{"call": {"promises_check": [{"result": "cumplida"}, {"result": "parcial"}, {"result": "pendiente"}]}},
@@ -498,9 +513,10 @@ def test_master_questions_add_and_remove_in_yaml(tmp_path):
     from app.application.services.thesis_changes_service import add_master_question_to_yaml, remove_master_question_from_yaml
     import yaml
     evo = open("config/theses/evo.yaml", encoding="utf-8").read()
+    before = len(yaml.safe_load(evo)["master_questions"])   # la tesis real gana preguntas con las revisiones
     added = add_master_question_to_yaml(evo, "¿Cuánto revenue pierde Evolution por la prohibición en Brasil?")
     qs = yaml.safe_load(added)["master_questions"]
-    assert qs[-1] == "¿Cuánto revenue pierde Evolution por la prohibición en Brasil?" and len(qs) == 9
+    assert qs[-1] == "¿Cuánto revenue pierde Evolution por la prohibición en Brasil?" and len(qs) == before + 1
     with pytest.raises(ValueError):
         add_master_question_to_yaml(added, "¿Cuánto revenue pierde Evolution por la prohibición en Brasil?")
     removed = remove_master_question_from_yaml(added, qs[0])

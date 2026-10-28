@@ -13,10 +13,17 @@
 - Al ordenar por otra columna, el tercer clic vuelve al orden de serie. En la columna Día, primero los abiertos.
 
 ## Columna «Mi precio»
-- Un precio de compra puesto a mano, aparte de la valoración.
+- Un precio de compra puesto a mano, aparte de la valoración. En las de la cartera es el precio **para ampliar**.
+- Se pone aquí, en la cabecera de la ficha y en Cartera → Seguimiento (columna «Ampliar»), con `editMyPrice`
+  (`_base/js_helpers.html`).
+- **Vista unificada:** el filtro «Mi precio» enseña todas las que tienen precio, también las de cartera que no están en
+  la watchlist (`only_mine`: solo salen en ese filtro), con «Ampliar · peso %». De serie se ordena por lo que falta
+  para tu precio.
 - Se guarda en `asset.data['my_buy_price']` = {price, set_at}, con `/api/watchlist/{t}/mi-precio`, y se ajusta por splits.
+- Historial en `asset.data['my_buy_price_log']` = [{date, price}] (None: lo quitaste): la IA del trimestral y el anual
+  ve si llegó, si compraste y qué hizo la acción después (`report_service.waiting_entries`).
 - Avisos:
-  - `mi_precio` al alcanzarlo (grupo Comprar);
+  - `mi_precio` al alcanzarlo (grupo Comprar; en las de cartera, «Ampliar: …»);
   - `mi_precio_revisar` a los 90 días (`MY_PRICE_REVIEW_DAYS`). Se da por revisado guardándolo de nuevo, aunque sea el mismo.
 
 ## Paneles laterales

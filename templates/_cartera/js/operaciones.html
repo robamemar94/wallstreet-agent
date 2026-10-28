@@ -13,58 +13,124 @@
         }
     });
 
-    // Formulario de añadir
-    document.getElementById('add-portfolio-form').addEventListener('submit', async (e) => {
+    // Formulario de operación: «Revisar y guardar» enseña un resumen con avisos y solo «Confirmar» guarda (Intro ya no
+    // guarda a medias). Sirve para anotar una nueva y para editar una añadida a mano (OP.edit = la que se edita).
+    const OP = {edit: null, payload: null};
+    const OP_SYM = {'USD': '$', 'EUR': '€', 'GBP': '£', 'GBp': 'p', 'SEK': 'kr', 'JPY': '¥', 'DKK': 'kr', 'PLN': 'zł', 'CHF': 'Fr', 'MXN': '$', 'NOK': 'kr'};
+    const opMoney = (v, cur) => `${fmtNum(v, 2)} ${OP_SYM[cur] || cur}`;
+    const opEsc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
+    const opEl = id => document.getElementById(id);
+    function opPayload() {
+        const fxRaw = opEl('add-fx-rate').value;
+        return {
+            date: opEl('add-date').value,
+            type: opEl('add-type').value,
+            ticker: opEl('add-ticker').value.trim().toUpperCase(),
+            shares: parseFloat(opEl('add-shares').value),
+            price: parseFloat(opEl('add-price').value),
+            currency: opEl('add-currency').value,
+            fee: parseFloat(opEl('add-fee').value) || 0,
+            fx_rate_at_purchase: fxRaw ? parseFloat(fxRaw) : null,
+            broker: opEl('add-broker').value,
+            comment: opEl('add-comment').value.trim() || (OP.edit ? '' : null),
+        };
+    }
+    function opShowForm(show) {
+        opEl('add-portfolio-form').classList.toggle('d-none', !show);
+        opEl('op-confirm').classList.toggle('d-none', show);
+    }
+    function opSetMode(edit) {
+        OP.edit = edit;
+        opEl('addOpModalLabel').innerHTML = edit ? '<i class="bi bi-pencil me-1"></i>Editar operación' : '<i class="bi bi-plus-lg me-1"></i>Nueva operación';
+        opEl('submit-btn').textContent = edit ? 'Revisar cambios' : 'Revisar y guardar';
+    }
+
+    opEl('add-portfolio-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const btn = document.getElementById('submit-btn');
-        const originalText = btn.innerHTML;
-
+        const p = opPayload(), btn = opEl('submit-btn');
+        if (!(p.shares > 0) || !(p.price > 0) || !p.ticker || !p.date) return;
         btn.disabled = true;
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...`;
-
+        let chk = {};
+        try { chk = await fetch(`/api/portfolio/check/${encodeURIComponent(p.ticker)}`).then(r => r.ok ? r.json() : {}); } catch (err) {}
+        btn.disabled = false;
+        OP.payload = p;
+        const verb = p.type === 'BUY' ? 'Comprar' : 'Vender';
+        opEl('op-confirm-kind').textContent = OP.edit ? 'Vas a guardar los cambios' : 'Vas a anotar';
+        opEl('op-confirm-text').textContent = `${verb} ${fmtNum(p.shares, p.shares % 1 ? 2 : 0)} ${p.ticker} a ${opMoney(p.price, p.currency)} = ${opMoney(p.shares * p.price, p.currency)}`;
+        const d = p.date.split('-').reverse().join('/');
+        opEl('op-confirm-detail').innerHTML = [`${d}`, `comisión ${opMoney(p.fee, p.currency)}`, p.broker,
+            p.fx_rate_at_purchase ? `cambio ${fmtNum(p.fx_rate_at_purchase, 4)}` : (p.currency === 'EUR' ? '' : 'cambio automático'),
+            OP.edit ? `antes: ${OP.edit.type === 'BUY' ? 'compra' : 'venta'} de ${fmtNum(OP.edit.shares, OP.edit.shares % 1 ? 2 : 0)} a ${fmtNum(OP.edit.price, 2)} el ${OP.edit.date.split('-').reverse().join('/')}` : '']
+            .filter(Boolean).map(opEsc).join(' · ');
+        // avisos: precio lejos de la cotización, moneda distinta, vender más de lo que tienes, ticker desconocido
+        const warn = [];
+        if (chk.price) {
+            const gap = 100 * (p.price / chk.price - 1);
+            if (Math.abs(gap) > 20) warn.push(`El precio (${opMoney(p.price, p.currency)}) está un ${fmtNum(gap, 0, true)} % lejos de la cotización actual (${opMoney(chk.price, chk.currency || p.currency)}).`);
+        }
+        if (chk.currency && chk.currency.toUpperCase() !== p.currency.toUpperCase()) warn.push(`${p.ticker} cotiza en ${opEsc(chk.currency)}, no en ${opEsc(p.currency)}.`);
+        let held = chk.held || 0;
+        if (OP.edit && OP.edit.ticker === p.ticker) held += (OP.edit.type === 'SELL' ? 1 : -1) * OP.edit.shares;   // sin contar la que se edita
+        if (p.type === 'SELL' && p.shares > held + 1e-6) warn.push(`Vendes ${fmtNum(p.shares, 2)} acciones y tienes ${fmtNum(Math.max(held, 0), 2)}.`);
+        if (chk.known === false) warn.push(`No tengo cotización de ${opEsc(p.ticker)}: comprueba que el ticker está bien escrito.`);
+        opEl('op-confirm-warn').innerHTML = warn.map(w => `<div class="alert alert-danger py-1 px-2 mb-0 small"><i class="bi bi-exclamation-triangle-fill me-1"></i>${w}</div>`).join('');
+        opShowForm(false);
+        opEl(warn.length ? 'op-back' : 'op-confirm-btn').focus();
+    });
+    opEl('op-back').addEventListener('click', () => { opShowForm(true); opEl('add-price').focus(); });
+    opEl('op-confirm-btn').addEventListener('click', async () => {
+        const btn = opEl('op-confirm-btn'), original = btn.innerHTML, p = OP.payload;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Guardando…';
         try {
-            const fxRawVal = document.getElementById('add-fx-rate').value;
-            const fxRate = fxRawVal ? parseFloat(fxRawVal) : null;
-            const feeVal = parseFloat(document.getElementById('add-fee').value) || 0;
-
-            const res = await fetch('/api/portfolio/add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    date: document.getElementById('add-date').value,
-                    type: document.getElementById('add-type').value,
-                    ticker: document.getElementById('add-ticker').value.toUpperCase(),
-                    shares: parseFloat(document.getElementById('add-shares').value),
-                    price: parseFloat(document.getElementById('add-price').value),
-                    currency: document.getElementById('add-currency').value,
-                    fee: feeVal,
-                    fx_rate_at_purchase: fxRate,
-                    broker: document.getElementById('add-broker').value,
-                    comment: document.getElementById('add-comment').value.trim() || null
-                })
-            });
-            
+            const url = OP.edit ? `/api/portfolio/transaction/update/${encodeURIComponent(OP.edit.ticker)}` : '/api/portfolio/add';
+            const body = OP.edit ? {old: {date: OP.edit.date, type: OP.edit.type, shares: OP.edit.shares, price: OP.edit.price}, new: p} : p;
+            const res = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
             const data = await res.json();
-            if (data.status === 'success') {
-                if (typeof showToast === 'function') {
-                    showToast('✅ Éxito', 'Transacción guardada correctamente. Recargando...', 'success');
-                }
-                setTimeout(() => location.reload(), 400);
-            } else {
-                throw new Error(data.detail || 'Error al guardar la transacción');
-            }
+            if (!res.ok || data.status !== 'success') throw new Error(data.detail || 'Error al guardar la operación');
+            if (typeof showToast === 'function') showToast('✅ Guardada', OP.edit ? 'Operación editada. Recargando…' : 'Operación guardada. Recargando…', 'success');
+            setTimeout(() => location.reload(), 400);
         } catch (err) {
-            console.error(err);
-            if (typeof showToast === 'function') {
-                showToast('❌ Error', err.message, 'error');
-            } else {
-                alert(err.message);
-            }
-            // Desbloquear si hay error
+            if (typeof showToast === 'function') showToast('❌ Error', err.message, 'error'); else alert(err.message);
             btn.disabled = false;
-            btn.innerHTML = originalText;
+            btn.innerHTML = original;
         }
     });
+    // al cerrar la ventana: vuelve al formulario y, si se editaba, a «Nueva operación» vacía
+    opEl('addOpModal').addEventListener('hidden.bs.modal', () => {
+        opShowForm(true);
+        if (OP.edit) { opEl('add-portfolio-form').reset(); opSetMode(null); }
+    });
+
+    // Editar una operación añadida a mano: la ficha y la página de la posición llevan aquí con ?editar=TICKER|fecha|TIPO|acciones|precio
+    window.openEditTransaction = async (ticker, date, type, shares, price) => {
+        const q = new URLSearchParams({date, type, shares, price});
+        const res = await fetch(`/api/portfolio/transaction/${encodeURIComponent(ticker)}?${q}`);
+        if (!res.ok) { const d = await res.json().catch(() => ({})); return alert(d.detail || 'No se encontró la operación'); }
+        const tx = await res.json();
+        opEl('add-date').value = tx.date;
+        opEl('add-type').value = tx.type;
+        opEl('add-ticker').value = tx.ticker;
+        opEl('add-shares').value = tx.shares;
+        opEl('add-price').value = tx.price;
+        opEl('add-currency').value = tx.currency || 'USD';
+        opEl('add-currency').dispatchEvent(new Event('change'));
+        opEl('add-fx-rate').value = tx.fx_rate_at_purchase ?? (tx.currency === 'EUR' ? 1 : '');
+        opEl('add-fee').value = tx.fee ?? 0;
+        opEl('add-broker').value = tx.broker === 'DEGIRO' ? 'DEGIRO' : 'IBKR';
+        opEl('add-comment').value = tx.comment || '';
+        opSetMode({ticker: tx.ticker, date: tx.date, type: tx.type, shares: tx.shares, price: tx.price});
+        opShowForm(true);
+        bootstrap.Modal.getOrCreateInstance(opEl('addOpModal')).show();
+    };
+    const openFromUrl = () => {
+        const ed = new URLSearchParams(location.search).get('editar');
+        if (!ed) return;
+        const [t, d, ty, sh, pr] = ed.split('|');
+        history.replaceState(null, '', location.pathname + location.hash);
+        openEditTransaction(t, d, ty, sh, pr);
+    };
+    document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', openFromUrl) : openFromUrl();
 
     async function deletePosition(ticker) {
         if (confirm(`¿Eliminar todo el histórico de ${ticker}?`)) {

@@ -1,0 +1,54 @@
+        // ── Diario (panel lateral): se carga al abrirlo; notas nuevas, editar y borrar, y el porqué de cada operación ──
+        (function () {
+            const ticker = "{{ ticker }}", panel = document.getElementById('diaryPanel'), body = document.getElementById('diaryBody');
+            if (!panel || !body) return;
+            const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+            async function load() {
+                try {
+                    const r = await fetch(`/ticker/${encodeURIComponent(ticker)}/diario`);
+                    body.innerHTML = r.ok ? await r.text() : '<div class="small text-danger">No se pudo cargar el diario.</div>';
+                    const n = body.querySelectorAll('[data-note-id]').length, badge = document.getElementById('diaryCount');
+                    if (badge) { badge.textContent = n; badge.classList.toggle('d-none', !n); }
+                } catch (e) { body.innerHTML = '<div class="small text-danger">No se pudo cargar el diario.</div>'; }
+            }
+            async function send(url, method, payload) {
+                const r = await fetch(url, {method, headers: {'Content-Type': 'application/json'}, body: payload ? JSON.stringify(payload) : undefined});
+                if (!r.ok) { const d = await r.json().catch(() => ({})); showToast('Diario', d.detail || 'No se pudo guardar', 'error'); return false; }
+                return true;
+            }
+            panel.addEventListener('show.bs.offcanvas', load);
+            if (location.hash === '#diario')   // Bootstrap se carga después de la página
+                window.addEventListener('load', () => bootstrap.Offcanvas.getOrCreateInstance(panel).show());
+            body.addEventListener('submit', async e => {
+                const f = e.target.closest('[data-diary-new]');
+                if (!f) return;
+                e.preventDefault();
+                if (await send(`/api/ticker/${encodeURIComponent(ticker)}/notas`, 'POST', {text: f.text.value, date: f.date.value || null})) load();
+            });
+            body.addEventListener('click', async e => {
+                const item = e.target.closest('.diary-item');
+                if (!item) return;
+                if (e.target.closest('[data-diary-del]')) {
+                    if (confirm('¿Borrar esta nota?') && await send(`/api/notas/${item.dataset.noteId}`, 'DELETE')) load();
+                } else if (e.target.closest('[data-diary-edit]') && !item.querySelector('textarea')) {
+                    const box = item.querySelector('.diary-text'), old = box ? box.dataset.text : '';
+                    const ed = document.createElement('div');
+                    ed.className = 'mt-1 ps-4';
+                    ed.innerHTML = `<textarea class="form-control form-control-sm" rows="3" maxlength="${item.dataset.refs ? 1000 : 2000}"
+                        placeholder="${item.dataset.refs ? 'Por qué compraste o vendiste' : ''}">${esc(old)}</textarea>
+                        <div class="text-end mt-1"><button type="button" class="btn btn-sm btn-link text-muted" data-cancel>Cancelar</button>
+                        <button type="button" class="btn btn-sm btn-primary" data-save>Guardar</button></div>`;
+                    if (box) box.classList.add('d-none');
+                    item.appendChild(ed);
+                    ed.querySelector('textarea').focus();
+                    ed.querySelector('[data-cancel]').onclick = () => { ed.remove(); box?.classList.remove('d-none'); };
+                    ed.querySelector('[data-save]').onclick = async () => {
+                        const text = ed.querySelector('textarea').value;
+                        const ok = item.dataset.refs
+                            ? await send('/api/portfolio/transaction/note', 'POST', {ticker, refs: JSON.parse(item.dataset.refs), note: text})
+                            : await send(`/api/notas/${item.dataset.noteId}`, 'POST', {text, date: item.dataset.date});
+                        if (ok) load();
+                    };
+                }
+            });
+        })();

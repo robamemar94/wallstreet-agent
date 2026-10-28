@@ -15,7 +15,7 @@
             <h4 class="fw-bold text-white mb-0">
                 <i class="bi bi-collection text-warning me-2"></i> Listas
                 <span class="small fw-normal text-muted ms-2">grupos de empresas parecidas · tú eliges cuáles sigues en la watchlist</span>
-                <i class="bi bi-info-circle text-muted fs-6 fw-normal" title="Organiza tus empresas en grupos. Una lista no mete nada en la watchlist hasta que pulsas «Seguir en la watchlist»; el objetivo (posiciones y peso) es opcional."></i>
+                <i class="bi bi-info-circle text-muted fs-6 fw-normal" title="Grupos de empresas. Solo entran en la watchlist con «Seguir en la watchlist»"></i>
             </h4>
         </div>
         <button class="btn btn-warning btn-sm fw-bold d-flex align-items-center gap-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#createListModal">
@@ -113,7 +113,7 @@
                                  title="Opcional: cuántas posiciones y qué peso quieres en esta lista, para ver tu progreso"><i class="bi bi-plus-lg me-1"></i>Objetivo</button>
                          {% endif %}
                          {% if list.best %}{% set b = list.best %}
-                         <span class="ms-auto small" title="De las que no tienes y tienen valoración: la más cerca (o dentro) de su precio de compra y, a igualdad, la de más CAGR estimado">
+                         <span class="ms-auto small" title="Sin posición y con valoración: la más cerca de su precio de compra y, a igualdad, la de más CAGR">
                              <i class="bi bi-trophy-fill text-warning me-1"></i>Mejor para entrar: <a href="/ticker/{{ b.ticker }}" class="fw-bold text-decoration-none">{{ b.ticker }}</a>
                              · {% if b.drop_pct <= 0 %}<b class="text-success">en zona de compra</b>{% else %}falta caer <b>{{ num(b.drop_pct, 1) }} %</b>{% endif %}
                              {% if b.cagr is not none %}· CAGR {{ num(b.cagr, 1) }} %{% endif %}</span>

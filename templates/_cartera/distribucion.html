@@ -4,11 +4,11 @@
         <div class="d-flex flex-wrap gap-2 mb-3 small" id="distChips">
             <span class="dist-chip" title="La posición que más pesa"><span class="text-muted">Mayor posición</span> <strong>{{ clean_ticker(cz.max_ticker) }} {{ num(cz.max_pct, 1) }}%</strong></span>
             <span class="dist-chip" title="Lo que suman las 5 posiciones más grandes"><span class="text-muted">Top 5</span> <strong>{{ num(cz.top5_pct, 1) }}%</strong></span>
-            <span class="dist-chip" title="Número efectivo de posiciones (1/Σ peso²): con N posiciones iguales sale N. Cuanto más lejos del número real, más concentrada está la cartera.">
+            <span class="dist-chip" title="Número efectivo de posiciones (1/Σ peso²): N si todas pesan igual">
                 <span class="text-muted">Equivale a</span> <strong>{{ num(cz.effective_n, 1) }}</strong> <span class="text-muted">posiciones iguales (de {{ cz.positions }})</span></span>
             <span class="dist-chip" title="Divisa en la que está la mayor parte de tu dinero en el bróker{{ ' (con la liquidez, en euros)' if distribution.cash }}: su cambio frente al euro te mueve el valor"><span class="text-muted">Divisa principal</span> <strong>{{ cz.main_currency }} {{ num(cz.main_currency_pct, 1) }}%</strong></span>
-            {% if distribution.cash %}<span class="dist-chip" title="Efectivo en el bróker sobre el patrimonio (cartera + liquidez). Los pesos de las posiciones siguen siendo sobre lo invertido"><span class="text-muted">Liquidez</span> <strong>{{ num(distribution.cash.pct, 1) }}%</strong> <span class="text-muted">del patrimonio</span></span>{% endif %}
-            <i class="bi bi-info-circle text-muted align-self-center" title="Lo que pesa menos del 1 % se agrupa en «Otros» (pasa el ratón para ver qué incluye). País: sede de la empresa, no dónde vende. Pasa el ratón por la leyenda para resaltar cada empresa."></i>
+            {% if distribution.cash %}<span class="dist-chip" title="Efectivo sobre el patrimonio (cartera + liquidez)"><span class="text-muted">Liquidez</span> <strong>{{ num(distribution.cash.pct, 1) }}%</strong> <span class="text-muted">del patrimonio</span></span>{% endif %}
+            <i class="bi bi-info-circle text-muted align-self-center" title="Menos del 1 % va en «Otros». País: sede de la empresa"></i>
         </div>
         <div class="row g-3">
             <div class="col-12 col-xl-6">

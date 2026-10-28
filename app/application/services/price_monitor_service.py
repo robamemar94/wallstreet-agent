@@ -47,9 +47,22 @@ BACKUP_FILE = os.path.join("data", "price_history_backup.pkl")
 _backup_lock = threading.Lock()
 
 
+def _daily(s: pd.Series) -> pd.Series:
+    """Un cierre por día. Una serie con barras intradía (p. ej. de una descarga de 5 min que se cruzó) metería cientos de
+    filas en la tabla común: al rellenarlas, el resto de valores quedaría plano y su «último año» serían esos días
+    (σ diminuta, falsos máximos/mínimos de 52 semanas; pasó el 21/10/2026 con el respaldo contaminado del 16/10)."""
+    idx = pd.DatetimeIndex(s.index)
+    if idx.tz is not None:
+        idx = idx.tz_localize(None)
+    s = s.copy()
+    s.index = idx.normalize()
+    s = s.dropna()
+    return s[~s.index.duplicated(keep="last")].sort_index()
+
+
 def _load_backup() -> Dict[str, pd.Series]:
     try:
-        return pd.read_pickle(BACKUP_FILE)
+        return {sym: _daily(series) for sym, series in pd.read_pickle(BACKUP_FILE).items()}
     except Exception:
         return {}
 
@@ -58,6 +71,7 @@ def _save_backup(good: Dict[str, pd.Series]) -> None:
     with _backup_lock:
         data = _load_backup()
         for sym, series in good.items():   # se suma a lo guardado: un histórico cortado no borra el bueno
+            series = _daily(series)
             data[sym] = series.combine_first(data[sym]) if sym in data else series
         os.makedirs(os.path.dirname(BACKUP_FILE), exist_ok=True)
         pd.to_pickle(data, BACKUP_FILE + ".tmp")
@@ -128,10 +142,15 @@ def download_history(symbols: List[str], fill: bool = True) -> pd.DataFrame:
                     series = backup[sym]
                     logger.warning("Sin precio de %s en Yahoo: se usa su último histórico guardado (hasta %s)", sym, series.index[-1].date())
                 if series is not None:
+                    series = _daily(series)
                     # Yahoo puede haber devuelto la columna vacía (todo NaN): se sustituye
                     df = df.drop(columns=[sym], errors="ignore")
                     df = df.join(series.rename(sym), how="outer") if not df.empty else series.to_frame(sym)
             df = df.sort_index()
+        # un precio por día y valor, venga de donde venga (bloque, reintento o respaldo)
+        if not df.empty:
+            df.index = pd.DatetimeIndex(df.index).tz_localize(None) if pd.DatetimeIndex(df.index).tz is not None else pd.DatetimeIndex(df.index)
+            df = df.groupby(df.index.normalize()).last()
         # Yahoo a veces deja vacío el cierre de hoy de bolsas que ya han cotizado hoy (p. ej. Tokio): se completa
         from app.application.services.session_fill import fill_today
         df = fill_today(df)
@@ -303,7 +322,10 @@ def portfolio_changes(df: pd.DataFrame, transactions: List[Dict[str, Any]], spli
             periods[key]["benchmark_pct"] = 100 * (bs.iloc[-1] / b0.iloc[-1] - 1) if len(b0) else None
     pos = {t: {"value_eur": v, "weight": 100 * v / total_now if total_now else 0.0, "contribution": contrib[t], "pnl_eur": pnl_eur[t]}
            for t, v in values_now.items()}
-    return {"total_eur": total_now, "as_of": now.date().isoformat(), "periods": periods, "positions": pos, "missing": missing}
+    # también las vendidas del todo: su resultado en cada periodo (positions solo lleva las que sigues teniendo)
+    closed_pnl = {t: pnl_eur[t] for t in tickers if t not in values_now and any(v is not None for v in pnl_eur[t].values())}
+    return {"total_eur": total_now, "as_of": now.date().isoformat(), "periods": periods, "positions": pos, "missing": missing,
+            "closed_pnl": closed_pnl}
 
 
 # --- Señales de precio ---

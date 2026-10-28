@@ -297,3 +297,15 @@ class DBNotice(Base):
     href = Column(String, nullable=True)                            # a dónde lleva el aviso (panel de notificaciones)
     dismissed_at = Column(String, nullable=True)                    # descartado: no se muestra mientras dure el episodio
 
+
+
+class DBCompanyNote(Base):
+    """Diario de una empresa: notas libres con fecha (en cartera, en la watchlist o ninguna de las dos)."""
+    __tablename__ = "company_notes"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ticker = Column(String, nullable=False, index=True)
+    date = Column(String, nullable=False)                           # el día al que se refiere (AAAA-MM-DD)
+    text = Column(String, nullable=False)
+    created_at = Column(String, nullable=False)
+    updated_at = Column(String, nullable=True)

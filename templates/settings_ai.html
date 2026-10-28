@@ -31,7 +31,7 @@
 
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
         <h2 class="fw-bold mb-0" style="font-size: 1.3rem;"><i class="bi bi-cpu me-2"></i>Uso de IA</h2>
-        <span class="small text-muted" title="Coste estimado con los precios publicados de cada modelo (tokens y búsquedas de Google por encima de las 5.000 gratuitas del mes); la factura real está en la consola de Google. Las llamadas con la clave gratuita no cuentan.">
+        <span class="small text-muted" title="Coste estimado con los precios publicados; la factura real, en la consola de Google">
             Coste estimado en USD{% if u.since %} · registro desde el {{ u.since.strftime('%d/%m/%Y') }}{% endif %} <i class="bi bi-info-circle"></i>
             {% if u.unpriced %}<span class="text-warning ms-2" title="Sin precio conocido (no suman): {{ u.unpriced|join(', ') }}"><i class="bi bi-exclamation-triangle"></i> {{ u.unpriced|length }} sin precio</span>{% endif %}
         </span>

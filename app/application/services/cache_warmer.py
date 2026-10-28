@@ -19,6 +19,7 @@ def prefetch(earnings: Iterable[str] = (), fcf: Iterable[str] = (), valuation: I
     from app.application.services.insider_service import shares_series, splits_all, trades
     from app.application.services.base_valuation_service import _market_info, analyst_eps_estimates
     from app.application.services.estimate_revisions_service import revisions
+    from app.application.services.sales_estimate_service import growth as sales_growth
     from app.application.services.price_monitor_service import all_time_high
     from app.application.services.thesis_review_service import _earnings_info
     from app.application.services.thesis_service import fetch_ttm_fcf_per_share
@@ -26,6 +27,7 @@ def prefetch(earnings: Iterable[str] = (), fcf: Iterable[str] = (), valuation: I
     jobs = ([(_earnings_info, t) for t in set(earnings)] + [(fetch_ttm_fcf_per_share, t) for t in set(fcf)]
             + [(_market_info, t) for t in set(valuation)] + [(fetch_splits, t) for t in set(splits)]
             + [(analyst_eps_estimates, t) for t in set(estimates)] + [(revisions, t) for t in set(estimates)]
+            + [(lambda t: sales_growth(t, fetch=True), t) for t in set(estimates)]
             + [(all_time_high, t) for t in set(ath)]
             + [(trades, t) for t in set(insiders)] + [(shares_series, t) for t in set(insiders)]
             + [(splits_all, t) for t in set(insiders)])

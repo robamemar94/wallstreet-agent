@@ -28,7 +28,7 @@ CATEGORIES = [
 CATEGORY_NAME = dict(CATEGORIES)
 ANALYSIS_PARTS = {
     "audit": "Auditoría forense", "franchise": "Foso", "mgmt_alloc": "Gestión y capital", "verdict": "Veredicto",
-    "val": "Valoración", "thesis": "Tesis", "rules": "Normas", "pe_forensic": "PER forense", "technical": "Análisis técnico",
+    "val": "Valoración", "thesis": "Tesis", "rules": "Normas", "pe_forensic": "Auditoría VC/PE", "technical": "Análisis técnico",
     "thesis_destroyer": "Abogado del diablo", "rules_synthesis": "Normas · síntesis",
 }
 TASKS = {

@@ -83,30 +83,51 @@
         if (location.hash === '#liquidez') bootstrap.Modal.getOrCreateInstance(cashModal).show();
     });
     // Resumen: curva pequeña de la cartera frente al índice de referencia (las mismas series que Rendimiento)
-    let resDecLoaded = false;
-    document.getElementById('res-tab')?.addEventListener('shown.bs.tab', async () => {
-        if (resDecLoaded) return;
-        resDecLoaded = true;
-        const box = document.querySelector('[data-res-dec]');
-        const d = await fetch('/api/portfolio/decisiones/resumen').then(r => r.ok ? r.json() : null).catch(() => null);
-        if (!d || !d.buys || !d.buys.n) { box.textContent = 'Sin decisiones que medir todavía.'; resDecLoaded = false; return; }
-        const pp = v => (v > 0 ? '+' : '') + fmtNum(v, 1) + ' pp', cl = v => v > 0 ? 'text-success' : 'text-danger';
-        const ex = (o, lbl) => o ? `<div class="res-row"><span class="text-muted">${lbl}</span><span><b>${o.ticker.replace(/\.(ST|PA|MC|OL)$/, '')}</b> ${o.date.slice(8, 10)}/${o.date.slice(5, 7)} <span class="${cl(o.excess)}">${pp(o.excess)}</span></span></div>` : '';
-        box.className = '';
-        box.innerHTML = `<div class="res-row"><span class="text-muted">Compras por delante del ${PERF_REF_BENCH}</span><b>${d.buys.beat} de ${d.buys.n}</b></div>`
-            + `<div class="res-row"><span class="text-muted">De media</span><b class="${cl(d.buys.avg)}">${pp(d.buys.avg)}</b></div>`
-            + ex(d.best[0], 'Mejor') + ex(d.worst[0], 'Peor')
-            + `<div class="res-row"><span class="text-muted">Con su porqué</span><b>${d.with_reason} de ${d.n_ops}</b></div>`;
-    });
     document.getElementById('res-tab')?.addEventListener('shown.bs.tab', () => {
         const el = document.getElementById('resChart');
         if (!el || !window.Plotly || !perfDates.length) return;
         const ref = perfBenchmarks[PERF_REF_BENCH] || [];
-        const traces = [{x: perfDates, y: perfPortfolio, mode: 'lines', name: 'Cartera', line: {color: '#3b82f6', width: 2}}];
-        if (ref.length) traces.push({x: perfDates, y: ref, mode: 'lines', name: PERF_REF_BENCH, line: {color: '#fd7e14', width: 1.5, dash: 'dot'}});
-        Plotly.react(el, traces, {margin: {l: 30, r: 8, t: 4, b: 22}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
-            font: {size: 10, color: getComputedStyle(document.body).color}, showlegend: true, legend: {orientation: 'h', x: 0, y: 1.12},
-            xaxis: {showgrid: false}, yaxis: {gridcolor: 'rgba(128,128,128,.15)'}}, {displayModeBar: false, responsive: true});
+        // rebasado a 0 % en el inicio del tramo visible: el eje dice cuánto ha subido cada una desde ahí
+        const raw = [perfPortfolio].concat(ref.length ? [ref] : []);
+        const rebase = (arr, si) => { const b = arr.slice(si).find(v => v != null && isFinite(v) && v !== 0); return b ? arr.map(v => v == null ? null : (v / b - 1) * 100) : arr; };
+        const series = si => raw.map(a => rebase(a, si));
+        const ys0 = series(0);
+        const traces = [{x: perfDates, y: ys0[0], mode: 'lines', name: 'Cartera', line: {color: '#3b82f6', width: 2}, hovertemplate: '%{y:.2f} %<extra>Cartera</extra>'}];
+        if (ref.length) traces.push({x: perfDates, y: ys0[1], mode: 'lines', name: PERF_REF_BENCH, line: {color: '#fd7e14', width: 1.5, dash: 'dot'}, hovertemplate: '%{y:.2f} %<extra>' + PERF_REF_BENCH + '</extra>'});
+        const yFor = (si, ei) => yRangeFor(traces.map(t => t.y), si, ei) || undefined;
+        const layout = {margin: {l: 42, r: 8, t: 4, b: 22}, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', hovermode: 'x unified',
+            font: {size: 10, color: getComputedStyle(document.body).color}, showlegend: false,   // la leyenda va en la cabecera de la tarjeta
+            xaxis: {showgrid: false, rangeslider: rangeSliderStyle()},
+            yaxis: {gridcolor: 'rgba(128,128,128,.15)', ticksuffix: ' %', tickformat: '.0f', zeroline: true, zerolinecolor: 'rgba(128,128,128,.45)'}};
+        Plotly.react(el, traces, layout, {displayModeBar: false, responsive: true});
+        if (!el._rangeHooked) {   // navegador de rango bajo la gráfica (como en Rendimiento): años debajo y eje Y a lo visible
+            el._rangeHooked = true;
+            rangeSliderYears(el);
+            if (window.ResizeObserver) new ResizeObserver(() => Plotly.Plots.resize(el)).observe(el);   // la tarjeta se estira con la columna de al lado
+            const strip = [...document.querySelectorAll('[data-res-period]')];
+            const mark = k => strip.forEach(b => b.classList.toggle('active', b.dataset.resPeriod === k));
+            el.on('plotly_relayout', ev => {
+                const rg = relayoutXRange(ev);
+                if (rg === undefined) return;
+                if (el._byStrip) el._byStrip = false; else mark(null);   // movido con el navegador: sin periodo marcado
+                const [si, ei] = rg === 'all' ? [0, perfDates.length - 1] : rangeIndices(perfDates, rg[0], rg[1]);
+                const ys = series(si); traces.forEach((t, i) => { t.y = ys[i]; });   // 0 % en el inicio del tramo
+                Plotly.restyle(el, {y: ys});
+                Plotly.relayout(el, {'yaxis.range': yFor(si, ei) || null, 'yaxis.autorange': !yFor(si, ei)});
+            });
+            // tira de periodos: zoom al tramo (corridos desde el último cierre; el año, desde el último cierre del anterior)
+            strip.forEach(b => b.addEventListener('click', () => {
+                const last = new Date(perfDates[perfDates.length - 1]), k = b.dataset.resPeriod;
+                const from = k === '1m' ? new Date(last.getFullYear(), last.getMonth() - 1, last.getDate())
+                           : k === '1y' ? new Date(last.getFullYear() - 1, last.getMonth(), last.getDate())
+                           : k === 'ytd' ? new Date(last.getFullYear(), 0, 0) : null;
+                const iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                let si = 0;
+                if (from) { const f = iso(from); si = Math.max(0, perfDates.filter(d => d <= f).length - 1); }
+                mark(k); el._byStrip = true;
+                Plotly.relayout(el, {'xaxis.range': [perfDates[si], perfDates[perfDates.length - 1]]});
+            }));
+        }
     });
     // bootstrap.bundle se carga después del contenido: las pestañas, cuando ya está disponible
     document.addEventListener('DOMContentLoaded', () => {

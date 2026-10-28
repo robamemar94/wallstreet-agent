@@ -105,6 +105,9 @@
 
     {% include "_base/ventanas.html" %}
 <script>
+// Volver con «Atrás»: si el navegador restaura la página de su caché (bfcache), se recarga para que salga lo último
+// (los filtros van en la dirección y se conservan)
+window.addEventListener('pageshow', e => { if (e.persisted) location.reload(); });
 // Globo del pre/post-market (filas de la Actividad del día, icono 🌅/🌙 y Var. día € de Cartera): verde si sube, rojo si baja
 document.addEventListener('mouseover', e => {
     const el = e.target.closest && e.target.closest('[data-ext-tip]');

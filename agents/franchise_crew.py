@@ -1,14 +1,15 @@
-from agents.utils import get_current_date, get_agent, create_task, load_agent_config
+from agents.utils import get_current_date, get_agent, create_task, load_agent_config, merge_crew_outputs
 from crewai import Crew
 import logging
 
-def run_franchise_crew(ticker: str, company_name: str = "", feedback: str = "", audit_context: str = ""):
+def run_franchise_crew(ticker: str, company_name: str = "", feedback: str = "", audit_context: str = "", ratios_context: str = ""):
     target_name = f"{company_name} ({ticker})" if company_name and company_name != ticker else ticker
     format_args = {
         'current_date': get_current_date(), 
         'target_name': target_name, 
         'ticker': ticker,
-        'audit_context': audit_context
+        'audit_context': audit_context,
+        'ratios_context': ratios_context or "(Sin cuentas estructuradas: no hay ratios.)",
     }
     
     # 1. Cargar agentes y metodologías
@@ -33,7 +34,7 @@ def run_franchise_crew(ticker: str, company_name: str = "", feedback: str = "", 
     try:
         result = crew.kickoff()
         logging.info("Crew de Franquicia completada con éxito.")
-        return str(result)
+        return merge_crew_outputs(result)
     except Exception as e:
         logging.error(f"Error during franchise crew kickoff: {e}", exc_info=True)
         raise

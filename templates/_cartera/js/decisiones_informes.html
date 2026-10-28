@@ -107,16 +107,135 @@
         });
         box.addEventListener('blur', save);
     });
+    // --- Informes trimestral y anual: gráficas y el detalle de las compras y ventas ---
+    function repCharts(scope) {
+        if (!window.Plotly || !scope) return;
+        const dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const text = dark ? '#adb5bd' : '#2c3e50', grid = dark ? 'rgba(255,255,255,0.05)' : '#f0f0f0';
+        const base = {margin: {t: 10, b: 30, l: 45, r: 10}, separators: ',.', hoverlabel: plotHover(), paper_bgcolor: 'rgba(0,0,0,0)',
+                      plot_bgcolor: 'rgba(0,0,0,0)', font: {color: text}, legend: {orientation: 'h', y: 1.1, font: {color: text}}};
+        const cfg = {responsive: true, displayModeBar: false};
+        scope.querySelectorAll('[data-rep-chart]').forEach(el => {
+            if (el.dataset.drawn || !el.offsetParent) return;   // oculto (otra pestaña de Cartera): al volver a pintarse
+            el.dataset.drawn = '1';
+            const spec = JSON.parse(el.dataset.spec || 'null');
+            if (el.dataset.repChart === 'curve' && spec) {
+                const tr = [{x: spec.dates, y: spec.port, mode: 'lines', name: 'Cartera', line: {color: '#0d6efd', width: 2.5}}];
+                if (spec.bench) tr.push({x: spec.dates, y: spec.bench, mode: 'lines', name: 'S&P 500', line: {color: '#fd7e14', width: 2, dash: 'dot'}});
+                Plotly.newPlot(el, tr, {...base, xaxis: {type: 'date', showgrid: false, tickfont: {color: text}},
+                    yaxis: {gridcolor: grid, tickfont: {color: text}}}, cfg);
+            } else if (el.dataset.repChart === 'months' && spec) {
+                const m = spec.months.filter(x => x.pct !== null && x.pct !== undefined), lab = m.map(x => x.label.split(' ')[0].slice(0, 3));
+                Plotly.newPlot(el, [
+                    {x: lab, y: m.map(x => x.pct), type: 'bar', name: 'Cartera', marker: {color: m.map(x => x.pct >= 0 ? '#198754' : '#dc3545')}},
+                    {x: lab, y: m.map(x => x.bench_pct), type: 'scatter', mode: 'markers', name: spec.bench, marker: {color: '#fd7e14', size: 8, symbol: 'line-ew-open', line: {width: 3}}}],
+                    {...base, xaxis: {tickfont: {color: text}, fixedrange: true}, yaxis: {ticksuffix: ' %', gridcolor: grid, tickfont: {color: text}, fixedrange: true}}, cfg);
+            } else if (el.dataset.repChart === 'div' && spec) {
+                Plotly.newPlot(el, [{x: spec.map(x => x.month), y: spec.map(x => x.eur), type: 'bar', name: 'Cobrado', marker: {color: '#089981'}}],
+                    {...base, showlegend: false, xaxis: {tickfont: {color: text}, fixedrange: true}, yaxis: {ticksuffix: ' €', gridcolor: grid, tickfont: {color: text}, fixedrange: true}}, cfg);
+            }
+        });
+    }
+    // índice del trimestral y el anual: lleva a cada sección; al bajar, marca en la que estás
+    const repMark = (index, id) => index.querySelectorAll('[data-rep-goto]').forEach(b => b.classList.toggle('active', b.dataset.repGoto === id));
+    document.getElementById('repBody').addEventListener('click', e => {
+        const b = e.target.closest('[data-rep-goto]');
+        if (!b) return;
+        const box = b.closest('#repPanel').querySelector('.rep-scroll'), sec = document.getElementById(b.dataset.repGoto);
+        if (!box || !sec) return;
+        box._jump = true;   // mientras baja, la marca es la pulsada
+        box.scrollTo({top: sec.offsetTop, behavior: 'smooth'});
+        repMark(b.closest('.rep-index'), b.dataset.repGoto);
+        clearTimeout(box._jumpT); box._jumpT = setTimeout(() => { box._jump = false; }, 700);
+    });
+    document.getElementById('repBody').addEventListener('scroll', e => {
+        const box = e.target;
+        if (!box.classList || !box.classList.contains('rep-scroll') || box._jump) return;
+        const secs = [...box.querySelectorAll('.rep-sec')], y = box.scrollTop + 40;
+        let cur = secs[0];
+        secs.forEach(s => { if (s.offsetTop <= y) cur = s; });
+        if (box.scrollTop + box.clientHeight >= box.scrollHeight - 4) cur = secs[secs.length - 1];   // al final, la última
+        const index = box.parentElement.querySelector('.rep-index');
+        if (cur && index) repMark(index, cur.id);
+    }, true);
+    // compras y ventas del trimestral y el anual: al pasar por una empresa (o tocarla), sus órdenes en una ficha flotante
+    let repPop = null;
+    const repPopHide = () => { repPop?.remove(); repPop = null; document.querySelectorAll('.rep-op.active').forEach(x => x.classList.remove('active')); };
+    const repPopShow = row => {
+        repPopHide();
+        const op = JSON.parse(row.dataset.repOp);
+        const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+        repPop = document.createElement('div');
+        repPop.className = 'rep-op-pop';
+        repPop.innerHTML = `<div class="fw-bold mb-1">${op.type === 'BUY' ? 'Compras' : 'Ventas'} de ${esc(op.ticker)}${op.avg ? ` <span class="fw-normal text-muted">· media ${fmtNum(op.avg, 2)} ${esc(op.cur)}</span>` : ''}</div>`
+            + op.items.map(d => `<div class="d-flex gap-3"><span>${d.date.slice(8, 10)}/${d.date.slice(5, 7)} · ${fmtNum(d.shares, d.shares % 1 ? 2 : 0)} acc. a ${fmtNum(d.price, 2)} ${esc(op.cur)}</span>`
+                + `<span class="ms-auto num-font">${fmtNum(d.amount_eur, 0)} €</span></div>${d.note ? `<div class="fst-italic text-muted ps-2">«${esc(d.note)}»</div>` : ''}`).join('');
+        document.body.appendChild(repPop);
+        row.classList.add('active');
+        const r = row.getBoundingClientRect(), h = repPop.offsetHeight, w = repPop.offsetWidth;
+        const left = r.right + 8 + w < innerWidth ? r.right + 8 : Math.max(8, r.left - w - 8);   // a la derecha; si no cabe, a la izquierda
+        repPop.style.left = left + 'px';
+        repPop.style.top = Math.max(8, Math.min(r.top, innerHeight - h - 8)) + 'px';
+    };
+    document.getElementById('repBody').addEventListener('mouseover', e => {
+        const row = e.target.closest('[data-rep-op]');
+        if (row && !row.classList.contains('active')) repPopShow(row);
+    });
+    document.getElementById('repBody').addEventListener('mouseout', e => {
+        const row = e.target.closest('[data-rep-op]');
+        if (row && !row.contains(e.relatedTarget)) repPopHide();
+    });
+    document.getElementById('repBody').addEventListener('click', e => {   // pantallas táctiles: tocar abre y cierra
+        const row = e.target.closest('[data-rep-op]');
+        if (row) row.classList.contains('active') ? repPopHide() : repPopShow(row);
+    });
+    document.getElementById('repBody').addEventListener('scroll', repPopHide, true);
     // --- Informes: el archivo a la izquierda y el informe a la derecha; el comentario de IA, solo al pulsar ---
     let repLoading = null;
     const repShow = (key, tab) => fetch('/portfolio/informes/' + encodeURIComponent(key)).then(r => r.text()).then(html => {
+        repPopHide?.();
         document.getElementById('repPanel').innerHTML = html;
-        const t = tab && document.getElementById(tab);
-        if (t) bootstrap.Tab.getOrCreateInstance(t).show();
+        const t = tab && document.getElementById(tab);   // una sección del informe (p. ej. la de IA tras generarla)
+        if (t) document.querySelector(`[data-rep-goto="${tab}"]`)?.click();
         document.querySelectorAll('#repList [data-rep-key]').forEach(a => a.classList.toggle('active', a.dataset.repKey === key));
         history.replaceState(null, '', '#informes-' + key);
         window.fitAll && fitAll();
+        repCharts(document.getElementById('repPanel'));
     });
+    // el archivo, paginado con los que caben (sin scroll); en el semanal, el mes encima de sus semanas
+    let repPage = 0;
+    function repPaginate(toActive, cut = 0) {
+        const list = document.getElementById('repList'), pager = document.getElementById('repPager');
+        if (!list || !pager || !list.offsetParent) return;
+        const kind = document.querySelector('#repKinds .active')?.dataset.repKind
+            || list.querySelector('[data-rep-key].active')?.dataset.kind || 'W';
+        const all = [...list.children].filter(el => el.dataset.kind);
+        all.forEach(el => el.classList.toggle('d-none', el.dataset.kind !== kind));
+        const rows = all.filter(el => el.dataset.kind === kind), items = rows.filter(el => el.dataset.repKey);
+        if (!items.length) { pager.classList.add('d-none'); return; }
+        pager.classList.remove('d-none');
+        const rowH = Math.max(...items.map(a => a.offsetHeight)), head = rows.find(el => !el.dataset.repKey), headH = head ? head.offsetHeight : 0;
+        const avail = Math.max(6 * rowH, window.innerHeight - list.getBoundingClientRect().top - pager.offsetHeight - 16 - cut);
+        const pages = [[]];
+        let used = 0, month = null;
+        rows.forEach(el => {
+            if (!el.dataset.repKey) { month = el; return; }
+            let page = pages[pages.length - 1];
+            const need = rowH + (month && !page.includes(month) ? headH : 0);
+            if (page.length && used + need > avail) { page = []; pages.push(page); used = 0; }
+            if (month && !page.includes(month)) { page.push(month); used += headH; }
+            page.push(el); used += rowH;
+        });
+        if (toActive) { const i = pages.findIndex(pg => pg.some(el => el.classList.contains('active'))); repPage = Math.max(0, i); }
+        repPage = Math.min(Math.max(0, repPage), pages.length - 1);
+        rows.forEach(el => el.classList.toggle('d-none', !pages[repPage].includes(el)));
+        pager.classList.toggle('d-none', pages.length < 2);
+        document.getElementById('repPagerInfo').textContent = `Página ${repPage + 1} de ${pages.length}`;
+        pager.querySelectorAll('[data-rep-page]').forEach(b => b.disabled = +b.dataset.repPage < 0 ? repPage === 0 : repPage >= pages.length - 1);
+        const over = document.documentElement.scrollHeight - window.innerHeight;   // si aún se sale (un aviso arriba…), menos filas
+        if (over > 0 && !cut && pages.length > 1) repPaginate(toActive, over);
+    }
+    window.addEventListener('resize', () => repPaginate(true));
     function repLoad(key) {
         if (repLoading && !key) return repLoading;
         const body = document.getElementById('repBody');
@@ -125,13 +244,16 @@
             body.querySelectorAll('[data-rep-kind]').forEach(b => b.addEventListener('click', () => {
                 body.querySelectorAll('[data-rep-kind]').forEach(x => x.classList.toggle('active', x === b));
                 const items = [...body.querySelectorAll('#repList [data-rep-key]')];
-                items.forEach(a => a.classList.toggle('d-none', a.dataset.kind !== b.dataset.repKind));
+                repPage = 0; repPaginate(false);
                 const first = items.find(a => a.dataset.kind === b.dataset.repKind);
                 if (first) repShow(first.dataset.repKey);
                 else document.getElementById('repPanel').innerHTML = `<div class="p-4 small text-muted">Aún no hay informes de este tipo: se generan solos al cerrarse el periodo${b.dataset.repKind === 'Y' ? ' (el del año, el 1 de enero)' : ''}.</div>`;
             }));
             body.querySelectorAll('#repList [data-rep-key]').forEach(a => a.addEventListener('click', () => repShow(a.dataset.repKey)));
+            body.querySelectorAll('[data-rep-page]').forEach(b => b.addEventListener('click', () => { repPage += +b.dataset.repPage; repPaginate(false); }));
             window.fitAll && fitAll();
+            repPaginate(true);
+            repCharts(document.getElementById('repPanel'));
         }).catch(e => { body.innerHTML = `<div class="p-3 small text-danger">No se pudieron cargar los informes: ${e.message}</div>`; repLoading = null; });
         return repLoading;
     }
@@ -144,7 +266,7 @@
         try {
             const r = await fetch(`/api/portfolio/informes/${encodeURIComponent(btn.dataset.reportAi)}/comentario`, {method: 'POST'});
             if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
-            await repShow(btn.dataset.reportAi, 'rep-ai-tab');   // en el trimestral y el anual, su subpestaña
+            await repShow(btn.dataset.reportAi, 'rep-ai');   // en el trimestral y el anual, su sección
         } catch (err) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-stars me-1"></i>Comentar con IA'; alert(err.message); }
     });
     // tus objetivos para el año siguiente (informe anual)
@@ -169,9 +291,9 @@
         if (!tramos) history.replaceState(null, '', '#decisiones');
     });
     window.addEventListener('resize', () => { if (document.getElementById('dec-pane')?.classList.contains('active')) decRender(); });
-    // --- Menú agrupado: los seis grupos visibles abren la última pestaña (oculta) de su grupo; el selector de la derecha,
+    // --- Menú agrupado: los ocho grupos visibles abren la última pestaña (oculta) de su grupo; el selector de la derecha,
     // las del grupo. Contable/Seguimiento son la misma pestaña con dos vistas (showView).
-    const pfLast = {pos: 'active-tab', perf: 'perf-tab', dist: 'dist-tab', div: 'div-tab', ops: 'closed-tab', res: 'res-tab'};
+    const pfLast = {pos: 'active-tab', fund: 'fund-tab', perf: 'perf-tab', rep: 'rep-tab', dist: 'dist-tab', div: 'div-tab', ops: 'closed-tab', res: 'res-tab'};
     const pfShow = id => bootstrap.Tab.getOrCreateInstance(document.getElementById(id)).show();
     document.querySelectorAll('[data-pf-group]').forEach(b => b.addEventListener('click', () => pfShow(pfLast[b.dataset.pfGroup])));
     document.querySelectorAll('[data-pf-show]').forEach(b => b.addEventListener('click', () => {
@@ -187,7 +309,7 @@
         document.querySelectorAll('.pf-subnav').forEach(n => n.classList.toggle('d-none', n.dataset.for !== g));
         const seg = !document.getElementById('viewSeguimiento').classList.contains('d-none');
         document.querySelectorAll('.pf-subnav [data-pf-show]').forEach(b => b.classList.toggle('active', b.dataset.pfShow === t.id
-            && (!b.dataset.posView || b.dataset.posView === (seg ? 'seguimiento' : 'contable'))));
+            && (!b.dataset.posView || b.dataset.posView === (window.posViewNow || (seg ? 'seguimiento' : 'contable')))));
         if (t.dataset.pfHash) history.replaceState(null, '', t.dataset.pfHash);
         else if (t.id === 'active-tab' && !seg && location.hash) history.replaceState(null, '', location.pathname + location.search);
     }));

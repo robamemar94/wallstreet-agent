@@ -32,6 +32,13 @@
         {% if mcap %}<span class="cap-badge cap-{{ mcap.tier.key }} me-1" title="Capitalización: {{ mcap.label }} (en USD: acciones en circulación × precio × tipo de cambio). {{ mcap.tier.name }}: {{ mcap.tier.range }}">{{ mcap.tier.name }}</span>{% endif %}
         {# insignias de estado: se leen sin pensar #}
         <span class="d-inline-flex flex-wrap align-items-center gap-1 head-badges">
+        {# resultados a punto de salir (7 días o menos): lo primero que se ve, en cualquier pestaña de la ficha #}
+        {% set rs_soon = (events or [])|selectattr('label', 'equalto', 'Resultados')|selectattr('days', 'le', 7)|list %}
+        {% if rs_soon %}{% set e = rs_soon[0] %}{% set tm = e.time %}
+        <span class="badge {{ 'text-bg-danger' if e.days <= 1 else 'text-bg-warning' }} px-2 py-1" style="font-size: .75rem;"
+              title="{{ e.detail }}: {{ e.date[8:10] }}/{{ e.date[5:7] }}/{{ e.date[:4] }}{% if tm %} · {{ {'pre': 'antes de la apertura', 'after': 'tras el cierre', 'time': 'en sesión'}[tm.kind] }} ({{ tm.madrid }} h, Sevilla){% endif %}">
+            <i class="bi bi-calendar-event me-1"></i>Resultados {{ 'hoy' if e.days == 0 else 'mañana' if e.days == 1 else 'en ' ~ e.days ~ ' días' }}{% if tm %} <i class="bi {{ {'pre': 'bi-sunrise', 'after': 'bi-moon-stars', 'time': 'bi-clock'}[tm.kind] }} ms-1"></i>{% endif %}</span>
+        {% endif %}
         <span id="hdr-quality">{# se refresca con el Resumen al terminar un informe #}
         {% if reports_meta.get('verdict') and reports_meta['verdict'].score != 'N/A' %}
             <span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle px-2 py-1" style="font-size: .75rem; cursor: pointer;" onclick="document.getElementById('nav-analysis-tab').click();" title="Nota de calidad del veredicto de inversión{% if reports_meta['verdict'].archetype %} · {{ reports_meta['verdict'].archetype }}{% endif %}. Pulsa para ver el análisis">
@@ -42,16 +49,24 @@
             {% if thesis_link and thesis_link.verdict %}{% set vdb = {'REFORZADA': 'success', 'INTACTA': 'primary', 'VIGILANCIA': 'warning', 'DEBILITADA': 'danger', 'ROTA': 'dark'} %}
             <a href="/tesis/{{ thesis_link.id }}" class="badge text-decoration-none bg-{{ vdb.get(thesis_link.verdict, 'secondary') }} bg-opacity-10 text-{{ vdb.get(thesis_link.verdict, 'secondary') }} border border-{{ vdb.get(thesis_link.verdict, 'secondary') }}-subtle px-2 py-1" style="font-size: .75rem;" title="Veredicto de la tesis{% if thesis_link.health is not none %} · salud {{ thesis_link.health }}{% endif %}"><i class="bi bi-journal-text me-1"></i>Tesis {{ thesis_link.verdict|lower }}</a>{% endif %}
             {% if portfolio_is_active and portfolio_item %}<a href="#" onclick="document.getElementById('nav-portfolio-tab').click(); return false;" class="badge text-decoration-none bg-info bg-opacity-10 text-info border border-info-subtle px-2 py-1" style="font-size: .75rem;" title="La tienes en cartera"><i class="bi bi-briefcase me-1"></i>En cartera · {{ num(portfolio_item.shares, 0 if portfolio_item.shares == portfolio_item.shares|int else 2) }} acc.</a>{% endif %}
+            {# «Mi precio»: de compra o, si la tienes, para ampliar; avisa al alcanzarlo #}
+            {% set held_now = portfolio_is_active and portfolio_item %}
+            <a href="#" class="badge text-decoration-none {{ ('bg-success bg-opacity-10 text-success border border-success-subtle' if mine.hit else 'bg-secondary bg-opacity-10 text-body-secondary border') if mine else 'text-body-secondary fw-normal' }} px-2 py-1" style="font-size: .75rem;"
+               onclick="editMyPrice('{{ ticker }}', '{{ currency_symbol }}', {{ mine.price if mine else 'null' }}, {{ 'true' if held_now else 'false' }}).then(ok => ok && location.reload()); return false;"
+               title="{{ ('Tu precio ' ~ ('para ampliar' if held_now else 'de compra') ~ ', fijado el ' ~ mine.set_at[8:10] ~ '/' ~ mine.set_at[5:7] ~ '/' ~ mine.set_at[2:4] ~ (' · pendiente de revisar' if mine.review_due else '') ~ '. Todos en Watchlist → Mi precio') if mine else 'Poner un precio ' ~ ('para ampliar' if held_now else 'de compra') ~ ': avisa al alcanzarlo' }}">
+                <i class="bi bi-pin-angle me-1"></i>{% if mine %}{{ 'Ampliar' if held_now else 'Mi precio' }} {{ num(mine.price, 2) }} {{ currency_symbol }} · {{ '✓ alcanzado' if mine.hit else ('−' ~ num(mine.drop, 1) ~ ' %' if mine.drop is not none else '–') }}{% if mine.review_due %} <i class="bi bi-clock-history text-warning"></i>{% endif %}{% else %}Mi precio{% endif %}</a>
         </span>
     </div>
     <div class="d-flex align-items-center gap-2">
         <select class="form-select form-select-sm w-auto" id="tierSelect" style="font-size: .75rem;" aria-label="Nivel"
-                title="Tier 1: la comprarías si llega a precio (todos los avisos). Tier 2: te gusta, sin prisa (aviso al entrar en zona). Tier 3: solo agenda y resultados. Las tres forman tu «seguimiento».">
+                title="Tier 1: objetivo, todos los avisos · Tier 2: vigilancia, aviso de zona · Tier 3: agenda y resultados">
             <option value="" {{ 'selected' if not tier.value }}>Sin nivel</option>
             <option value="1" {{ 'selected' if tier.value == '1' }}>Tier 1 · objetivo</option>
             <option value="2" {{ 'selected' if tier.value == '2' }}>Tier 2 · vigilancia</option>
             <option value="seg" {{ 'selected' if tier.value == 'seg' }}>Tier 3</option>
         </select>
+        <button class="btn btn-sm btn-outline-secondary text-nowrap" type="button" data-bs-toggle="offcanvas" data-bs-target="#diaryPanel" title="Tus notas sobre la empresa, tus operaciones con su porqué y lo de la tesis">
+            <i class="bi bi-journal-text me-1"></i>Diario <span class="badge rounded-pill text-bg-secondary {{ 'd-none' if not diary_count }}" id="diaryCount">{{ diary_count }}</span></button>
         <div class="dropdown">
             <button class="btn btn-sm btn-outline-secondary text-nowrap" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="manageBtn" title="Rol, estado, avisos, listas y borrar">
                 <i class="bi bi-three-dots me-1"></i>Gestionar{% if muted %} <i class="bi bi-bell-slash-fill text-warning ms-1" title="Silenciada"></i>{% endif %}</button>
@@ -107,4 +122,11 @@
             </div>
         </div>
     </div>
+</div>
+<div class="offcanvas offcanvas-end" tabindex="-1" id="diaryPanel" style="width: min(480px, 100vw);" aria-labelledby="diaryTitle">
+    <div class="offcanvas-header border-bottom py-2">
+        <h6 class="offcanvas-title fw-bold" id="diaryTitle"><i class="bi bi-journal-text me-1"></i>Diario · {{ clean_ticker(ticker) }}</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+    </div>
+    <div class="offcanvas-body" id="diaryBody"><div class="small text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Cargando…</div></div>
 </div>

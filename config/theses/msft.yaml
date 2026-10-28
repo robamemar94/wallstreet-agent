@@ -177,9 +177,9 @@ pillars:
     weight: 0
     description: "Indicadores auxiliares (11): no forman parte del dashboard principal."
     kpis:
-      - {key: share_count, name: Acciones en circulación YoY, unit: "%", direction: lower, green_threshold: 0, red_threshold: 0,
+      - {key: share_count, name: Acciones en circulación YoY, unit: "%", direction: lower, green_threshold: 0.5, red_threshold: 2,
          how_to_measure: "Acciones diluidas YoY (autocompletado)",
-         green_text: "Bajan", amber_text: "—", red_text: "Suben (dilución)",
+         green_text: "Planas o bajan (≤ +0,5%): sin dilución neta", amber_text: "+0,5% a +2%: dilución leve, vigilar", red_text: "> +2%: dilución material",
          frequency: Trimestral, source: yfinance, auto_metric: diluted_shares_yoy}
       - {key: sbc_revenue, name: SBC / revenue, kind: qualitative, unit: "%",
          how_to_measure: "Compensación en acciones / ingresos",

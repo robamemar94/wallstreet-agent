@@ -102,6 +102,15 @@
             </div>
         </div>
 
+        <!-- Copias de seguridad -->
+        <div class="card shadow-sm border-0 mb-4" id="backupCard">
+            <div class="card-header bg-white py-3 d-flex align-items-center">
+                <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-safe2 me-1"></i> Copias de seguridad</h5>
+                <button type="button" class="btn btn-sm btn-outline-primary ms-auto" id="backupRun"><i class="bi bi-download me-1"></i>Copiar ahora</button>
+            </div>
+            <div class="card-body small" id="backupBody"><span class="text-muted">Cargando…</span></div>
+        </div>
+
         <!-- Tarifas de Brokers y Comisiones -->
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-white py-3">
@@ -211,6 +220,33 @@
     </div>
 </div>
 
+<script>
+// Copias de seguridad: estado y «Copiar ahora»
+(function () {
+    const body = document.getElementById('backupBody'), btn = document.getElementById('backupRun');
+    if (!body) return;
+    const mb = b => (b / 1e6).toLocaleString('es-ES', {maximumFractionDigits: 1}) + ' MB';
+    const when = iso => { const d = new Date(iso); return d.toLocaleDateString('es-ES', {day: '2-digit', month: '2-digit'}) + ' ' + d.toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'}); };
+    async function load() {
+        const s = await fetch('/api/backup/status').then(r => r.json()).catch(() => null);
+        if (!s) { body.innerHTML = '<span class="text-danger">No se pudo leer el estado.</span>'; return; }
+        const last = s.last ? `${when(s.last.at)} · ${mb(s.last.bytes)}` : 'ninguna todavía';
+        const extra = s.extra_dir
+            ? `<div class="${s.extra_ok ? 'text-success' : 'text-danger'}"><i class="bi ${s.extra_ok ? 'bi-check-circle' : 'bi-exclamation-triangle'} me-1"></i>Duplicada en <code>${s.extra_dir}</code>${s.extra_ok ? '' : ' (no se encuentra: ¿disco desconectado?)'}</div>`
+            : '<div class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Solo en este disco. Define <code>BACKUP_EXTRA_DIR</code> en <code>.env</code> (una carpeta sincronizada o un disco externo) para sobrevivir a un fallo del disco.</div>';
+        body.innerHTML = `<div>Última copia: <b class="${s.stale ? 'text-danger' : ''}">${last}</b> · ${s.count} guardadas en <code>${s.dir}</code></div>${extra}
+            <div class="text-muted mt-1">BBDD, tesis, CSV de operaciones y ajustes. Una al día, sola (se guardan las 14 últimas y la de cada mes del último año). Recuperar: <code>uv run python scripts/maintenance/backup.py restore &lt;archivo&gt;</code></div>`;
+    }
+    btn.addEventListener('click', async () => {
+        btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Copiando…';
+        const r = await fetch('/api/backup/run', {method: 'POST'}).catch(() => null);
+        btn.disabled = false; btn.innerHTML = '<i class="bi bi-download me-1"></i>Copiar ahora';
+        if (window.showToast) showToast('Copias de seguridad', r && r.ok ? 'Copia hecha' : 'No se pudo hacer la copia', r && r.ok ? 'success' : 'danger');
+        load();
+    });
+    load();
+})();
+</script>
 <script>
     // Cargar las normas existentes de forma segura como objeto JS
     let rulesList = {{ settings.get('custom_evaluation_rules', []) | tojson }};

@@ -39,15 +39,31 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/roboadvisor') %} active{% endif %}" href="/roboadvisor" title="Roboadvisor de MyInvestor: valor, aportaciones y rentabilidad">
+                        <i class="bi bi-robot"></i>
+                        <span>Robo</span>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link {% if _path.startswith('/ideal-portfolio') %} active{% endif %}" href="/ideal-portfolio" title="Portfolio ideal: reparto por roles (Core, Growth, Quality, Optionality)">
                         <i class="bi bi-award"></i>
                         <span>Ideal</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if _path.startswith('/diario') %} active{% endif %}" href="/diario" title="Diario: tus notas de cada empresa y el porqué de tus operaciones">
+                        <i class="bi bi-journal-text"></i>
+                        <span>Diario</span>
+                    </a>
+                </li>
                 <li class="nav-group-title" aria-hidden="true">Análisis</li>
                 <li class="nav-item">
-                    <a class="nav-link {% if _path.startswith('/database') or _path.startswith('/comparar') %} active{% endif %}" href="/database" title="Base de datos y comparador">
-                        <i class="bi bi-database"></i>
+                    {% set n_ready = ready_to_accept_count() %}
+                    <a class="nav-link {% if _path.startswith('/database') or _path.startswith('/comparar') %} active{% endif %}" href="/database{{ '?pestana=ready' if n_ready }}" title="{{ 'Base de datos: ' ~ n_ready ~ ' analizadas por aceptar' if n_ready else 'Base de datos y comparador' }}">
+                        <span class="nav-icon-wrap position-relative d-inline-block">
+                            <i class="bi bi-database"></i>
+                            {% if n_ready %}<span class="sidebar-notif-badge muted">{{ n_ready }}</span>{% endif %}
+                        </span>
                         <span>BBDD</span>
                     </a>
                 </li>
@@ -59,15 +75,16 @@
                 </li>
             </ul>
 
-            <div class="mt-auto mb-3 w-100 d-flex flex-column align-items-center gap-3">
+            {# modo noche, uso de IA y ajustes en una sola fila: en columna obligaban a hacer scroll en el menú #}
+            <div class="mt-auto mb-2 pt-2 w-100 d-flex justify-content-center gap-2 border-top">
                 <button onclick="toggleDarkMode()" class="btn btn-link p-0 text-muted border-0" title="Modo Oscuro/Claro">
-                    <i class="bi {% if settings and settings.ui.dark_mode %}bi-sun-fill{% else %}bi-moon-stars-fill{% endif %}" style="font-size:1.3rem;"></i>
+                    <i class="bi {% if settings and settings.ui.dark_mode %}bi-sun-fill{% else %}bi-moon-stars-fill{% endif %}" style="font-size:1.1rem;"></i>
                 </button>
                 <a href="/ia" class="btn btn-link p-0 border-0 {{ 'text-primary' if _path.startswith('/ia') else 'text-muted' }}" title="Uso de IA: costes y presupuesto">
-                    <i class="bi bi-cpu" style="font-size:1.3rem;"></i>
+                    <i class="bi bi-cpu" style="font-size:1.1rem;"></i>
                 </a>
                 <a href="/settings" class="btn btn-link p-0 border-0 {{ 'text-primary' if _path.startswith('/settings') else 'text-muted' }}" title="Configuración">
-                    <i class="bi bi-gear-fill" style="font-size:1.3rem;"></i>
+                    <i class="bi bi-gear-fill" style="font-size:1.1rem;"></i>
                 </a>
             </div>
         </div>

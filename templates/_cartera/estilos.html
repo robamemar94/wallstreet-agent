@@ -10,31 +10,25 @@
     .table-modern a.cagr-amber, .table-modern a.cagr-amber:hover { color: #e3b341 !important; }
     .table-modern a.cagr-orange, .table-modern a.cagr-orange:hover { color: #f0883e !important; }
     .table-modern a.cagr-red, .table-modern a.cagr-red:hover { color: var(--fin-red) !important; }
-    /* Contable y Seguimiento: mismo ancho en las columnas comunes (Activo, Empresa, Último, Var. %, Var. €) */
     #activeTable, .tbl-pt { table-layout: fixed; width: 100%; }
     #activeTable td, .tbl-pt td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #activeTable th:nth-child(1), .tbl-pt th:nth-child(1) { width: 6%; }
-    #activeTable th:nth-child(2), .tbl-pt th:nth-child(2) { width: 14%; }
-    #activeTable th:nth-child(2) { width: 10%; }
-    #activeTable th:nth-child(3), .tbl-pt th:nth-child(3) { width: 10%; }
-    #activeTable th:nth-child(4), .tbl-pt th:nth-child(4) { width: 9%; }
-    #activeTable th:nth-child(5), .tbl-pt th:nth-child(5) { width: 9%; }
     #activeTable th, .tbl-pt th { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #activeTable th:nth-child(3) { width: 9%; }
-    #activeTable th:nth-child(4) { width: 9%; }   /* cabe la píldora y, al lado, el icono del pre/post-market */
-    #activeTable th:nth-child(6) { width: 6%; }
-    #activeTable th:nth-child(7) { width: 9%; }
-    #activeTable th:nth-child(8) { width: 9%; }   /* Invertido */
-    #activeTable th:nth-child(9) { width: 10%; }  /* Valor mercado */
-    #activeTable th:nth-child(10) { width: 8%; }  /* Peso */
-    .tbl-pt th:nth-child(6), .tbl-pt th:nth-child(9) { width: 7%; }
-    .tbl-pt th:nth-child(7) { width: 7%; }
-    .tbl-pt th:nth-child(8) { width: 8%; }
-    .tbl-pt th:nth-child(10) { width: 10%; }
+    /* Contable, 11 columnas (suman el 100 %): Activo · Último · Hoy % · Hoy € · Títulos · P. medio · Invertido · Valor · Peso ·
+       P&L € · P&L %. Una línea por celda: lo secundario va en el globo */
+    #activeTable th:nth-child(1) { width: 14%; } #activeTable th:nth-child(2) { width: 9%; }  #activeTable th:nth-child(3) { width: 8%; }
+    #activeTable th:nth-child(4) { width: 9%; }  #activeTable th:nth-child(5) { width: 7%; }  #activeTable th:nth-child(6) { width: 9%; }
+    #activeTable th:nth-child(7) { width: 10%; } #activeTable th:nth-child(8) { width: 10%; } #activeTable th:nth-child(9) { width: 6%; }
+    #activeTable th:nth-child(10) { width: 10%; } #activeTable th:nth-child(11) { width: 8%; }
+    /* Seguimiento, 13 columnas (suman el 100 %): Activo · Empresa · Último · Var. % · Contrib. · Máx. 52s · Máx. hist. · PER fwd ·
+       CAGR est. · Ampliar · Prev. 90 d · Resultados · Tesis. Son por posición: al añadir o quitar una columna, rehacer el reparto */
+    .tbl-pt th:nth-child(1) { width: 6%; } .tbl-pt th:nth-child(2) { width: 9%; }   .tbl-pt th:nth-child(3) { width: 8.5%; }
+    .tbl-pt th:nth-child(4) { width: 8%; }   .tbl-pt th:nth-child(5) { width: 7%; }   .tbl-pt th:nth-child(6) { width: 7.5%; }
+    .tbl-pt th:nth-child(7) { width: 8%; }   .tbl-pt th:nth-child(8) { width: 7%; }   .tbl-pt th:nth-child(9) { width: 7.5%; }
+    .tbl-pt th:nth-child(10) { width: 7.5%; } .tbl-pt th:nth-child(11) { width: 7.5%; } .tbl-pt th:nth-child(12) { width: 8.5%; }
+    .tbl-pt th:nth-child(13) { width: 8%; }
     /* Último: precio y, debajo y en pequeño, su movimiento en su moneda */
     .price-main { font-weight: 600; line-height: 1.15; }
     .price-move { font-size: .72rem; line-height: 1.1; }
-    #activeTable th:last-child { width: 48px; }
     .pos-toolbar .btn { font-size: .75rem; }
     .pf-navbar { border-bottom: var(--bs-border-width) solid var(--bs-border-color); }
     .pf-navbar .nav-tabs .nav-link { margin-bottom: -1px; }
@@ -45,37 +39,62 @@
     #cashModal .cash-parts { display: grid; grid-template-columns: 1fr auto; gap: .15rem 1rem; font-size: .82rem; }
     #cashModal .cash-recent { max-height: 220px; overflow-y: auto; font-size: .8rem; }
     /* Resumen: dos filas de tarjetas y la franja de atención; el alto lo ajusta fitResumen() a la ventana */
-    .res-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: .6rem; }
+    .res-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: .5rem; }
     .res-h a { text-transform: none; letter-spacing: 0; font-weight: 600; }
-    .res-grid .res-value { grid-column: span 2; } .res-grid .res-bench { grid-column: span 4; }
-    .res-grid > .res-card:nth-child(n+3) { grid-column: span 2; }
-    .res-card { background: var(--fin-card-bg); border-radius: .5rem; padding: .55rem .9rem; min-width: 0; display: flex; flex-direction: column; }
+    .res-grid > * { grid-column: span 2; } .res-grid > .res-main { grid-column: span 4; } 
+    .res-stack { display: flex; flex-direction: column; gap: .5rem; min-width: 0; } .res-stack > .res-card { flex: 1 1 auto; } .res-stack > .res-quality { flex: 0 0 auto; }   /* el alto que sobra se reparte entre las tarjetas de la columna */
+    .res-tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: .5rem; flex: 1 1 auto; align-content: center; }
+    .res-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .1rem; padding: .3rem .2rem; border-radius: .4rem; background: rgba(128,128,128,.07); }
+    .res-tile-v { font-size: 1.15rem; line-height: 1.1; } .res-tile-l { font-size: .62rem; text-transform: uppercase; letter-spacing: .03em; color: var(--bs-secondary-color); font-weight: 600; text-align: center; }
+    .res-line { font-size: .8rem; padding: .05rem 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .res-grid > .res-kpis { grid-column: 1 / -1; display: flex; background: var(--fin-card-bg); border-radius: .5rem; padding: .4rem 0; }
+    .res-kpi { flex: 1 1 0; min-width: 0; padding: 0 1rem; border-left: 1px solid var(--bs-border-color); display: flex; flex-direction: column; }
+    .res-kpi:first-child { border-left: 0; flex-grow: 1.3; }
+    .res-kpi-l { font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); }
+    .res-kpi-row { display: flex; align-items: baseline; gap: .5rem; white-space: nowrap; overflow: hidden; }
+    .res-kpi-v { font-size: 1.3rem; font-weight: 700; line-height: 1.25; } .res-kpi-main .res-kpi-v { font-size: 1.6rem; }
+    .res-kpi-s { font-size: .74rem; overflow: hidden; text-overflow: ellipsis; }
+    .res-mv { display: grid; grid-template-columns: 3.4rem 1fr 3.7rem; align-items: center; gap: .45rem; font-size: .8rem; padding: .1rem 0; }
+    .res-mv > .num-font { text-align: right; }
+    .res-mv-bar { height: .38rem; background: rgba(128,128,128,.13); border-radius: .2rem; overflow: hidden; } .res-mv-fill { display: block; height: 100%; border-radius: .2rem; min-width: 2px; } .res-mv-fill.up { background: var(--bs-success); } .res-mv-fill.down { background: var(--bs-danger); }
+    .res-periods { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .35rem; }
+    .res-per { display: flex; align-items: baseline; gap: .4rem; padding: .12rem .6rem; font-size: .78rem; color: inherit; background: transparent;
+               border: 1px solid var(--bs-border-color); border-radius: .35rem; cursor: pointer; }
+    .res-per:hover { background: rgba(128,128,128,.12); } .res-per.active { border-color: #3b82f6; background: rgba(59,130,246,.14); }
+    .res-card { background: var(--fin-card-bg); border-radius: .5rem; padding: .45rem .9rem; min-width: 0; display: flex; flex-direction: column; }
     .res-h { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); margin-bottom: .3rem; }
     .res-big { font-size: 1.45rem; font-weight: 700; }
-    .res-kv { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem; font-size: .82rem; }
+    .res-kv { display: grid; grid-template-columns: auto 1fr; gap: .15rem .75rem; font-size: .82rem; }
     .res-kv span { color: var(--bs-secondary-color); } .res-kv b { text-align: right; }
-    .res-row { display: flex; justify-content: space-between; gap: .5rem; font-size: .8rem; padding: .12rem 0; }
+    .res-row { display: flex; justify-content: space-between; gap: .5rem; font-size: .8rem; padding: .07rem 0; }
+    .res-cols { display: grid; grid-template-columns: 1fr 1fr; column-gap: 1.2rem; }
+    .res-sub { font-size: .66rem; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: var(--bs-secondary-color); margin-bottom: .1rem; }
     .res-table { font-size: .82rem; width: auto; --bs-table-bg: transparent; } .res-table td, .res-table th { padding: .3rem .5rem; }
-    #resChart { min-height: 130px; } .res-table th { font-size: .66rem; color: var(--bs-secondary-color); font-weight: 600; }
+    #resChart { flex: 1 1 0; min-height: clamp(220px, 39vh, 460px); }   /* llena la tarjeta, que se estira con la columna de al lado */
     .res-att-items { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .res-attention { display: flex; align-items: center; flex-wrap: nowrap; margin-bottom: .6rem; padding: .4rem 1rem; border-radius: .5rem;
                      background: var(--fin-card-bg); border-left: 3px solid var(--bs-warning); color: var(--bs-body-color); font-size: .85rem; }
     .res-attention:hover { filter: brightness(1.15); }
-    @media (max-width: 992px) { .res-grid { grid-template-columns: 1fr; } .res-grid > .res-card { grid-column: auto !important; } }
+    @media (max-width: 992px) { .res-grid > .res-kpis { flex-wrap: wrap; row-gap: .4rem; } .res-kpi { flex-basis: 50%; } .res-tiles { grid-template-columns: repeat(2, 1fr); } .res-grid { grid-template-columns: 1fr; } .res-grid > * { grid-column: auto !important; } }
     /* filas más bajas para que quepan más posiciones (el estilo común pone 10 px arriba y abajo) */
     #activeTable tbody td, .tbl-pt tbody td { padding-top: .25rem; padding-bottom: .25rem; }
     #activeTable thead th, .tbl-pt thead th { padding-top: .4rem; padding-bottom: .4rem; }
     /* Fundamentales: cifras de las fichas y secciones del desglose */
+    /* umbrales en el globo de cada columna: el globo es negro en modo claro y blanco en oscuro */
+    .tooltip .tip-good { color: #4ade80; font-weight: 600; } .tooltip .tip-bad { color: #f87171; font-weight: 600; }
+    [data-bs-theme="dark"] .tooltip .tip-good { color: #15803d; } [data-bs-theme="dark"] .tooltip .tip-bad { color: #b91c1c; }
     .fund-big { font-size: 1.05rem !important; } .fund-small { font-size: .88rem !important; }
     #fundamentalsTable .fund-sep { border-left: 1px solid var(--bs-border-color); }
     #fundamentalsTable .fund-groups th { font-size: .62rem; text-transform: uppercase; letter-spacing: .06em; color: var(--bs-secondary-color); font-weight: 600; padding: .35rem .5rem .1rem; border-bottom: 0; }
     /* Rendimiento: todo en una pantalla */
-    .perf-kpis { display: flex; flex-wrap: wrap; gap: .3rem; }
-    .perf-kpi { display: flex; align-items: center; gap: .3rem; background: var(--bs-secondary-bg); border-radius: 6px; padding: .2rem .5rem; font-size: .78rem; }
-    .perf-kpi .lbl { color: var(--bs-secondary-color); font-size: .64rem; text-transform: uppercase; letter-spacing: .02em; }
+    /* una fila de baldosas: rótulo arriba, cifra grande debajo y el detalle en pequeño */
+    .perf-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: .4rem; }
+    #custom-legend .custom-legend-item { padding: .1rem .5rem !important; font-size: .7rem !important; }
+    .perf-kpi { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; background: var(--bs-secondary-bg); border-radius: 8px; padding: .35rem .6rem; font-size: 1.1rem; font-weight: 700; line-height: 1.25; }
+    .perf-kpi .lbl { color: var(--bs-secondary-color); font-size: .64rem; font-weight: 400; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
     .perf-kpi .lbl small, .perf-kpi .lbl span { font-size: .62rem; }
-    .perf-kpi .sub { color: var(--bs-secondary-color); font-size: .58rem; line-height: 1.1; }
-    .perf-kpi .fs-4, .perf-kpi .fs-6 { font-size: .95rem !important; }
+    .perf-kpi .sub { color: var(--bs-secondary-color); font-size: .64rem; font-weight: 400; line-height: 1.2; }
+    .perf-kpi .fs-4, .perf-kpi .fs-6 { font-size: 1.1rem !important; }
     #perfTableCard { display: flex; flex-direction: column; }
     #perfTableCard .perf-table-body { overflow-y: auto; flex: 1; min-height: 0; }
     #perfTableCard table { font-size: .78rem !important; }

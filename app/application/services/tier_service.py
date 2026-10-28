@@ -75,6 +75,23 @@ def set_tier(db, ticker: str, tier: Optional[str]) -> Dict[str, Any]:
     return {"tier": tier, "tier1_count": n1, "warning": warning}
 
 
+RULES_KEYS = [f"rules_pilar{i}" for i in range(1, 6)]
+
+
+def ready_to_accept(is_favorite: bool, data: Optional[Dict[str, Any]]) -> bool:
+    """Analizada y sin decidir: tiene el veredicto y las cinco normas de calidad, y sigue pendiente (ni aceptada, ni en
+    dudas, ni descartada, ni Tier 1). Toca aceptarla y darle nivel (pestaña «Por aceptar» de la Base de datos)."""
+    d = data or {}
+    return (not is_favorite and d.get("status") in (None, "", "None", "PENDING") and bool(d.get("verdict"))
+            and all(d.get(k) for k in RULES_KEYS))
+
+
+def ready_to_accept_count(db) -> int:
+    from app.application.services.notification_service import held_tickers
+    held = held_tickers(db)
+    return sum(1 for a in db.query(DBAsset).all() if a.ticker not in held and ready_to_accept(a.is_favorite, a.data))
+
+
 # --- Temas ---------------------------------------------------------------------------------------------------------
 
 def targets(db) -> Dict[str, Dict[str, Any]]:

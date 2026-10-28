@@ -1,19 +1,53 @@
 {# «Directivos» y «Acciones»: las dos últimas líneas de Señales en el Resumen de la ficha (datos de mercado, no del
-   análisis de IA). Lo pide ticker.html a /ticker/{t}/directivos. El saldo de compras frente a ventas de los directivos en
-   12 meses; las acciones en circulación a 1, 3 y 5 años (recompra o dilución) con su gráfico; la lista completa, en una
-   ventana. Solo compras y ventas en bolsa. Sin IA (yfinance, caché de 24 h). #}
-{% set sh = shares %}
+   análisis de IA). Lo pide ticker.html a /ticker/{t}/directivos. Directivos: la lectura de insider_service.analyze — lo de
+   los últimos 3 meses manda (precio medio frente a hoy, parte de la empresa, parte de lo suyo, ventas periódicas) y la
+   ventana lo da por directivo, por mes y operación a operación. Acciones en circulación a 1, 3 y 5 años. Sin IA. #}
+{% set sh = shares %}{% set r = read %}
 {% macro money(v) %}{% if v is none %}–{% elif v|abs >= 1e6 %}{{ num(v / 1e6, 1) }} M{% elif v|abs >= 1e3 %}{{ num(v / 1e3, 0) }} mil{% else %}{{ num(v, 0) }}{% endif %}{% endmacro %}
-{% set total = buys.value + sells.value %}
-{# directivos: verde si compran (o hay compras recientes); ámbar si solo venden (suelen ser ventas planificadas) #}
-{% set dt = 'none' if not available or not total else ('good' if net > 0 or signal else 'mid') %}
-{% if trades %}<a href="#" data-bs-toggle="modal" data-bs-target="#insModal" class="sig-row" data-tone="{{ dt }}"{% else %}<div class="sig-row" data-tone="{{ dt }}"{% endif %}
-    title="Compras y ventas en bolsa de los directivos, 12 meses (sin acciones de sueldo, regalos ni opciones). Las compras son la señal: el directivo pone su dinero; las ventas suelen ser planificadas o para pagar impuestos. Yahoo solo da directivos de EE. UU. y Canadá.{{ ' Pulsa para ver las ' ~ trades|length ~ ' operaciones.' if trades }}">
+{% macro px(v) %}{{ num(v, 2) }}{{ ' ' ~ cur if cur }}{% endmacro %}
+{% macro vs(p, kind) %}{% if p is not none %}<span class="{{ 'text-success' if kind == 'buy' and p > 0 else ('text-warning' if kind == 'sell' and p <= -10 else 'text-muted') }}">{{ num(p, 0, sign=True) }} %</span>{% endif %}{% endmacro %}
+{% macro company_pct(v) %}{% if v is not none %}{{ '<0,01' if v < 0.01 else num(v, 2) }} % de la empresa{% endif %}{% endmacro %}
+{% macro plural(n, one, many) %}{{ n }} {{ one if n == 1 else many }}{% endmacro %}
+{# La frase de la conclusión (la misma en la línea y arriba de la ventana) #}
+{% macro reading(r) %}{% set b, sl = r.buys, r.sells %}
+{%- if r.verdict == 'compran' -%}
+    <span class="text-success fw-bold">{{ plural(b.insiders|length, 'compra', 'compran') }}</span> {{ money(b.value) }}{% if b.avg %} a ~{{ px(b.avg) }}{% endif %}{% if b.vs_now is not none %} · hoy {{ px(r.price_now) }} ({{ vs(b.vs_now, 'buy') }}){% endif %}{% if r.senior_buyers %} · incluye al {{ r.senior_buyers|unique|join(' y al ') }}{% endif %}{% if sl.count %} · venden {{ money(sl.value) }}{% endif %}
+{%- elif r.verdict == 'vigilar' -%}{% set w = r.watch[0] %}
+    <span class="fw-bold">{{ w.role }} {{ w.name }}</span> vende el <b>{{ num(w.stake_sold_pct, 0) }} %</b> de lo suyo{% if w.sell_avg %} a ~{{ px(w.sell_avg) }}{% endif %}{% if w.sell_avg and r.price_now %} · hoy {{ px(r.price_now) }} ({{ vs(100 * (r.price_now / w.sell_avg - 1), 'sell') }}){% endif %} · sin patrón de plan{% if r.watch|length > 1 %} · y {{ r.watch|length - 1 }} más{% endif %}
+{%- elif r.verdict in ('rutina', 'venden') -%}
+    {{ plural(sl.insiders|length, 'vende', 'venden') }} {{ money(sl.value) }}{% if sl.avg %} a ~{{ px(sl.avg) }}{% endif %}{% if sl.vs_now is not none %} · hoy {{ px(r.price_now) }} ({{ vs(sl.vs_now, 'sell') }}){% endif %}{% if sl.pct_company is not none %} · {{ company_pct(sl.pct_company) }}{% endif %}
+    {%- set rut = (r.plan_share or 0) + (r.comp_share or 0) %}{% if rut >= 0.5 %} · {{ num(100 * rut, 0) }} % {{ 'periódicas' if (r.plan_share or 0) >= (r.comp_share or 0) else 'de lo que cobran en acciones' }}{% elif r.top_seller and r.top_share and r.top_share >= 0.6 %} · sobre todo {{ r.top_seller.role }}{% if r.top_seller.stake_sold_pct is not none %} ({{ num(r.top_seller.stake_sold_pct, 1) }} % de lo suyo){% endif %}{% endif %}
+{%- elif r.verdict == 'quietos_reciente' -%}{% set yb, ys = r.year_buys, r.year_sells %}
+    nada en {{ r.recent_days // 30 }} meses · en 12: {% if yb.count %}{{ plural(yb.insiders|length, 'compra', 'compran') }} {{ money(yb.value) }}{% endif %}{% if yb.count and ys.count %} · {% endif %}{% if ys.count %}{{ plural(ys.insiders|length, 'vende', 'venden') }} {{ money(ys.value) }}{% endif %}
+{%- else -%}sin compras ni ventas en 12 meses{%- endif %}
+{% endmacro %}
+{# Versión corta para la fila de Señales (cabe en una línea): lo esencial primero; el nombre, la parte de la empresa y el resto, en el globo y en la ventana #}
+{% macro reading_short(r) %}{% set b, sl = r.buys, r.sells %}
+{%- if r.verdict == 'compran' -%}
+    <span class="text-success fw-bold">{{ b.insiders|length }} {{ 'compra' if b.insiders|length == 1 else 'compran' }}</span> {{ money(b.value) }}{% if b.avg %} · ~{{ px(b.avg) }}{% if b.vs_now is not none %} ({{ vs(b.vs_now, 'buy') }}){% endif %}{% endif %}{% if r.senior_buyers %} · {{ r.senior_buyers|unique|join(' y ') }}{% endif %}
+{%- elif r.verdict == 'vigilar' -%}{% set w = r.watch[0] %}
+    <span class="fw-bold">{{ w.role }}</span> vende el <b>{{ num(w.stake_sold_pct, 0) }} %</b> de lo suyo{% if w.sell_avg %} · ~{{ px(w.sell_avg) }}{% if r.price_now %} ({{ vs(100 * (r.price_now / w.sell_avg - 1), 'sell') }}){% endif %}{% endif %}{% if r.watch|length > 1 %} · +{{ r.watch|length - 1 }}{% endif %}
+{%- elif r.verdict in ('rutina', 'venden') -%}
+    {{ sl.insiders|length }} {{ 'vende' if sl.insiders|length == 1 else 'venden' }} {{ money(sl.value) }}{% if sl.avg %} · ~{{ px(sl.avg) }}{% if sl.vs_now is not none %} ({{ vs(sl.vs_now, 'sell') }}){% endif %}{% endif %}
+    {%- set rut = (r.plan_share or 0) + (r.comp_share or 0) %}{% if rut >= 0.5 %} · {{ 'periódicas' if (r.plan_share or 0) >= (r.comp_share or 0) else 'sueldo en acciones' }}{% endif %}
+{%- elif r.verdict == 'quietos_reciente' -%}{% set yb, ys = r.year_buys, r.year_sells %}
+    nada en {{ r.recent_days // 30 }} m · 12 m: {% if yb.count %}{{ yb.insiders|length }} {{ 'compra' if yb.insiders|length == 1 else 'compran' }} {{ money(yb.value) }}{% endif %}{% if yb.count and ys.count %} · {% endif %}{% if ys.count %}{{ ys.insiders|length }} {{ 'vende' if ys.insiders|length == 1 else 'venden' }} {{ money(ys.value) }}{% endif %}
+{%- else -%}sin compras ni ventas en 12 meses{%- endif %}
+{% endmacro %}
+{% set WORD = {'compran': 'Compran', 'vigilar': 'Ventas a vigilar', 'rutina': 'Ventas rutinarias', 'venden': 'Venden',
+               'quietos_reciente': 'Quietos', 'quietos': 'Quietos'} %}
+{# palabra corta para la columna de Señales (cabe en 6,2 rem); la frase entera, en el globo y en la ventana #}
+{% set SHORT = {'compran': 'Compran', 'vigilar': 'A vigilar', 'rutina': 'Rutina', 'venden': 'Venden',
+                'quietos_reciente': 'Quietos', 'quietos': 'Quietos'} %}
+{% set TONE = {'compran': 'good', 'vigilar': 'bad', 'rutina': 'none', 'venden': 'mid', 'quietos_reciente': 'none', 'quietos': 'none'} %}
+{% set has = r and r.trades %}
+{% if has %}<a href="#" data-bs-toggle="modal" data-bs-target="#insModal" class="sig-row" data-tone="{{ TONE[r.verdict] }}"{% else %}<div class="sig-row" data-tone="none"{% endif %}
+    title="Compras y ventas en bolsa de los directivos (sin acciones de sueldo, regalos ni opciones). Lo de los últimos {{ r.recent_days if r else 90 }} días, con su precio medio frente al de hoy. Ventas a vigilar: alguien vende el 25 % o más de lo que ya tenía, fuera de un plan y sin ser lo que cobra en acciones; rutinarias: sobre todo periódicas, lo que cobran en acciones o pequeñas. Yahoo solo da directivos de EE. UU. y Canadá.{{ ' Pulsa para verlo por directivo y operación.' if has }}">
     <span class="sig-dot"></span><span class="sig-name">Directivos</span>
-    <span class="sig-word">{% if not available %}Sin datos{% elif not total %}Quietos{% elif net > 0 %}Compran{% elif buys.value %}Venden más{% else %}Solo venden{% endif %}</span>
-    <span class="sig-detail">{% if not available %}Yahoo no los da para esta empresa{% elif not total %}sin compras ni ventas en 12 meses{% else %}{% if signal %}<span class="text-success fw-bold">{{ signal.insiders|length }} compra{{ 'n' if signal.insiders|length > 1 }} en {{ signal_days }} días</span> · {% endif %}{% if buys.insiders %}<span class="text-success">{{ buys.insiders }} compra{{ 'n' if buys.insiders > 1 }} {{ money(buys.value) }}</span>{% else %}nadie compra{% endif %} · {% if sells.insiders %}{{ sells.insiders }} vende{{ 'n' if sells.insiders > 1 }} {{ money(sells.value) }}{% else %}nadie vende{% endif %}{% endif %}</span>
-    {% if trades %}<i class="bi bi-chevron-right sig-go"></i>{% endif %}
-{% if trades %}</a>{% else %}</div>{% endif %}
+    <span class="sig-word"{% if r %} title="{{ WORD[r.verdict] }}"{% endif %}>{% if not available %}Sin datos{% elif not r %}Quietos{% else %}{{ SHORT[r.verdict] }}{% endif %}</span>
+    <span class="sig-detail sig-wrap"{% if r %} title="{{ reading(r)|striptags|trim|replace('\n', ' ') }}"{% endif %}>{% if not available %}Yahoo no los da para esta empresa{% elif not r %}sin compras ni ventas en 12 meses{% else %}{{ reading_short(r) }}{% endif %}</span>
+    {% if has %}<i class="bi bi-chevron-right sig-go"></i>{% endif %}
+{% if has %}</a>{% else %}</div>{% endif %}
 {# acciones en circulación: la conclusión y, a la vista, las tres ventanas (1, 3 y 5 años) y su evolución #}
 <div class="sig-row" data-tone="{{ 'good' if sh and sh.label == 'recompra' else 'bad' if sh and sh.label == 'diluye' else 'none' }}"
      title="Acciones en circulación (diluidas). Verde: hay menos (recompra); rojo: hay más (diluye). Tendencia de los últimos {{ sh.years if sh else 3 }} años{{ (': ' ~ num(sh.pct, 1, sign=True) ~ ' % al año') if sh }}. Fuente: {{ shares_source }}">
@@ -26,39 +60,96 @@
             <polyline points="{{ spark }}" fill="none" stroke="{{ 'var(--bs-success)' if sh and sh.label == 'recompra' else 'var(--bs-danger)' if sh and sh.label == 'diluye' else 'var(--bs-secondary-color)' }}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>{% endif %}
     </span>
 </div>
-{% if trades %}
+{% if has %}
+{% set mx = (r.months|map(attribute='buy')|list + r.months|map(attribute='sell')|list)|max or 1 %}
+{% set MES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'] %}
 <div class="modal fade" id="insModal" tabindex="-1" aria-labelledby="insModalTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header py-2">
-                <h6 class="modal-title fw-bold" id="insModalTitle"><i class="bi bi-person-badge me-1"></i>{{ ticker }} · compras y ventas en bolsa de los directivos · 12 meses</h6>
+                <h6 class="modal-title fw-bold" id="insModalTitle"><i class="bi bi-person-badge me-1"></i>{{ ticker }} · directivos · compras y ventas en bolsa</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
-            <div class="modal-body p-0">
-                <div class="d-flex flex-wrap gap-3 px-3 py-2 small border-bottom">
-                    <span>{% if buys.insiders %}<span class="text-success fw-bold">{{ buys.insiders }} compra{{ 'n' if buys.insiders > 1 }}</span> · {{ buys.count }} op. · {{ money(buys.value) }}{% else %}Nadie compra{% endif %}</span>
-                    <span>{% if sells.insiders %}{{ sells.insiders }} vende{{ 'n' if sells.insiders > 1 }} · {{ sells.count }} op. · {{ money(sells.value) }}{% else %}Nadie vende{% endif %}</span>
-                    <span class="ms-auto fw-bold {{ 'text-success' if net > 0 else 'text-danger' }}">Saldo {{ '+' if net > 0 }}{{ money(net) }}</span>
-                </div>
-                <table class="table table-sm mb-0 align-middle small">
-                    <thead class="sticky-top bg-body"><tr><th class="ps-3">Fecha</th><th>Directivo</th><th>Cargo</th><th>Operación</th><th class="text-end">Acciones</th><th class="text-end">Precio</th><th class="text-end pe-3">Importe</th></tr></thead>
+            <div class="modal-body small">
+                {# 1. La conclusión #}
+                <div class="mb-3"><span class="badge rounded-pill me-2 {{ {'good': 'bg-success', 'bad': 'bg-warning text-dark', 'mid': 'bg-secondary', 'none': 'bg-secondary'}[TONE[r.verdict]] }}">{{ WORD[r.verdict] }}</span>{{ reading(r) }}</div>
+
+                {# 2. Últimos 3 meses frente a 12 meses #}
+                <table class="table table-sm align-middle mb-3 ins-kpi">
+                    <thead><tr><th></th><th>Últimos {{ r.recent_days // 30 }} meses</th><th>12 meses</th></tr></thead>
                     <tbody>
-                    {% for t in trades %}
-                    <tr>
-                        <td class="ps-3 text-nowrap">{{ t.date[8:10] }}/{{ t.date[5:7] }}/{{ t.date[2:4] }}</td>
-                        <td class="text-truncate" style="max-width: 200px;" title="{{ t.insider }}">{{ t.insider }}</td>
-                        <td class="text-muted text-truncate" style="max-width: 200px;" title="{{ t.position }}">{{ t.position }}</td>
-                        <td>{% if t.kind == 'buy' %}<span class="text-success fw-bold">Compra</span>{% else %}<span class="text-muted">Venta</span>{% endif %}</td>
-                        <td class="text-end num-font">{{ num(t.shares, 0) }}</td>
-                        <td class="text-end num-font">{{ num(t.price, 2) if t.price else '–' }}</td>
-                        <td class="text-end num-font pe-3 {{ 'fw-bold text-success' if t.kind == 'buy' }}">{{ money(t.value) }}</td>
+                    {% for label, a, y, kind in [('Compras', r.buys, r.year_buys, 'buy'), ('Ventas', r.sells, r.year_sells, 'sell')] %}
+                    <tr><td class="fw-bold {{ 'text-success' if kind == 'buy' }}">{{ label }}</td>
+                        {% for w in (a, y) %}<td>{% if w.count %}{{ plural(w.insiders|length, 'directivo', 'directivos') }} · {{ plural(w.count, 'op.', 'op.') }} · <b>{{ money(w.value) }}</b>{% if w.avg %} · a ~{{ px(w.avg) }}{% endif %}{% if w.vs_now is not none %} (hoy {{ vs(w.vs_now, kind) }}){% endif %}{% if w.pct_company is not none %} · {{ company_pct(w.pct_company) }}{% endif %}{% else %}<span class="text-muted">ninguna</span>{% endif %}</td>{% endfor %}</tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+
+                {# 3. Mes a mes: compras hacia arriba (verde), ventas hacia abajo (gris) #}
+                <div class="ins-months mb-3" title="Importe de compras (arriba) y ventas (abajo) de cada mes">
+                    {% for m in r.months %}<div class="ins-m" title="{{ MES[m.key[5:7]|int - 1] }} {{ m.key[:4] }}: compras {{ money(m.buy) }} · ventas {{ money(m.sell) }}">
+                        <div class="ins-up"><span style="height: {{ 100 * m.buy / mx }}%"></span></div>
+                        <div class="ins-down"><span style="height: {{ 100 * m.sell / mx }}%"></span></div>
+                        <div class="ins-lbl">{{ MES[m.key[5:7]|int - 1] }}</div></div>{% endfor %}
+                </div>
+
+                {# 4. Por directivo #}
+                <table class="table table-sm align-middle mb-2">
+                    <thead class="bg-body"><tr><th>Directivo</th><th>Cargo</th><th class="text-end">Op.</th><th class="text-end">Compras</th><th class="text-end">Ventas</th>
+                        <th class="text-end" title="Precio medio de sus ventas (o compras) frente al de hoy">Precio medio</th>
+                        <th class="text-end" title="Lo que ha vendido en 12 meses frente a lo que tenía al empezar (participación de Yahoo)">De lo suyo</th>
+                        <th title="Periódicas: 3 o más ventas de tamaño parecido o a intervalos regulares (plan programado). Lo que cobra: vende más o menos lo que recibe en acciones como sueldo. Puntual: ni lo uno ni lo otro">Patrón</th><th class="text-end">Última</th></tr></thead>
+                    <tbody>
+                    {% for p in r.people %}
+                    <tr class="{{ 'table-warning' if p in r.watch }}">
+                        <td class="text-truncate" style="max-width: 190px;" title="{{ p.name }}">{{ p.name }}</td>
+                        <td class="{{ 'fw-bold' if p.senior else 'text-muted' }}">{{ p.role }}</td>
+                        <td class="text-end num-font">{{ p.ops }}</td>
+                        <td class="text-end num-font {{ 'text-success fw-bold' if p.bought_value }}">{{ money(p.bought_value) if p.bought_value else '–' }}</td>
+                        <td class="text-end num-font">{{ money(p.sold_value) if p.sold_value else '–' }}</td>
+                        <td class="text-end num-font text-nowrap">{% set avg = p.sell_avg if p.sold_value >= p.bought_value else p.buy_avg %}{% if avg %}{{ px(avg) }}{% if r.price_now %} {{ vs(100 * (r.price_now / avg - 1), 'sell' if p.sold_value >= p.bought_value else 'buy') }}{% endif %}{% else %}–{% endif %}</td>
+                        <td class="text-end num-font {{ 'fw-bold text-warning' if p.stake_sold_pct and p.stake_sold_pct >= 25 }}">{{ (num(p.stake_sold_pct, 1) ~ ' %') if p.stake_sold_pct is not none else '–' }}</td>
+                        <td>{% if p.plan %}<span class="badge bg-secondary bg-opacity-25 text-body fw-normal">periódicas</span>{% elif p.comp %}<span class="badge bg-secondary bg-opacity-25 text-body fw-normal" title="Vende más o menos lo que ha recibido en acciones como sueldo en el año ({{ num(p.received, 0) }} acciones)">lo que cobra</span>{% elif p.sold_value %}<span class="text-muted">puntual</span>{% endif %}</td>
+                        <td class="text-end text-nowrap">{{ p.last[8:10] }}/{{ p.last[5:7] }}</td>
                     </tr>
                     {% endfor %}
                     </tbody>
                 </table>
+
+                {# 5. Operación a operación #}
+                <details>
+                    <summary class="text-primary" style="cursor: pointer;">Ver las {{ r.trades|length }} operaciones</summary>
+                    <table class="table table-sm mb-0 align-middle mt-2">
+                        <thead class="bg-body"><tr><th>Fecha</th><th>Directivo</th><th>Operación</th><th class="text-end">Acciones</th><th class="text-end">Precio</th><th class="text-end">Hoy</th><th class="text-end">Importe</th></tr></thead>
+                        <tbody>
+                        {% for t in r.trades %}
+                        <tr>
+                            <td class="text-nowrap">{{ t.date[8:10] }}/{{ t.date[5:7] }}/{{ t.date[2:4] }}</td>
+                            <td class="text-truncate" style="max-width: 200px;" title="{{ t.insider }} · {{ t.position }}">{{ t.insider }}</td>
+                            <td>{% if t.kind == 'buy' %}<span class="text-success fw-bold">Compra</span>{% else %}<span class="text-muted">Venta</span>{% endif %}{{ ' (indirecta)' if t.own == 'I' }}</td>
+                            <td class="text-end num-font">{{ num(t.shares, 0) }}</td>
+                            <td class="text-end num-font">{{ num(t.price, 2) if t.price else '–' }}</td>
+                            <td class="text-end num-font">{% if t.price and r.price_now %}{{ vs(100 * (r.price_now / t.price - 1), t.kind) }}{% endif %}</td>
+                            <td class="text-end num-font {{ 'fw-bold text-success' if t.kind == 'buy' }}">{{ money(t.value) }}</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </details>
             </div>
-            <div class="modal-footer py-1 small text-muted justify-content-start">Solo compras y ventas en bolsa (sin acciones de sueldo, regalos ni ejercicio de opciones). Importes en la moneda del registro (USD o CAD).</div>
+            <div class="modal-footer py-1 small text-muted justify-content-start">Solo compras y ventas en bolsa (sin acciones de sueldo, regalos ni ejercicio de opciones). Precios y acciones ajustados por splits. {{ 'Importes en dólares.' if cur else 'Importes en la moneda del registro (USD o CAD): sin comparar con el precio de hoy.' }} «Periódicas» se deduce del patrón: Yahoo no marca los planes.</div>
         </div>
     </div>
 </div>
+<style>
+    #insModal .ins-kpi th, #insModal .ins-kpi td { font-size: .8rem; }
+    #insModal .ins-months { display: grid; grid-template-columns: repeat(12, 1fr); gap: .35rem; height: 110px; }
+    #insModal .ins-m { display: grid; grid-template-rows: 1fr 1fr auto; min-width: 0; }
+    #insModal .ins-up { display: flex; align-items: flex-end; border-bottom: 1px solid var(--bs-border-color); }
+    #insModal .ins-down { display: flex; align-items: flex-start; }
+    #insModal .ins-up span, #insModal .ins-down span { display: block; width: 100%; min-height: 0; border-radius: 2px; }
+    #insModal .ins-up span { background: var(--bs-success); }
+    #insModal .ins-down span { background: var(--bs-secondary-color); opacity: .55; }
+    #insModal .ins-lbl { font-size: .62rem; text-align: center; color: var(--bs-secondary-color); }
+</style>
 {% endif %}

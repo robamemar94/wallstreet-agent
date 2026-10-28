@@ -3,24 +3,30 @@
    (resultados). En la semana, cada día es una línea (recortada si no cabe; entera al pasar el ratón); en 30 días, una línea
    por semana con «+N más» (al pasar el ratón, todas). En «Esta semana», lo ya pasado desde el lunes va resumido y apagado
    junto al título de cada bloque (done_line). #}
-{% from "_agenda.html" import day_label %}
-{% macro tickers(items) %}{% for i in items %}{{ clean_ticker(i.ticker) }}{{ ', ' if not loop.last }}{% endfor %}{% endmacro %}
+{% from "_agenda.html" import day_label, kind_icon %}
+{# formato por nivel: tu cartera en negrita azul; de lo que sigues, el Tier 1 en seminegrita y el resto (Tier 2, Tier 3,
+   watchlist y con tesis), igual, en gris #}
+{% macro tk_cls(i) %}{{ 'fw-bold' if i.held else ('fw-semibold text-body' if i.tier == 'T1' else 'text-body-secondary') }}{% endmacro %}
+{# lo de cada empresa, en su globo (y en el «+N» de las que no caben): el nombre y la hora; el resto ya lo dicen los iconos #}
+{% macro tk_info(i) -%}
+{{ i.name or clean_ticker(i.ticker) }}{% if i.kind == 'results' %}{{ ' · ' ~ i.time.madrid if i.time and i.time.madrid }}{% else %} · ≈{{ num(i.gross_eur, 0) }} €{{ ' (estimado)' if i.estimated }}{% endif %}
+{%- endmacro %}
 {% macro by_day(items, divs=[]) %}
     {% set days = (items|map(attribute='date')|list + divs|map(attribute='date')|list)|unique|sort %}
     {% for d in days %}{% set res = items|selectattr('date', 'equalto', d)|list %}{% set dv = divs|selectattr('date', 'equalto', d)|list %}
-    <div class="ag-row ap-row" title="{{ d.strftime('%d/%m') }}: {% if res %}{{ tickers(res) }} resultados{% endif %}{% for i in dv %} · {{ clean_ticker(i.ticker) }} {{ 'ex-dividendo' if i.kind == 'ex' else 'cobro' }} ≈{{ num(i.gross_eur, 0) }} €{% endfor %}">{{ day_label(d, (res or dv)[0].days) }}
-        <span class="ag-what">{% if res %}<i class="bi bi-clipboard-data text-primary me-1"></i>{% for i in res %}<a href="{{ '/tesis/' ~ (theses_ids.get(i.ticker) or i.thesis_id) if (theses_ids.get(i.ticker) or i.thesis_id) else '/ticker/' ~ i.ticker }}" class="text-decoration-none fw-bold">{{ clean_ticker(i.ticker) }}</a>{{ ', ' if not loop.last }}{% endfor %}{% endif %}
-        {% for i in dv %}{{ ' · ' if res or not loop.first }}<i class="bi {{ 'bi-calendar-x' if i.kind == 'ex' else 'bi-cash-coin' }} text-success me-1"></i><strong>{{ clean_ticker(i.ticker) }}</strong> <span class="{{ 'text-muted' if i.kind == 'ex' else 'text-success' }}">≈{{ num(i.gross_eur, 0) }} €</span>{% endfor %}</span>
+    <div class="ag-row ap-row">{{ day_label(d, (res or dv)[0].days) }}
+        <span class="ag-what">{% if res %}<i class="bi bi-clipboard-data text-primary me-1"></i>{% set ns = namespace(k='-') %}{% for i in res %}{% set k = i.time.kind if i.time else None %}<span class="ap-tk" data-kind="{{ k or '' }}" data-name="{{ i.name or clean_ticker(i.ticker) }}" data-when="{{ i.time.madrid if i.time and i.time.madrid }}">{% if k != ns.k %}{{ ' · ' if not loop.first }}{{ kind_icon(k) }}{% set ns.k = k %}{% else %}, {% endif %}<a href="{{ '/tesis/' ~ (theses_ids.get(i.ticker) or i.thesis_id) if (theses_ids.get(i.ticker) or i.thesis_id) else '/ticker/' ~ i.ticker }}" class="text-decoration-none {{ tk_cls(i) }}" title="{{ tk_info(i) }}">{{ clean_ticker(i.ticker) }}</a></span>{% endfor %}{% endif %}
+        {% for i in dv %}<span class="ap-tk" data-kind="{{ 'ex' if i.kind == 'ex' else 'pay' }}" data-name="{{ i.name or clean_ticker(i.ticker) }}" data-when="≈{{ num(i.gross_eur, 0) }} €">{{ ' · ' if res or not loop.first }}<i class="bi {{ 'bi-calendar-x' if i.kind == 'ex' else 'bi-cash-coin' }} text-success me-1"></i><strong title="{{ tk_info(i) }}">{{ clean_ticker(i.ticker) }}</strong> <span class="{{ 'text-muted' if i.kind == 'ex' else 'text-success' }}">≈{{ num(i.gross_eur, 0) }} €</span></span>{% endfor %}</span>
     </div>
     {% endfor %}
 {% endmacro %}
 {# 30 días, por semanas: una línea por semana con las primeras empresas y «+N más»; al pasar el ratón, todas #}
 {% macro by_week(weeks, empty) %}
-    {% for w in weeks %}{% set names = w['items']|map(attribute='ticker')|map('string')|unique|list %}
+    {% for w in weeks %}{% set firsts = w['items']|sort(attribute='rank')|unique(attribute='ticker')|list %}{% set names = firsts|map(attribute='ticker')|map('string')|list %}
     <div class="ag-row ap-row"><span class="ag-day text-nowrap" title="{{ w.span }}">{{ w.label }}</span>
-        <span class="ag-what">{% for t in names[:4] %}<b>{{ clean_ticker(t) }}</b>{{ ', ' if not loop.last }}{% endfor %}
+        <span class="ag-what">{% for i in firsts[:4] %}<span class="{{ tk_cls(i) if i.kind == 'results' else 'fw-bold' }}" title="{{ tk_info(i) }}">{{ clean_ticker(i.ticker) }}</span>{{ ', ' if not loop.last }}{% endfor %}
         {% if names|length > 4 %}<span class="ap-more">+{{ names|length - 4 }} más
-            <span class="ap-pop">{% for i in w['items'] %}<span><span class="text-muted">{{ i.date.strftime('%d/%m') }}</span> <b>{{ clean_ticker(i.ticker) }}</b>
+            <span class="ap-pop">{% for i in w['items'] %}<span><span class="text-muted">{{ i.date.strftime('%d/%m') }}</span> <span class="{{ tk_cls(i) if i.kind == 'results' else 'fw-bold' }}">{{ clean_ticker(i.ticker) }}</span>
                 {% if i.kind == 'pago' or i.gross_eur is defined and i.kind != 'results' %}<span class="text-success">cobro ≈{{ num(i.gross_eur, 0) }} €</span>{% else %}<span class="text-muted">resultados</span>{% endif %}</span>{% endfor %}</span></span>{% endif %}
         {% set pays = w['items']|selectattr('gross_eur', 'defined')|rejectattr('kind', 'equalto', 'results')|list %}{% if pays %} · <i class="bi bi-cash-coin text-success"></i> <span class="text-success">≈{{ num(pays|sum(attribute='gross_eur'), 0) }} €</span>{% endif %}</span>
     </div>
@@ -41,6 +47,8 @@
 <div class="card h-100" id="agendaPlan">
     <div class="card-header bg-transparent fw-bold d-flex align-items-center gap-2">
         <span><i class="bi bi-calendar-week me-1"></i>Agenda</span>
+        {% if dates_pending %}<button type="button" class="btn btn-sm btn-outline-secondary ap-find" data-ap-find
+            title="{{ dates_pending|length }} sin fecha cerca ({{ dates_pending|join(', ') }}). Una sola consulta a la IA"><i class="bi bi-search me-1"></i>{{ dates_pending|length }} fechas</button>{% endif %}
         <div class="btn-group btn-group-sm ms-auto ap-tabs" role="group" aria-label="Periodo">
             <button type="button" class="btn btn-outline-secondary active" data-ap="semana">Esta semana</button>
             <button type="button" class="btn btn-outline-secondary" data-ap="mes">30 días</button>

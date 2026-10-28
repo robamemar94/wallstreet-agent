@@ -2,7 +2,6 @@ import logging
 import os
 import datetime
 from typing import List, Optional
-import yfinance as yf
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -35,28 +34,20 @@ class TransactionItem(BaseModel):
 
 
 def _fetch_fx_rate(currency: str, date_str: str) -> Optional[float]:
-    """Obtiene el tipo EUR/moneda para la fecha dada. Retorna EUR por unidad de divisa."""
-    if currency.upper() == 'EUR':
-        return 1.0
-    try:
-        import datetime
-        d = datetime.date.fromisoformat(date_str)
-        end = d + datetime.timedelta(days=5)
-        ticker_sym = f"{currency.upper()}EUR=X"
-        hist = yf.Ticker(ticker_sym).history(start=d.isoformat(), end=end.isoformat())
-        if not hist.empty:
-            return float(hist['Close'].iloc[0])
-        # Fallback: tipo actual
-        info = yf.Ticker(ticker_sym).info
-        return float(info.get('regularMarketPrice') or info.get('previousClose') or 1.0)
-    except Exception:
-        return None
+    """EUR por unidad de divisa en esa fecha. Si Yahoo no responde queda vacío y `rebuild_portfolio` lo reintenta."""
+    from utils.fx import fx_rate_on
+    return fx_rate_on(currency, date_str)
 
 class DeleteTransactionRequest(BaseModel):
     date: str
     type: str
     shares: float
     price: float
+
+class UpdateTransactionRequest(BaseModel):
+    old: DeleteTransactionRequest   # la operación tal como está (fecha|tipo|acciones|precio la identifican)
+    new: TransactionItem            # cómo debe quedar
+
 
 class EditTransactionRequest(BaseModel):
     ticker: str
@@ -228,6 +219,79 @@ def delete_transaction(
         if values.pop(ref, None) is not None:
             asset_repo.save_asset_data(ticker.upper(), key, values)
     return {"status": "success"}
+
+
+@router.get("/transaction/{ticker}")
+def get_transaction(ticker: str, date: str, type: str, shares: float, price: float,
+                    portfolio_service: PortfolioService = Depends(get_portfolio_service),
+                    asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository)):
+    """Una operación añadida a mano con todos sus datos y su porqué (para editarla)."""
+    t = ticker.upper()
+    tx = portfolio_service.find_manual_transaction(Transaction(date=date, type=TransactionType(type.upper()), ticker=t, shares=shares, price=price))
+    if not tx:
+        raise HTTPException(status_code=404, detail="Solo se pueden editar las operaciones añadidas a mano")
+    note = (asset_repo.get_asset_data(t).get(TX_NOTES_KEY) or {}).get(tx_ref(date, type.upper(), shares, price))
+    return {"date": str(tx.date)[:10], "type": tx.type.value, "ticker": tx.ticker, "shares": tx.shares, "price": tx.price,
+            "currency": tx.currency, "fee": tx.fee, "fx_rate_at_purchase": tx.fx_rate_at_purchase, "broker": tx.broker, "comment": note}
+
+
+@router.post("/transaction/update/{ticker}")
+def update_transaction(ticker: str, item: UpdateTransactionRequest,
+                       portfolio_service: PortfolioService = Depends(get_portfolio_service),
+                       asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository)):
+    """Edita una operación añadida a mano. Su porqué y su foto de la valoración pasan a la operación editada."""
+    o, n = item.old, item.new
+    fx_rate = n.fx_rate_at_purchase
+    if fx_rate is None and n.currency.upper() != 'EUR':
+        fx_rate = _fetch_fx_rate(n.currency, n.date)
+    old_tx = Transaction(date=o.date, type=TransactionType(o.type.upper()), ticker=ticker.upper(), shares=o.shares, price=o.price)
+    new_tx = Transaction(date=n.date, type=TransactionType(n.type.upper()), ticker=n.ticker.upper(), shares=n.shares, price=n.price,
+                         currency=n.currency, fee=n.fee or 0.0, fx_rate_at_purchase=fx_rate, broker=n.broker or 'AUTO')
+    if not portfolio_service.replace_manual_transaction(old_tx, new_tx):
+        raise HTTPException(status_code=404, detail="Solo se pueden editar las operaciones añadidas a mano")
+    old_ref, new_ref = tx_ref(o.date, o.type.upper(), o.shares, o.price), tx_ref(n.date, n.type.upper(), n.shares, n.price)
+    for key in (TX_NOTES_KEY, TX_SNAPS_KEY):
+        src = dict(asset_repo.get_asset_data(old_tx.ticker).get(key) or {})
+        had = old_ref in src
+        value = src.pop(old_ref, None)
+        if key == TX_NOTES_KEY and n.comment is not None:   # el porqué del formulario manda (vacío: se borra)
+            value = n.comment.strip()[:1000] or None
+        if had:
+            asset_repo.save_asset_data(old_tx.ticker, key, src)
+        if value is not None:
+            dst = dict(asset_repo.get_asset_data(new_tx.ticker).get(key) or {})
+            dst[new_ref] = value
+            asset_repo.save_asset_data(new_tx.ticker, key, dst)
+    return {"status": "success", "fx_rate_used": fx_rate}
+
+
+@router.get("/fee_estimate")
+def fee_estimate(broker: str, currency: str, shares: float, price: float, date: str = "",
+                 portfolio_service: PortfolioService = Depends(get_portfolio_service)):
+    """Comisión estimada para el formulario de operación: la misma cuenta que el recálculo (`broker_fees`)."""
+    from app.application.services import broker_fees
+    from app.interfaces.views.portfolio_views import get_current_rate
+    if shares <= 0 or price <= 0:
+        return {"fee": 0.0}
+    b = broker_fees.resolve_broker(broker, date or datetime.date.today().isoformat())
+    fee = broker_fees.estimate_fee(b, currency, shares, price, get_current_rate(currency), portfolio_service._get_broker_settings())
+    return {"fee": round(fee, 2), "broker": b}
+
+
+@router.get("/check/{ticker}")
+def check_operation(ticker: str, portfolio_service: PortfolioService = Depends(get_portfolio_service),
+                    asset_repo: SqlAlchemyAssetRepository = Depends(get_asset_repository)):
+    """Para confirmar una operación antes de guardarla: cotización en caché, su moneda y las acciones que tienes."""
+    from app.interfaces.views.market_views import INDEX_CACHE, ensure_prices_cached
+    t = ticker.upper()
+    try:
+        ensure_prices_cached([t], asset_repo)
+    except Exception as e:
+        logger.warning("Sin cotización para comprobar %s: %s", t, e)
+    d = INDEX_CACHE["data"].get(t) or {}
+    held = next((p.shares for p in portfolio_service.get_active_portfolio() if p.ticker == t), 0.0)
+    return {"ticker": t, "price": d.get("price"), "currency": asset_repo.get_asset_data(t).get("currency"), "held": held,
+            "known": bool(d.get("price")) or held > 0}
 
 
 class TxNote(BaseModel):
@@ -415,3 +479,56 @@ def cash_delete_movement(move_id: str, db: Session = Depends(get_db)):
     if not cash_service.delete_movement(db, move_id):
         raise HTTPException(status_code=404, detail="Movimiento no encontrado")
     return cash_service.status(db)
+
+
+class RoboPlan(BaseModel):
+    amount: float
+    day: int = 3
+    since: Optional[str] = None   # AAAA-MM desde el que vale (este mes por defecto)
+
+
+class RoboAdjust(BaseModel):
+    value: Optional[float] = None
+    invested: Optional[float] = None
+    cash: Optional[float] = None
+    date: Optional[str] = None
+    text: Optional[str] = None    # el resumen de MyInvestor pegado: rellena lo que falte y los pesos de cada fondo
+
+
+@router.get("/roboadvisor")
+def robo_status(db: Session = Depends(get_db)):
+    from app.application.services import robo_service
+    return robo_service.status(db)
+
+
+@router.post("/roboadvisor/aportacion")
+def robo_set_plan(body: RoboPlan, db: Session = Depends(get_db)):
+    from app.application.services import robo_service
+    try:
+        robo_service.set_plan(db, body.amount, body.day, body.since)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return robo_service.status(db)
+
+
+@router.post("/roboadvisor/ajuste")
+def robo_adjust(body: RoboAdjust, db: Session = Depends(get_db)):
+    """Lo que dice MyInvestor: a mano (valor e invertido) o pegando su resumen."""
+    from app.application.services import robo_service
+    parsed = robo_service.parse_summary(body.text) if body.text else {}
+    value = body.value or parsed.get("value")
+    invested = body.invested or parsed.get("invested")
+    cash = body.cash if body.cash is not None else parsed.get("cash")
+    try:
+        robo_service.add_snapshot(db, value, invested, cash, body.date, parsed.get("funds"), parsed.get("returns"))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {**robo_service.status(db), "parsed": parsed}
+
+
+@router.delete("/roboadvisor/ajuste/{date}")
+def robo_delete_adjust(date: str, db: Session = Depends(get_db)):
+    from app.application.services import robo_service
+    if not robo_service.delete_snapshot(db, date):
+        raise HTTPException(status_code=404, detail="Ajuste no encontrado")
+    return robo_service.status(db)

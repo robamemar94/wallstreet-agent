@@ -6,7 +6,7 @@
                 'verdict': 'Síntesis holística realizada por el Director de Inversiones: integra las conclusiones de franquicia, auditoría contable y directiva/capital de la Fase 1 para calcular la nota media de calidad y dictar el veredicto definitivo de inversión.',
                 'thesis': 'Modelado cuantitativo de valoración, escenarios de TIR y Contrato de Inversión final: calcula el precio de entrada y formaliza las tesis, KPIs operativos y disparadores de venta (Sell Triggers).',
                 'pe_forensic': 'Auditoría forense de Private Equity para deconstruir el modelo de monetización y juzgar la calidad de los beneficios (Earnings Quality) mediante materialidad, reconciliación de caja real y asignación de scoring.',
-                'thesis_destroyer': 'Stress-test despiadado como Abogado del Diablo: desafía y ataca racionalmente la tesis de inversión proponiendo escenarios realistas de destrucción de valor (Bear Cases), ponderando su probabilidad de ocurrencia frente a los escudos defensivos del negocio.',
+                'thesis_destroyer': 'Abogado del Diablo antes del veredicto: ataca la franquicia, la directiva y la auditoría con las 3 amenazas más realistas y su probabilidad. Se genera solo al lanzar el Veredicto si aún no existe; el veredicto, la valoración y la tesis lo tienen en cuenta.',
                 'technical': 'Análisis Técnico y Timing de Entrada (Buy the Dip): Analiza el comportamiento del precio, soporte técnico clave, medias móviles y niveles de sobreventa (RSI, caída desde ATH) para optimizar el timing de compra de este activo de calidad.'
             } %}
             {% macro render_report_card(key, label_full) %}
@@ -21,13 +21,13 @@
                 {% if key == 'pe_forensic' and not has_financial_data %}
                     {% set is_disabled = true %}
                     {% set disabled_title = "Primero debes extraer los datos en la pestaña de Auditoría" %}
-                {% elif key == 'verdict' and not has_verdict_deps %}
+                {% elif key in ['verdict', 'thesis_destroyer'] and not has_verdict_deps %}
                     {% set is_disabled = true %}
-                    {% set disabled_title = "No se puede ejecutar el Veredicto Final porque aún faltan análisis previos. Por favor, ejecuta primero: Franquicia, Auditoría y Dirección." %}
+                    {% set disabled_title = "Aún faltan análisis previos. Ejecuta primero: Franquicia, Auditoría y Dirección." %}
                 {% elif key == 'val' and not has_val_deps %}
                     {% set is_disabled = true %}
                     {% set disabled_title = "No se puede ejecutar la Valuación porque aún falta el Veredicto Final. Por favor, ejecuta primero el Veredicto Final." %}
-                {% elif key in ['thesis', 'thesis_destroyer'] and not has_thesis_deps %}
+                {% elif key == 'thesis' and not has_thesis_deps %}
                     {% set is_disabled = true %}
                     {% set disabled_title = "No se puede ejecutar este informe porque aún falta el Veredicto Final. Por favor, ejecuta primero el Veredicto Final." %}
                 {% endif %}
@@ -453,7 +453,7 @@
 
                 <!-- Alerta de Informe Legacy (No usó Auditoría 0) -->
                 {% if reports_meta and key in reports_meta and reports_meta[key].is_legacy %}
-                <div id="legacy-alert-{{ key }}" class="alert alert-warning border-start border-4 border-warning rounded-0 d-flex align-items-center py-1 px-2 mb-2 small" title="Este informe se generó sin los datos estructurados del Paso 0: el agente buscó la información por su cuenta. Completa la Auditoría y regenéralo.">
+                <div id="legacy-alert-{{ key }}" class="alert alert-warning border-start border-4 border-warning rounded-0 d-flex align-items-center py-1 px-2 mb-2 small" title="Generado sin los datos del Paso 0. Completa la Auditoría y regenéralo">
                     <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
                     <div class="text-truncate">
                         <strong class="me-1">Informe legacy:</strong>
@@ -536,7 +536,7 @@
 
                 <!-- Contenido del Informe -->
                 {% set qa_preview = key not in ['val', 'technical', 'rules'] %}
-                <div id="accordion-container-{{ key }}" class="card border qa-report {% if not db.get(key) and not (key == 'audit' and db.get('full_audit_structure')) %}d-none{% endif %} mt-0">
+                <div id="accordion-container-{{ key }}" class="card border qa-report {% if not db.get(key) %}d-none{% endif %} mt-0">
                     <!-- Cabecera de la tarjeta del informe, actúa como interruptor clicable -->
                     <div class="card-header bg-white py-1 d-flex justify-content-between align-items-center flex-wrap gap-2" 
                          style="cursor: pointer;" 
@@ -553,168 +553,7 @@
                     {# En los informes de calidad se ve el comienzo; «Ampliar» lo deja leer entero (con scroll propio) #}
                     <div class="{{ 'qa-preview' if qa_preview else 'collapse' }}" id="collapse-{{ key }}">
                         <div class="card-body px-3 py-2">
-                    {% if key == 'audit' and db.get('full_audit_structure') %}
-                    <!-- Visualización Detallada de Estados Financieros Extraídos -->
-                    {% set full_data = db.get('full_audit_structure') %}
-                    <div class="card border-info bg-info bg-opacity-10 mb-4 shadow-sm">
-                        <div class="card-header bg-info bg-opacity-25 py-2 d-flex justify-content-between align-items-center">
-                            <span class="fw-bold text-info" style="font-size: 0.75rem;">
-                                <i class="bi bi-cpu-fill me-1"></i> 1. REVISIÓN DE ESTRUCTURA COMPLETA EXTRAÍDA
-                            </span>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-xs btn-info text-white py-0" style="font-size: 0.6rem;" type="button" data-bs-toggle="collapse" data-bs-target="#full-audit-details">
-                                    Ver Detalle Completo
-                                </button>
-                                <span class="badge bg-info text-white" style="font-size: 0.6rem;">IA Parsed</span>
-                            </div>
-                        </div>
-                        
-                        <div class="collapse" id="full-audit-details">
-                            <div class="card-body p-3 bg-white">
-                                <!-- Tarjeta de Gráfico Interactivo Dinámico para Auditoría (Oculto inicialmente) -->
-                                <div id="financials-chart-card-audit" class="card shadow-sm border border-info mb-4 d-none shadow-lg">
-                                    <div class="card-header bg-info bg-opacity-10 py-2 d-flex justify-content-between align-items-center">
-                                        <span class="fw-bold text-info" style="font-size: 0.75rem;">
-                                            <i class="bi bi-graph-up me-2"></i> COMPARACIÓN DE TENDENCIAS SELECCIONADAS (AUDITORÍA)
-                                        </span>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <button class="btn btn-xs btn-outline-secondary py-0" style="font-size: 0.65rem;" onclick="clearInteractiveMetrics('audit')">
-                                                <i class="bi bi-eraser-fill me-1"></i> Limpiar
-                                            </button>
-                                            <button class="btn btn-xs btn-outline-info py-0" style="font-size: 0.65rem;" onclick="closeInteractiveChart('audit')">
-                                                <i class="bi bi-x-lg"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div class="card-body p-1 bg-white">
-                                        <div id="interactiveChartAudit" style="height: 560px; width: 100%;"></div>
-                                    </div>
-                                </div>
-
-                                <!-- P&L Detail -->
-                                <h6 class="text-primary border-bottom pb-1 mb-2" style="font-size: 0.75rem;">CUENTA DE RESULTADOS (P&L)</h6>
-                                <div class="table-responsive mb-4">
-                                    <table class="table table-sm table-hover mb-0 table-professional">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th class="text-start" style="min-width: 250px;">Concepto</th>
-                                                {% for yr in full_data['years']|reverse %}<th>{{ yr }}</th>{% endfor %}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for metric, vals in full_data.get('income_statement', {}).items() %}
-                                            {% set m_lower = metric|lower %}
-                                            {% set is_major = ('total' in m_lower or 'net' in m_lower or 'operating' in m_lower or 'gross' in m_lower or 'revenue' in m_lower or 'ebit' in m_lower or 'efectivo' in m_lower or 'cash' in m_lower or 'fcf' in m_lower or 'bpa' in m_lower or 'eps' in m_lower or 'ingresos' in m_lower or 'ventas' in m_lower or 'beneficio' in m_lower or 'balance' in m_lower or 'activos' in m_lower or 'pasivos' in m_lower or 'patrimonio' in m_lower or 'equity' in m_lower) %}
-                                            {% set is_primary_total = ('revenue' in m_lower or 'ventas' in m_lower or 'ingresos' in m_lower or 'net income' in m_lower or 'beneficio neto' in m_lower or 'free cash flow' in m_lower or 'fcf' in m_lower or 'flujo de caja libre' in m_lower or 'total assets' in m_lower or 'total activos' in m_lower or 'activos totales' in m_lower) %}
-                                            <tr class="row-interactive {% if is_major %}table-group-header{% endif %} {% if is_primary_total %}total-row-highlight{% endif %}" onclick='toggleInteractiveMetric(this, {{ metric|tojson }}, {{ vals|tojson }}, {{ full_data["years"]|tojson }}, "audit")' title="Clic para seleccionar y comparar en gráfico">
-                                                <td class="text-start {% if is_major %}fw-bold{% else %}indent-submetric{% endif %}">
-                                                    {% if is_major %}
-                                                        <i class="bi bi-folder-fill me-1 text-primary opacity-75"></i>
-                                                    {% else %}
-                                                        <i class="bi bi-circle me-1 opacity-50" style="font-size: 0.5rem; vertical-align: middle;"></i>
-                                                    {% endif %}
-                                                    {{ metric }}
-                                                </td>
-                                                {% for v in vals|reverse %}<td class="text-end pe-3 {% if is_major %}fw-bold{% endif %}">{{ format_financial_value(v, 1) }}</td>{% endfor %}
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                <!-- Balance Detail -->
-                                <h6 class="text-primary border-bottom pb-1 mb-2" style="font-size: 0.75rem;">BALANCE SHEET</h6>
-                                <div class="table-responsive mb-4">
-                                    <table class="table table-sm table-hover mb-0 table-professional">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th class="text-start" style="min-width: 250px;">Concepto</th>
-                                                {% for yr in full_data['years']|reverse %}<th>{{ yr }}</th>{% endfor %}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for metric, vals in full_data.get('balance_sheet', {}).items() %}
-                                            {% set m_lower = metric|lower %}
-                                            {% set is_major = ('total' in m_lower or 'net' in m_lower or 'operating' in m_lower or 'gross' in m_lower or 'revenue' in m_lower or 'ebit' in m_lower or 'efectivo' in m_lower or 'cash' in m_lower or 'fcf' in m_lower or 'bpa' in m_lower or 'eps' in m_lower or 'ingresos' in m_lower or 'ventas' in m_lower or 'beneficio' in m_lower or 'balance' in m_lower or 'activos' in m_lower or 'pasivos' in m_lower or 'patrimonio' in m_lower or 'equity' in m_lower) %}
-                                            {% set is_primary_total = ('revenue' in m_lower or 'ventas' in m_lower or 'ingresos' in m_lower or 'net income' in m_lower or 'beneficio neto' in m_lower or 'free cash flow' in m_lower or 'fcf' in m_lower or 'flujo de caja libre' in m_lower or 'total assets' in m_lower or 'total activos' in m_lower or 'activos totales' in m_lower) %}
-                                            <tr class="row-interactive {% if is_major %}table-group-header{% endif %} {% if is_primary_total %}total-row-highlight{% endif %}" onclick='toggleInteractiveMetric(this, {{ metric|tojson }}, {{ vals|tojson }}, {{ full_data["years"]|tojson }}, "audit")' title="Clic para seleccionar y comparar en gráfico">
-                                                <td class="text-start {% if is_major %}fw-bold{% else %}indent-submetric{% endif %}">
-                                                    {% if is_major %}
-                                                        <i class="bi bi-folder-fill me-1 text-primary opacity-75"></i>
-                                                    {% else %}
-                                                        <i class="bi bi-circle me-1 opacity-50" style="font-size: 0.5rem; vertical-align: middle;"></i>
-                                                    {% endif %}
-                                                    {{ metric }}
-                                                </td>
-                                                {% for v in vals|reverse %}<td class="text-end pe-3 {% if is_major %}fw-bold{% endif %}">{{ format_financial_value(v, 1) }}</td>{% endfor %}
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                <!-- Cash Flow Detail -->
-                                <h6 class="text-primary border-bottom pb-1 mb-2" style="font-size: 0.75rem;">CASH FLOW STATEMENT</h6>
-                                <div class="table-responsive">
-                                    <table class="table table-sm table-hover mb-0 table-professional">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th class="text-start" style="min-width: 250px;">Concepto</th>
-                                                {% for yr in full_data['years']|reverse %}<th>{{ yr }}</th>{% endfor %}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for metric, vals in full_data.get('cash_flow', {}).items() %}
-                                            {% set m_lower = metric|lower %}
-                                            {% set is_major = ('total' in m_lower or 'net' in m_lower or 'operating' in m_lower or 'gross' in m_lower or 'revenue' in m_lower or 'ebit' in m_lower or 'efectivo' in m_lower or 'cash' in m_lower or 'fcf' in m_lower or 'bpa' in m_lower or 'eps' in m_lower or 'ingresos' in m_lower or 'ventas' in m_lower or 'beneficio' in m_lower or 'balance' in m_lower or 'activos' in m_lower or 'pasivos' in m_lower or 'patrimonio' in m_lower or 'equity' in m_lower) %}
-                                            {% set is_primary_total = ('revenue' in m_lower or 'ventas' in m_lower or 'ingresos' in m_lower or 'net income' in m_lower or 'beneficio neto' in m_lower or 'free cash flow' in m_lower or 'fcf' in m_lower or 'flujo de caja libre' in m_lower or 'total assets' in m_lower or 'total activos' in m_lower or 'activos totales' in m_lower) %}
-                                            <tr class="row-interactive {% if is_major %}table-group-header{% endif %} {% if is_primary_total %}total-row-highlight{% endif %}" onclick='toggleInteractiveMetric(this, {{ metric|tojson }}, {{ vals|tojson }}, {{ full_data["years"]|tojson }}, "audit")' title="Clic para seleccionar y comparar en gráfico">
-                                                <td class="text-start {% if is_major %}fw-bold{% else %}indent-submetric{% endif %}">
-                                                    {% if is_major %}
-                                                        <i class="bi bi-folder-fill me-1 text-primary opacity-75"></i>
-                                                    {% else %}
-                                                        <i class="bi bi-circle me-1 opacity-50" style="font-size: 0.5rem; vertical-align: middle;"></i>
-                                                    {% endif %}
-                                                    {{ metric }}
-                                                </td>
-                                                {% for v in vals|reverse %}<td class="text-end pe-3 {% if is_major %}fw-bold{% endif %}">{{ format_financial_value(v, 1) }}</td>{% endfor %}
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Resumen Compacto (Siempre visible) -->
-                        <div class="card-body p-0 border-top bg-light-subtle">
-                            <table class="table table-sm table-borderless mb-0 font-monospace-data text-center" style="font-size: 0.7rem;">
-                                <thead class="table-info table-opacity-25">
-                                    <tr>
-                                        <th class="ps-3 text-start">Métricas Clave</th>
-                                        {% for yr in full_data['years']|reverse %}<th>{{ yr }}</th>{% endfor %}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr class="border-bottom border-info border-opacity-10">
-                                        <td class="ps-3 text-start text-muted fw-bold">Ventas</td>
-                                        {% for val in full_data['chart_metrics']['revenue']|reverse %}<td>{{ format_financial_value(val, 0) }}</td>{% endfor %}
-                                    </tr>
-                                    <tr class="border-bottom border-info border-opacity-10">
-                                        <td class="ps-3 text-start text-muted">Bº Neto</td>
-                                        {% for val in full_data['chart_metrics']['net_income']|reverse %}<td>{{ format_financial_value(val, 0) }}</td>{% endfor %}
-                                    </tr>
-                                    <tr>
-                                        <td class="ps-3 text-start text-success fw-bold">FCF</td>
-                                        {% for val in full_data['chart_metrics']['fcf']|reverse %}<td class="text-success fw-bold">{{ format_financial_value(val, 0) }}</td>{% endfor %}
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        
-
-                    </div>
-                    {% endif %}
+                    {# la auditoría va directa a sus pestañas: las cuentas extraídas ya están en Finanzas #}
                             {% if key == 'audit' %}
                     <!-- Sub-pestañas para Auditoría Forense -->
                     <ul class="nav nav-pills mb-3 bg-light p-1 rounded border shadow-sm {% if not db.get('audit') %}d-none{% endif %}" id="auditSubTabs" role="tablist">

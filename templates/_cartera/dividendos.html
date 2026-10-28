@@ -35,7 +35,7 @@
             <small class="text-muted" style="font-size:0.78rem;">≈ {{ num(div_kpis.avg_monthly * 12, 2) }} €/año</small>
           </div>
           <div class="col border-end pe-4 me-4">
-            <div class="text-muted" style="font-size:0.72rem;" title="Bruto en euros de lo anunciado y de lo estimado con el calendario de los últimos 12 meses, con las acciones de hoy">PREVISTO 12 MESES</div>
+            <div class="text-muted" style="font-size:0.72rem;" title="Bruto en €: anunciado y estimado, con las acciones de hoy">PREVISTO 12 MESES</div>
             <div class="fw-bold num-font" style="font-size:1.25rem;">{{ num(div_forecast.total_gross, 2) }} €</div>
             <small class="text-muted" style="font-size:0.78rem;">≈ {{ num(div_forecast.total_net, 2) }} € netos{% if div_forecast.yield_on_cost is not none %} · {{ num(div_forecast.yield_on_cost, 2) }}% s/coste{% endif %}</small>
           </div>
@@ -68,7 +68,7 @@
         <div class="col-12 col-xl-7">
           <div class="card shadow-sm border-0 h-100"><div class="card-body">
             <h6 class="fw-bold mb-1">Por mes <span class="small text-muted fw-normal">(bruto, €)</span>
-              <i class="bi bi-info-circle text-muted small ms-1" title="Anunciado: lo publicado por la empresa. Estimado: el mismo calendario que los últimos 12 meses, con el último importe si paga 4+ veces al año. Mes de cobro si se conoce; si no, el de la fecha ex. Acciones de hoy, cambio de hoy. Pulsa una barra para ver de qué empresas viene."></i></h6>
+              <i class="bi bi-info-circle text-muted small ms-1" title="Anunciado: publicado por la empresa. Estimado: calendario de los últimos 12 meses. Pulsa una barra para ver el detalle"></i></h6>
             <div id="div-forecast-chart" style="height:380px;"></div>
             <div id="div-forecast-detail" class="small"></div>
           </div></div>

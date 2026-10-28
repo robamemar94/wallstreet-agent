@@ -47,10 +47,10 @@
 
     <!-- CIFRAS: una línea de fichas (los valores los rellena updateKPIs) -->
     <div class="perf-kpis mb-2">
-      <div class="perf-kpi"><span class="lbl" id="kpiTotalLabel">Rentabilidad total</span><span id="kpiTotal">—</span></div>
+      <div class="perf-kpi"><span class="lbl" id="kpiTotalLabel">Rentabilidad</span><span id="kpiTotal">—</span></div>
       <div class="perf-kpi"><span class="lbl" id="kpiCagrLabel">CAGR</span><span id="kpiCagr">—</span><span id="kpiBenchCagr" class="sub"></span></div>
       <div class="perf-kpi"><span class="lbl" id="kpiDDLabel">Máx. drawdown</span><span class="fw-bold text-danger" id="kpiDD">—</span></div>
-      <div class="perf-kpi d-none" id="kpiCashWrap" title="Lo que ha restado (o sumado) tener efectivo sin invertir: rentabilidad del patrimonio con la liquidez menos la de la cartera, en la ventana visible desde que llevas la liquidez"><span class="lbl">Coste de la liquidez</span><span class="fw-bold" id="kpiCash">—</span><span class="sub" id="kpiCashSub"></span></div>
+      <div class="perf-kpi d-none" id="kpiCashWrap" title="Lo que resta (o suma) el efectivo sin invertir: patrimonio con liquidez frente a cartera"><span class="lbl">Coste de la liquidez</span><span class="fw-bold" id="kpiCash">—</span><span class="sub" id="kpiCashSub"></span></div>
       <div class="perf-kpi"><span class="lbl">Mejor mes</span><span id="kpiBestMonth" class="fw-bold text-success">—</span><span id="kpiBestMonthLabel" class="sub"></span></div>
       <div class="perf-kpi"><span class="lbl">Peor mes</span><span id="kpiWorstMonth" class="fw-bold text-danger">—</span><span id="kpiWorstMonthLabel" class="sub"></span></div>
       <div class="perf-kpi" title="Volatilidad anual: desviación de los retornos mensuales × √12"><span class="lbl">Volatilidad</span><span id="kpiVol" class="fw-bold">—</span></div>
@@ -61,9 +61,9 @@
     <div class="col-12 col-xl-8">
     <!-- Gráfico + drawdown, con el mismo eje de fechas -->
     <div class="card shadow-sm border-0" id="perfChartCard">
-      <div class="card-body py-2 d-flex flex-column">
+      <div class="card-body py-2 d-flex flex-column position-relative">
+        <div id="custom-legend" class="d-flex flex-wrap gap-1 position-absolute" style="top:.45rem; left:5.4rem; z-index:5;"></div>
         <div id="perf-chart"></div>
-        <div id="custom-legend" class="d-flex flex-wrap gap-2 justify-content-center my-1"></div>
         <div class="text-muted" style="font-size:0.66rem;letter-spacing:.05em;text-transform:uppercase;">Drawdown desde máximo</div>
         <div id="drawdown-chart"></div>
       </div>

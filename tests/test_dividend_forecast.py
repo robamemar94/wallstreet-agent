@@ -225,20 +225,28 @@ def test_pulse_summarises_notices_results_dividend_and_30_days():
              {"read": True, "portfolio": True, "group": "avisos", "ticker": "KO", "kind": "aviso", "text": "w", "href": "/", "date": "2026-10-02"}]
     results = [{"ticker": "OMAB", "date": "2026-10-22"}, {"ticker": "RMS.PA", "date": "2026-10-22"},
                {"ticker": "MSFT", "date": "2026-10-28"}, {"ticker": "KO", "date": "2026-12-01"}]
-    divs = [{"ticker": "ROL", "date": D(2026, 11, 10), "gross_eur": 22.0, "estimated": True, "pay_date": None},
-            {"ticker": "MSFT", "date": D(2026, 12, 10), "gross_eur": 13.0, "estimated": False, "pay_date": D(2026, 12, 10)}]
+    divs = [{"ticker": "ROL", "date": D(2026, 10, 20), "gross_eur": 22.0, "estimated": True, "pay_date": None},
+            {"ticker": "MSFT", "date": D(2026, 10, 25), "gross_eur": 13.0, "estimated": False, "pay_date": D(2026, 10, 25)},
+            {"ticker": "KO", "date": D(2026, 12, 10), "gross_eur": 40.0, "estimated": False, "pay_date": D(2026, 12, 10)}]
     p = agenda_service.pulse(TODAY, notes, results, divs, {"pct": 0.59, "abs_eur": 305.0, "benchmark_pct": 0.1})
     assert p["unread"] == 2 and p["top_notice"]["ticker"] == "OMAB"          # los avisos van antes que el monitor
     assert p["results"] == {"first_date": "2026-10-22", "days": 20, "first_tickers": ["OMAB", "RMS.PA"], "count": 3}
     assert p["dividend"]["ticker"] == "MSFT" and not p["dividend"]["estimated"]   # el confirmado antes que el estimado
+    assert p["dividend"]["count"] == 2 and p["dividend"]["total_eur"] == 35.0      # KO, a más de 30 días, no cuenta
+    assert [(i["ticker"], i["estimated"]) for i in p["dividend"]["items"]] == [("ROL", True), ("MSFT", False)]   # el desglose, por fecha
     assert p["period"]["pct"] == 0.59
 
 
 def test_pulse_falls_back_to_estimated_dividend_and_handles_nothing():
-    divs = [{"ticker": "ROL", "date": D(2026, 11, 10), "gross_eur": 22.0, "estimated": True, "pay_date": None}]
+    divs = [{"ticker": "ROL", "date": D(2026, 10, 20), "gross_eur": 22.0, "estimated": True, "pay_date": None}]
     p = agenda_service.pulse(TODAY, [], [], divs, None)
     assert p["unread"] == 0 and p["top_notice"] is None and p["results"] is None and p["period"] is None
     assert p["dividend"]["estimated"] and p["dividend"]["kind"] == "ex"
+
+
+def test_pulse_ignores_dividends_beyond_30_days():
+    divs = [{"ticker": "KO", "date": D(2026, 12, 10), "gross_eur": 40.0, "estimated": False, "pay_date": D(2026, 12, 10)}]
+    assert agenda_service.pulse(TODAY, [], [], divs, None)["dividend"] is None
 
 
 # --- Históricos cortados de Yahoo (variación de +587 %) ---

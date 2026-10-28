@@ -1,13 +1,12 @@
 import datetime
 import logging
-import time
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
-from app.application.services import cache_warmer, price_scheduler, news_summary_service, thesis_news_runner, thesis_review_service
+from app.application.services import cache_warmer, price_scheduler, news_summary_service, thesis_news_runner, thesis_review_service, results_calendar
 from app.application.services.thesis_ai_service import NEWS_MIN_MATERIALITY, business_week, news_due, next_radar, radar_week_start
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.thesis_service import (
@@ -50,35 +49,25 @@ def _thesis_startup() -> None:
     thesis_news_runner.start_scheduler()
     from app.application.services import report_service
     report_service.start_scheduler()   # informes semanales, mensuales, trimestrales y anuales (sin IA)
+    from app.application.services import financials_update_service
+    financials_update_service.start_scheduler()   # el año fiscal nuevo en tus cuentas, desde Yahoo (gratis, si cuadra)
+    from app.application.services import backup_service
+    backup_service.start_scheduler()   # copia de seguridad completa cada día (BBDD, tesis, CSV, ajustes)
     # Datos de mercado lentos de cartera, tesis y watchlist: se descargan ya para que la primera visita no espere
     cache_warmer.warm_up_in_background()
     # Precios: en la apertura y el cierre de Europa y EE. UU., y cada 5 min durante la sesión
     price_scheduler.start_scheduler()
 
-EARNINGS_TTL = 12 * 3600
-_EARNINGS_CACHE: Dict[str, Any] = {}
-
-
 def _next_earnings(ticker: str) -> Optional[datetime.date]:
-    """Próxima fecha de resultados: primero la caché del calendario de la home, si no yfinance (cacheado 12h)."""
-    today = datetime.date.today()
-    for e in INDEX_CACHE.get("upcoming_events", []):
-        if e.get("ticker") == ticker and e.get("type") == "Resultados" and e["date"] >= today:
-            return e["date"]
-    cached = _EARNINGS_CACHE.get(ticker)
-    if cached and time.time() - cached[0] < EARNINGS_TTL:
-        return cached[1]
-    result = None
+    """Próxima fecha de resultados: la misma que la Agenda (Yahoo y, si no la tiene o la da muy lejos, la fecha buscada
+    y guardada; nunca llama a la IA)."""
+    info = thesis_review_service._earnings_info(ticker) or {}
+    nxt = results_calendar.next_results(ticker, ticker, info.get("next"), info.get("next_time"))
     try:
-        import yfinance as yf
-        cal = yf.Ticker(ticker).calendar
-        dates = cal.get("Earnings Date") if isinstance(cal, dict) else None
-        future = sorted(d for d in (dates or []) if isinstance(d, datetime.date) and d >= today)
-        result = future[0] if future else None
-    except Exception as e:
-        logger.warning("No se pudo obtener el calendario de %s: %s", ticker, e)
-    _EARNINGS_CACHE[ticker] = (time.time(), result)
-    return result
+        when = datetime.date.fromisoformat(nxt["date"]) if nxt and nxt.get("date") else None
+    except ValueError:
+        return None
+    return when if when and when >= datetime.date.today() else None
 
 
 def portfolio_exposure(portfolio_service: PortfolioService, asset_repo: SqlAlchemyAssetRepository) -> Dict[str, Any]:
@@ -102,7 +91,10 @@ def _price(ticker: str) -> Optional[Dict[str, float]]:
     if not d:
         return None
     pct = ((d["price"] / d["prev"]) - 1) * 100 if d.get("prev") else 0.0
-    return {"price": d["price"], "pct": pct}
+    today, last = datetime.date.today(), d.get("last_date")
+    # su mercado aún no ha abierto hoy: la variación es la de su última sesión (se enseña apagada, no como la de hoy)
+    not_open = bool(today.weekday() < 5 and last and last != today)
+    return {"price": d["price"], "pct": pct, "not_open": not_open, "last_iso": last.isoformat() if not_open else None}
 
 
 def _card(thesis: Dict[str, Any], asset_repo: Optional[SqlAlchemyAssetRepository] = None) -> Dict[str, Any]:
@@ -137,7 +129,8 @@ def _periods_grid(ev: Dict[str, Any]) -> Dict[str, Any]:
         for k in p["kpis"]:
             by_period = {o["period"]: o for o in k["observations"]}
             if by_period:
-                rows.append({"pillar": p["name"], "kpi": k, "cells": [by_period.get(per) for per in ordered]})
+                rows.append({"pillar": p["name"] if p["name"] != k["name"] else None, "kpi": k,
+                         "cells": [by_period.get(per) for per in ordered]})
     return {"periods": ordered, "rows": rows}
 
 
@@ -157,8 +150,18 @@ def _reviews_context(repo: SqlAlchemyThesisRepository, thesis: Dict[str, Any], s
         next((r for r in reviews if r["status"] in ("running", "ready", "error", "applied")), None)
     kpis = {k["id"]: k for p in thesis["pillars"] for k in p["kpis"]}
     weights = {tk: p["weight"] for tk, p in exposure["positions"].items()}
+    # la revisión anterior a la elegida (por periodo cerrado): para «Frente a …»
+    prev = None
+    if selected and selected["report"] and selected["status"] in ("ready", "applied", "discarded"):
+        end = selected["report"].get("period_end") or selected["created_at"][:10]
+        older = [r for r in done if r["id"] != selected["id"] and (r["report"].get("period_end") or r["created_at"][:10]) < end]
+        prev = max(older, key=lambda r: r["report"].get("period_end") or r["created_at"][:10], default=None)
     notices = [n for n in thesis_review_service.compute_notices(repo, weights) if n["thesis_id"] == thesis["id"]]
+    # lo que dejó para los próximos resultados la última revisión que cuenta (no las descartadas)
+    last = next((r for r in done if r["status"] != "discarded"), None)
     return {
+        "next_checks": {"period": last["report"].get("period"), "items": last["report"]["next_checks"]}
+        if last and last["report"].get("next_checks") else None,
         "reviews": reviews,
         "review": selected,
         "review_running": thesis_review_service.is_running(thesis["id"]) or any(r["status"] == "running" for r in reviews),
@@ -166,6 +169,7 @@ def _reviews_context(repo: SqlAlchemyThesisRepository, thesis: Dict[str, Any], s
         "kpi_names": {i: k["name"] for i, k in kpis.items()},
         "kpi_units": {i: k.get("unit") or "" for i, k in kpis.items()},
         "thesis_notices": notices,
+        "changes": thesis_review_service.review_changes(prev["report"] if prev else None, selected["report"], kpis) if prev else None,
         "position": exposure["positions"].get(thesis["ticker"]),
         "tracking": thesis["ticker"] not in thesis_review_service.held_tickers(repo.db),   # sin acciones: en seguimiento
         "decisions": [{**d, "outcome": decision_outcome(d, (_price(thesis["ticker"]) or {}).get("price"))}
@@ -187,7 +191,10 @@ def theses_page(
     ensure_prices_cached([t["ticker"] for t in theses], asset_repo)
     exposure = portfolio_exposure(portfolio_service, asset_repo)
     positions = exposure["positions"]
-    cards = [{**_card(t, asset_repo), "position": positions.get(t["ticker"])} for t in theses]
+    notices = thesis_review_service.compute_notices(repo, {tk: p["weight"] for tk, p in positions.items()})
+    unreviewed = {n["thesis_id"]: n for n in notices if n["type"] == "new_results"}   # resultados publicados sin revisar
+    cards = [{**_card(t, asset_repo), "position": positions.get(t["ticker"]), "new_results": unreviewed.get(t["id"])}
+             for t in theses]
     # de cartera arriba; las de empresas que sigues sin tenerlas, en su propio apartado
     held = thesis_review_service.held_tickers(db_session)
     tracking = [c for c in cards if c["thesis"]["ticker"] not in held]
@@ -201,7 +208,7 @@ def theses_page(
         "tracking_cards": tracking,
         "uncovered": uncovered,
         "unread": repo.unread_news_count(),
-        "notices": thesis_review_service.compute_notices(repo, {tk: p["weight"] for tk, p in positions.items()}),
+        "notices": notices,
         "radar_running": thesis_news_runner.is_running(),
         "settings": get_settings_from_db(db_session),
     })

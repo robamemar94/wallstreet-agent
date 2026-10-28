@@ -222,12 +222,17 @@ def _market_info(ticker: str) -> Dict[str, Any]:
             info = yf.Ticker(ticker).info or {}
             factor = quote_unit_factor(info.get("currency"))   # Londres: BPA y dividendo en libras, precio en peniques
             out = {k: float(info[k]) * factor if info.get(k) else None for k in ("trailingEps", "dividendRate")}
+            if not out["trailingEps"]:   # Yahoo no lo da en algunas (Corea): beneficio neto 12 meses / acciones, si van en la misma moneda
+                net, shares = info.get("netIncomeToCommon"), info.get("sharesOutstanding")
+                same_ccy = info.get("financialCurrency") in (None, info.get("currency"))
+                if net and shares and same_ccy:
+                    out["trailingEps"] = float(net) / float(shares) * factor
             mrq = info.get("mostRecentQuarter")
             out["ttm_end"] = datetime.fromtimestamp(mrq, timezone.utc).date().isoformat() if mrq else None
             return out
         except Exception:
             return {"trailingEps": None, "dividendRate": None, "ttm_end": None}
-    return market_cache.cached("market_info_v3", ticker, download)
+    return market_cache.cached("market_info_v4", ticker, download)   # v4: con el BPA calculado si Yahoo no lo da
 
 
 def ttm_end_date(ticker: str) -> Optional[date]:

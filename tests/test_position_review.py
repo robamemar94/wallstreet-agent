@@ -81,3 +81,34 @@ def test_key_figures_tones_and_history():
     assert figs["roe"]["tone"] == "good" and figs["roe"]["spark"][-1] == 40
     assert figs["margin"]["tone"] == "good" and figs["debt"]["tone"] == "good"          # más caja que deuda
     assert figs["debt"]["context"] == "más caja que deuda" and figs["div"]["tone"] == "none"
+
+
+def test_money_series_matches_result():
+    # compra 10 a 10, dividendo de 5 € a mitad: el último punto coincide con el resultado de versus_index
+    df = _df()
+    txs = [_tx("2025-01-02", "BUY", 10, 10)]
+    divs = [{"date": "2025-06-02", "eur": 5.0}]
+    m = prs.money_series(txs, divs, df["ACME"], df, "USD")
+    v = prs.versus_index(txs, divs, df, "USD")
+    assert m["dates"] == ["2025-01-02", "2025-06-02", "2026-01-02"]
+    assert m["invested"] == [100.0, 100.0, 100.0]
+    assert m["total"] == [100.0, 155.0, 205.0]
+    assert m["total"][-1] - m["invested"][-1] == pytest.approx(v["result"])
+
+
+def test_money_series_sale_keeps_proceeds():
+    df = _df()
+    txs = [_tx("2025-01-02", "BUY", 10, 10), _tx("2025-06-02", "SELL", 10, 15)]
+    m = prs.money_series(txs, [], df["ACME"], df, "USD")
+    assert m["total"] == [100.0, 150.0, 150.0]
+
+
+def test_position_stats_best_worst_and_12m():
+    def op(date, since, h12=None):
+        return {"date": date, "type": "BUY", "review": {"since": since, "horizons": {"12m": h12} if h12 is not None else {}}}
+    ops = [op("2023-01-02", 120.0, 5.0), op("2024-01-02", -10.0, -3.0), op("2026-01-02", 4.0)]
+    txs = [_tx("2023-01-02", "BUY", 1, 10)]
+    st = prs.position_stats(ops, txs, None, today=pd.Timestamp("2026-03-03"))
+    assert (st["years"], st["months"]) == (3, 2)
+    assert st["best"]["date"] == "2023-01-02" and st["worst"]["since"] == -10.0
+    assert (st["n12"], st["beat12"]) == (2, 1)

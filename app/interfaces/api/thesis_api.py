@@ -432,6 +432,12 @@ def add_decision(thesis_id: int, payload: DecisionCreate, repo: SqlAlchemyThesis
         "health_score": evaluate_thesis(thesis)["health_score"], "weight": round(position["weight"], 2) if position else None})
     repo.add_event(thesis_id, payload.date, "decision", f"Decisión: {payload.action}"
                    + (f" a {payload.price:g}" if payload.price else ""), payload.reason.strip(), "neutral")
+    if payload.transaction_ref:   # un solo porqué: también cuenta en Decisiones y en el Diario de la ficha (si no tenía)
+        from app.application.services.decision_review_service import TX_NOTES_KEY
+        notes = dict(asset_repo.get_asset_data(thesis["ticker"]).get(TX_NOTES_KEY) or {})
+        if not notes.get(payload.transaction_ref):
+            notes[payload.transaction_ref] = payload.reason.strip()[:1000]
+            asset_repo.save_asset_data(thesis["ticker"], TX_NOTES_KEY, notes)
     return {"status": "success", "decision": decision}
 
 

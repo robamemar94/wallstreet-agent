@@ -31,18 +31,20 @@ def upcoming_items(today: datetime.date, days: int, results: List[Dict[str, Any]
     for r in results:
         d = _d(r.get("date"))
         if d and today <= d <= end:
-            items.append({"date": d, "ticker": r["ticker"], "kind": "results", "held": r.get("held", True),
-                          "thesis_id": r.get("thesis_id"), "estimated": False})
+            items.append({"date": d, "ticker": r["ticker"], "name": r.get("name"), "kind": "results", "held": r.get("held", True),
+                          "thesis_id": r.get("thesis_id"), "estimated": False, "time": r.get("time"),
+                          "tier": r.get("tier"), "rank": r.get("rank", 0)})
     for e in dividends:
         ex, pay = _d(e.get("ex_date")), _d(e.get("pay_date"))
-        base = {"ticker": e["ticker"], "estimated": e.get("estimated", False), "held": True, "gross_eur": e.get("gross_eur"),
+        base = {"ticker": e["ticker"], "name": e.get("name"), "estimated": e.get("estimated", False), "held": True, "gross_eur": e.get("gross_eur"),
                 "net_eur": e.get("net_eur"), "amount": e.get("amount"), "currency": e.get("currency")}
         if ex and today <= ex <= end:
             items.append({**base, "date": ex, "kind": "ex"})
         if pay and today <= pay <= end:
             items.append({**base, "date": pay, "kind": "pay"})
-    order = {"results": 0, "ex": 1, "pay": 2}
-    items.sort(key=lambda i: (i["date"], order[i["kind"]], i["ticker"]))
+    order, when = {"results": 0, "ex": 1, "pay": 2}, {"pre": 0, "time": 1, None: 2, "after": 3}
+    # dentro del día, lo que sigues por nivel (Tier 1 primero: si la línea no cabe, se corta lo menos importante)
+    items.sort(key=lambda i: (i["date"], order[i["kind"]], i.get("rank", 0), when[(i.get("time") or {}).get("kind")], i["ticker"]))
     for i in items:
         i["days"] = (i["date"] - today).days
     return items
@@ -184,7 +186,8 @@ NOTICE_PRIORITY = {"avisos": 0, "noticias": 1, "alertas": 2, "monitor": 3}
 def pulse(today: datetime.date, notifications: List[Dict[str, Any]], results: List[Dict[str, Any]],
           dividends: List[Dict[str, Any]], period: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Cuatro líneas: avisos sin leer de la cartera (y el más importante), próximos resultados, próximo cobro de dividendo
-    (confirmado si lo hay) y la variación de los últimos 30 días frente al índice.
+    en los próximos 30 días (confirmado si lo hay; con cuántos hay y su total) y la variación de los últimos 30 días
+    frente al índice.
     notifications: las de notification_service.collect · results: [{ticker, date}] de la cartera ·
     dividends: pagos de la previsión · period: el «30d» de portfolio_changes."""
     unread = [n for n in notifications if not n["read"] and n.get("portfolio") and n.get("counts", True)]
@@ -192,7 +195,7 @@ def pulse(today: datetime.date, notifications: List[Dict[str, Any]], results: Li
     end = today + datetime.timedelta(days=PULSE_RESULTS_DAYS)
     upcoming = sorted((r for r in results if _d(r.get("date")) and today <= _d(r["date"]) <= end), key=lambda r: r["date"])
     first = _d(upcoming[0]["date"]) if upcoming else None
-    future = [e for e in dividends if _d(e.get("date")) and _d(e["date"]) >= today]
+    future = [e for e in dividends if _d(e.get("date")) and today <= _d(e["date"]) <= end]
     confirmed = [e for e in future if not e.get("estimated")]
     nxt = min(confirmed or future, key=lambda e: _d(e["date"]), default=None)
     return {
@@ -202,7 +205,10 @@ def pulse(today: datetime.date, notifications: List[Dict[str, Any]], results: Li
                     "first_tickers": [r["ticker"] for r in upcoming if _d(r["date"]) == first],
                     "count": len(upcoming)} if upcoming else None,
         "dividend": {"ticker": nxt["ticker"], "date": _d(nxt["date"]).isoformat(), "gross_eur": nxt["gross_eur"],
-                     "estimated": bool(nxt.get("estimated")), "kind": "pago" if nxt.get("pay_date") else "ex"} if nxt else None,
+                     "estimated": bool(nxt.get("estimated")), "kind": "pago" if nxt.get("pay_date") else "ex",
+                     "count": len(future), "total_eur": sum(e["gross_eur"] for e in future),
+                     "items": [{"ticker": e["ticker"], "date": _d(e["date"]).isoformat(), "gross_eur": e["gross_eur"],
+                                "estimated": bool(e.get("estimated"))} for e in sorted(future, key=lambda e: _d(e["date"]))]} if nxt else None,
         "period": {"days": PULSE_RESULTS_DAYS, "pct": period.get("pct"), "abs_eur": period.get("abs_eur"),
                    "benchmark_pct": period.get("benchmark_pct"), "incomplete": period.get("incomplete") or []} if period and period.get("pct") is not None else None,
     }

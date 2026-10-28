@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% from "_thesis_macros.html" import status_icon, verdict_badge, fmt_value, trend_icon, thesis_styles, money %}
+{% from "_thesis_macros.html" import status_icon, verdict_badge, fmt_value, trend_icon, thesis_styles, money, earnings_when %}
+{% from "_ui_macros.html" import chg_pill, stale_pill %}
 {% block title %}{{ thesis.ticker }} · Tesis{% endblock %}
 
 {% block content %}
@@ -12,9 +13,9 @@
         <div>
             <a href="/tesis" class="small text-muted text-decoration-none"><i class="bi bi-arrow-left"></i> Tesis</a>
             <div class="d-flex align-items-center gap-2 mt-1">
-                <h4 class="fw-bold mb-0">{{ thesis.ticker }}</h4>
+                <h4 class="fw-bold mb-0"><a href="/ticker/{{ thesis.ticker }}" class="text-body text-decoration-none" title="Abrir la ficha de la empresa">{{ thesis.ticker }}</a></h4>
                 {{ verdict_badge(thesis.verdict) }}
-                {% if tracking %}<span class="badge text-bg-info" title="No la tienes en cartera: sin radar automático de noticias ni análisis automáticos. Los resultados se analizan cuando lo pidas. Pasa a «de cartera» sola cuando compras."><i class="bi bi-binoculars me-1"></i>EN SEGUIMIENTO</span>{% endif %}
+                {% if tracking %}<span class="badge text-bg-info" title="Fuera de cartera: sin radar ni análisis automáticos. Pasa a cartera al comprar"><i class="bi bi-binoculars me-1"></i>EN SEGUIMIENTO</span>{% endif %}
                 {% if thesis.status != 'ACTIVA' %}<span class="badge text-bg-warning">{{ thesis.status|replace('_', ' ') }}</span>{% endif %}
             </div>
             <div class="text-muted small">{{ thesis.title }}{% if thesis.version %} · {{ thesis.version }}{% endif %}{% if thesis.reference_date %} · {{ thesis.reference_date }}{% endif %}
@@ -47,50 +48,201 @@
     </div>
     {% endif %}
 
-    <!-- CIFRAS CLAVE + RADAR -->
+    <!-- CIFRAS CLAVE: una franja (estado, kill switches, precio, cartera y resultados) -->
     {% set unread_news = news_items|rejectattr('seen')|map(attribute='id')|list %}
-    <div class="row g-3 mb-3">
-        <div class="col-12 col-xl-7"><div class="row g-3 h-100">
-        <div class="col-12 col-sm-4"><div class="card h-100"><div class="card-body">
-            <div class="kpi-label">Estado</div>
-            <div class="health-num {{ 'st-' ~ ev.health_status if ev.health_status else 'st-none' }}" title="Health score: media ponderada por pilar · verde 100, amarillo 50, rojo 0">{{ ev.health_score if ev.health_score is not none else '–' }}<span class="fs-6 text-muted">/100</span></div>
-            <div class="small text-muted">Cobertura {{ ev.coverage }}%</div>
-            <div class="small text-muted mt-1 font-monospace-data text-nowrap">
-                {{ status_icon('green') }} {{ ev.counts.green }} {{ status_icon('amber') }} {{ ev.counts.amber }}
-                {{ status_icon('red') }} {{ ev.counts.red }} {{ status_icon(None) }} {{ ev.counts.none }}</div>
-        </div></div></div>
-        <div class="col-12 col-sm-4"><div class="card h-100"><div class="card-body">
-            <div class="kpi-label">Kill switches</div>
-            {% for k in ev.kill_switches %}
-            <div class="small d-flex gap-1 align-items-center" title="{{ k.rule }}">
-            {% if k.state == 'triggered' %}<i class="bi bi-shield-fill-x st-red"></i>
-            {% elif k.state == 'watch' %}<i class="bi bi-shield-fill-exclamation st-amber"></i>
-            {% elif k.status %}<i class="bi bi-shield-fill-check st-green"></i>
-            {% else %}<i class="bi bi-shield st-none"></i>{% endif %}
-            <span class="text-truncate">{{ k.name }}</span>
+    <div class="card mb-3"><div class="card-body py-2 d-flex flex-wrap align-items-center gap-3 small key-strip">
+        <span class="text-nowrap" title="Health score: media ponderada por pilar · verde 100, amarillo 50, rojo 0 · cobertura {{ ev.coverage }}%">
+            <span class="kpi-label me-1">Estado</span><span class="fw-bold fs-5 {{ 'st-' ~ ev.health_status if ev.health_status else 'st-none' }}">{{ ev.health_score if ev.health_score is not none else '–' }}</span><span class="text-muted">/100</span>
+            <span class="font-monospace-data ms-1">{{ status_icon('green') }} {{ ev.counts.green }} {{ status_icon('amber') }} {{ ev.counts.amber }} {{ status_icon('red') }} {{ ev.counts.red }}{% if ev.counts.none %} {{ status_icon(None) }} {{ ev.counts.none }}{% endif %}</span></span>
+        {% if ev.kill_switches %}<span class="vr"></span>
+        <span class="d-flex flex-wrap align-items-center gap-2"><span class="kpi-label">Kill switches</span>
+            {% for k in ev.kill_switches %}<span class="text-nowrap" title="{{ k.rule }}">
+            {%- if k.state == 'triggered' %}<i class="bi bi-shield-fill-x st-red"></i>{% elif k.state == 'watch' %}<i class="bi bi-shield-fill-exclamation st-amber"></i>{% elif k.status %}<i class="bi bi-shield-fill-check st-green"></i>{% else %}<i class="bi bi-shield st-none"></i>{% endif %} {{ k.name }}</span>{% endfor %}</span>{% endif %}
+        <span class="vr"></span>
+        <span class="text-nowrap">{% if price %}<a href="/ticker/{{ thesis.ticker }}" class="fw-bold font-monospace-data fs-6 text-body text-decoration-none" title="Cotización y gráfico en la ficha">{{ money(price.price, cur) }}</a>
+            {% if price.not_open %}{{ stale_pill(price.pct, price.last_iso, ext=ext_quote(thesis.ticker)) }}{% else %}{{ chg_pill(price.pct) }} hoy{% endif %}
+            {% if vs_reference is not none %}<span class="text-muted">· {{ num(vs_reference, 1, sign=True) }}% vs ref. {{ money(thesis.reference_price, cur) }}</span>{% endif %}
+            {% else %}<span class="text-muted">Sin cotización</span>{% endif %}</span>
+        <span class="vr"></span>
+        <span class="text-nowrap">{% if position %}<a href="/portfolio/ticker/{{ thesis.ticker }}" class="text-body text-decoration-none" title="Tu posición: compras, precio medio y resultado"><i class="bi bi-briefcase me-1"></i>En cartera <strong>{{ num(position.weight, 1) }}%</strong></a>
+            <span class="text-muted">· {{ format_euro(position.value_eur, 0) }} €{% if position.pnl_pct is not none %} ·
+            <span class="{{ 'text-success' if position.pnl_pct >= 0 else 'text-danger' }}">{{ num(position.pnl_pct, 1, sign=True) }}%</span>{% endif %}</span>
+            {% else %}<span class="text-muted"><i class="bi bi-briefcase me-1"></i>No está en cartera</span>{% endif %}</span>
+        <span class="vr"></span>
+        <span class="text-nowrap text-muted"><i class="bi bi-calendar-event me-1"></i>{% if next_earnings %}Resultados {{ earnings_when(next_earnings, days_to_earnings, '%d/%m/%Y') }}{% else %}Sin fecha de resultados{% endif %}</span>
+    </div></div>
+
+    <!-- RESUMEN: una línea; al desplegar, hipótesis y reglas -->
+    <div class="card mb-3"><div class="card-body py-2">
+        <details class="thesis-summary">
+            <summary><span class="summary-line">{{ thesis.summary }}</span></summary>
+            {% if thesis.extra.hypothesis %}<p class="small mb-2"><strong>Hipótesis financiera:</strong> {{ thesis.extra.hypothesis }}</p>{% endif %}
+            {% if thesis.extra.ratings %}
+            <div class="d-flex flex-wrap gap-2 mb-2">
+            {% for k, v in thesis.extra.ratings.items() %}<span class="badge bg-light text-dark border">{{ k }}: <strong>{{ v }}</strong></span>{% endfor %}
             </div>
+            {% endif %}
+            {% if thesis.extra.hypotheses %}
+            <details class="small mb-1"><summary class="text-muted">Hipótesis críticas ({{ thesis.extra.hypotheses|length }})</summary>
+            <ul class="mb-0 mt-2 list-unstyled">{% for h, text in thesis.extra.hypotheses.items() %}<li><strong>{{ h }}</strong> — {{ text }}</li>{% endfor %}</ul>
+            </details>
+            {% endif %}
+            {% if thesis.extra.rules %}
+            <details class="small"><summary class="text-muted">Reglas de interpretación ({{ thesis.extra.rules|length }})</summary>
+            <ul class="mb-0 mt-2">{% for r in thesis.extra.rules %}<li>{{ r }}</li>{% endfor %}</ul>
+            </details>
+            {% endif %}
+        </details>
+    </div></div>
+
+    <ul class="nav nav-tabs mb-3" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-dashboard" type="button" data-hash="">
+            <i class="bi bi-speedometer2 me-1"></i>Cuadro de mando</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-review" type="button" data-hash="resultados">
+            <i class="bi bi-stars me-1"></i>Resultados
+            {% if review_running %}<span class="spinner-border spinner-border-sm ms-1"></span>
+            {% elif thesis_notices %}<span class="badge text-bg-primary ms-1">{{ thesis_notices|length }}</span>{% endif %}</button></li>
+        {% if scenarios %}
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-valuation" type="button" data-hash="valoracion">
+            <i class="bi bi-calculator me-1"></i>Valoración</button></li>
+        {% endif %}
+        {% if document.html %}
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-doc" type="button" data-hash="tesis">
+            <i class="bi bi-file-earmark-text me-1"></i>Tesis completa <span class="text-muted small">({{ document.sections|length }} apartados)</span></button></li>
+        {% endif %}
+        <li class="nav-item"><a class="nav-link" href="/ticker/{{ thesis.ticker }}" title="Ficha de la empresa: cotización, finanzas, valoración base y diario">
+            <i class="bi bi-building me-1"></i>Ficha<i class="bi bi-box-arrow-up-right ms-1" style="font-size: 0.7rem;"></i></a></li>
+    </ul>
+
+    <div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-dashboard">
+    {% set periods = grid.periods[-4:] %}
+    <div class="row g-3">
+    <!-- CHECKLIST: cada KPI con sus últimos periodos (cifra con el color del semáforo); al pulsarlo, umbrales e historial -->
+    <div class="col-12 col-xl-8">
+    <div class="card mb-3">
+        <div class="card-header bg-transparent d-flex align-items-center gap-2 flex-wrap">
+            <span class="fw-bold"><i class="bi bi-list-check me-1"></i>Checklist trimestral</span>
+            <span class="text-muted small">{{ ev.pillars|length }} pasos · {{ ev.counts.values()|sum }} KPIs · pulsa un KPI para ver umbrales e historial</span>
+        </div>
+        <div class="table-responsive">
+        <table class="table table-sm mb-0 tbl-kpi align-middle checklist">
+            <thead><tr>
+                <th>Paso / KPI</th>
+                {% for per in periods %}<th class="text-center text-nowrap">{{ per }}</th>{% endfor %}
+                <th></th>
+            </tr></thead>
+            {% for p in ev.pillars %}
+            {% set step_no = loop.index %}
+            <tbody class="border-top">
+            {% for k in p.kpis %}{% set byp = {} %}{% for o in k.observations %}{% set _ = byp.update({o.period: o}) %}{% endfor %}
+            <tr role="button" onclick="openKpi({{ k.id }})" title="{{ k.how_to_measure or '' }}{% if k.baseline %} · Baseline: {{ k.baseline }}{% endif %}">
+                <td>
+                    {% if loop.first %}<div class="fw-bold d-inline" title="{{ p.description or '' }}"><span class="text-muted font-monospace-data me-1">{{ step_no }}</span>{{ status_icon(p.status) }} {{ p.name }}
+                        {% if p.weight == 0 %}<span class="text-muted small fw-normal">(no puntúa)</span>{% endif %}</div>{% endif %}
+                    {% set own_line = k.name != p.name or p.kpis|length > 1 %}
+                    {% if own_line %}<div class="small ps-3">{{ k.name }}{% else %}<span class="small">{% endif %}
+                    {% if k.is_kill_switch %}<i class="bi bi-shield-exclamation text-muted ms-1" title="Kill switch: {{ k.kill_rule }}"></i>{% endif %}
+                    {% if k.auto_metric %}<i class="bi bi-lightning-charge text-muted ms-1" title="Autocompletable desde yfinance"></i>{% endif %}
+                    {% if k.kind == 'qualitative' %}<span class="badge bg-light text-dark border ms-1" style="font-size: .6rem;">cualitativo</span>{% endif %}
+                    {% if own_line %}</div>{% else %}</span>{% endif %}
+                </td>
+                {% for per in periods %}{% set cell = byp.get(per) %}
+                <td class="text-center">{% if cell %}<div class="grid-cell bg-st-{{ cell.status }} st-{{ cell.status }} mx-auto{{ ' grid-last' if loop.last }}" title="{{ k.name }} · {{ per }}{% if cell.value is not none %}: {{ num(cell.value, 1) }}{{ k.unit or '' }}{% endif %}{% if cell.note %} — {{ cell.note }}{% endif %}">{% if cell.value is not none %}{{ num(cell.value, 1) }}{% else %}{{ status_icon(cell.status) }}{% endif %}</div>{% else %}<span class="text-muted">·</span>{% endif %}</td>
+                {% endfor %}
+                <td>{{ trend_icon(k.eval.trend) }}</td>
+            </tr>
             {% endfor %}
-        </div></div></div>
-        <div class="col-12 col-sm-4"><div class="card h-100"><div class="card-body">
-            <div class="kpi-label">Precio</div>
-            {% if price %}
-            <div class="health-num font-monospace-data" style="font-size: 1.8rem;">{{ money(price.price, cur) }}</div>
-            <div class="small font-monospace-data {{ 'text-success' if price.pct >= 0 else 'text-danger' }}">{{ num(price.pct, 2, sign=True) }}% hoy
-                {% if vs_reference is not none %}<span class="text-muted">· {{ num(vs_reference, 1, sign=True) }}% vs ref. {{ money(thesis.reference_price, cur) }}</span>{% endif %}</div>
-            {% else %}<div class="text-muted">Sin cotización</div>{% endif %}
-            <div class="small mt-1">
-                {% if position %}<i class="bi bi-briefcase me-1"></i>En cartera: <strong>{{ num(position.weight, 1) }}%</strong>
-                    <span class="text-muted">· {{ position.shares|round(2) }} acc. · {{ format_euro(position.value_eur, 0) }} €{% if position.pnl_pct is not none %} ·
-                    <span class="{{ 'text-success' if position.pnl_pct >= 0 else 'text-danger' }}">{{ num(position.pnl_pct, 1, sign=True) }}%</span>{% endif %}</span>
-                {% else %}<span class="text-muted"><i class="bi bi-briefcase me-1"></i>No está en cartera</span>{% endif %}
+            </tbody>
+            {% endfor %}
+            {% if thesis.extra.final_question %}
+            <tbody class="border-top"><tr>
+                <td class="fw-bold pt-2">{{ thesis.extra.final_question }}</td>
+                <td colspan="{{ periods|length + 1 }}" class="pt-2">Veredicto actual: {{ verdict_badge(thesis.verdict) }}
+                    <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#verdictModal">cambiar</button></td>
+            </tr></tbody>
+            {% endif %}
+        </table>
+        </div>
+    </div>
+        <div class="card mb-3" id="timelineCard">
+            <div class="card-header bg-transparent py-2"><span class="fw-bold small"><i class="bi bi-clock-history me-1"></i>Timeline</span></div>
+            <div class="card-body">
+        {% for e in thesis.events %}
+        {% set meta = ev_types.get(e.type, ('bi-dot', e.type)) %}
+        <div class="timeline-item imp-{{ e.impact or 'neutral' }}{% if loop.index > 5 %} more-item d-none{% endif %}">
+            <div class="d-flex justify-content-between">
+                <span class="small text-muted"><i class="bi {{ meta[0] }} me-1"></i>{{ e.date }} · {{ meta[1] }}</span>
+                <button class="btn btn-link btn-sm p-0 text-muted" onclick="deleteEvent({{ e.id }})" title="Eliminar"><i class="bi bi-x"></i></button>
             </div>
-            <div class="small text-muted mt-1"><i class="bi bi-calendar-event me-1"></i>
-                {% if next_earnings %}Resultados {{ next_earnings.strftime('%d/%m/%Y') }} ({{ days_to_earnings }} d){% else %}Sin fecha de resultados{% endif %}</div>
-        </div></div></div>
-        </div></div>
-        <div class="col-12 col-xl-5">
-            <!-- RADAR: siempre a la vista (son pocas noticias, materialidad ≥4/5) -->
-            <div class="card h-100" id="radarCard"><div class="card-body py-2">
+            <div class="fw-semibold small">{{ e.title }}</div>
+            {% if e.body %}
+                {% if e.body|length > 220 %}
+                <details class="small text-muted timeline-body">
+                    <summary>{{ e.body[:180]|replace('\n', ' ') }}… <span class="text-primary">ver más</span></summary>
+                    <div style="white-space: pre-line;">{{ e.body }}</div>
+                </details>
+                {% else %}<div class="small text-muted" style="white-space: pre-line;">{{ e.body }}</div>{% endif %}
+            {% endif %}
+        </div>
+        {% else %}<div class="text-muted small">Sin eventos.</div>{% endfor %}
+        {% if thesis.events|length > 5 %}<button class="btn btn-link btn-sm px-0" onclick="showMore(this)">Ver los {{ thesis.events|length - 5 }} más antiguos</button>{% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- SEGUIMIENTO, siempre al lado: lo que vigilas, las preguntas maestras y el radar (la timeline, bajo el checklist) -->
+    <div class="col-12 col-xl-4">
+        {% if next_checks %}
+        <div class="card mb-3">
+            <div class="card-header bg-transparent py-2"><span class="fw-bold small"><i class="bi bi-flag me-1"></i>Para los próximos resultados</span>
+                <span class="text-muted small">· de la revisión {{ next_checks.period }}</span></div>
+            <ul class="list-group list-group-flush small">
+            {% for c in next_checks['items'] %}
+                <li class="list-group-item" title="{{ c.why }}"><i class="bi {{ 'bi-flag-fill st-amber' if c.priority == 'alta' else 'bi-flag text-muted' }} me-1"></i><strong>{{ c.check }}</strong>
+                    {% if c.target %}<div class="text-muted">Se da por bueno si {{ c.target }}</div>{% endif %}</li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        <div class="card mb-3">
+            <div class="card-header bg-transparent py-2"><span class="fw-bold small"><i class="bi bi-eye me-1"></i>En vigilancia</span></div>
+            <div>
+        {% if thesis.extra.watchlist %}
+        <ul class="list-group list-group-flush small">
+        {% for w in thesis.extra.watchlist %}
+            <li class="list-group-item d-flex justify-content-between gap-2">
+                <div><span class="badge {{ 'text-bg-danger' if w.type == 'riesgo' else 'bg-light text-dark border' }}">{{ w.type }}</span>
+                    <strong>{{ w.title }}</strong> <span class="text-muted">· desde {{ w.added }}</span>
+                    {% if w.rationale %}<div class="text-muted">{{ w.rationale }}</div>{% endif %}</div>
+                <button class="btn btn-link btn-sm p-0 text-muted" title="Dejar de vigilar" onclick="unwatch({{ loop.index0 }})"><i class="bi bi-x"></i></button>
+            </li>
+        {% endfor %}
+        </ul>
+        <div class="small text-muted p-2">La revisión de resultados y el radar de noticias también los tendrán en cuenta.</div>
+        {% else %}<div class="card-body small text-muted">Nada en vigilancia. La revisión de resultados puede proponer riesgos y catalizadores para vigilar.</div>{% endif %}
+            </div>
+        </div>
+        <div class="card mb-3">
+            <div class="card-header bg-transparent d-flex align-items-center gap-2 py-2">
+                <span class="fw-bold small"><i class="bi bi-question-circle me-1"></i>Preguntas maestras</span>
+                <button class="btn btn-outline-primary btn-sm py-0 ms-auto" onclick="addMasterQuestion('', '')" title="Añadir una pregunta"><i class="bi bi-plus-lg"></i> pregunta</button>
+            </div>
+            <div>
+        {% set mqs = thesis.extra.master_questions or [] %}
+        {% if mqs %}
+        <ol class="list-group list-group-flush list-group-numbered small">
+            {# las últimas, que son las que ha añadido el seguimiento; el resto, plegadas #}
+            {% for q in mqs %}<li class="list-group-item d-flex gap-2 py-1{% if loop.revindex > 4 %} more-item d-none{% endif %}">
+                <span class="flex-grow-1">{{ q }}</span>
+                <button class="btn btn-link btn-sm p-0 text-muted" title="Retirar pregunta" onclick='removeMasterQuestion({{ q|tojson }}, "")'><i class="bi bi-x"></i></button>
+            </li>{% endfor %}
+        </ol>
+        {% if mqs|length > 4 %}<button class="btn btn-link btn-sm px-2" onclick="showMore(this)">Ver las {{ mqs|length }}</button>{% endif %}
+        {% else %}<div class="card-body small text-muted">Sin preguntas maestras. Añádelas tú o deja que la revisión de resultados las proponga.</div>{% endif %}
+            </div>
+        </div>
+            <div class="card mb-3" id="radarCard"><div class="card-body py-2">
                 <div class="d-flex align-items-center gap-2 mb-1">
                     <span class="kpi-label mb-0">{{ 'Radar (a mano)' if tracking else 'Radar semanal' }}</span>
                     {% if unread_news %}<span class="badge text-bg-primary" id="radarUnread">{{ unread_news|length }} nueva{{ 's' if unread_news|length > 1 }}</span>{% endif %}
@@ -132,217 +284,7 @@
                 {% endif %}
                 <div id="newsInfo" class="small text-muted"></div>
             </div></div>
-        </div>
-    </div>
 
-    <!-- RESUMEN: una línea; al desplegar, hipótesis y reglas -->
-    <div class="card mb-3"><div class="card-body py-2">
-        <details class="thesis-summary">
-            <summary><span class="summary-line">{{ thesis.summary }}</span></summary>
-            {% if thesis.extra.hypothesis %}<p class="small mb-2"><strong>Hipótesis financiera:</strong> {{ thesis.extra.hypothesis }}</p>{% endif %}
-            {% if thesis.extra.ratings %}
-            <div class="d-flex flex-wrap gap-2 mb-2">
-            {% for k, v in thesis.extra.ratings.items() %}<span class="badge bg-light text-dark border">{{ k }}: <strong>{{ v }}</strong></span>{% endfor %}
-            </div>
-            {% endif %}
-            {% if thesis.extra.hypotheses %}
-            <details class="small mb-1"><summary class="text-muted">Hipótesis críticas ({{ thesis.extra.hypotheses|length }})</summary>
-            <ul class="mb-0 mt-2 list-unstyled">{% for h, text in thesis.extra.hypotheses.items() %}<li><strong>{{ h }}</strong> — {{ text }}</li>{% endfor %}</ul>
-            </details>
-            {% endif %}
-            {% if thesis.extra.rules %}
-            <details class="small"><summary class="text-muted">Reglas de interpretación ({{ thesis.extra.rules|length }})</summary>
-            <ul class="mb-0 mt-2">{% for r in thesis.extra.rules %}<li>{{ r }}</li>{% endfor %}</ul>
-            </details>
-            {% endif %}
-        </details>
-    </div></div>
-
-    <ul class="nav nav-tabs mb-3" role="tablist">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-dashboard" type="button" data-hash="">
-            <i class="bi bi-speedometer2 me-1"></i>Cuadro de mando</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-review" type="button" data-hash="resultados">
-            <i class="bi bi-stars me-1"></i>Resultados
-            {% if review_running %}<span class="spinner-border spinner-border-sm ms-1"></span>
-            {% elif thesis_notices %}<span class="badge text-bg-primary ms-1">{{ thesis_notices|length }}</span>{% endif %}</button></li>
-        {% if scenarios %}
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-valuation" type="button" data-hash="valoracion">
-            <i class="bi bi-calculator me-1"></i>Valoración</button></li>
-        {% endif %}
-        {% if document.html %}
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-doc" type="button" data-hash="tesis">
-            <i class="bi bi-file-earmark-text me-1"></i>Tesis completa <span class="text-muted small">({{ document.sections|length }} apartados)</span></button></li>
-        {% endif %}
-    </ul>
-
-    <div class="tab-content">
-    <div class="tab-pane fade show active" id="tab-dashboard">
-    <ul class="nav nav-pills sub-nav small mb-3" role="tablist">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#sub-checklist" type="button"><i class="bi bi-list-check me-1"></i>Checklist trimestral</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sub-follow" type="button"><i class="bi bi-binoculars me-1"></i>Seguimiento</button></li>
-    </ul>
-    <div class="tab-content">
-    <!-- CHECKLIST TRIMESTRAL (con su evolución por periodo, plegada) -->
-    <div class="tab-pane fade show active" id="sub-checklist">
-    <div class="card mb-3">
-        <div class="card-header bg-transparent d-flex align-items-center gap-2 flex-wrap">
-            <span class="fw-bold"><i class="bi bi-list-check me-1"></i>Checklist trimestral</span>
-            <span class="text-muted small">{{ ev.pillars|length }} pasos · {{ ev.counts.values()|sum }} KPIs · pulsa un KPI para ver su historial</span>
-            <button class="btn btn-outline-secondary btn-sm py-0 ms-auto" data-bs-toggle="collapse" data-bs-target="#kpiGrid" aria-expanded="false">
-                <i class="bi bi-grid-3x3 me-1"></i>Evolución por periodo <i class="bi bi-chevron-down"></i></button>
-        </div>
-        <div class="collapse border-bottom" id="kpiGrid">
-            <div class="card-body">
-        {% if grid.rows %}
-        <div class="table-responsive">
-        <table class="table table-sm table-borderless mb-0 tbl-kpi w-auto">
-            <thead><tr><th>KPI</th>{% for per in grid.periods %}<th class="text-center small text-nowrap">{{ per }}</th>{% endfor %}</tr></thead>
-            <tbody>
-            {% for row in grid.rows %}
-            <tr>
-                <td class="text-nowrap">{{ row.kpi.name }} <span class="text-muted small">· {{ row.pillar }}</span></td>
-                {% for cell in row.cells %}
-                <td class="text-center">
-                    {% if cell %}<div class="grid-cell bg-st-{{ cell.status }} mx-auto" title="{{ row.kpi.name }} · {{ cell.period }}{% if cell.value is not none %}: {{ cell.value }}{{ row.kpi.unit or '' }}{% endif %}{% if cell.note %} — {{ cell.note }}{% endif %}">{{ status_icon(cell.status) }}</div>
-                    {% else %}<span class="text-muted">·</span>{% endif %}
-                </td>
-                {% endfor %}
-            </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-        </div>
-        {% else %}<div class="text-muted small">Aún no hay observaciones.</div>{% endif %}
-            </div>
-        </div>
-        <div class="table-responsive">
-        <table class="table table-sm mb-0 tbl-kpi">
-            <thead><tr>
-                <th style="min-width: 220px;">Paso</th><th>KPI</th><th style="width: 90px;">Estado</th><th class="text-end">Último</th><th></th>
-                <th class="zone"><i class="bi bi-check-circle-fill st-green"></i> Verde</th>
-                <th class="zone"><i class="bi bi-exclamation-triangle-fill st-amber"></i> Amarillo</th>
-                <th class="zone"><i class="bi bi-x-octagon-fill st-red"></i> Rojo</th>
-            </tr></thead>
-            {% for p in ev.pillars %}
-            {% set step_no = loop.index %}
-            <tbody class="border-top">
-            {% for k in p.kpis %}
-            <tr>
-                {% if loop.first %}
-                <td rowspan="{{ p.kpis|length }}" class="align-top pt-2">
-                    <div class="d-flex gap-2">
-                        <span class="text-muted font-monospace-data">{{ step_no }}</span>
-                        <div>
-                            <div class="fw-bold">{{ status_icon(p.status) }} {{ p.name }}
-                                {% if p.weight == 0 %}<span class="text-muted small fw-normal">(no puntúa)</span>{% endif %}</div>
-                            {% if p.description %}<div class="small text-muted">{{ p.description }}</div>{% endif %}
-                        </div>
-                    </div>
-                </td>
-                {% endif %}
-                <td role="button" onclick="openKpi({{ k.id }})">
-                    {% if k.name != p.name %}<span class="fw-semibold">{{ k.name }}</span>{% endif %}
-                    {% if k.is_kill_switch %}<i class="bi bi-shield-exclamation text-muted ms-1" title="Kill switch: {{ k.kill_rule }}"></i>{% endif %}
-                    {% if k.auto_metric %}<i class="bi bi-lightning-charge text-muted ms-1" title="Autocompletable desde yfinance"></i>{% endif %}
-                    {% if k.kind == 'qualitative' %}<span class="badge bg-light text-dark border ms-1" style="font-size: .6rem;">cualitativo</span>{% endif %}
-                    {% if k.how_to_measure %}<div class="small text-muted">{{ k.how_to_measure }}</div>{% endif %}
-                    {% if k.baseline %}<div class="small text-muted">Baseline: {{ k.baseline }}</div>{% endif %}
-                </td>
-                <td>{{ status_icon(k.eval.status, true) }}</td>
-                <td class="text-end font-monospace-data text-nowrap">
-                    {% if k.eval.last %}{{ fmt_value(k.eval.last.value, k.unit) if k.eval.last.value is not none else '' }}
-                        <div class="small text-muted">{{ k.eval.last.period }}</div>
-                    {% else %}<span class="text-muted">–</span>{% endif %}
-                </td>
-                <td>{{ trend_icon(k.eval.trend) }}</td>
-                <td class="zone">{{ k.green_text or '' }}</td>
-                <td class="zone">{{ k.amber_text or '' }}</td>
-                <td class="zone">{{ k.red_text or '' }}</td>
-            </tr>
-            {% endfor %}
-            </tbody>
-            {% endfor %}
-            {% if thesis.extra.final_question %}
-            <tbody class="border-top"><tr>
-                <td class="fw-bold pt-2">{{ thesis.extra.final_question }}</td>
-                <td colspan="7" class="pt-2">Veredicto actual: {{ verdict_badge(thesis.verdict) }}
-                    <button class="btn btn-link btn-sm p-0 ms-2" data-bs-toggle="modal" data-bs-target="#verdictModal">cambiar</button></td>
-            </tr></tbody>
-            {% endif %}
-        </table>
-        </div>
-    </div>
-    </div>
-
-    <!-- SEGUIMIENTO: timeline, preguntas maestras y vigilancia -->
-    <div class="tab-pane fade" id="sub-follow">
-        <div class="row g-3">
-            <div class="col-12 col-lg-4"><div class="card">
-                <div class="card-header bg-transparent d-flex align-items-center gap-2 py-2">
-                    <span class="fw-bold small"><i class="bi bi-clock-history me-1"></i>Timeline</span>
-                </div>
-                <div class="card-body">
-        {% for e in thesis.events %}
-        {% set meta = ev_types.get(e.type, ('bi-dot', e.type)) %}
-        <div class="timeline-item imp-{{ e.impact or 'neutral' }}{% if loop.index > 5 %} more-item d-none{% endif %}">
-            <div class="d-flex justify-content-between">
-                <span class="small text-muted"><i class="bi {{ meta[0] }} me-1"></i>{{ e.date }} · {{ meta[1] }}</span>
-                <button class="btn btn-link btn-sm p-0 text-muted" onclick="deleteEvent({{ e.id }})" title="Eliminar"><i class="bi bi-x"></i></button>
-            </div>
-            <div class="fw-semibold small">{{ e.title }}</div>
-            {% if e.body %}
-                {% if e.body|length > 220 %}
-                <details class="small text-muted timeline-body">
-                    <summary>{{ e.body[:180]|replace('\n', ' ') }}… <span class="text-primary">ver más</span></summary>
-                    <div style="white-space: pre-line;">{{ e.body }}</div>
-                </details>
-                {% else %}<div class="small text-muted" style="white-space: pre-line;">{{ e.body }}</div>{% endif %}
-            {% endif %}
-        </div>
-        {% else %}<div class="text-muted small">Sin eventos.</div>{% endfor %}
-        {% if thesis.events|length > 5 %}<button class="btn btn-link btn-sm px-0" onclick="showMore(this)">Ver los {{ thesis.events|length - 5 }} más antiguos</button>{% endif %}
-                </div>
-            </div></div>
-            <div class="col-12 col-lg-4"><div class="card">
-                <div class="card-header bg-transparent d-flex align-items-center gap-2 py-2">
-                    <span class="fw-bold small"><i class="bi bi-question-circle me-1"></i>Preguntas maestras</span>
-                    <button class="btn btn-outline-primary btn-sm py-0 ms-auto" onclick="addMasterQuestion('', '')" title="Añadir una pregunta"><i class="bi bi-plus-lg"></i> pregunta</button>
-                </div>
-                <div>
-        {% if thesis.extra.master_questions %}
-        <ol class="list-group list-group-flush list-group-numbered small">
-            {% for q in thesis.extra.master_questions %}<li class="list-group-item d-flex gap-2">
-                <span class="flex-grow-1">{{ q }}</span>
-                <button class="btn btn-link btn-sm p-0 text-muted" title="Retirar pregunta" onclick='removeMasterQuestion({{ q|tojson }}, "")'><i class="bi bi-x"></i></button>
-            </li>{% endfor %}
-        </ol>
-        <div class="small text-muted p-2">La revisión con IA las responde en cada resultado y puede proponer añadir o retirar preguntas.</div>
-        {% else %}<div class="card-body small text-muted">Esta tesis no tiene preguntas maestras. Añádelas tú o deja que la revisión de resultados las proponga.</div>{% endif %}
-                </div>
-            </div></div>
-            <div class="col-12 col-lg-4">
-                <div class="card">
-                <div class="card-header bg-transparent d-flex align-items-center gap-2 py-2">
-                    <span class="fw-bold small"><i class="bi bi-eye me-1"></i>En vigilancia</span>
-                </div>
-                <div>
-        {% if thesis.extra.watchlist %}
-        <ul class="list-group list-group-flush small">
-        {% for w in thesis.extra.watchlist %}
-            <li class="list-group-item d-flex justify-content-between gap-2">
-                <div><span class="badge {{ 'text-bg-danger' if w.type == 'riesgo' else 'bg-light text-dark border' }}">{{ w.type }}</span>
-                    <strong>{{ w.title }}</strong> <span class="text-muted">· desde {{ w.added }}</span>
-                    {% if w.rationale %}<div class="text-muted">{{ w.rationale }}</div>{% endif %}</div>
-                <button class="btn btn-link btn-sm p-0 text-muted" title="Dejar de vigilar" onclick="unwatch({{ loop.index0 }})"><i class="bi bi-x"></i></button>
-            </li>
-        {% endfor %}
-        </ul>
-        <div class="small text-muted p-2">La revisión de resultados y el radar de noticias también los tendrán en cuenta.</div>
-        {% else %}<div class="card-body small text-muted">Nada en vigilancia. La revisión de resultados puede proponer riesgos y catalizadores para vigilar.</div>{% endif %}
-                </div>
-                </div>
-            </div>
-        </div>
     </div>
     </div>
     </div>
@@ -357,6 +299,7 @@
         {% if scenarios %}
         <div class="card mb-3">
             <div class="card-header bg-transparent"><span class="fw-bold"><i class="bi bi-calculator me-1"></i>Valoración vinculada a la tesis</span>
+                <a href="/ticker/{{ thesis.ticker }}#valoracion" class="small float-end" title="Tu caso base con zonas de compra, en la ficha">Valoración base en la ficha →</a>
                 {% if valuation.question %}<div class="small text-muted">{{ valuation.question }}</div>{% endif %}</div>
             <div class="table-responsive">
             <table class="table table-sm mb-0 tbl-kpi">
@@ -591,6 +534,7 @@
     <div class="modal-header"><h5 class="modal-title" id="kpiTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body">
         <div id="kpiMeta" class="small text-muted mb-2"></div>
+        <div id="kpiZones" class="row g-2 small mb-2"></div>
         <div id="kpiChart" style="height: 280px;"></div>
         <table class="table table-sm tbl-kpi mt-2">
             <thead><tr><th>Periodo</th><th>Fecha</th><th class="text-end">Valor</th><th>Semáforo</th><th>Nota</th><th>Fuente</th><th></th></tr></thead>
@@ -713,6 +657,53 @@ document.querySelectorAll('.doc-toc .toc-toggle').forEach(btn => btn.addEventLis
     }, { passive: true });
 })();
 const THESIS_ID = {{ thesis.id }};
+// Cada mención a una hipótesis (H1, H2…) enseña su texto al pasar el ratón, sin tener que ir a la tesis
+const HYPS = {{ (thesis.extra.hypotheses or {})|tojson }};
+document.addEventListener('DOMContentLoaded', function linkHypotheses() {
+    if (!Object.keys(HYPS).length) return;
+    const re = /(?<!\b(?:el|del|al|un|primer|segundo) )\b(H\d{1,2})\b(?!\s*:?\s*[+\-−]?\d)/g;   // «H1 2026», «H1: +6,1%» o «en el H1» son periodos
+    const roots = document.querySelectorAll('.tab-content, .thesis-summary, .alert, #diaryPanel');
+    const skip = el => el.closest('script, style, textarea, input, select, .hyp-ref, .modal, button, .no-hyp');
+    for (const root of roots) {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode: n =>
+            /(?<!\b(?:el|del|al|un|primer|segundo) )\bH\d{1,2}\b(?!\s*:?\s*[+\-−]?\d)/.test(n.nodeValue) && !skip(n.parentElement) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT});
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        for (const n of nodes) {
+            const frag = document.createDocumentFragment();
+            let last = 0;
+            n.nodeValue.replace(re, (m, h, i) => {
+                frag.append(n.nodeValue.slice(last, i));
+                if (HYPS[h]) {
+                    const a = document.createElement('span');
+                    a.className = 'hyp-ref'; a.textContent = m; a.tabIndex = 0;
+                    a.setAttribute('data-bs-toggle', 'tooltip'); a.setAttribute('data-bs-title', `${h}: ${HYPS[h]}`);
+                    frag.append(a);
+                } else frag.append(m);
+                last = i + m.length;
+            });
+            frag.append(n.nodeValue.slice(last));
+            n.replaceWith(frag);
+        }
+    }
+    document.querySelectorAll('.hyp-ref').forEach(el => new bootstrap.Tooltip(el));
+});
+// Resultados: los globos de los chips y «Leer más» en los bloques largos (se mide al verse la pestaña: oculta no tiene alto)
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.rev-chip[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
+    const clamps = () => document.querySelectorAll('.clamp:not([data-clamped])').forEach(el => {
+        if (!el.offsetParent) return;
+        el.dataset.clamped = '1';
+        if (el.scrollHeight <= el.clientHeight + 4) return;
+        el.classList.add('clamp-cut');
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn btn-link read-more'; b.textContent = 'Leer más ▾';
+        b.onclick = () => { const open = el.classList.toggle('open'); b.textContent = open ? 'Leer menos ▴' : 'Leer más ▾'; };
+        el.after(b);
+    });
+    clamps();
+    document.querySelectorAll('[data-bs-toggle="tab"]').forEach(t => t.addEventListener('shown.bs.tab', clamps));
+});
 const KPIS = {};
 {% for p in ev.pillars %}{% for k in p.kpis %}KPIS[{{ k.id }}] = {{ k|tojson }};
 {% endfor %}{% endfor %}
@@ -1027,6 +1018,9 @@ function openKpi(kpiId) {
         k.frequency && `Frecuencia: ${esc(k.frequency)}`, k.source && `Fuente: ${esc(k.source)}`,
         k.is_kill_switch && `<i class="bi bi-shield-exclamation"></i> Kill switch: ${esc(k.kill_rule)}`,
     ].filter(Boolean).join(' · ');
+    // qué significa cada semáforo (antes, columnas fijas del checklist)
+    document.getElementById('kpiZones').innerHTML = [['green', k.green_text], ['amber', k.amber_text], ['red', k.red_text]]
+        .filter(z => z[1]).map(([st, t]) => `<div class="col-md-4"><div class="p-2 rounded bg-st-${st} h-100"><i class="bi ${ST_ICON[st]} me-1"></i>${esc(t)}</div></div>`).join('');
     const obs = k.observations;
     document.getElementById('kpiObs').innerHTML = obs.length ? [...obs].reverse().map(o => `<tr>
         <td>${esc(o.period)}</td><td>${esc(o.date)}</td>

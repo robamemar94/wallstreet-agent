@@ -2,28 +2,40 @@
 {% from "_ui_macros.html" import ext_tag, ext_title %}
 {% block title %}Alpha-Flow · Inicio{% endblock %}
 {% block content %}
+{# Fila de la Actividad del día. Si aún no ha abierto y su pre/post-market es grande (ext_lead), ese precio es la cifra
+   principal (icono en vez de «ayer») y su última sesión pasa al globo de la fila. #}
+{% macro mover_tip(t) -%}
+{%- if t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}{% if ext_lead(t) %} · {{ t.session_label or 'ayer' }} {{ num(t.pct, 2, sign=True) }} %{% endif %}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif -%}
+{%- endmacro %}
+{% macro mover_tags(t) -%}
+{%- if ext_lead(t) %}{{ ext_tag(t.ext, icon_only=true) }}{% else %}{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{% endif %}{{ ext_tag(t.ext) if t.ext }}{% endif -%}
+{%- endmacro %}
+{% macro mover_quote(t, px='0.78', ch='0.74') -%}
+{%- set q = mover_values(t) -%}
+<span class="fw-bold text-white me-1" style="font-size: {{ px }}rem;">{{ format_euro(q.price, t.dec|default(2)) }}</span>
+                                        <span class="fw-bold {% if q.pct > 0 %}text-success{% elif q.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: {{ ch }}rem; white-space: nowrap;">
+                                            {% if q.chg > 0 %}+{% endif %}{{ format_euro(q.chg, t.dec|default(2)) }}{{ t.symbol }}
+                                            <span class="opacity-85 small ms-1">({% if q.pct > 0 %}+{% endif %}{{ format_euro(q.pct, 2) }}%)</span>
+                                        </span>
+{%- endmacro %}
 {% macro mover_row(t, cls) %}
-                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="{{ cls }}"
+                            <tr {{ mover_tip(t) }} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="{{ cls }}"
                                 data-ticker="{{ clean_ticker(t.name) }}"
                                 data-price="{{ t.price or 0 }}"
                                 data-pct="{{ t.pct or 0 }}"
-                                data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }}
+                                data-region="{{ t.region }}" data-market="{{ t.market }}" data-tk="{{ t.name }}" data-session="{{ t.session }}" data-country="{{ t.country }}" data-country-name="{{ t.country_name }}"{{ ' data-not-open=1' if t.not_open }}{{ ' data-ext-big=1' if t.not_open and t.ext and t.ext.pct and t.ext.pct|abs >= EXT_BIG_PCT }}
                                 data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{{ mover_tags(t) }}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-end pe-3 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
-                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, t.dec|default(2)) }}{{ t.symbol }}
-                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
-                                        </span>
+                                        {{ mover_quote(t) }}
                                     </div>
                                 </td>
                             </tr>
@@ -45,13 +57,26 @@
         .home-top > div > .card { height: 100% !important; } }
     .home-top > div > .card { display: flex; flex-direction: column; min-height: 0; }
     #slot-agenda > .card .agenda-window { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
-    .mc-period .btn { font-size: .66rem; padding: .05rem .4rem; }
+    .mc-period .btn { font-size: .66rem; padding: .05rem .35rem; }
+    .mc-spark { width: 40%; max-width: 110px; height: 22px; flex: 0 1 auto; }
+    .mc-spark polyline { stroke: currentColor; stroke-width: 1.6; opacity: .85; }
     /* dos columnas del alto de la ventana: Resumen (fijo) + Bandeja (el resto) | Agenda (fija) + Noticias (el resto) */
     /* Agenda: lo que viene en el periodo, en una línea; su periodo lo manda el del Resumen (sus botones no se ven) */
     /* Agenda como plan: Esta semana (día a día) y Resto del mes (resumido), cartera y lo que sigues */
-    #agendaPlan .ap-body { overflow: hidden; padding-top: .35rem; }
+    #agendaPlan .ap-body { overflow: visible; min-height: 0; padding-top: .35rem; }   /* lo que no cabe lo recoge fitAgendaPlan en «+N más» */
     #agendaPlan .ap-row { padding: .1rem 0; }
     #agendaPlan .ap-row .ag-what { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* línea de un día que no cabe: las últimas empresas se esconden y van en «+N» (fitAgendaPlan) */
+    #agendaPlan .ap-row .ag-what.ap-cut { overflow: visible; }
+    #agendaPlan .ap-tk-hid { display: none; }
+    #agendaPlan .ap-pop .ap-tk-hid { display: inline; }
+    #agendaPlan .ap-pop .ap-tk-more { display: none; }
+    #agendaPlan .ap-tk-more.open .ap-pop { display: block; }
+    #agendaPlan .ap-pop-day { min-width: 17rem; }
+    #agendaPlan .ap-pop-day .ap-prow { align-items: baseline; border-bottom: 1px solid var(--bs-border-color-translucent); padding: .15rem 0; }
+    #agendaPlan .ap-pop-day .ap-prow:last-child { border-bottom: 0; }
+    #agendaPlan .ap-pop-day .ap-pname { flex: 1 1 auto; min-width: 0; max-width: 11rem; overflow: hidden; text-overflow: ellipsis; color: var(--bs-secondary-color); font-size: .7rem; }
+    #agendaPlan .ap-pop-day .ap-when { font-family: var(--bs-font-monospace); font-size: .7rem; color: var(--bs-secondary-color); }
     #agendaPlan .ap-tabs .btn { font-size: .68rem; padding: .08rem .5rem; }
     /* «+N más»: al pasar el ratón, todas las de esa semana (por encima de la tarjeta) */
     #agendaPlan [data-ap-pane="mes"] { overflow: visible; }
@@ -62,6 +87,10 @@
                           box-shadow: 0 6px 18px rgba(0, 0, 0, .45); white-space: normal; color: var(--bs-body-color); font-weight: 400; }
     #agendaPlan .ap-pop > span { display: block; padding: .08rem 0; white-space: nowrap; }
     #agendaPlan .ap-more:hover .ap-pop { display: block; }
+    #agendaPlan .ap-hid { display: none !important; }
+    #agendaPlan .ap-rest .ap-pop { left: 0; right: auto; max-width: 19rem; }
+    #agendaPlan .ap-pop .ap-prow { display: flex; gap: .5rem; padding: .08rem 0; white-space: nowrap; }
+    #agendaPlan .ap-pop .ap-prow .ag-what { overflow: visible; }
     #agendaPlan .ap-sub { font-size: .68rem; font-weight: 600; color: var(--bs-secondary-color); margin: .3rem 0 .1rem; }
     #agendaPlan .ap-none { font-size: .74rem; padding-left: .2rem; }
     /* lo ya pasado de esta semana, junto al título del bloque: apagado, para que se lea que ya ocurrió */
@@ -72,6 +101,7 @@
     #slot-agenda .ag-coming b { color: var(--bs-body-color); }
     /* Bandeja: una línea por grupo con las empresas como etiquetas */
     #slot-attention .bj-body { padding: .3rem .9rem .6rem; }
+    #slot-attention .bj-today { padding: .45rem .6rem; margin: .2rem 0 .3rem; border-radius: .4rem; background: rgba(240, 173, 78, .08); border-left: 3px solid #f0ad4e; }
     #bandejaCard .card-header { flex-wrap: nowrap !important; padding-top: .45rem; padding-bottom: .45rem; }
     #bandejaCard .card-header .btn { font-size: .7rem; padding: .1rem .45rem; }
     #bandejaCard #bjAll { white-space: nowrap; font-size: .72rem; }
@@ -91,6 +121,8 @@
     #slot-attention .bj-chip:hover, #slot-attention .bj-chip.active { background: rgba(127, 127, 127, .1); }
     #slot-attention .bj-chip b { flex: 0 0 auto; min-width: 3.4rem; }
     #slot-attention .bj-chip.unread b::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #3b82f6; margin: 0 .35rem .1rem 0; }
+    #slot-attention .bj-name { flex: 0 0 auto; max-width: 7.5rem; font-size: .72rem; color: var(--bs-body-color); opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #slot-attention .bj-co { font-size: .78rem; font-weight: 600; margin-bottom: .2rem; }
     #slot-attention .bj-text { color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1 1 auto; }
     #slot-attention .bj-chip.unread .bj-text { color: var(--bs-body-color); }
     #slot-attention .bj-n { font-size: .66rem; font-weight: 700; border-radius: 4px; padding: 0 .3rem; background: var(--bs-secondary-bg); flex: 0 0 auto; }
@@ -104,6 +136,25 @@
     #slot-attention .bj-go { white-space: nowrap; text-decoration: none; font-size: .72rem; }
     #slot-attention .av-live, #slot-attention .av-live { font-size: .62rem; font-weight: 700; border-radius: 4px; padding: 0 .35rem; color: #2dd4bf; background: rgba(45, 212, 191, .13); white-space: nowrap; cursor: default; }
     #slot-attention .bj-group.d-none + .bj-group { border-top: 0; }
+    /* Bandeja resumida: una línea por subtipo con las empresas en fila (▼ lo que baja · ▲ lo que sube), sin destacar ninguna */
+    #slot-attention .bj-sub { display: grid; grid-template-columns: 7.2rem minmax(0, 1fr); column-gap: .5rem; align-items: baseline; }
+    #slot-attention .bj-sublabel { font-size: .72rem; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #slot-attention .bj-row { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; font-size: .78rem; }
+    #slot-attention .bj-sub .bj-chip { position: relative; display: inline-flex; gap: .3rem; padding: .12rem .2rem; }
+    #slot-attention .bj-sub .bj-text, #slot-attention .bj-sub .bj-name { display: none; }
+    #slot-attention .bj-sub .bj-chip b { min-width: 0; font-weight: 600; color: var(--bs-body-color) !important; }
+    #slot-attention .bj-sub .bj-chip:not(.bj-first)::before { content: '·'; color: var(--bs-secondary-color); margin-right: .15rem; }
+    #slot-attention .bj-dir { font-size: .7rem; margin: 0 .15rem 0 .1rem; }
+    #slot-attention .bj-dir.down { color: var(--fin-red, #dc2626); } #slot-attention .bj-dir.up { color: var(--fin-green, #16a34a); }
+    #slot-attention .bj-break { flex-basis: 100%; height: 0; }   /* lo que sube empieza en otra línea */
+    /* entre subtipos de un grupo, una raya fina y algo de aire (más suave que la que separa los grupos) */
+    #slot-attention .bj-sub:not(.d-none) ~ .bj-sub:not(.d-none) { border-top: 1px dashed var(--bs-border-color-translucent); margin-top: .25rem; padding-top: .25rem; }
+    #slot-attention .bj-sub .bj-acts { position: absolute; z-index: 3; right: 0; bottom: 100%; padding: .1rem .35rem; border-radius: 6px;
+                                       background: var(--fin-card-bg, var(--bs-body-bg)); box-shadow: 0 1px 6px rgba(0, 0, 0, .35); display: none; }
+    #slot-attention .bj-sub .bj-chip:hover .bj-acts { display: flex; }
+    #slot-attention .bj-m { color: var(--bs-secondary-color); }
+    #slot-attention .bj-chip[data-dir="down"] .bj-m { color: var(--fin-red, #dc2626); } #slot-attention .bj-chip[data-dir="up"] .bj-m { color: var(--fin-green, #16a34a); }
+    #slot-attention .bj-chip.bj-stale { opacity: .6; }   /* ya no se cumple */
     #slot-agenda .agenda-window { padding-top: .35rem !important; padding-bottom: .35rem !important; }
     #slot-agenda .ag-more { font-size: .72rem; font-weight: 400; white-space: nowrap; }
     #slot-agenda .card-header .btn { white-space: nowrap; padding: .15rem .45rem; font-size: .75rem; }
@@ -307,6 +358,9 @@
                     <button type="button" class="btn btn-outline-secondary active" data-mc="hoy">Hoy</button>
                     <button type="button" class="btn btn-outline-secondary" data-mc="7d">7 d</button>
                     <button type="button" class="btn btn-outline-secondary" data-mc="30d">30 d</button>
+                    <button type="button" class="btn btn-outline-secondary" data-mc="ytd">YTD</button>
+                    <button type="button" class="btn btn-outline-secondary" data-mc="1y">1 A</button>
+                    <button type="button" class="btn btn-outline-secondary" data-mc="max">Máx</button>
                 </div>
             </div>
             <div class="card-body p-2 px-3 d-flex flex-column gap-1" style="min-height: 0; overflow-y: auto;">
@@ -317,17 +371,40 @@
                             <a href="#" class="text-muted text-decoration-none" data-bs-toggle="modal" data-bs-target="#portfolioModal" title="Ver posiciones de mi cartera"><i class="bi bi-tag-fill opacity-50 text-primary"></i> {{ port_all|length }} posiciones</a>
                             · <span title="Última sesión: {{ latest_market_date }}"><i class="bi bi-clock-history opacity-50"></i> sesión {{ latest_market_date.strftime('%d/%m') if latest_market_date else '–' }}</span></span>
                     </div>
-                    <span class="fw-bold fs-5 num-font text-white d-block" style="line-height: 1.2;">{{ format_euro(portfolio_idx.price, 2) }} €</span>
-                    {# el resultado del periodo elegido: hoy, aquí; 7 y 30 días, del pulso (frente al índice) #}
-                    <div class="mt-1 pt-1 border-top num-font" id="mcResult" style="border-color: rgba(255,255,255,0.05) !important; font-size: 0.78rem;"
-                         data-hoy-abs="{{ portfolio_idx.change }}" data-hoy-pct="{{ portfolio_idx.pct }}">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="fw-bold fs-5 num-font text-white text-nowrap" style="line-height: 1.2;">{{ format_euro(portfolio_idx.price, 2) }} €</span>
+                        {# minigráfica del periodo elegido (no en «Hoy»: no hay datos del día): la pinta mcPaint con el pulso #}
+                        <svg id="mcSpark" class="mc-spark ms-auto d-none" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" vector-effect="non-scaling-stroke"/></svg>
+                    </div>
+                    {# el resultado del periodo elegido, justo debajo del valor: hoy, aquí; los demás, del pulso (frente al índice) #}
+                    <div class="num-font" id="mcResult" style="font-size: 0.98rem; line-height: 1.25;"
+                         data-hoy-abs="{{ portfolio_idx.change }}" data-hoy-pct="{{ portfolio_idx.pct }}"{% if portfolio_idx.ext %}
+                         data-hoy-ext="{{ portfolio_idx.ext.total }}" data-hoy-ext-kind="{{ portfolio_idx.ext.kinds|join('/') }}"{% endif %}>
                         <span class="fw-bold {% if portfolio_idx.pct >= 0 %}text-success{% else %}text-danger{% endif %}">
                             {% if portfolio_idx.change >= 0 %}+{% endif %}{{ format_euro(portfolio_idx.change, 2) }}€
-                            <span class="opacity-75 small ms-1" style="font-size: 0.68rem;">({% if portfolio_idx.pct >= 0 %}+{% endif %}{{ num(portfolio_idx.pct, 2) }}%)</span></span>
-                        <span class="text-muted small ms-1">hoy</span>
+                            <span class="opacity-75 small ms-1" style="font-size: 0.78rem;">({% if portfolio_idx.pct >= 0 %}+{% endif %}{{ num(portfolio_idx.pct, 2) }}%)</span></span>
+                        <span class="text-muted ms-1" style="font-size: .7rem;">hoy</span>
                     </div>
+                    {# contexto, aparte del periodo: la plusvalía de lo que tienes y la liquidez #}
+                    {% set _gain = portfolio_idx.price - portfolio_idx.invested %}
+                    <div class="num-font text-muted text-truncate mt-1 pt-1 border-top fst-italic opacity-75" style="font-size: 0.64rem; border-color: rgba(255,255,255,0.05) !important;">
+                        {% if portfolio_idx.invested > 0 %}<span title="Frente a lo invertido en las posiciones abiertas ({{ format_euro(portfolio_idx.invested, 0) }} €)">Plusvalía
+                        <span class="text-white-50">{{ '+' if _gain >= 0 }}{{ format_euro(_gain, 0) }} € ({{ '+' if _gain >= 0 }}{{ num(100 * _gain / portfolio_idx.invested, 1) }} %)</span></span>{% endif %}
+                        {% if cash_balance is not none %}{{ ' · ' if portfolio_idx.invested > 0 }}<a href="/portfolio#liquidez" class="text-muted text-decoration-none" title="Liquidez del bróker">Liquidez <span class="text-white-50">{{ format_euro(cash_balance, 0) }} €</span></a>{% endif %}
+                    </div>
+                    {# la que más sube y la que más baja hoy (solo en «Hoy»), con el mismo tono discreto #}
+                    {% set _mv = portfolio_idx.movers %}
+                    {% if _mv and (_mv.up or _mv.down) %}
+                    <div id="mcMovers" class="num-font text-muted text-truncate fst-italic opacity-75" style="font-size: 0.64rem;">
+                        {% if _mv.up %}<a href="/ticker/{{ _mv.up.ticker }}" class="text-muted text-decoration-none">▲ {{ clean_ticker(_mv.up.ticker) }} <span class="text-success">+{{ num(_mv.up.pct, 1) }} %</span></a>{% endif %}
+                        {% if _mv.up and _mv.down %} · {% endif %}
+                        {% if _mv.down %}<a href="/ticker/{{ _mv.down.ticker }}" class="text-muted text-decoration-none">▼ {{ clean_ticker(_mv.down.ticker) }} <span class="text-danger">{{ num(_mv.down.pct, 1) }} %</span></a>{% endif %}
+                    </div>
+                    {% endif %}
                 </div>
                 <!-- Resumen: avisos, resultados y cobro (/api/centro/pulso) y las noticias de esta semana (también junto al calendario) -->
+                <style>.pulse-divs summary { cursor: pointer; list-style: none; } .pulse-divs summary::-webkit-details-marker { display: none; }
+                       .pulse-divs summary::after { content: " ▾"; opacity: .5; } .pulse-divs[open] summary::after { content: " ▴"; }</style>
                 <div id="centroPulse" class="small d-flex flex-column gap-1 py-1" style="font-size: 0.7rem;">
                     <span class="pulse-line text-muted"><i class="bi bi-hourglass-split me-1"></i>Cargando el resumen…</span>
                 </div>
@@ -344,15 +421,21 @@
 <div class="d-flex justify-content-start align-items-center mb-3 mt-4 flex-wrap gap-3">
     <h4 class="fw-bold mb-0 text-white" id="activityTitle" style="font-size: 1.12rem;">Actividad del Día</h4>
     <button type="button" class="badge rounded-pill border-0 text-white-50 d-none" id="activityNotOpen" onclick="toggleActivityNotOpen()" style="font-size: 0.68rem; background: rgba(255,255,255,0.08); font-weight: 500;"></button>
-    <div class="btn-group btn-group-sm" id="activityFilterGroup" role="group" aria-label="Filtro de Región">
-        <button type="button" class="btn btn-outline-secondary active py-1 px-2" data-filter="all" onclick="setActivityRegionFilter('all')" title="Todos los países" style="font-size: 0.72rem; line-height: 1;">Todos</button>
-        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="usa" onclick="setActivityRegionFilter('usa')" title="EE.UU." style="font-size: 0.72rem; line-height: 1;">🇺🇸 EEUU</button>
-        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="europa" onclick="setActivityRegionFilter('europa')" title="Europa continental (sin nórdicos ni Reino Unido)" style="font-size: 0.72rem; line-height: 1;">🇪🇺 EU</button>
-        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="uk" onclick="setActivityRegionFilter('uk')" title="Reino Unido" style="font-size: 0.72rem; line-height: 1;">🇬🇧 UK</button>
-        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="nordicos" onclick="setActivityRegionFilter('nordicos')" title="Nórdicos: Suecia, Noruega, Dinamarca, Finlandia" style="font-size: 0.72rem; line-height: 1;">🇳🇴 NÓRD</button>
-        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="america" onclick="setActivityRegionFilter('america')" title="América sin EE.UU.: Canadá, México, Latinoamérica" style="font-size: 0.72rem; line-height: 1;">🌎 AMÉR</button>
-        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="oceania" onclick="setActivityRegionFilter('oceania')" title="Australia y Nueva Zelanda" style="font-size: 0.72rem; line-height: 1;">🇦🇺 AUS</button>
-        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="asia" onclick="setActivityRegionFilter('asia')" title="Asia: Japón, Taiwán, China, Singapur…" style="font-size: 0.72rem; line-height: 1;">🇯🇵 ASIA</button>
+    <div class="btn-group btn-group-sm" id="activityFilterGroup" role="group" aria-label="Filtro de sesión">
+        <button type="button" class="btn btn-outline-secondary active py-1 px-2" data-filter="all" onclick="setActivityRegionFilter('all')" title="Todas las empresas" style="font-size: 0.72rem; line-height: 1;">Todos <span class="act-n opacity-50"></span></button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="america" onclick="setActivityRegionFilter('america')" title="América: EE. UU., Canadá, México y Latinoamérica" style="font-size: 0.72rem; line-height: 1;">🌎 América <span class="act-n opacity-50"></span></button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="europa" onclick="setActivityRegionFilter('europa')" title="Europa: continental, Reino Unido y nórdicos" style="font-size: 0.72rem; line-height: 1;">🌍 Europa <span class="act-n opacity-50"></span></button>
+        <button type="button" class="btn btn-outline-secondary py-1 px-2" data-filter="asiapac" onclick="setActivityRegionFilter('asiapac')" title="Asia-Pacífico: Japón, China, Corea, Taiwán, Singapur, Australia y Nueva Zelanda" style="font-size: 0.72rem; line-height: 1;">🌏 Asia-Pacífico <span class="act-n opacity-50"></span></button>
+    </div>
+
+    <!-- Filtro por país (multiselección; manda sobre los botones de sesión): se rellena con los países que hay -->
+    <div class="dropdown" id="activityCountryDropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle py-1 px-2 d-flex align-items-center gap-1" type="button" id="activityCountryBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" style="font-size: 0.72rem; line-height: 1;" title="Filtrar por país de la empresa"><i class="bi bi-flag"></i> País</button>
+        <div class="dropdown-menu dropdown-menu-dark p-2 shadow-lg" aria-labelledby="activityCountryBtn" style="font-size: 0.72rem; background-color: #1a1e29; border: 1px solid rgba(255,255,255,0.15); min-width: 220px;">
+            <input type="search" class="form-control form-control-sm mb-2" id="activityCountrySearch" placeholder="Buscar país…" autocomplete="off" style="font-size: 0.72rem; background-color: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.15); color: inherit;">
+            <ul class="list-unstyled mb-0" id="activityCountryList" style="max-height: 17rem; overflow-y: auto;"></ul>
+            <div class="text-white-50 px-1 d-none" id="activityCountryNone">Ningún país coincide</div>
+        </div>
     </div>
 
     <!-- Filtro de Estados Multi-selección (Alineado junto a las regiones) -->
@@ -439,22 +522,18 @@
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <tbody id="gainerListMarket">
                             {% for t in top_gainers %}
-                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="gainer-item-market" data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }} data-status="{{ t.status }}">
+                            <tr {{ mover_tip(t) }} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="gainer-item-market" data-region="{{ t.region }}" data-market="{{ t.market }}" data-tk="{{ t.name }}" data-session="{{ t.session }}" data-country="{{ t.country }}" data-country-name="{{ t.country_name }}"{{ ' data-not-open=1' if t.not_open }}{{ ' data-ext-big=1' if t.not_open and t.ext and t.ext.pct and t.ext.pct|abs >= EXT_BIG_PCT }} data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{{ mover_tags(t) }}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-end pe-3 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
-                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, t.dec|default(2)) }}{{ t.symbol }}
-                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
-                                        </span>
+                                        {{ mover_quote(t) }}
                                     </div>
                                 </td>
                             </tr>
@@ -480,22 +559,18 @@
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <tbody id="loserListMarket">
                             {% for t in top_losers %}
-                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="loser-item-market" data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }} data-status="{{ t.status }}">
+                            <tr {{ mover_tip(t) }} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="loser-item-market" data-region="{{ t.region }}" data-market="{{ t.market }}" data-tk="{{ t.name }}" data-session="{{ t.session }}" data-country="{{ t.country }}" data-country-name="{{ t.country_name }}"{{ ' data-not-open=1' if t.not_open }}{{ ' data-ext-big=1' if t.not_open and t.ext and t.ext.pct and t.ext.pct|abs >= EXT_BIG_PCT }} data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{{ mover_tags(t) }}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-end pe-3 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
-                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, t.dec|default(2)) }}{{ t.symbol }}
-                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
-                                        </span>
+                                        {{ mover_quote(t) }}
                                     </div>
                                 </td>
                             </tr>
@@ -516,7 +591,7 @@
                     <div class="dash-tabs d-flex">
                         <button type="button" class="dash-tab active" data-dash-tab="fav" onclick="switchDashboardList('fav')" title="Favoritas (Tier 1: las comprarías si llegan a precio)"><i class="bi bi-star-fill me-1"></i>Favoritos</button>
                         <button type="button" class="dash-tab" data-dash-tab="buyzone" onclick="switchDashboardList('buyzone')"
-                                title="Empresas de la Watchlist (añadidas a mano y favoritas) con valoración base, de la más cercana a la más lejana de su precio de compra (verde: en zona · azul: a menos de un 15 % · amarillo: hasta un 30 % · gris: más lejos)"><i class="bi bi-bullseye me-1"></i>Compra{% set near_n = buy_zone|rejectattr('held')|selectattr('group', 'in', ['zona', 'cerca'])|list|length %}{% if near_n %} <span class="badge text-bg-info ms-1" style="font-size: .6rem;" title="{{ near_n }} en zona o a menos de un 15 %">{{ near_n }}</span>{% endif %}</button>
+                                title="Watchlist por distancia al precio de compra (verde: en zona · azul: <15 % · amarillo: <30 % · gris: más lejos)"><i class="bi bi-bullseye me-1"></i>Compra{% set near_n = buy_zone|rejectattr('held')|selectattr('group', 'in', ['zona', 'cerca'])|list|length %}{% if near_n %} <span class="badge text-bg-info ms-1" style="font-size: .6rem;" title="{{ near_n }} en zona o a menos de un 15 %">{{ near_n }}</span>{% endif %}</button>
                     </div>
                     {% if custom_lists %}
                     <div class="dropdown">
@@ -561,17 +636,17 @@
                         <!-- Cerca de compra: favoritas y cartera en zona o a ≤15 % del precio de compra -->
                         <tbody id="list-body-buyzone" class="dashboard-list-body" style="display: none;">
                             {% for t in buy_zone %}
-                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}#valoracion'" style="cursor: pointer; display: none;" class="buyzone-item"
+                            <tr {{ mover_tip(t) }} onclick="window.location='/ticker/{{ t.name }}#valoracion'" style="cursor: pointer; display: none;" class="buyzone-item"
                                 data-ticker="{{ clean_ticker(t.name) }}"
                                 data-price="{{ t.price or 0 }}"
                                 data-pct="{{ t.pct or 0 }}"
                                 data-drop="{{ t.drop_pct }}"{{ ' data-held=1' if t.held }}
-                                data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }}
+                                data-region="{{ t.region }}" data-market="{{ t.market }}" data-tk="{{ t.name }}" data-session="{{ t.session }}" data-country="{{ t.country }}" data-country-name="{{ t.country_name }}"{{ ' data-not-open=1' if t.not_open }}{{ ' data-ext-big=1' if t.not_open and t.ext and t.ext.pct and t.ext.pct|abs >= EXT_BIG_PCT }}
                                 data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{{ mover_tags(t) }}</span>
                                             {% if t.held %}<i class="bi bi-briefcase-fill text-primary ms-1" style="font-size: .65rem;" title="En cartera"></i>{% endif %}
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 80px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
@@ -579,8 +654,8 @@
                                 </td>
                                 <td class="text-end pe-3 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white" style="font-size: 0.78rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
-                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.72rem; white-space: nowrap;" title="Variación de hoy">{% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 1) }}%</span>
+                                        {% set q = mover_values(t) %}<span class="fw-bold text-white" style="font-size: 0.78rem;">{{ format_euro(q.price, t.dec|default(2)) }}</span>
+                                        <span class="fw-bold {% if q.pct > 0 %}text-success{% elif q.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.72rem; white-space: nowrap;">{% if q.pct > 0 %}+{% endif %}{{ format_euro(q.pct, 1) }}%</span>
                                         {% if t.drop_pct <= 0 %}
                                         <span class="badge text-bg-success" style="font-size: .66rem; min-width: 4.4rem;" title="Cotiza un {{ num(-t.drop_pct, 1) }}% por debajo de su precio de compra">✓ en zona</span>
                                         {% else %}
@@ -597,27 +672,23 @@
                         {% for clist in custom_lists %}
                         <tbody id="list-body-list-{{ clist.id }}" class="dashboard-list-body" style="display: none;">
                             {% for t in clist.movers %}
-                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="list-{{ clist.id }}-item"
+                            <tr {{ mover_tip(t) }} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="list-{{ clist.id }}-item"
                                 data-ticker="{{ clean_ticker(t.name) }}"
                                 data-price="{{ t.price or 0 }}"
                                 data-pct="{{ t.pct or 0 }}"
-                                data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }}
+                                data-region="{{ t.region }}" data-market="{{ t.market }}" data-tk="{{ t.name }}" data-session="{{ t.session }}" data-country="{{ t.country }}" data-country-name="{{ t.country_name }}"{{ ' data-not-open=1' if t.not_open }}{{ ' data-ext-big=1' if t.not_open and t.ext and t.ext.pct and t.ext.pct|abs >= EXT_BIG_PCT }}
                                 data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{{ mover_tags(t) }}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-end pe-3 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
-                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, t.dec|default(2)) }}{{ t.symbol }}
-                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
-                                        </span>
+                                        {{ mover_quote(t) }}
                                     </div>
                                 </td>
                             </tr>
@@ -652,26 +723,22 @@
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.72rem;">
                         <tbody id="portListMarket">
                             {% for t in port_all %}
-                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="port-item-market"
+                            <tr {{ mover_tip(t) }} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer;" class="port-item-market"
                                 data-ticker="{{ clean_ticker(t.name) }}"
                                 data-price="{{ t.price or 0 }}"
                                 data-pct="{{ t.pct or 0 }}"
-                                data-region="{{ t.region }}" data-market="{{ t.market }}"{{ ' data-not-open=1' if t.not_open }} data-status="{{ t.status }}">
+                                data-region="{{ t.region }}" data-market="{{ t.market }}" data-tk="{{ t.name }}" data-session="{{ t.session }}" data-country="{{ t.country }}" data-country-name="{{ t.country_name }}"{{ ' data-not-open=1' if t.not_open }}{{ ' data-ext-big=1' if t.not_open and t.ext and t.ext.pct and t.ext.pct|abs >= EXT_BIG_PCT }} data-status="{{ t.status }}">
                                 <td class="ps-3 py-1">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.78rem;">{{ clean_ticker(t.name) }}</span>{{ mover_tags(t) }}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 100px; font-size: 0.65rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-end pe-3 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.78rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
-                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.74rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, t.dec|default(2)) }}{{ t.symbol }}
-                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
-                                        </span>
+                                        {{ mover_quote(t) }}
                                     </div>
                                 </td>
                             </tr>
@@ -691,22 +758,99 @@
 
 
 <script>
-    let activityRegionFilter = 'all';
+    let activityRegionFilter = 'all';          // all | america | europa | asiapac (la sesión de bolsa)
+    let selectedCountries = new Set();         // códigos ISO del país de la empresa; si hay alguno, manda sobre la sesión
     let selectedActivityStatuses = ['T1', 'T2', 'ACCEPTED', 'STANDBY'];   // las mismas que antes (aceptadas y dudas)
 
-    // Grupo de países (data-market, de get_market_group); cada botón solo su grupo (Europa sin nórdicos ni R. Unido)
+    // Sesión (data-session) o país (data-country, el de la empresa: TSM es Taiwán aunque cotice en EE. UU.)
     const passActivityRegion = el => {
+        if (selectedCountries.size) return selectedCountries.has(el.dataset.country || '');
         if (activityRegionFilter === 'all') return true;
-        const m = el.dataset.market || 'otros';
-        return m === activityRegionFilter;
+        return (el.dataset.session || 'otros') === activityRegionFilter;
     };
+    const countryFlag = c => c && c.length === 2 ? String.fromCodePoint(...[...c].map(x => 127397 + x.charCodeAt(0))) : '🏳️';
+    const refreshActivityLists = () => {
+        window.paginationStates?.['gainerListMarket']?.refresh();
+        window.paginationStates?.['loserListMarket']?.refresh();
+        window.paginationStates?.['list-body-' + (window.currentDashboardListId || 'fav')]?.refresh();
+        window.paginationStates?.['portListMarket']?.refresh();
+        if (typeof paintBuyZoneEmpty === 'function') paintBuyZoneEmpty();
+        updateActivityNotOpen();
+    };
+    // Cuántas empresas hay en cada sesión y país (únicas por ticker, con el filtro de estado puesto) y el desplegable de países
+    function updateActivityCounts() {
+        const seen = new Map();
+        document.querySelectorAll('.gainer-item-market, .loser-item-market').forEach(el => {
+            const t = el.dataset.tk;
+            if (!t || seen.has(t)) return;
+            if (!selectedActivityStatuses.includes('ALL') && !selectedActivityStatuses.includes(el.dataset.status || 'NONE')) return;
+            seen.set(t, {session: el.dataset.session, country: el.dataset.country, name: el.dataset.countryName});
+        });
+        const all = [...seen.values()];
+        document.querySelectorAll('#activityFilterGroup .btn').forEach(b => {
+            const k = b.dataset.filter, n = k === 'all' ? all.length : all.filter(x => x.session === k).length;
+            const tag = b.querySelector('.act-n'); if (tag) tag.textContent = n;
+            b.classList.toggle('active', !selectedCountries.size && k === activityRegionFilter);   // con países elegidos, ninguno
+        });
+        const by = {};
+        all.forEach(x => { if (x.country) (by[x.country] = by[x.country] || {name: x.name, n: 0}).n++; });
+        selectedCountries.forEach(c => { if (!by[c]) by[c] = {name: c, n: 0}; });   // uno elegido sin empresas con este filtro de estado sigue visible
+        const codes = Object.keys(by).sort((a, b) => by[b].n - by[a].n || by[a].name.localeCompare(by[b].name, 'es'));
+        const list = document.getElementById('activityCountryList');
+        if (list) list.innerHTML = codes.map(c => `<li class="px-1 py-0.5" data-q="${foldText(by[c].name + ' ' + c)}"><div class="form-check d-flex align-items-center">
+            <input class="form-check-input" type="checkbox" value="${c}" id="actCountry_${c}" ${selectedCountries.has(c) ? 'checked' : ''} onchange="toggleActivityCountry('${c}')">
+            <label class="form-check-label text-white-50 flex-grow-1 ms-1" for="actCountry_${c}">${countryFlag(c)} ${by[c].name}</label><span class="text-white-50 ms-3">${by[c].n}</span></div></li>`).join('');
+        filterActivityCountries();
+        const btn = document.getElementById('activityCountryBtn');
+        if (btn) {
+            const sel = [...selectedCountries];
+            btn.classList.toggle('active', sel.length > 0);
+            btn.innerHTML = !sel.length ? '<i class="bi bi-flag"></i> País'
+                : sel.length === 1 ? `${countryFlag(sel[0])} ${by[sel[0]].name}` : `${sel.slice(0, 3).map(countryFlag).join(' ')} ${sel.length} países`;
+        }
+    }
+    // Buscador de países (sin tildes ni mayúsculas): «sui» → Suiza, «reino» → Reino Unido; Enter marca el primero
+    const foldText = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    function filterActivityCountries() {
+        const input = document.getElementById('activityCountrySearch'), q = foldText(input && input.value).trim();
+        let shown = 0;
+        document.querySelectorAll('#activityCountryList li').forEach(li => {
+            const ok = !q || (li.dataset.q || '').includes(q);
+            li.classList.toggle('d-none', !ok);
+            if (ok) shown++;
+        });
+        document.getElementById('activityCountryNone')?.classList.toggle('d-none', shown > 0);
+    }
+    (function initCountrySearch() {
+        const input = document.getElementById('activityCountrySearch'), dd = document.getElementById('activityCountryDropdown');
+        if (!input || !dd) return;
+        input.addEventListener('input', filterActivityCountries);
+        input.addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            const first = document.querySelector('#activityCountryList li:not(.d-none) input[type="checkbox"]');
+            if (first) first.click();
+        });
+        dd.addEventListener('shown.bs.dropdown', () => { input.focus(); input.select(); });   // al abrir, a escribir
+        dd.addEventListener('hidden.bs.dropdown', () => { input.value = ''; filterActivityCountries(); });
+    })();
+    document.addEventListener('DOMContentLoaded', updateActivityCounts);
+    function toggleActivityCountry(code) {
+        selectedCountries.has(code) ? selectedCountries.delete(code) : selectedCountries.add(code);
+        activityRegionFilter = 'all';   // un país concreto manda sobre la sesión: sin botón de sesión marcado
+        document.querySelectorAll('#activityFilterGroup .btn').forEach(b => b.classList.toggle('active', !selectedCountries.size && b.dataset.filter === 'all'));
+        window.urlState && urlState.set({pais: [...selectedCountries].join(','), region: ''});
+        updateActivityCounts();
+        refreshActivityLists();
+    }
 
     // los que hoy aún no han abierto (su sesión anterior): ocultos en toda la «Actividad del día» (Ganadores, Perdedores,
     // Favoritos/Compra/listas y Mi Cartera) salvo que se pulse el ojo de «🕒 N sin abrir»; entonces salen atenuados
-    // (tr[data-not-open]) y debajo de los de hoy. Sigue en la dirección (?ayer=1)
+    // (tr[data-not-open]) y debajo de los de hoy. Sigue en la dirección (?ayer=1).
+    // Excepción: los que ya tienen pre/post-market de ±1,5 % o más (tr[data-ext-big], EXT_BIG_PCT) se ven siempre, con ese mismo formato atenuado y debajo.
     let showNotOpen = !!(window.urlState && urlState.get('ayer'));
     window.activityFilterFn = el => {
-        if (!showNotOpen && el.dataset.notOpen) return false;
+        if (!showNotOpen && el.dataset.notOpen && !el.dataset.extBig) return false;
         // 1. Filtrar por región
         const passRegion = passActivityRegion(el);
 
@@ -724,6 +868,7 @@
         const badge = document.getElementById('activityNotOpen');
         if (!badge) return;
         const n = [...document.querySelectorAll('.gainer-item-market[data-not-open], .loser-item-market[data-not-open]')]
+            .filter(el => !el.dataset.extBig)   // los de pre/post-market grande ya se ven: el contador es solo de los ocultos
             .filter(el => passActivityRegion(el)
                 && (selectedActivityStatuses.includes('ALL') || selectedActivityStatuses.includes(el.dataset.status || 'NONE'))).length;
         badge.innerHTML = `<i class="bi ${showNotOpen ? 'bi-eye' : 'bi-eye-slash'} me-1"></i>🕒 ${n} sin abrir`;
@@ -744,7 +889,7 @@
     }
 
     // filtros de «Actividad del día» guardados en la dirección (?region=usa&niveles=T1,T2): se vuelven a poner al cargar
-    const ACTIVITY_URL = {niveles: window.urlState && urlState.get('niveles'), region: window.urlState && urlState.get('region')};   // antes de que el arranque los pise
+    const ACTIVITY_URL = {niveles: window.urlState && urlState.get('niveles'), region: window.urlState && urlState.get('region'), pais: window.urlState && urlState.get('pais')};   // antes de que el arranque los pise
     window.addEventListener('load', () => {
         if (!window.urlState) return;
         const lv = ACTIVITY_URL.niveles;
@@ -753,21 +898,28 @@
             document.querySelectorAll('#activityStatusDropdownContainer input[type="checkbox"]').forEach(cb => cb.checked = want.includes(cb.value));
             toggleActivityStatus(want.includes('ALL') ? 'ALL' : want[0]);
         }
-        const rg = ACTIVITY_URL.region;
-        if (rg) setActivityRegionFilter(rg);
+        // valores de los botones antiguos (?region=usa…): se traducen a país o a sesión
+        const LEGACY = {usa: ['US'], uk: ['GB'], nordicos: ['SE', 'NO', 'DK', 'FI'], oceania: ['AU', 'NZ'], asia: 'asiapac'};
+        const rg = ACTIVITY_URL.region, pais = ACTIVITY_URL.pais;
+        updateActivityCounts();
+        if (pais || (rg && Array.isArray(LEGACY[rg]))) {
+            (pais ? pais.split(',') : LEGACY[rg]).filter(Boolean).forEach(c => selectedCountries.add(c));
+            window.urlState && urlState.set({pais: [...selectedCountries].join(','), region: ''});
+            updateActivityCounts();
+            refreshActivityLists();
+        } else if (rg) {
+            setActivityRegionFilter(LEGACY[rg] || rg);
+        }
     });
     function setActivityRegionFilter(filter) {
         activityRegionFilter = filter;
-        window.urlState && urlState.set({region: filter === 'all' ? '' : filter});   // sigue al recargar
+        selectedCountries.clear();   // la sesión y los países no se mezclan: o una cosa o la otra
+        window.urlState && urlState.set({region: filter === 'all' ? '' : filter, pais: ''});   // sigue al recargar
         document.querySelectorAll('#activityFilterGroup .btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.filter === filter);
         });
-        window.paginationStates?.['gainerListMarket']?.refresh();
-        window.paginationStates?.['loserListMarket']?.refresh();
-        window.paginationStates?.['list-body-' + (window.currentDashboardListId || 'fav')]?.refresh();
-        window.paginationStates?.['portListMarket']?.refresh();
-        if (typeof paintBuyZoneEmpty === 'function') paintBuyZoneEmpty();
-        updateActivityNotOpen();
+        updateActivityCounts();
+        refreshActivityLists();
     }
 
     function toggleActivityStatus(statusVal) {
@@ -830,6 +982,7 @@
         window.paginationStates?.['portListMarket']?.refresh();
         if (typeof paintBuyZoneEmpty === 'function') paintBuyZoneEmpty();
         updateActivityNotOpen();
+        updateActivityCounts();
     }
 
     function setupSimplePagination(listId, itemClass, paginationId, itemsPerPage, filterFn) {
@@ -1091,7 +1244,8 @@
 
 // Resumen del Centro de mando en la tarjeta «Mi Cartera»
 // (se vuelve a pedir al cambiar leído/no leído: refreshNotificationBadges en base.html)
-// Mi Cartera: el resultado de Hoy (en la página) o de 7 / 30 días (del pulso, frente al índice). Se recuerda el elegido.
+// Mi Cartera: el resultado de Hoy (en la página) o de 7 / 30 días, YTD, 1 año o desde el inicio (del pulso, frente al índice), con su
+// minigráfica. Se recuerda el elegido.
 let mcData = null;
 function mcPeriods(p) { mcData = p; mcPaint(); }
 function mcPaint() {
@@ -1099,15 +1253,46 @@ function mcPaint() {
     if (!box) return;
     let k = 'hoy';
     try { k = localStorage.getItem('miCarteraPeriodo') || 'hoy'; } catch (e) {}
+    if (k !== 'hoy' && !MC_LABEL[k]) k = 'hoy';
     document.querySelectorAll('#miCarteraCard [data-mc]').forEach(b => b.classList.toggle('active', b.dataset.mc === k));
+    document.getElementById('mcMovers')?.classList.toggle('d-none', k !== 'hoy');   // lo que más se mueve, solo en «Hoy»
+    mcSpark(k);
     const signed = (v, d = 2) => `${v > 0 ? '+' : ''}${fmtNum(v, d)}`, tone = v => v > 0 ? 'text-success' : v < 0 ? 'text-danger' : 'text-muted';
     const show = (abs, pct, label, bench) => box.innerHTML =
-        `<span class="fw-bold ${tone(pct)}">${signed(abs, 2)}€ <span class="opacity-75 small ms-1" style="font-size: .68rem;">(${signed(pct)}%)</span></span>` +
-        `<span class="text-muted small ms-1">${label}</span>` + (bench != null ? `<span class="text-muted small ms-1">· ${mcData.benchmark || 'índice'} ${signed(bench)}%</span>` : '');
-    if (k === 'hoy') return show(+box.dataset.hoyAbs, +box.dataset.hoyPct, 'hoy', null);
+        `<span class="fw-bold ${tone(pct)}">${signed(abs, 2)}€ <span class="opacity-75 small ms-1" style="font-size: .78rem;">(${signed(pct)}%)</span></span>` +
+        `<span class="text-muted ms-1" style="font-size: .7rem;">${label}</span>` + (bench != null ? `<span class="text-muted ms-1" style="font-size: .7rem;">· ${mcData.benchmark || 'índice'} ${signed(bench)}%</span>` : '');
+    if (k === 'hoy') {
+        show(+box.dataset.hoyAbs, +box.dataset.hoyPct, 'hoy', null);
+        // con el horario extendido de EE. UU.: el «hoy» ya sumado, discreto y con su icono (como en Cartera)
+        if (box.dataset.hoyExt) {
+            const xt = +box.dataset.hoyExt, kinds = box.dataset.hoyExtKind;
+            const lab = kinds === 'pre' ? 'pre-market' : kinds === 'post' ? 'post-market' : 'pre/post-market';
+            box.insertAdjacentHTML('beforeend', `<span class="ext-eur ms-2 ${tone(xt)}" style="font-size: .72rem;" data-ext-tone="${xt > 0 ? 'up' : 'down'}" data-ext-tip="Hoy con el ${lab}">` +
+                `<i class="bi ${kinds.includes('pre') ? 'bi-sunrise-fill' : 'bi-moon-stars-fill'}"></i>${signed(xt)} €</span>`);
+        }
+        return;
+    }
     const p = mcData && mcData.periods && mcData.periods[k];
-    if (!p) { box.innerHTML = `<span class="text-muted small">${mcData ? 'Sin datos de ' + (k === '7d' ? '7' : '30') + ' días' : 'Calculando…'}</span>`; return; }
-    show(p.abs_eur, p.pct, k === '7d' ? 'en 7 días' : 'en 30 días', p.benchmark_pct);
+    if (!p) { box.innerHTML = `<span class="text-muted small">${mcData ? 'Sin datos de ' + MC_LABEL[k] : 'Calculando…'}</span>`; return; }
+    show(p.abs_eur, p.pct, MC_LABEL[k], p.benchmark_pct);
+}
+const MC_LABEL = { '7d': 'en 7 días', '30d': 'en 30 días', ytd: 'en el año', '1y': 'en 1 año', max: 'desde el inicio' };
+// Minigráfica: el valor por participación (sin aportaciones) desde el último cierre antes del periodo
+function mcSpark(k) {
+    const svg = document.getElementById('mcSpark'), s = mcData && mcData.spark;
+    if (!svg) return;
+    if (k === 'hoy' || !s || s.dates.length < 2) { svg.classList.add('d-none'); return; }
+    const last = new Date(s.dates[s.dates.length - 1]), iso = d => d.toISOString().slice(0, 10);
+    const days = { '7d': 7, '30d': 30, '1y': 365 }[k];
+    const from = k === 'ytd' ? `${last.getFullYear()}-01-01` : k === 'max' ? '' : iso(new Date(last - days * 864e5));
+    let i = s.dates.findIndex(d => d >= from);
+    i = Math.max(0, (i < 0 ? s.dates.length - 1 : i) - 1);
+    const v = s.uv.slice(i);
+    if (v.length < 2) { svg.classList.add('d-none'); return; }
+    const lo = Math.min(...v), hi = Math.max(...v), span = hi - lo || 1;
+    svg.querySelector('polyline').setAttribute('points', v.map((y, j) => `${(100 * j / (v.length - 1)).toFixed(1)},${(21 - 20 * (y - lo) / span).toFixed(1)}`).join(' '));
+    svg.classList.remove('d-none', 'text-success', 'text-danger');
+    svg.classList.add(v[v.length - 1] >= v[0] ? 'text-success' : 'text-danger');
 }
 document.addEventListener('click', e => {
     const b = e.target.closest('#miCarteraCard [data-mc]');
@@ -1151,9 +1336,18 @@ window.loadCentroPulse = async function loadCentroPulse() {
         }
         if (p.dividend) {
             const d = p.dividend;
-            out.push(line('/portfolio#dividendos', 'bi-cash-coin',
-                `${d.estimated ? 'Próximo dividendo' : 'Próximo cobro'}: <span class="text-white">${esc(tk(d.ticker))}</span> ${dm(d.date)} · <span class="text-success">≈${fmtNum(d.gross_eur, 0)} €</span>${d.estimated ? ' <span class="opacity-75">(estimado)</span>' : ''}`,
-                d.kind === 'ex' ? 'Fecha ex-dividendo; aún no se sabe el día de cobro' : 'Bruto, al cambio de hoy'));
+            const head = `${d.estimated ? 'Próximo dividendo' : 'Próximo cobro'}: <span class="text-white">${esc(tk(d.ticker))}</span> ${dm(d.date)} · <span class="text-success">≈${fmtNum(d.gross_eur, 0)} €</span>${d.estimated ? ' <span class="opacity-75">(estimado)</span>' : ''}`;
+            if (d.count > 1) {
+                // desplegable: quién paga cada uno de los cobros de los próximos 30 días
+                const rows = d.items.map(e => `<li class="d-flex gap-2"><span class="text-white-50 num-font">${dm(e.date)}</span><span class="text-white">${esc(tk(e.ticker))}</span>${e.estimated ? '<span class="opacity-50" title="Estimado">~</span>' : ''}<span class="ms-auto text-success num-font">≈${fmtNum(e.gross_eur, 0)} €</span></li>`).join('');
+                out.push(`<details class="pulse-line pulse-divs"><summary class="text-truncate" title="Ver quién paga"><i class="bi bi-cash-coin me-1 text-primary"></i><span class="text-white-50">${head} · ${d.count} en 30 d (≈${fmtNum(d.total_eur, 0)} €)</span></summary>`
+                    + `<ul class="list-unstyled mb-0 ms-3 mt-1">${rows}<li><a href="/portfolio#dividendos" class="text-decoration-none">Ver dividendos <i class="bi bi-arrow-right"></i></a></li></ul></details>`);
+            } else {
+                out.push(line('/portfolio#dividendos', 'bi-cash-coin', head,
+                    d.kind === 'ex' ? 'Fecha ex-dividendo; aún no se sabe el día de cobro' : 'Bruto, al cambio de hoy'));
+            }
+        } else {
+            out.push(line('/portfolio#dividendos', 'bi-cash-coin', 'Sin cobros en 30 días'));
         }
         mcPeriods(p);
         box.innerHTML = out.join('');
@@ -1259,6 +1453,77 @@ function initSwitchCard(card) {
     card.querySelectorAll('[data-agenda]').forEach(b => b.addEventListener('click', () => { state.window = b.dataset.agenda; paint(); save('Window', state.window); }));
     paint();
 }
+const AP_KIND = {pre: 'bi-sunrise text-muted', after: 'bi-moon-stars text-muted', time: 'bi-clock text-muted',
+                 pay: 'bi-cash-coin text-success', ex: 'bi-calendar-x text-success'};
+const apEsc = s => String(s || '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+// «+N» de un día: se abre también al pulsar (y se cierra al pulsar fuera); dentro, los enlaces siguen funcionando
+document.addEventListener('click', e => {
+    const more = e.target.closest('#agendaPlan .ap-tk-more');
+    if (more && !e.target.closest('.ap-pop')) { e.preventDefault(); more.classList.toggle('open'); }
+    document.querySelectorAll('#agendaPlan .ap-tk-more.open').forEach(m => { if (m !== more) m.classList.remove('open'); });
+});
+// Agenda (plan): que quepa sin recortar ni scroll. Si las filas no caben en el alto de la tarjeta, se esconden las últimas
+// del bloque más largo (cartera / lo que sigues) y se recogen en una línea «+N más» con el detalle al pasar el ratón.
+function fitAgendaPlan() {
+    const card = document.getElementById('agendaPlan');
+    if (!card) return;
+    card.querySelectorAll('.ap-body').forEach(pane => {
+        pane.querySelectorAll('.ap-hid').forEach(r => r.classList.remove('ap-hid'));
+        pane.querySelectorAll('.ap-rest').forEach(r => r.remove());
+        if (!pane.offsetParent) return;   // pestaña oculta: se ajusta al mostrarla
+        const groups = [];
+        [...pane.children].forEach(el => {
+            if (el.classList.contains('ap-sub')) groups.push({rows: [], hidden: [], more: null});
+            else if (el.classList.contains('ap-row') && groups.length) groups[groups.length - 1].rows.push(el);
+        });
+        const label = pane.dataset.apPane === 'mes' ? 'semanas' : 'días';
+        const over = () => pane.scrollHeight > pane.clientHeight + 1;
+        const visible = g => g.rows.filter(r => !r.classList.contains('ap-hid'));
+        let guard = 60;
+        while (over() && guard--) {
+            let best = null;
+            groups.forEach(g => { if (visible(g).length > 1 && (!best || visible(g).length > visible(best).length)) best = g; });
+            if (!best) break;
+            const row = visible(best).pop();
+            row.classList.add('ap-hid');
+            best.hidden.unshift(row);
+            if (!best.more) {
+                best.more = document.createElement('div');
+                best.more.className = 'ag-row ap-row ap-rest';
+                row.parentNode.insertBefore(best.more, best.rows[best.rows.length - 1].nextSibling);
+            }
+            const pop = best.hidden.map(r => `<span class="ap-prow">${r.innerHTML}</span>`).join('');
+            best.more.innerHTML = `<span class="ap-more">+${best.hidden.length} ${best.hidden.length === 1 ? label.slice(0, -1) : label} más<span class="ap-pop">${pop}</span></span>`;
+        }
+        // cada día en una línea: si no caben sus empresas, las últimas (lo menos importante) van en «+N»
+        pane.querySelectorAll('.ap-row:not(.ap-hid) .ag-what').forEach(w => {
+            w.classList.remove('ap-cut');
+            w.querySelector('.ap-tk-more')?.remove();
+            const tks = [...w.querySelectorAll('.ap-tk')];
+            tks.forEach(t => t.classList.remove('ap-tk-hid'));
+            if (w.scrollWidth <= w.clientWidth + 1 || tks.length < 2) return;
+            const more = document.createElement('span');
+            more.className = 'ap-more ap-tk-more';
+            w.appendChild(more);
+            const hidden = [];
+            const paint = () => {
+                // como una fila de la agenda: cuándo (icono), el ticker con su formato, el nombre y la hora (o el importe)
+                const pop = hidden.map(t => {
+                    const d = t.dataset, tk = t.querySelector('a, strong').outerHTML;
+                    return `<span class="ap-prow"><i class="bi ${AP_KIND[d.kind] || 'bi-dash text-muted'}"></i>${tk}`
+                        + `<span class="ap-pname">${apEsc(d.name)}</span><span class="ap-when">${apEsc(d.when)}</span></span>`;
+                }).join('');
+                more.innerHTML = `+${hidden.length}<span class="ap-pop ap-pop-day">${pop}</span>`;
+            };
+            for (let i = tks.length - 1; i > 0 && (hidden.length === 0 || w.scrollWidth > w.clientWidth + 1); i--) {
+                tks[i].classList.add('ap-tk-hid');
+                hidden.unshift(tks[i]);
+                paint();
+            }
+            w.classList.add('ap-cut');
+        });
+    });
+}
 // Agenda (plan): pestañas «Esta semana» / «30 días» (se recuerda la elegida)
 function initAgendaPlan() {
     const card = document.getElementById('agendaPlan');
@@ -1268,11 +1533,19 @@ function initAgendaPlan() {
     const show = key => {
         card.querySelectorAll('[data-ap]').forEach(b => b.classList.toggle('active', b.dataset.ap === key));
         card.querySelectorAll('[data-ap-pane]').forEach(p => p.classList.toggle('d-none', p.dataset.apPane !== key));
+        fitAgendaPlan();
     };
     card.querySelectorAll('[data-ap]').forEach(b => b.addEventListener('click', () => {
         show(b.dataset.ap); try { localStorage.setItem('agendaPlanTab', b.dataset.ap); } catch (e) {}
     }));
     show(k);
+    card.querySelector('[data-ap-find]')?.addEventListener('click', e => {   // una sola consulta a la IA para las fechas que faltan
+        const b = e.currentTarget; b.disabled = true; b.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        fetch('/api/agenda/fechas', {method: 'POST'}).then(r => { if (!r.ok) throw new Error(); return r.json(); })
+            .then(d => { showToast('Agenda', d.found ? `Encontradas ${d.found} de ${d.searched} fechas` : 'La IA no encontró fechas publicadas'); })
+            .catch(() => showToast('Agenda', 'No se pudo consultar la IA', 'danger'))
+            .finally(() => fetch('/portada/agenda').then(r => r.text()).then(html => { document.getElementById('slot-agenda').innerHTML = html; initAgendaPlan(); sizeHome(); }));
+    });
 }
 // Bandeja del Centro: filtro Todo / Cartera / Seguimiento (se recuerda) y el periodo del Resumen (lo vigente, siempre;
 // lo demás, si pasó en el periodo). Pulsar una empresa abre su detalle debajo de su grupo; leído y descartar en cada una.
@@ -1299,6 +1572,19 @@ function initBandeja() {
             const okOrigin = !st.origin || c.dataset.origin === st.origin || (st.origin === 'cartera' && c.dataset.origin === 'general');
             c.classList.toggle('d-none', !(okOrigin && (c.dataset.date || '') >= from) || hidden.has(c.dataset.hide));   // solo lo de hoy
         });
+        card.querySelectorAll('.bj-sub').forEach(r => {   // la línea de un subtipo: oculta si no queda nada; ▼ y ▲ con lo que se ve
+            r.querySelectorAll('.bj-dir, .bj-break').forEach(x => x.remove());
+            const vis = [...r.querySelectorAll('.bj-chip:not(.d-none)')];
+            r.classList.toggle('d-none', !vis.length);
+            let prev = null;
+            vis.forEach(c => {
+                const d = c.dataset.dir || '', first = d !== prev;
+                c.classList.toggle('bj-first', first);
+                // lo que sube, en su propia línea (debajo de lo que baja, con las flechas alineadas)
+                if (first && d) c.insertAdjacentHTML('beforebegin', (prev !== null ? '<span class="bj-break"></span>' : '') + `<span class="bj-dir ${d}">${d === 'down' ? '▼' : '▲'}</span>`);
+                prev = d;
+            });
+        });
         card.querySelectorAll('.bj-group').forEach(g => {
             const vis = g.querySelector('.bj-chip:not(.d-none)');
             g.classList.toggle('d-none', !vis);
@@ -1322,6 +1608,10 @@ function initBandeja() {
         if (act && act.dataset.act === 'read') {
             const read = c.classList.contains('unread'); setRead(c, read); window.markNotificationsRead({keys, read}); apply(); return;
         }
+        if (act && act.dataset.act === 'go') {   // ir directo a lo que avisa: marca leído y deja seguir el enlace
+            if (c.classList.contains('unread')) { setRead(c, true); window.markNotificationsRead({keys, read: true}); apply(); }
+            return;
+        }
         if (act && act.dataset.act === 'hide') {   // quitar de la bandeja de hoy: sigue en Avisos, sin descartar
             hidden.add(c.dataset.hide); saveHidden([c.dataset.hide]); apply(); return;
         }
@@ -1330,7 +1620,7 @@ function initBandeja() {
         card.querySelectorAll('.bj-detail').forEach(d => d.classList.add('d-none'));
         card.querySelectorAll('.bj-chip.active').forEach(x => x.classList.remove('active'));
         if (open) return;
-        c.after(det);   // justo debajo de la línea pulsada
+        (c.closest('.bj-sub') || c).after(det);   // justo debajo de la línea pulsada (la del subtipo, no dentro de ella)
         det.innerHTML = c.querySelector('template').innerHTML; det.classList.remove('d-none'); c.classList.add('active');
         if (c.classList.contains('unread')) { setRead(c, true); window.markNotificationsRead({keys, read: true}); apply(); }
     });
@@ -1349,8 +1639,9 @@ function sizeHome() {
     if (!top) return;
     if (innerWidth < 1200) { top.style.removeProperty('--top-h'); return; }
     const avail = innerHeight - (top.getBoundingClientRect().top + scrollY) - 16;
-    top.style.setProperty('--top-h', Math.max(300, Math.round(avail * 0.4)) + 'px');
+    top.style.setProperty('--top-h', Math.max(280, Math.round(avail * 0.36)) + 'px');   // algo menos que la Actividad
     window.fitAll && fitAll();
+    window.fitAgendaPlan && fitAgendaPlan();
 }
 let fitTimer;
 addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(sizeHome, 150); });
@@ -1378,22 +1669,18 @@ if (location.hash === '#watchlist') location.replace('/watchlist');
                     <table class="table table-modern table-sm align-middle mb-0" style="font-size: 0.75rem;">
                         <tbody id="portAllList">
                             {% for t in port_all %}
-                            <tr {% if t.not_open and t.ext and t.ext.pct %}data-ext-tip="{{ ext_title(t.ext) }}" data-ext-tone="{{ 'up' if t.ext.pct > 0 else 'down' }}"{% endif %} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="port-all-item">
+                            <tr {{ mover_tip(t) }} onclick="window.location='/ticker/{{ t.name }}'" style="cursor: pointer; display: none;" class="port-all-item">
                                 <td class="ps-3 py-2">
                                     <div class="ticker-info" style="gap: 6px;">
                                         <div>
-                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.8rem;">{{ clean_ticker(t.name) }}</span>{% if t.not_open %}<span class="mv-stale-tag" title="Su mercado aún no ha abierto hoy: es su última sesión">{{ t.session_label or 'ayer' }}</span>{{ ext_tag(t.ext) if t.ext }}{% endif %}</span>
+                                            <span class="text-nowrap"><span class="fw-bold ticker-name text-white" style="font-size: 0.8rem;">{{ clean_ticker(t.name) }}</span>{{ mover_tags(t) }}</span>
                                             <span class="company-name text-truncate text-muted ms-1" style="max-width: 150px; font-size: 0.68rem; text-transform: uppercase;">{{ t.company_name }}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td class="text-end pe-3 py-2 align-middle num-font">
                                     <div class="d-flex align-items-center justify-content-end gap-2">
-                                        <span class="fw-bold text-white me-1" style="font-size: 0.8rem;">{{ format_euro(t.price, t.dec|default(2)) }}</span>
-                                        <span class="fw-bold {% if t.pct > 0 %}text-success{% elif t.pct < 0 %}text-danger{% else %}text-muted{% endif %}" style="font-size: 0.76rem; white-space: nowrap;">
-                                            {% if t.change_abs > 0 %}+{% endif %}{{ format_euro(t.change_abs, t.dec|default(2)) }}{{ t.symbol }}
-                                            <span class="opacity-85 small ms-1">({% if t.pct > 0 %}+{% endif %}{{ format_euro(t.pct, 2) }}%)</span>
-                                        </span>
+                                        {{ mover_quote(t, '0.8', '0.76') }}
                                     </div>
                                     {% if t.total_change_eur is defined and t.total_change_eur != 0 %}
                                         <div class="text-end text-muted mt-0.5" style="font-size: 0.62rem; line-height: 1;">

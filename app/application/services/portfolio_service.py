@@ -1,6 +1,7 @@
 import pandas as pd
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import yfinance as yf
+from app.application.services import broker_fees
 from datetime import datetime
 import json
 import os
@@ -34,6 +35,25 @@ class PortfolioService:
         if found:
             self.repository.save_manual_transactions(filtered_txs)
             self.rebuild_portfolio()
+
+    @staticmethod
+    def _same_tx(a: Transaction, b: Transaction) -> bool:
+        return a.date == b.date and a.type == b.type and a.ticker == b.ticker \
+            and abs(a.shares - b.shares) < 0.001 and abs(a.price - b.price) < 0.001
+
+    def find_manual_transaction(self, target_tx: Transaction) -> Optional[Transaction]:
+        return next((tx for tx in self.repository.load_manual_transactions() if self._same_tx(tx, target_tx)), None)
+
+    def replace_manual_transaction(self, old_tx: Transaction, new_tx: Transaction) -> bool:
+        """Edita una operación añadida a mano: la sustituye en su sitio. False si no es manual o no existe."""
+        txs = self.repository.load_manual_transactions()
+        i = next((i for i, tx in enumerate(txs) if self._same_tx(tx, old_tx)), None)
+        if i is None:
+            return False
+        txs[i] = new_tx
+        self.repository.save_manual_transactions(txs)
+        self.rebuild_portfolio(force_tickers={new_tx.ticker})
+        return True
 
     def load_csv_transactions(self) -> List[Transaction]:
         transactions = []
@@ -188,10 +208,26 @@ class PortfolioService:
     def _sync_splits(self, tickers: set, force: set = frozenset()):
         return self._merge_history(SPLIT_CACHE_FILE, self._per_ticker("splits_hist", tickers, self._yahoo_splits, force))
 
+    def fill_missing_fx(self, manual_txs: List[Transaction]) -> int:
+        """Las operaciones a mano sin cambio guardado (Yahoo no respondió al apuntarlas) lo reciben, el de su fecha.
+        Sin él, el coste en euros saldría de un cambio fijo. Devuelve cuántas ha rellenado."""
+        from utils.fx import fx_rate_on
+        filled = 0
+        for tx in manual_txs:
+            if tx.fx_rate_at_purchase is None and (tx.currency or 'USD').upper() != 'EUR':
+                rate = fx_rate_on(tx.currency or 'USD', tx.date)
+                if rate:
+                    tx.fx_rate_at_purchase = rate
+                    filled += 1
+        if filled:
+            self.repository.save_manual_transactions(manual_txs)
+        return filled
+
     def rebuild_portfolio(self, force_tickers: set = frozenset()):
         csv_txs = self.load_csv_transactions()
         manual_txs = self.repository.load_manual_transactions()
-        
+        self.fill_missing_fx(manual_txs)
+
         # 1. Obtener tickers de transacciones iniciales para buscar splits
         all_tx_raw = csv_txs + manual_txs
         tickers_seen_initial = {tx.ticker for tx in all_tx_raw}
@@ -241,39 +277,10 @@ class PortfolioService:
             ccy = (getattr(tx, 'currency', 'USD') or 'USD').upper()
             fx_rate = fx if fx is not None else (1.0 if ccy == 'EUR' else (0.92 if ccy == 'USD' else (0.088 if ccy == 'SEK' else 1.0)))
 
-            # Auto-calcular comisión si es transacción manual y no tiene comisión asignada
-            tx_broker = getattr(tx, 'broker', 'IBKR') or 'IBKR'
-            if tx_broker == 'AUTO':
-                tx_broker = 'IBKR' if tx.date >= '2026' else 'DEGIRO'
-
+            # Comisión estimada si es una operación a mano sin comisión (broker_fees)
+            tx_broker = broker_fees.resolve_broker(getattr(tx, 'broker', 'IBKR'), tx.date)
             if fee == 0.0 and tx in manual_txs:
-                b_set = self._get_broker_settings()
-                conv_rate = fx_rate if fx_rate is not None else (0.92 if ccy == 'USD' else (0.088 if ccy == 'SEK' else 1.0))
-                is_degiro = tx_broker == 'DEGIRO'
-                
-                if is_degiro:
-                    if ccy == 'EUR':
-                        fee = b_set.get("degiro_fee_eur", 1.0)
-                    elif ccy == 'USD':
-                        fee_eur = b_set.get("degiro_fee_usd", 1.0) + (b_set.get("degiro_autofx_pct", 0.25) / 100.0) * (tx.shares * tx.price * conv_rate)
-                        fee = fee_eur / conv_rate if conv_rate > 0 else fee_eur
-                    else:  # SEK
-                        fee_eur = b_set.get("degiro_fee_sek", 3.90) + (b_set.get("degiro_autofx_pct", 0.25) / 100.0) * (tx.shares * tx.price * conv_rate)
-                        fee = fee_eur / conv_rate if conv_rate > 0 else fee_eur
-                else:
-                    # IBKR
-                    if ccy == 'USD':
-                        comm_usd = max(b_set.get("ibkr_fee_usd_min", 1.00), b_set.get("ibkr_fee_usd_per_share", 0.005) * tx.shares)
-                        comm_usd = min(comm_usd, (b_set.get("ibkr_fee_usd_max_pct", 1.0) / 100.0) * tx.shares * tx.price)
-                        fx_usd = max(b_set.get("ibkr_autofx_usd_min", 2.00), (b_set.get("ibkr_autofx_usd_pct", 0.2) / 100.0) * tx.shares * tx.price)
-                        fee = comm_usd + fx_usd
-                    elif ccy == 'SEK':
-                        comm_sek = max(b_set.get("ibkr_fee_sek_min", 40.0), (b_set.get("ibkr_fee_sek_pct", 0.05) / 100.0) * tx.shares * tx.price)
-                        fx_sek = 22.0
-                        fee = comm_sek + fx_sek
-                    else:
-                        comm_eur = max(b_set.get("ibkr_fee_eur_min", 1.25), (b_set.get("ibkr_fee_eur_pct", 0.05) / 100.0) * tx.shares * tx.price)
-                        fee = comm_eur / conv_rate if conv_rate > 0 else comm_eur
+                fee = broker_fees.estimate_fee(tx_broker, ccy, tx.shares, tx.price, fx_rate, self._get_broker_settings())
 
             ledger_entry = LedgerEntry(
                 date=tx.date,
@@ -513,38 +520,9 @@ class PortfolioService:
             fx_hist = getattr(tx, 'fx_rate_at_purchase', None)
             rate = fx_hist if (fx_hist is not None) else (1.0 if ccy == 'EUR' else fx.get(ccy, 1.0))
 
-            # Auto-calcular comisión si es transacción manual y no tiene comisión asignada
-            tx_broker = getattr(tx, 'broker', 'IBKR') or 'IBKR'
-            if tx_broker == 'AUTO':
-                tx_broker = 'IBKR' if tx.date >= '2026' else 'DEGIRO'
-
+            tx_broker = broker_fees.resolve_broker(getattr(tx, 'broker', 'IBKR'), tx.date)
             if fee == 0.0 and tx in manual_txs:
-                b_set = self._get_broker_settings()
-                is_degiro = tx_broker == 'DEGIRO'
-                
-                if is_degiro:
-                    if ccy == 'EUR':
-                        fee = b_set.get("degiro_fee_eur", 1.0)
-                    elif ccy == 'USD':
-                        fee_eur = b_set.get("degiro_fee_usd", 1.0) + (b_set.get("degiro_autofx_pct", 0.25) / 100.0) * (tx.shares * tx.price * rate)
-                        fee = fee_eur / rate if rate > 0 else fee_eur
-                    else:  # SEK
-                        fee_eur = b_set.get("degiro_fee_sek", 3.90) + (b_set.get("degiro_autofx_pct", 0.25) / 100.0) * (tx.shares * tx.price * rate)
-                        fee = fee_eur / rate if rate > 0 else fee_eur
-                else:
-                    # IBKR
-                    if ccy == 'USD':
-                        comm_usd = max(b_set.get("ibkr_fee_usd_min", 1.00), b_set.get("ibkr_fee_usd_per_share", 0.005) * tx.shares)
-                        comm_usd = min(comm_usd, (b_set.get("ibkr_fee_usd_max_pct", 1.0) / 100.0) * tx.shares * tx.price)
-                        fx_usd = max(b_set.get("ibkr_autofx_usd_min", 2.00), (b_set.get("ibkr_autofx_usd_pct", 0.2) / 100.0) * tx.shares * tx.price)
-                        fee = comm_usd + fx_usd
-                    elif ccy == 'SEK':
-                        comm_sek = max(b_set.get("ibkr_fee_sek_min", 40.0), (b_set.get("ibkr_fee_sek_pct", 0.05) / 100.0) * tx.shares * tx.price)
-                        fx_sek = 22.0
-                        fee = comm_sek + fx_sek
-                    else:
-                        comm_eur = max(b_set.get("ibkr_fee_eur_min", 1.25), (b_set.get("ibkr_fee_eur_pct", 0.05) / 100.0) * tx.shares * tx.price)
-                        fee = comm_eur / rate if rate > 0 else comm_eur
+                fee = broker_fees.estimate_fee(tx_broker, ccy, tx.shares, tx.price, rate, self._get_broker_settings())
 
             if ticker not in holdings:
                 holdings[ticker] = {'shares': 0.0, 'avg_eur': 0.0, 'avg_native': 0.0}
@@ -764,27 +742,12 @@ class PortfolioService:
         return result
 
     def _get_broker_settings(self) -> dict:
-        """Obtiene las comisiones guardadas de brokers de la DB o usa valores por defecto."""
+        """Las comisiones guardadas (Ajustes), completadas con las de serie de `broker_fees`."""
+        saved = {}
         try:
             from app.infrastructure.db.models import DBSetting
-            db_session = self.repository.db
-            row = db_session.query(DBSetting).filter(DBSetting.key == 'brokers').first()
-            if row and row.value:
-                return row.value
+            row = self.repository.db.query(DBSetting).filter(DBSetting.key == 'brokers').first()
+            saved = row.value if row and isinstance(row.value, dict) else {}
         except Exception:
             pass
-        return {
-            "degiro_fee_eur": 1.0,
-            "degiro_fee_usd": 1.0,
-            "degiro_fee_sek": 3.90,
-            "degiro_autofx_pct": 0.25,
-            "ibkr_fee_usd_per_share": 0.005,
-            "ibkr_fee_usd_min": 1.00,
-            "ibkr_fee_usd_max_pct": 1.0,
-            "ibkr_autofx_usd_min": 2.00,
-            "ibkr_autofx_usd_pct": 0.2,
-            "ibkr_fee_sek_min": 40.0,
-            "ibkr_fee_sek_pct": 0.05,
-            "ibkr_fee_eur_min": 1.25,
-            "ibkr_fee_eur_pct": 0.05
-        }
+        return {**broker_fees.DEFAULTS, **saved}

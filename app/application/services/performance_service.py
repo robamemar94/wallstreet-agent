@@ -74,8 +74,11 @@ class PerformanceService:
             if os.path.exists(CACHE_FILE):
                 with open(CACHE_FILE) as f:
                     c = json.load(f)
+                data = c.get("data") or {}
+                # una caché guardada antes de «contributed_eur» no sirve para el modo € Real
                 if (c.get("start_date_override") == start_date_override
-                        and time.time() - c.get("timestamp", 0) < CACHE_TTL):
+                        and time.time() - c.get("timestamp", 0) < CACHE_TTL
+                        and ("contributed_eur" in data or not data.get("dates"))):
                     return c["data"]
         except Exception:
             pass
@@ -163,6 +166,7 @@ class PerformanceService:
         holdings: Dict[str, float] = defaultdict(float)
         nav      = INITIAL_NAV
         units    = 0.0
+        contributed = 0.0   # lo puesto y no retirado (compras − ventas, en EUR del día), para el modo «€ Real»
 
         # Si hay corte personalizado, la posición acumulada antes del corte (pre_txs)
         # se convierte en el punto de partida ("nueva inception" al VL inicial),
@@ -179,9 +183,11 @@ class PerformanceService:
                 seed_val = self._portfolio_value(holdings, df.index[0], df, col_map, tick_ccy)
                 if seed_val > 0:
                     units = seed_val / INITIAL_NAV
+                    contributed = seed_val
 
         nav_series:   List[float] = []
         value_series: List[float] = []   # valor real en EUR
+        contributed_series: List[float] = []
         date_series:  List[str]   = []
 
         for d in df.index:
@@ -203,6 +209,7 @@ class PerformanceService:
                              else tx.price * (df.at[d, fx_c] if fx_c else 1.0))
                 cf_eur = tx.shares * price_eur
 
+                contributed += cf_eur if tx.type.value == "BUY" else -cf_eur
                 if tx.type.value == "BUY":
                     holdings[t] += tx.shares
                     if units == 0:
@@ -218,6 +225,7 @@ class PerformanceService:
             if units > 0:
                 nav_series.append(round(nav, 4))
                 value_series.append(round(units * nav, 2))  # valor real en EUR
+                contributed_series.append(round(contributed, 2))
                 date_series.append(d.strftime("%Y-%m-%d"))
 
         if not nav_series:
@@ -262,6 +270,7 @@ class PerformanceService:
             "dates":              date_series,
             "portfolio_uv":       nav_series,
             "portfolio_values_eur": value_series,
+            "contributed_eur":    contributed_series,
             "benchmarks":         bench_series,
             "benchmark_uv":       bench_series.get("MSCI World", []),  # compatibilidad
             "max_drawdown":       round(max_drawdown, 2),

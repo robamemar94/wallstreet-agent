@@ -1,0 +1,152 @@
+# Transcrito de data/theses/Halma_Investment_Thesis_Framework_v3.2_KPIs_Semaforo.md (20/10/2026)
+# Cuadro de mando: los 11 KPIs del «8.1 Dashboard principal», agrupados por hipótesis, con los umbrales de la propia
+# tesis. Donde la tesis no da cifra (orgánico FY26 «excepcional», retorno incremental del M&A «N/D»), la observación
+# lleva solo el semáforo de la tesis: no se inventa precisión.
+# Halma cierra el ejercicio el 31 de marzo y publica semestralmente: los KPIs se registran por semestre o ejercicio.
+# Precios en peniques (GBp), como cotiza en Yahoo: £33 = 3.300 p.
+# El documento completo está en config/theses/hlma.md.
+ticker: HLMA.L
+title: Halma plc · Tesis de inversión
+version: "Framework v3.2"
+reference_date: "2026-10-20"
+reference_price: 3300
+source_document: "data/theses/Halma_Investment_Thesis_Framework_v3.2_KPIs_Semaforo.md"
+document: config/theses/hlma.md
+verdict: INTACTA
+summary: >-
+  Plataforma descentralizada de ~50 negocios nicho (Safety, Environmental & Analysis, Healthcare) protegidos por
+  regulación, certificación y coste de fallo: márgenes altos, poco capex y FCF que se reinvierte en R&D y adquisiciones.
+  FY26: ventas £2.582m, EBIT £526m, FCF ~£426m, ROTIC 16,2% (WACC ~10,2%), deuda neta/EBITDA ~1,16x, acciones planas.
+  Negocio Tier S; la variable decisiva es el retorno incremental del M&A (adquisiciones ≈ todo el FCF) y la
+  normalización de photonics (~20% de las ventas). Estado: INTACT; valoración exigente a ~£33 (~29x PER ajustado).
+hypothesis: "Halma es una plataforma descentralizada de negocios industriales, de seguridad, medioambiente, análisis y healthcare que combina crecimiento orgánico estructural, barreras regulatorias/técnicas, alta rentabilidad sobre el capital y una capacidad demostrada para reinvertir mediante adquisiciones; la tesis depende de que Halma mantenga la calidad de sus adquisiciones y convierta ese ecosistema descentralizado en crecimiento de FCF por acción durante muchos años."
+hypotheses:
+  H1: "Las barreras competitivas siguen siendo reales"
+  H2: "El crecimiento orgánico permanece suficientemente alto (6–9% a largo plazo)"
+  H3: "El crecimiento se convierte en FCF"
+  H4: "El M&A crea valor (WATCH)"
+  H5: "Halma no empieza a pagar demasiado (WATCH)"
+  H6: "La diversificación aumenta la resiliencia sin diluir la calidad"
+  H7: "Photonics se normaliza sin romper la tesis (WATCH)"
+  H8: "La digitalización es oportunidad, no disrupción (WATCH)"
+  H9: "El balance soporta el modelo"
+  H10: "El modelo descentralizado sigue siendo una ventaja"
+rules:
+  - "Un KPI rojo no rompe automáticamente la tesis: el semáforo detecta, no decide."
+  - "Thesis killer: adquisiciones cada vez más grandes con retornos decrecientes a la vez que el orgánico se desacelera, sube el M&A/FCF, sube la deuda, aparecen impairments y el ROTIC cae de forma persistente hacia el coste de capital. Si ocurre, la tesis pasa a Weakening/Broken."
+  - "M&A/FCF por encima del 100% no es negativo por sí solo en Halma: preocupa cuando coincide con menor ROTIC, más deuda, precios peores o impairments."
+  - "FY26 fue excepcional: el crecimiento orgánico no se extrapola mecánicamente (6–9% sostenible a largo plazo)."
+  - "Photonics creciendo menos no rompe la tesis; lo que no puede ocurrir es que sea el principal motor mientras el resto del grupo se estanca."
+  - "El BPA ajustado no es beneficio económico puro (ajustes ~£74m en FY26): vigilar la diferencia con el estatutario y apoyarse en el FCF."
+  - "Bandas de precio (aproximaciones de decisión): <£23 muy atractiva · £23–27 atractiva · £27–30 buena · £30–33 razonable · £33–36 exigente · >£36 demasiado exigente para el objetivo del 15%."
+  - "Empresa excelente ≠ acción atractiva a cualquier precio: a ~£33 no hay expectativa razonable del 15% anual; seguirla y esperar mejor precio."
+master_questions:
+  - "¿Cuál fue el crecimiento orgánico y el crecimiento ex-photonics?"
+  - "¿Cómo evoluciona photonics y cuánto pesa en el crecimiento?"
+  - "¿Se mantienen los márgenes y la entrada de pedidos (order intake > ventas)?"
+  - "¿Qué ocurrió con el ROTIC y el FCF?"
+  - "¿Cómo están la deuda neta y las adquisiciones (importe, múltiplos pagados, pipeline)?"
+  - "¿Hay impairments o señales de que las adquisiciones rinden menos?"
+valuation:
+  target_year: 2036
+  question: "Parte del BPA ajustado FY26 ≈ £1,14 (PER ajustado ~29x a ~£33). Para un 15% anual en 10 años haría falta ~£133: con un BPA al 10% exigiría ~45x terminal; al 12%, ~38x; al 14%, ~31x. Escenarios ilustrativos de la tesis, no predicciones."
+  columns:
+    - {key: name, label: Escenario}
+    - {key: eps_cagr, label: BPA CAGR, format: pct}
+    - {key: multiple, label: P/E terminal}
+    - {key: price, label: Precio 10 años, format: usd}
+    - {key: cagr_doc, label: CAGR precio 10a, format: pct}
+    - {key: tsr, label: TSR anual}
+  scenarios:
+    - {name: Bear, eps_cagr: 8, multiple: "20x", price: 4900, cagr_doc: 4, tsr: "~5%"}
+    - {name: Base, eps_cagr: 10, multiple: "25x", price: 7400, cagr_doc: 8.5, tsr: "~9,5–10%"}
+    - {name: Bull, eps_cagr: 12, multiple: "30x", price: 10600, cagr_doc: 12.4, tsr: "~13–14%"}
+events:
+  - date: "2026-10-20"
+    type: thesis
+    impact: neutral
+    title: "Tesis de inversión (framework v3.2) · estado INTACT"
+    body: "Negocio Tier S, tesis intacta y valoración exigente a ~£33 (escenario base ~9–10% TSR, por debajo del objetivo del 15%). No pasa a Strengthening por dos incertidumbres: el retorno incremental del M&A y la sostenibilidad del crecimiento de photonics. Próximo evento: resultados H1 FY27 el 19/11/2026."
+
+pillars:
+  - key: organic_growth
+    name: Crecimiento orgánico
+    description: "H2 / H7 — ¿Halma crece sin depender del M&A, y el grupo aguanta la normalización de photonics?"
+    kpis:
+      - {key: organic_growth, name: Crecimiento orgánico de ventas, unit: "%", green_threshold: 8, red_threshold: 5,
+         how_to_measure: "Crecimiento orgánico de ventas (sin adquisiciones ni divisa) que publica Halma en resultados y trading updates",
+         green_text: "≥8%", amber_text: "5–8%", red_text: "<5% persistente",
+         baseline: "6–9% sostenible a largo plazo; FY27 guía bajo doble dígito", frequency: Semestral / anual, source: Halma (resultados y trading updates),
+         observations: [{period: FY26, date: "2026-03-31", status: green, note: "Excepcional (sin extrapolar); FY27: guía bajo doble dígito"}]}
+      - {key: organic_ebit_growth, name: Crecimiento orgánico del EBIT, kind: qualitative,
+         how_to_measure: "Crecimiento orgánico del beneficio frente al de las ventas: ¿el crecimiento genera crecimiento económico?",
+         green_text: "≥ crecimiento de ventas", amber_text: "Ligeramente inferior", red_text: "Claramente inferior varios años",
+         frequency: Semestral / anual, source: Halma,
+         observations: [{period: FY26, date: "2026-03-31", status: green, note: "Fuerte (Safety +13,1%, Healthcare +9,6% orgánico)"}]}
+      - {key: growth_ex_photonics, name: Crecimiento ex-photonics, unit: "%", green_threshold: 6, red_threshold: 3,
+         how_to_measure: "Crecimiento orgánico del grupo sin photonics (~20% de las ventas en FY26, 15% en FY25); depende del desglose publicado",
+         green_text: "≥6%", amber_text: "3–6%", red_text: "<3% persistente",
+         frequency: Semestral, source: Halma,
+         observations: [{period: FY26, date: "2026-03-31", status: amber, note: "Positivo; vigilar (photonics concentra el crecimiento)"}]}
+
+  - key: returns
+    name: Retorno sobre el capital
+    description: "H1 / H4 — ¿El capital reinvertido sigue generando retornos altos por encima del coste de capital?"
+    kpis:
+      - {key: rotic, name: ROTIC, unit: "%", green_threshold: 15, red_threshold: 12,
+         how_to_measure: "Return on total invested capital ajustado del Annual Report (revisar la metodología ajustada)",
+         green_text: "≥15%", amber_text: "12–15%", red_text: "<12% persistente",
+         frequency: Anual, source: Halma Annual Report,
+         observations: [{period: FY26, date: "2026-03-31", value: 16.2, note: "16,2% ajustado"}]}
+      - {key: rotic_spread, name: ROTIC − WACC, unit: "pp", green_threshold: 4, red_threshold: 2,
+         how_to_measure: "ROTIC menos el WACC que estima Halma (~10,2%): creación de valor después del coste de capital",
+         green_text: "≥4 pp", amber_text: "2–4 pp", red_text: "<2 pp",
+         frequency: Anual, source: Halma Annual Report,
+         is_kill_switch: true, kill_rule: "ROIC persistentemente cercano o inferior al WACC (Broken)",
+         observations: [{period: FY26, date: "2026-03-31", value: 6, note: "≈ +6 pp (16,2% vs ~10,2%)"}]}
+
+  - key: cash
+    name: Conversión en caja
+    description: "H3 — ¿El crecimiento se convierte en FCF y en valor por acción?"
+    kpis:
+      - {key: fcf_to_ebit, name: FCF / EBIT, unit: "%", green_threshold: 75, red_threshold: 60,
+         how_to_measure: "FCF / beneficio operativo del ejercicio (definición consistente año a año)",
+         green_text: "≥75%", amber_text: "60–75%", red_text: "<60% persistente",
+         frequency: Anual, source: Halma Annual Report,
+         observations: [{period: FY26, date: "2026-03-31", value: 81, note: "≈81% (FCF ~£426m / EBIT £526m)"}]}
+      - {key: fcf_per_share_growth, name: Crecimiento del FCF por acción, unit: "%", green_threshold: 8, red_threshold: 5,
+         how_to_measure: "Crecimiento anual del FCF por acción (acciones prácticamente planas: ~378,7m en 2017, ~377,7m en 2026)",
+         green_text: "≥8%", amber_text: "5–8%", red_text: "<5% persistente",
+         frequency: Anual, source: Halma Annual Report,
+         observations: [{period: FY26, date: "2026-03-31", value: 11, note: "≈11% CAGR FY17–FY26"}]}
+
+  - key: acquisitions
+    name: Adquisiciones (M&A)
+    description: "H4 / H5 — La variable central: las adquisiciones absorben casi todo el FCF. ¿Crean valor y Halma no paga de más?"
+    kpis:
+      - {key: ma_incremental_return, name: Retorno incremental del M&A, kind: qualitative,
+         how_to_measure: "Retorno de las adquisiciones frente al coste de capital; Halma no publica suficiente detalle por compra (múltiplos sobre PAT analizados: E2S ~16,9x, Brownline ~13,7x, Rovers ~19,5x)",
+         green_text: "≥ coste de capital con margen claro", amber_text: "≈ coste de capital / evidencia insuficiente", red_text: "< coste de capital",
+         frequency: Anual, source: Annual Report + notas de adquisiciones,
+         is_kill_switch: true, kill_rule: "Destrucción recurrente de capital vía M&A: compras cada vez mayores con retornos decrecientes",
+         observations: [{period: FY26, date: "2026-03-31", status: amber, note: "N/D con precisión suficiente; evidencia favorable pero incompleta"}]}
+      - {key: ma_to_fcf, name: M&A / FCF, unit: "%", direction: lower, green_threshold: 100, red_threshold: 125,
+         how_to_measure: "Gasto en adquisiciones / FCF del ejercicio; no mide la calidad por sí solo",
+         green_text: "≤100% con retornos sólidos", amber_text: "100–125%", red_text: ">125% con deuda o retornos deteriorándose",
+         frequency: Anual, source: Cash flow + notas de M&A,
+         observations: [{period: FY26, date: "2026-03-31", value: 105, note: "≈105% (~£447m de M&A vs ~£426m de FCF)"}]}
+      - {key: goodwill_impairments, name: Goodwill / impairments, kind: qualitative,
+         how_to_measure: "Impairments del goodwill e intangibles (goodwill ~£1.509m + intangibles ~£745m ≈ 61% del activo); un impairment aislado no prueba una mala adquisición",
+         green_text: "Sin impairments materiales", amber_text: "Deterioros puntuales", red_text: "Recurrentes o materiales",
+         frequency: Anual, source: Halma Annual Report,
+         observations: [{period: FY26, date: "2026-03-31", status: amber, note: "Goodwill elevado; sin señal estructural"}]}
+
+  - key: balance
+    name: Balance
+    description: "H9 — ¿El balance permite seguir reinvirtiendo sin asumir un riesgo financiero excesivo?"
+    kpis:
+      - {key: net_debt_ebitda, name: Deuda neta / EBITDA, unit: "x", direction: lower, green_threshold: 1.5, red_threshold: 2.0,
+         how_to_measure: "Deuda neta / EBITDA ajustado que publica Halma (con las cifras brutas sale ~1,0x)",
+         green_text: "<1,5x", amber_text: "1,5–2,0x", red_text: ">2,0x",
+         frequency: Semestral / anual, source: Halma (resultados),
+         observations: [{period: FY26, date: "2026-03-31", value: 1.16, note: "≈1,16x ajustado (deuda neta ~£663m, EBITDA ~£656m)"}]}

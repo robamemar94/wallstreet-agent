@@ -8,10 +8,14 @@
                 recentSearches = await resRec.json();
                 
                 setupAutocomplete('#nav-search-input', '#nav-search-suggestions');
+                // otros campos de empresa (p. ej. la nota nueva del Diario): <input data-ticker-search="#suIdSugerencias">;
+                // elegir solo rellena el ticker, sin enviar el formulario
+                document.querySelectorAll('input[data-ticker-search]').forEach(el =>
+                    setupAutocomplete('#' + el.id, el.dataset.tickerSearch, {submit: false}));
             } catch (e) { console.error("Error loading suggestions", e); }
         }
         
-        function setupAutocomplete(inputSelector, suggestionsSelector) {
+        function setupAutocomplete(inputSelector, suggestionsSelector, opts = {}) {
             const input = document.querySelector(inputSelector);
             const suggestions = document.querySelector(suggestionsSelector);
             if (!input || !suggestions) return;
@@ -103,7 +107,7 @@
                         const ticker = items[selectedIndex].getAttribute('data-ticker');
                         input.value = ticker;
                         suggestions.style.display = 'none';
-                        if (input.form) input.form.submit();
+                        if (input.form && opts.submit !== false) input.form.submit();
                     }
                 } else if (e.key === 'Escape') {
                     suggestions.style.display = 'none';
@@ -116,7 +120,7 @@
                     const ticker = item.getAttribute('data-ticker');
                     input.value = ticker;
                     suggestions.style.display = 'none';
-                    if (input.form) input.form.submit();
+                    if (input.form && opts.submit !== false) input.form.submit();
                 }
             });
 

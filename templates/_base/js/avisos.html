@@ -160,9 +160,9 @@
                 <div class="notif-item ${i.read ? 'read' : 'unread'} ${i.portfolio ? 'held' : ''}" data-key="${notifEsc(i.key)}">
                     <i class="bi ${NOTIF_ICON[i.group]} notif-icon text-muted"></i>
                     <div class="flex-grow-1">
-                        <div><a href="${notifEsc(i.href)}" class="text-decoration-none fw-bold">${notifEsc(i.ticker || '')}</a>
+                        <div><a href="${notifEsc(i.href)}" class="text-decoration-none fw-bold" data-notif-open>${notifEsc(i.ticker || '')}</a>
                             <span class="notif-kind ms-1">${notifEsc(i.kind)}</span>${i.portfolio ? '<span class="notif-kind notif-held ms-1" title="La tienes en cartera: cuenta en el globo">cartera</span>' : ''}</div>
-                        <div>${notifEsc(i.text)}${i.url ? ` <a href="${notifEsc(i.url)}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}</div>
+                        <div>${i.href ? `<a href="${notifEsc(i.href)}" class="text-reset text-decoration-none" data-notif-open>${notifEsc(i.text)}</a>` : notifEsc(i.text)}${i.url ? ` <a href="${notifEsc(i.url)}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i></a>` : ''}</div>
                         <div class="notif-meta">${notifWhen(i.date)}</div>
                     </div>
                     <button type="button" class="btn btn-link btn-sm p-0 notif-read-btn align-self-start" title="${i.read ? 'Marcar como no leída' : 'Marcar como leída'}"
@@ -233,6 +233,11 @@
         };
         document.addEventListener('DOMContentLoaded', () => {
             const panel = document.getElementById('notifPanel');
+            // pulsar el aviso lleva a lo que avisa y lo marca como leído
+            document.getElementById('notifList').addEventListener('click', e => {
+                const a = e.target.closest('[data-notif-open]'), key = a && a.closest('.notif-item')?.dataset.key;
+                if (key && notifItems.find(i => i.key === key && !i.read)) window.notifRead(key, true, false);
+            });
             panel.addEventListener('show.bs.offcanvas', notifLoad);
             document.querySelectorAll('[data-notif-group]').forEach(b => b.addEventListener('click', () => {
                 notifGroup = b.dataset.notifGroup;

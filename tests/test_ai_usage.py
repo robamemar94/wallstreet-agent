@@ -94,7 +94,7 @@ def test_next_results_found_date_is_not_searched_again_until_it_passes():
     found = {"date": "2026-10-22", "fetched_at": "2026-09-28T15:41:40"}           # buscada hace 7 días: sigue valiendo
     assert is_fresh(found, now) and not is_fresh(found, datetime(2026, 10, 23, 9, 0))
     missing = {"date": None, "fetched_at": "2026-10-02T21:34:43"}
-    assert is_fresh(missing, datetime(2026, 10, 16, 22, 0)) and not is_fresh(missing, datetime(2026, 10, 17, 22, 0))
+    assert is_fresh(missing, datetime(2026, 11, 15, 22, 0)) and not is_fresh(missing, datetime(2026, 11, 17, 22, 0))
     assert not is_fresh(None, now)
 
 

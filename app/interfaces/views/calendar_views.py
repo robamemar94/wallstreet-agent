@@ -94,7 +94,7 @@ def past_events(portfolio_service: PortfolioService, asset_meta: dict, portfolio
     for t, meta in asset_meta.items():
         held = t in portfolio_tickers
         category = "portfolio" if held else ("favorite" if meta["is_fav"] else ("seguimiento" if meta["status"] == "ACCEPTED" else None))
-        info = market_cache.peek("earnings_v2", t) if category else None
+        info = market_cache.peek("earnings_v4", t) if category else None
         if not info:
             continue
         last = info.get("last") or {}

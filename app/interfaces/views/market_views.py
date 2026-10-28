@@ -24,7 +24,7 @@ from app.infrastructure.repositories.sqlalchemy_watchlist_repository import SqlA
 from app.application.services import base_valuation_service, market_cache
 from app.application.services.portfolio_service import PortfolioService
 from app.application.services.performance_service import PerformanceService
-from app.infrastructure.templates import templates
+from app.infrastructure.templates import templates, EXT_BIG_PCT
 
 from app.application.services.alerts_service import scan_in_background
 
@@ -127,6 +127,53 @@ def get_market_group(ticker, country):
         return "usa"
     return "otros"
 
+# País de la empresa para el filtro «Actividad del día»: yfinance da el nombre en inglés → (ISO 2, nombre en español)
+_COUNTRIES = {
+    "united states": ("US", "Estados Unidos"), "usa": ("US", "Estados Unidos"), "us": ("US", "Estados Unidos"),
+    "sweden": ("SE", "Suecia"), "france": ("FR", "Francia"), "canada": ("CA", "Canadá"), "united kingdom": ("GB", "Reino Unido"),
+    "spain": ("ES", "España"), "switzerland": ("CH", "Suiza"), "germany": ("DE", "Alemania"), "australia": ("AU", "Australia"),
+    "netherlands": ("NL", "Países Bajos"), "italy": ("IT", "Italia"), "mexico": ("MX", "México"), "japan": ("JP", "Japón"),
+    "poland": ("PL", "Polonia"), "norway": ("NO", "Noruega"), "luxembourg": ("LU", "Luxemburgo"), "ireland": ("IE", "Irlanda"),
+    "greece": ("GR", "Grecia"), "uruguay": ("UY", "Uruguay"), "denmark": ("DK", "Dinamarca"), "china": ("CN", "China"),
+    "singapore": ("SG", "Singapur"), "taiwan": ("TW", "Taiwán"), "finland": ("FI", "Finlandia"), "cyprus": ("CY", "Chipre"),
+    "new zealand": ("NZ", "Nueva Zelanda"), "south korea": ("KR", "Corea del Sur"), "korea": ("KR", "Corea del Sur"),
+    "hong kong": ("HK", "Hong Kong"), "belgium": ("BE", "Bélgica"), "austria": ("AT", "Austria"), "portugal": ("PT", "Portugal"),
+    "czech republic": ("CZ", "Chequia"), "hungary": ("HU", "Hungría"), "brazil": ("BR", "Brasil"), "argentina": ("AR", "Argentina"),
+    "chile": ("CL", "Chile"), "colombia": ("CO", "Colombia"), "peru": ("PE", "Perú"), "panama": ("PA", "Panamá"),
+    "bermuda": ("BM", "Bermudas"), "cayman islands": ("KY", "Islas Caimán"), "india": ("IN", "India"), "indonesia": ("ID", "Indonesia"),
+    "thailand": ("TH", "Tailandia"), "malaysia": ("MY", "Malasia"), "philippines": ("PH", "Filipinas"), "vietnam": ("VN", "Vietnam"),
+    "israel": ("IL", "Israel"), "jersey": ("JE", "Jersey"), "guernsey": ("GG", "Guernsey"), "isle of man": ("IM", "Isla de Man"),
+    "macau": ("MO", "Macao"), "iceland": ("IS", "Islandia"), "malta": ("MT", "Malta"), "monaco": ("MC", "Mónaco"),
+    "liechtenstein": ("LI", "Liechtenstein"), "puerto rico": ("PR", "Puerto Rico"), "bahamas": ("BS", "Bahamas"),
+}
+_SUFFIX_COUNTRY = {
+    ".MC": "spain", ".PA": "france", ".AS": "netherlands", ".MI": "italy", ".DE": "germany", ".F": "germany", ".SW": "switzerland",
+    ".L": "united kingdom", ".IL": "united kingdom", ".ST": "sweden", ".OL": "norway", ".CO": "denmark", ".HE": "finland",
+    ".IC": "iceland", ".WA": "poland", ".AT": "greece", ".BR": "belgium", ".LS": "portugal", ".VI": "austria", ".IR": "ireland",
+    ".PR": "czech republic", ".TO": "canada", ".V": "canada", ".CN": "canada", ".NE": "canada", ".MX": "mexico", ".SA": "brazil",
+    ".BA": "argentina", ".SN": "chile", ".AX": "australia", ".NZ": "new zealand", ".T": "japan", ".HK": "hong kong",
+    ".SS": "china", ".SZ": "china", ".TW": "taiwan", ".TWO": "taiwan", ".SI": "singapore", ".KS": "south korea",
+    ".KQ": "south korea", ".NS": "india", ".BO": "india", ".JK": "indonesia", ".BK": "thailand", ".KL": "malaysia", ".TA": "israel",
+}
+# Sesión de bolsa de cada grupo (los tres botones de «Actividad del día»; cada uno, un globo: 🌎 🌍 🌏)
+MARKET_SESSION = {"usa": "america", "america": "america", "europa": "europa", "uk": "europa", "nordicos": "europa",
+                  "asia": "asiapac", "oceania": "asiapac", "otros": "otros"}
+
+
+def country_info(ticker, country):
+    """(código ISO 2, nombre en español) del país de la empresa. Si falta, el del sufijo del ticker; sin sufijo, EE. UU."""
+    c = (country or "").strip().lower()
+    if c in _COUNTRIES:
+        return _COUNTRIES[c]
+    t = (ticker or "").upper()
+    for suffix, name in sorted(_SUFFIX_COUNTRY.items(), key=lambda kv: -len(kv[0])):   # «.TWO» antes que «.T»
+        if t.endswith(suffix):
+            return _COUNTRIES[name]
+    if "." not in t:
+        return _COUNTRIES["united states"]
+    return ("", "Sin país")
+
+
 # Nombre de cada grupo para mostrarlo (filtro «Región» de la base de datos), en este orden
 MARKET_GROUP_LABELS = {"usa": "EE. UU.", "europa": "Europa", "uk": "Reino Unido", "nordicos": "Nórdicos",
                        "america": "América (sin EE. UU.)", "asia": "Asia", "oceania": "Oceanía", "otros": "Otros"}
@@ -149,22 +196,50 @@ def session_label(last_date, today) -> str:
 
 def portfolio_day(active_portfolio, asset_repo, today: Optional[datetime.date] = None) -> Dict[str, Any]:
     """Cómo va hoy la cartera, con los precios en caché. La misma cuenta que Cartera (day_change): en € incluye lo que se
-    ha movido la divisa desde ayer. La usan la tarjeta «Mi Cartera» de Mercado y la cifra del día de la barra de arriba."""
-    from app.interfaces.views.portfolio_views import day_change
+    ha movido la divisa desde ayer. La usan la tarjeta «Mi Cartera» de Mercado y la cifra del día de la barra de arriba.
+    ext: el «hoy» ya sumado con el pre/post-market de EE. UU., como debajo del Valor actual de Cartera (no entra en eur).
+    invested: lo pagado en € por las posiciones con precio (como Cartera: al cambio de cada compra), para la plusvalía.
+    movers: la que más sube y la que más baja hoy, de las que ya han abierto."""
+    from app.interfaces.views.portfolio_views import day_change, ext_day_eur
     today = today or datetime.date.today()
-    now, prev, missing, open_ = 0.0, 0.0, [], False
+    now, prev, invested, missing, open_ = 0.0, 0.0, 0.0, [], False
+    ext_eur, ext_kinds, moves = 0.0, set(), []
     for item in active_portfolio:
         d = INDEX_CACHE["data"].get(item.ticker)
         if not d or not d.get("price"):
             missing.append(item.ticker)
             continue
-        day = day_change(item.shares, d["price"], d["prev"], d.get("last_date"), asset_repo.get_asset_data(item.ticker).get("currency", "USD"), today)
+        cur = asset_repo.get_asset_data(item.ticker).get("currency", "USD")
+        day = day_change(item.shares, d["price"], d["prev"], d.get("last_date"), cur, today)
         value = item.shares * d["price"] * day["rate"]
         now += value
         prev += value - day["eur"]
+        invested += item.total_cost_eur if (cur or "EUR").upper() != "EUR" and item.total_cost_eur > 0 else item.shares * item.average_price * day["rate"]
         open_ = open_ or not day["closed"]
+        if not day["closed"]:
+            moves.append({"ticker": item.ticker, "pct": day["pct"]})
+        x = ext_day_eur(item.shares, ext_day(item.ticker), day, day["rate"])
+        if x:
+            ext_eur += x["eur"]
+            ext_kinds.add(x["kind"])
+    best, worst = max(moves, key=lambda m: m["pct"], default=None), min(moves, key=lambda m: m["pct"], default=None)
     return {"value": now, "eur": now - prev, "pct": ((now / prev) - 1) * 100 if prev > 0 else 0.0,
-            "any_open": open_, "missing": missing}
+            "any_open": open_, "missing": missing, "invested": invested,
+            "movers": {"up": best if best and best["pct"] > 0 else None, "down": worst if worst and worst["pct"] < 0 else None},
+            "ext": {"total": now - prev + ext_eur, "eur": ext_eur, "kinds": sorted(ext_kinds)} if ext_kinds else None}
+
+
+def portfolio_weights(active_portfolio, asset_repo) -> Dict[str, float]:
+    """Peso de cada posición (% del valor en €) con los precios en caché; las que no tienen precio, fuera."""
+    from app.interfaces.views.portfolio_views import day_change
+    values = {}
+    for item in active_portfolio:
+        d = INDEX_CACHE["data"].get(item.ticker)
+        if d and d.get("price"):
+            day = day_change(item.shares, d["price"], d["prev"], d.get("last_date"), asset_repo.get_asset_data(item.ticker).get("currency", "USD"))
+            values[item.ticker] = item.shares * d["price"] * day["rate"]
+    total = sum(values.values())
+    return {t: 100 * v / total for t, v in values.items()} if total > 0 else {}
 
 
 def ensure_prices_cached(tickers: list, asset_repo, wait: bool = False) -> None:
@@ -394,6 +469,40 @@ def asia_open_after(session: datetime.date) -> datetime.datetime:
     while opening.weekday() >= 5:
         opening += datetime.timedelta(days=1)
     return opening
+
+
+def post_today(ticker: str, today: Optional[datetime.date] = None) -> Optional[dict]:
+    """El post-market de la sesión de hoy (EE. UU., tras el cierre) de un valor que ya ha cotizado hoy, o None. En la
+    Actividad del día va como dato secundario de la fila (icono y valor), sin cambiarla de lista ni de orden."""
+    today = today or datetime.date.today()
+    ext = (INDEX_CACHE["data"].get(ticker) or {}).get("ext")
+    if ext and ext.get("kind") == "post" and ext.get("pct") and ext.get("date") == today.isoformat():
+        return ext
+    return None
+
+
+def ext_move(m: dict) -> Optional[float]:
+    """El pre/post-market (%) de un valor que aún no ha abierto hoy, si se mueve EXT_BIG_PCT o más: se ve sin pulsar el ojo."""
+    ext = m.get("ext")
+    if m.get("not_open") and ext and ext.get("pct") and abs(ext["pct"]) >= EXT_BIG_PCT:
+        return ext["pct"]
+    return None
+
+
+def activity_key(m: dict, descending: bool = True) -> tuple:
+    """Orden de «Actividad del día»: primero lo de hoy; debajo, lo que aún no ha abierto y tiene pre/post-market grande (por ese
+    movimiento) y, al final, el resto de sesiones anteriores (por su variación, ya ocultas por defecto)."""
+    sign = -1 if descending else 1
+    pre = ext_move(m)
+    if not m["not_open"]:
+        return (0, 0, sign * m["pct"])
+    return (1, 0, sign * pre) if pre is not None else (1, 1, sign * m["pct"])
+
+
+def activity_move(m: dict) -> float:
+    """Lo que decide si va a Ganadores o a Perdedores: el pre/post-market grande, si lo hay, y si no la variación mostrada."""
+    pre = ext_move(m)
+    return pre if pre is not None else m["pct"]
 
 
 def ext_day(ticker: str, now: Optional[datetime.datetime] = None) -> Optional[dict]:
@@ -662,7 +771,14 @@ def index(
 
     is_weekday = today.weekday() < 5
     pday = portfolio_day(active_portfolio, asset_repo, today)
-    market_indices = [{"name": "MI CARTERA", "price": pday["value"], "change": pday["eur"], "pct": pday["pct"], "is_portfolio": True}]
+    market_indices = [{"name": "MI CARTERA", "price": pday["value"], "change": pday["eur"], "pct": pday["pct"], "is_portfolio": True, "ext": pday["ext"],
+                       "invested": pday["invested"], "movers": pday["movers"]}]
+    from app.application.services import cash_service
+    try:
+        cash = cash_service.status(db_session)
+        cash = cash["balance"] if cash.get("configured") else None
+    except Exception:
+        cash = None
     for sym, name in indices_to_fetch.items():
         if sym in INDEX_CACHE["data"]:
             d = INDEX_CACHE["data"][sym]
@@ -696,7 +812,7 @@ def index(
             # calor y las cifras del día siguen siendo solo de hoy (0)
             change = p_price - p_prev
             pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
-            ext = ext_quote(t, today) if not_open else None   # EE. UU.: su pre/post-market, como dato secundario
+            ext = ext_quote(t, today) if not_open else post_today(t, today)   # EE. UU.: su pre/post-market, como dato secundario
 
             mover_item = {
                 "name": t, "company_name": db_d.get("company_name", "-"),
@@ -704,6 +820,8 @@ def index(
                 "symbol": get_currency_symbol(db_d.get("currency", "USD"), t), "dec": price_decimals(db_d.get("currency")),
                 "region": get_region_for_asset(t, db_d.get("country", "-")),
                 "market": get_market_group(t, db_d.get("country", "-")), "not_open": not_open,
+                "session": MARKET_SESSION[get_market_group(t, db_d.get("country", "-"))],
+                "country": country_info(t, db_d.get("country", "-"))[0], "country_name": country_info(t, db_d.get("country", "-"))[1],
                 "session_label": session_label(p_last_date, today) if not_open else None,
                 "ext": ext,
                 # para el filtro de «Actividad del día»: Tier 1 y Tier 2 aparte; el resto, su estado (Seguimiento = ACCEPTED)
@@ -733,15 +851,15 @@ def index(
 
     # Sort ALL valid daily movers by PCT Descending
     # primero lo de hoy y, debajo, lo de los mercados que aún no han abierto (su sesión anterior)
-    sorted_movers = sorted(all_daily_movers, key=lambda x: (x["not_open"], -x["pct"]))
-    top_gainers = [m for m in sorted_movers if m["pct"] >= 0]
-    top_losers = sorted([m for m in sorted_movers if m["pct"] < 0], key=lambda x: (x["not_open"], x["pct"]))
+    # (los que ya tienen pre/post-market grande van a la lista según el signo de ese movimiento, no el de su última sesión)
+    top_gainers = sorted([m for m in all_daily_movers if activity_move(m) >= 0], key=activity_key)
+    top_losers = sorted([m for m in all_daily_movers if activity_move(m) < 0], key=lambda x: activity_key(x, descending=False))
     
     # Portfolio Specific Movers
-    sorted_port_movers = sorted(port_daily_movers, key=lambda x: (x["not_open"], -x["pct"]))
+    sorted_port_movers = sorted(port_daily_movers, key=activity_key)
     
-    fav_movers = sorted(fav_movers, key=lambda x: (x["not_open"], x["pct"]))
-    port_fav_movers = sorted(port_fav_movers, key=lambda x: (x["not_open"], x["pct"]))
+    fav_movers = sorted(fav_movers, key=lambda x: activity_key(x, descending=False))
+    port_fav_movers = sorted(port_fav_movers, key=lambda x: activity_key(x, descending=False))
 
     # 5. Listas personalizadas para el Dashboard
     custom_lists_movers = []
@@ -757,7 +875,7 @@ def index(
                     not_open = bool(is_weekday and p_last_date and p_last_date != today)   # su sesión anterior, atenuada
                     change = p_price - p_prev
                     pct = ((p_price / p_prev) - 1) * 100 if p_prev > 0 else 0
-                    ext = ext_quote(asset.ticker, today) if not_open else None
+                    ext = ext_quote(asset.ticker, today) if not_open else post_today(asset.ticker, today)
 
                     db_d = asset_repo.get_asset_data(asset.ticker)
                     
@@ -769,6 +887,9 @@ def index(
                         "dec": price_decimals(db_d.get("currency")),
                         "region": get_region_for_asset(asset.ticker, db_d.get("country", "-")),
                         "market": get_market_group(asset.ticker, db_d.get("country", "-")), "not_open": not_open,
+                        "session": MARKET_SESSION[get_market_group(asset.ticker, db_d.get("country", "-"))],
+                        "country": country_info(asset.ticker, db_d.get("country", "-"))[0],
+                        "country_name": country_info(asset.ticker, db_d.get("country", "-"))[1],
                         "session_label": session_label(p_last_date, today) if not_open else None,
                 "ext": ext,
                         "status": db_d.get("status") or "NONE",
@@ -777,7 +898,7 @@ def index(
                     clist_movers.append(mover_item)
                     
             # Ordenar de menor a mayor pct (igual que favoritos)
-            clist_movers = sorted(clist_movers, key=lambda x: (x["not_open"], x["pct"]))
+            clist_movers = sorted(clist_movers, key=lambda x: activity_key(x, descending=False))
             
             custom_lists_movers.append({
                 "id": clist.id,
@@ -797,6 +918,7 @@ def index(
         "port_all": sorted_port_movers,
         "market_indices": market_indices,
         "latest_market_date": latest_market_date,   # «sesión» en la tarjeta Mi Cartera (antes salía vacío)
+        "cash_balance": cash,   # liquidez del bróker, en la tarjeta Mi Cartera (None si no se lleva)
         "settings": settings,
         **prices_banner_context(),
     })

@@ -57,7 +57,28 @@ def ext_quote(ticker):
 
 
 templates.env.globals["ext_quote"] = ext_quote
-templates.env.globals["EXT_BIG_PCT"] = 2   # pre/post-market: desde ±2 % se enseña el valor, destacado (si no, solo el icono)
+EXT_BIG_PCT = 1.5
+templates.env.globals["EXT_BIG_PCT"] = EXT_BIG_PCT   # pre/post-market: desde ±1,5 % se enseña el valor, destacado (si no, solo el icono); en Actividad del día, también decide qué valores con pre-market se ven sin abrir su mercado
+
+
+def ext_lead(m) -> bool:
+    """Actividad del día: aún no ha abierto y su pre-market es grande → ese precio es la cifra principal de la fila.
+    El post-market no: corrige una sesión ya cerrada, que sigue siendo la cifra principal."""
+    ext = m.get("ext") or {}
+    return bool(m.get("not_open") and ext.get("kind") == "pre" and ext.get("pct") and ext.get("price")
+                and abs(ext["pct"]) >= EXT_BIG_PCT)
+
+
+def mover_values(m) -> dict:
+    """La cifra principal de una fila de la Actividad del día: el pre/post-market (ext_lead) o su sesión."""
+    if ext_lead(m):
+        ext = m["ext"]
+        return {"price": ext["price"], "chg": ext["price"] - m["price"], "pct": ext["pct"]}
+    return {"price": m.get("price"), "chg": m.get("change_abs") or 0, "pct": m.get("pct") or 0}
+
+
+templates.env.globals["ext_lead"] = ext_lead
+templates.env.globals["mover_values"] = mover_values
 
 
 def _zone_cuts():
@@ -103,3 +124,19 @@ def country_iso(name):
 
 
 templates.env.globals["country_iso"] = country_iso
+
+
+def _ready_to_accept_count():
+    from app.application.services.tier_service import ready_to_accept_count
+    from app.infrastructure.db.database import SessionLocal
+    db = SessionLocal()
+    try:
+        return ready_to_accept_count(db)
+    except Exception:
+        return 0
+    finally:
+        db.close()
+
+
+# empresas analizadas sin aceptar ni nivel: el número de «BBDD» en el menú
+templates.env.globals["ready_to_accept_count"] = _ready_to_accept_count

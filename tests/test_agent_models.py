@@ -1,7 +1,8 @@
 """Modelo por agente: los marcados con `model: pro` en agents.yaml usan GEMINI_PRO_MODEL; el resto, GEMINI_MODEL."""
 from agents.utils import get_llm, load_agent_config
 
-PRO_AGENTS = {"investment_director", "valuation_agent", "thesis_agent", "thesis_destroyer", "moat_analyst"}
+PRO_AGENTS = {"investment_director", "valuation_agent", "thesis_agent", "thesis_destroyer", "moat_analyst",
+              "forensic_auditor", "pe_forensic"}
 
 
 def test_get_llm_resolves_pro_flash_and_explicit(monkeypatch):

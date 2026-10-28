@@ -20,8 +20,8 @@ KIND_LABEL = {"zona": "zona de compra", "cerca": "cerca de compra", "legacy": "v
               "new_results": "resultados", "review_ready": "revisión lista", "decision_missing": "decisión pendiente",
               "decision_review": "revisar decisión", "concentración": "concentración",
               "upcoming_results": "próximos resultados", "ia_budget": "presupuesto IA", "insider_buy": "directivos compran", "report": "informe", "news_weekly": "resumen semanal",
-              "estimate_cut": "previsiones a la baja", "estimate_rise": "previsiones al alza", "cash_deposit": "aportación del mes",
-              "mi_precio": "tu precio de compra", "mi_precio_revisar": "revisar tu precio"}
+              "estimate_cut": "previsiones a la baja", "estimate_rise": "previsiones al alza", "cash_deposit": "aportación del mes", "robo_adjust": "roboadvisor",
+              "mi_precio": "tu precio de compra", "mi_precio_revisar": "revisar tu precio", "fin_update": "cuentas anuales"}
 
 
 def _alert_item(a: Dict[str, Any], read: set) -> Dict[str, Any]:
@@ -77,12 +77,16 @@ def collect(db: Session, thesis_repo, notice_repo) -> List[Dict[str, Any]]:
     notice_repo.sync("informes", "attention", report_service.notices(db))   # «Informe … listo» (los nuevos)
     from app.application.services import cash_service
     notice_repo.sync("liquidez", "attention", cash_service.notices(db))   # día 1: «¿cuánto añades este mes?»
+    from app.application.services import robo_service
+    notice_repo.sync("roboadvisor", "attention", robo_service.notices(db))   # día 10: «actualiza el roboadvisor»
     notice_repo.sync("noticias", "attention", weekly_news_notice(db))     # el resumen semanal de noticias, un aviso
+    from app.application.services import financials_update_service
+    notice_repo.sync("finanzas", "attention", financials_update_service.notices(db))   # año fiscal nuevo en tus cuentas
     for a in notice_repo.active_attention():
         if a["kind"] in SKIP_ATTENTION:
             continue
         items.append({"key": a["key"], "group": "avisos", "type": a["kind"], "kind": KIND_LABEL.get(a["kind"], (a["kind"] or "aviso").replace("_", " ")),
-                      "ticker": a["ticker"] or ("Watchlist" if a["scope"] == "watchlist" else "Informe" if a["scope"] == "informes" else "Liquidez" if a["scope"] == "liquidez" else "Noticias" if a["scope"] == "noticias" else ""), "text": a["text"], "date": a["first_seen"],
+                      "ticker": a["ticker"] or ("Watchlist" if a["scope"] == "watchlist" else "Informe" if a["scope"] == "informes" else "Liquidez" if a["scope"] == "liquidez" else "Noticias" if a["scope"] == "noticias" else "Cuentas" if a["scope"] == "finanzas" else ""), "text": a["text"], "date": a["first_seen"],
                       "href": a.get("href") or ("/watchlist" if a["scope"] == "watchlist" else "/mercado#centro"),
                       "read": bool(a["seen_at"]), "vigente": True, "since": a["first_seen"]})   # sigue mientras se dé
     for sig in notice_repo.active_signals():   # monitor de precios: movimientos anormales, propios y máximos/mínimos
@@ -105,8 +109,8 @@ def collect(db: Session, thesis_repo, notice_repo) -> List[Dict[str, Any]]:
     items = [i for i in items if not (i.get("ticker") and i["ticker"] in muted)]
     for i in items:
         # el presupuesto de IA, los informes nuevos y la aportación del mes siempre cuentan (no son de una empresa)
-        i["portfolio"] = i["ticker"] in held or i["kind"] in (KIND_LABEL["ia_budget"], KIND_LABEL["report"], KIND_LABEL["cash_deposit"],
-                                                              KIND_LABEL["news_weekly"])
+        i["portfolio"] = i["ticker"] in held or i["kind"] in (KIND_LABEL["ia_budget"], KIND_LABEL["report"], KIND_LABEL["cash_deposit"], KIND_LABEL["robo_adjust"],
+                                                              KIND_LABEL["news_weekly"], KIND_LABEL["fin_update"])
     items.sort(key=lambda i: i["date"] or "", reverse=True)
     return items
 
@@ -122,9 +126,9 @@ FILTER_OF_TYPE = {"zona": "comprar", "oportunidad": "comprar", "cerca": "comprar
                   "upcoming_results": "resultados", "new_results": "resultados", "review_ready": "resultados", "news": "noticias",
                   "news_weekly": "cartera",   # el resumen semanal de noticias: lo que toca revisar de tu cartera
                   "portfolio_risk": "cartera", "concentración": "cartera", "cara": "cartera", "decision_missing": "cartera",
-                  "decision_review": "cartera", "cash_deposit": "cartera",
+                  "decision_review": "cartera", "cash_deposit": "cartera", "robo_adjust": "cartera",
                   "legacy": "cartera", "missing": "cartera", "anchor_expired": "cartera", "split": "cartera", "split_manual": "cartera",
-                  "report": "cartera", "ia_budget": "cartera"}
+                  "report": "cartera", "ia_budget": "cartera", "fin_update": "cartera"}
 QUIET_FILTERS = {"noticias", "otros", "precio"}   # no suman en el globo de «Avisos» del menú
 GROUPED_FILTERS = {"comprar", "otros", "precio"}   # en Avisos, una línea por empresa y grupo (la última, «×N»)
 
@@ -133,8 +137,8 @@ GROUPED_FILTERS = {"comprar", "otros", "precio"}   # en Avisos, una línea por e
 VIGENTE_RULE = {"zona": "Sigue mientras cotice por debajo de tu precio de compra",
                 "oportunidad": "Sigue mientras cotice por debajo de su precio de entrada",
                 "cerca": "Sigue mientras cotice a menos del 15 % de tu precio de compra",
-                "mi_precio": "Sigue mientras cotice por debajo del precio de compra que pusiste a mano",
-                "mi_precio_revisar": "Sigue hasta que vuelvas a guardar tu precio (aunque sea el mismo) o lo quites",
+                "mi_precio": "Mientras cotice bajo tu precio de compra",
+                "mi_precio_revisar": "Hasta que vuelvas a guardar tu precio",
                 "insider_buy": "Sigue mientras la compra esté dentro de los últimos 30 días",
                 "estimate_cut": "Sigue mientras la previsión de BPA caiga un 5 % o más en 90 días",
                 "estimate_rise": "Sigue mientras la previsión de BPA suba un 5 % o más en 90 días y esté cerca de compra",
@@ -143,10 +147,11 @@ VIGENTE_RULE = {"zona": "Sigue mientras cotice por debajo de tu precio de compra
                 "review_ready": "Sigue hasta que apliques o descartes la revisión",
                 "decision_missing": "Sigue hasta que anotes la decisión", "decision_review": "Sigue hasta que la revises",
                 "cash_deposit": "Sigue hasta que apuntes la aportación de este mes",
+                "robo_adjust": "Sigue hasta que apuntes lo que dice MyInvestor este mes",
                 "portfolio_risk": "Sigue mientras la tesis siga débil y la posición pese mucho",
                 "concentración": "Sigue mientras el peso siga por encima del límite",
                 "legacy": "Sigue hasta que revises la valoración", "missing": "Sigue hasta que hagas la valoración",
-                "anchor_expired": "Sigue hasta que revises la corrección", "report": "Sigue hasta que lo abras",
+                "anchor_expired": "Sigue hasta que revises la corrección", "report": "Sigue hasta que lo abras", "fin_update": "Dos semanas desde la actualización",
                 "news_weekly": "Sigue hasta el resumen de la semana que viene"}
 
 

@@ -49,7 +49,7 @@ def test_notices_only_from_cache(monkeypatch):
 
 
 def test_summary_net_buys_minus_sells_in_12_months(monkeypatch):
-    cache = {"insider_trades_v1": [_trade(10, "buy", "A", 300_000), _trade(20, "sell", "B", 100_000),
+    cache = {"insider_trades_v2": [_trade(10, "buy", "A", 300_000), _trade(20, "sell", "B", 100_000),
                                    _trade(400, "sell", "C", 9e6)],            # hace más de un año: fuera
              "shares_history_v2": None, "splits_all_v1": []}
     monkeypatch.setattr(ins.market_cache, "peek", lambda kind, t: cache.get(kind))
@@ -79,3 +79,52 @@ def test_shares_from_annual_accounts():
     assert out["windows"][3]["total"] == pytest.approx(100 * (2119.7 / 1974.9 - 1))
     assert out["windows"][5]["total"] == pytest.approx(100 * (2119.7 / 1753.0 - 1)) and out["shares"]["label"] == "diluye"
     assert ins.shares_from_financials({"years": ["2025"], "income_statement": {}}) is None
+
+
+# --- Lectura (analyze): 3 meses de titular, parte de lo suyo, ventas periódicas o de sueldo, precio frente a hoy ---
+
+TODAY = datetime.date(2026, 10, 13)
+
+
+def _op(days_ago, kind, who, shares, price, position="Director"):
+    d = (TODAY - datetime.timedelta(days=days_ago)).isoformat()
+    return {"date": d, "insider": who, "position": position, "kind": kind, "shares": shares,
+            "value": shares * price if kind != "award" else None, "price": price if kind != "award" else None}
+
+
+def test_periodic_sales_are_a_plan():
+    weekly = [_op(7 * i, "sell", "A", 1575, 700) for i in range(6)]
+    assert ins.is_plan(weekly)
+    assert not ins.is_plan(weekly[:2])                                        # 2 no son patrón
+    assert not ins.is_plan([_op(5, "sell", "A", 100, 1), _op(50, "sell", "A", 9000, 1), _op(200, "sell", "A", 2500, 1)])
+
+
+def test_big_sale_of_own_stake_is_flagged_but_selling_what_you_are_paid_is_routine():
+    roster = {"Big Seller": {"position": "Chief Financial Officer", "direct": 1000.0, "indirect": None},
+              "Paid In Stock": {"position": "Chief Executive Officer", "direct": 50_000.0, "indirect": None}}
+    items = [_op(10, "sell", "Big Seller", 4000, 120, "Chief Financial Officer"),                   # vende 4.000 de 5.000
+             _op(20, "award", "Paid In Stock", 10_000, 0), _op(15, "sell", "Paid In Stock", 9000, 120, "Chief Executive Officer")]
+    r = ins.analyze(items, roster, shares_out=1_000_000, price_now=96.0, today=TODAY)
+    big = next(p for p in r["people"] if p["name"] == "Big Seller")
+    paid = next(p for p in r["people"] if p["name"] == "Paid In Stock")
+    assert big["stake_sold_pct"] == pytest.approx(80) and big["role"] == "CFO" and not big["comp"]
+    assert paid["comp"] and paid["received"] == 10_000                       # vende lo que cobra en acciones
+    assert r["verdict"] == "vigilar" and [p["name"] for p in r["watch"]] == ["Big Seller"]
+    assert r["sells"]["avg"] == pytest.approx(120) and r["sells"]["vs_now"] == pytest.approx(-20)    # hoy un 20 % por debajo
+    assert r["sells"]["pct_company"] == pytest.approx(1.3)
+
+
+def test_buys_lead_and_compare_with_today():
+    items = [_op(5, "buy", "A", 1000, 95, "Chief Financial Officer"), _op(8, "buy", "B", 500, 95), _op(9, "sell", "C", 100, 100)]
+    r = ins.analyze(items, None, price_now=104.0, today=TODAY)
+    assert r["verdict"] == "compran" and r["buys"]["insiders"] == ["A", "B"]
+    assert r["buys"]["vs_now"] == pytest.approx(100 * (104 / 95 - 1)) and r["senior_buyers"] == ["CFO"]
+    assert ins.analyze(items, None, price_now=None, today=TODAY)["buys"]["vs_now"] is None   # otra moneda: no se compara
+
+
+def test_nothing_recent_falls_back_to_the_year_and_prices_are_split_adjusted():
+    old = [_op(200, "sell", "A", 100, 2000)]
+    r = ins.analyze(old, None, price_now=None, splits=[((TODAY - datetime.timedelta(days=100)).isoformat(), 25.0)], today=TODAY)
+    assert r["verdict"] == "quietos_reciente" and r["year_sells"]["count"] == 1
+    assert r["year_sells"]["avg"] == pytest.approx(80) and r["year_sells"]["shares"] == pytest.approx(2500)   # 2.000 / 25
+    assert sum(m["sell"] for m in r["months"]) == pytest.approx(200_000) and len(r["months"]) == 12

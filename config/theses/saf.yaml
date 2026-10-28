@@ -1,0 +1,179 @@
+# Transcrito de data/theses/SAFRAN — Tesis de inversión v2.6.md (23/10/2026)
+# Cuadro de mando: los 10 KPIs del «7.1 Dashboard maestro». Umbrales: los del dashboard (≥8% / 3–8% / <3% en aftermarket,
+# piezas y servicios; 22% / 19% en margen de Propulsion; 15% / 10% en ROIC; 8% / 4% en FCF/acción). Donde el dashboard
+# solo da semáforo sin cifra (entregas LEAP, inventario, posición competitiva) el KPI es cualitativo con semáforo MANUAL.
+# Safran publica solo ingresos en el Q1 y el Q3: margen, ROIC, FCF y caja se registran por semestre o año.
+# Cambios frente al documento original (decididos al darla de alta):
+# - estado INTACTA en vez de STRENGTHENING / INTACT: es la primera versión y aún no hay tendencia que lo justifique;
+# - valoración: solo supuestos (el precio y el CAGR se recalculan con la cotización) y Bear 5% / 20x en vez de 7% / 22x,
+#   porque un 7% de FCF/acción está casi en verde (≥8%) y no representa la Narrativa B.
+# El documento completo está en config/theses/saf.md.
+ticker: SAF.PA
+title: Safran · Tesis de inversión
+version: "v2.6"
+reference_date: "2026-10-23"
+reference_price: 278
+source_document: "data/theses/SAFRAN — Tesis de inversión v2.6.md"
+document: config/theses/saf.md
+verdict: INTACTA
+summary: >-
+  Tecnología crítica + certificación + enorme base instalada de motores CFM/LEAP + costes de sustitución elevados →
+  décadas de aftermarket (piezas, servicios, contratos por hora de vuelo) → FCF recurrente → reinversión + recompras →
+  FCF/share. La transición CFM56 → LEAP puede prolongar el crecimiento muchos años. La tesis no exige crecer al 15–20%:
+  exige que aftermarket, margen de Propulsion, ROIC y FCF/share sigan fuertes. Estado: INTACT.
+hypothesis: "Si CFM/LEAP mantiene su posición y la base instalada sigue convirtiéndose en aftermarket rentable, Safran puede crecer ~9% de FCF por acción durante una década con ROIC alto; el riesgo principal no es el negocio sino el múltiplo pagado."
+hypotheses:
+  H1: CFM/LEAP mantiene ventaja competitiva estructural
+  H2: El aftermarket sigue siendo el gran multiplicador económico
+  H3: El LEAP sustituye progresivamente al CFM56
+  H4: Propulsion conserva márgenes elevados
+  H5: Safran mantiene ROIC alto
+  H6: FCF/share crece suficientemente
+  H7: La tecnología futura no desintermedia el moat
+  H8: Management continúa asignando capital racionalmente
+rules:
+  - "No son thesis breaker: un mal trimestre, menor crecimiento puntual, caída del aftermarket durante unos meses, presión de supply chain, corrección bursátil o compresión del múltiplo."
+  - "Contra-tesis (7.4): la tesis se debilita si a la vez bajan aftermarket, margen de Propulsion, ROIC y FCF/share. Una sola variable negativa no basta."
+  - "Margen de Propulsion: un trimestre o semestre <19% no rompe la tesis; evaluar duración, inversión, mix, inflación y supply chain."
+  - "ROIC es una estimación normalizada (customer advances, contract liabilities, JV, capital empleado): no usar precisión falsa."
+  - "Priorizar adjusted recurring operating income, adjusted net income y FCF: derivados, divisa y ajustes de valoración distorsionan el beneficio neto IFRS."
+  - "No conceder valor por promesas en M&A: precio pagado → sinergias → ROIC → FCF/share (Collins Flight Control: ~$50M de sinergias y ROCE > WACC en 2028)."
+  - "Leading (anticipan): entregas y base instalada LEAP, servicios/RPFH, shop visits, pricing, posición en nuevos programas, supply chain. Lagging (confirman): margen de Propulsion, ROIC, FCF, FCF/share, balance."
+  - "La valoración se sigue por separado de la calidad del negocio: la Narrativa B puede romper la tesis de inversión al precio pagado sin romper la tesis empresarial."
+master_questions:
+  - "¿Sigue creciendo el aftermarket de Propulsion por encima del 8% y cuánto viene ya del LEAP frente al CFM56?"
+  - "¿Se sostiene el ritmo de entregas LEAP (objetivo 2026 > 2.100) tras el +5% del Q3?"
+  - "¿Mantiene Propulsion un margen ≥22% con el ramp del LEAP?"
+  - "¿Crece el FCF/acción ≥8% y cuánto aportan las recompras?"
+  - "¿Se normaliza el inventario o sigue creciendo más que el negocio?"
+  - "¿Hay señales de pérdida de competitividad de CFM/LEAP en nuevos programas o arquitecturas (open fan, híbridos)?"
+  - "¿Cumple Collins Flight Control las sinergias y el ROCE > WACC previstos para 2028?"
+  - "¿Qué evidencia favorece a la Narrativa B (el mercado ha adelantado el crecimiento)?"
+valuation:
+  question: "Base normalizada: FCF 2026E ~€4,8bn (punto medio de la guía) / ~413M acciones ≈ €11,6 de FCF/acción; caja neta ~€1,7bn (≈€4/acción)."
+  target_year: 2036
+  columns:
+    - {key: name, label: Escenario}
+    - {key: fcf_ps_cagr, label: FCF/share CAGR, format: pct}
+    - {key: multiple, label: Múltiplo terminal}
+    - {key: note, label: Lectura}
+  scenarios:
+    - {name: Bear, fcf_ps_cagr: 5, multiple: "20x", note: "Narrativa B: crecimiento en zona Watch (4–8%) y múltiplo comprimido"}
+    - {name: Base, fcf_ps_cagr: 9, multiple: "26x", note: "Ambición 2028 (ingresos ~10% CAGR 2024–2028) y múltiplo actual"}
+    - {name: Bull, fcf_ps_cagr: 11, multiple: "30x", note: "Aftermarket LEAP y defensa por encima de lo previsto"}
+events:
+  - date: "2026-07-28"
+    type: earnings
+    impact: positive
+    title: "Resultados H1 2026"
+    body: "Caja neta ~€1,67bn a cierre de junio. Guía 2026: ingresos ~+15%, resultado operativo recurrente €6,4–6,5bn, FCF €4,7–4,9bn."
+  - date: "2026-10-23"
+    type: earnings
+    impact: positive
+    title: "Ingresos Q3 2026"
+    body: "Ingresos ajustados €9.003M (+14,7%; +13,4% orgánico). Propulsion +13,2% orgánico, aftermarket +18,7% (piezas +17,0% y servicios +19,0% en USD), equipo original +3,5%. Equipment & Defense +15,7%. 535 LEAP (+5%; 9M 1.565, +26%; objetivo 2026 > 2.100). Guía 2026 mantenida, sin subida: la acción cae ~8% (~€302 → ~€278)."
+  - date: "2026-10-23"
+    type: thesis
+    impact: neutral
+    title: "Tesis v2.6 · precio de referencia ~€278"
+    body: "Estado INTACT (el documento original decía STRENGTHENING / INTACT). «Safran seguirá siendo excelente; el riesgo es que el múltiplo que pagamos no permita capturar suficiente rentabilidad.» Lo que más hay que vigilar: aftermarket → margen Propulsion → ROIC → FCF/share."
+
+pillars:
+  - key: leap
+    name: LEAP deliveries
+    description: "H3 — ¿Crece la base instalada? Es el indicador adelantado del aftermarket futuro. El dashboard no da cifra: semáforo manual."
+    kpis:
+      - {key: leap_deliveries, name: LEAP deliveries growth, kind: qualitative, unit: "%",
+         how_to_measure: "Crecimiento YoY de las entregas de motores LEAP (trimestral) y frente al objetivo anual",
+         green_text: "Crecimiento sólido", amber_text: "Ralentización", red_text: "Caída estructural",
+         baseline: "Q3 2026: 535 (+5%); 9M 1.565 (+26%); objetivo 2026 > 2.100", frequency: Trimestral, source: Safran,
+         observations: [{period: Q3 2026, date: "2026-09-30", value: 5.0, status: green,
+                         note: "535 LEAP (+5% frente a 511). 9M +26% y objetivo > 2.100 mantenido: el +5% del trimestre es base comparable, no ralentización. (Safran, ingresos Q3 2026)"}]}
+
+  - key: aftermarket
+    name: Aftermarket Propulsion
+    description: "H2 — ¿Funciona la máquina de aftermarket? Es el KPI esencial número 1: piezas y servicios explican de dónde viene."
+    kpis:
+      - {key: aftermarket_growth, name: Aftermarket Propulsion growth, unit: "%", green_threshold: 8, red_threshold: 3,
+         how_to_measure: "Crecimiento orgánico YoY del aftermarket de Propulsion (trimestral)",
+         green_text: "≥8% a largo plazo", amber_text: "3–8%", red_text: "<3% estructural",
+         frequency: Trimestral, source: Safran,
+         is_kill_switch: true, kill_rule: "8.2: aftermarket persistentemente bajo sin explicación cíclica",
+         observations: [{period: Q3 2026, date: "2026-09-30", value: 18.7}]}
+      - {key: spare_parts_growth, name: Spare parts growth, unit: "%", green_threshold: 8, red_threshold: 3,
+         how_to_measure: "Crecimiento YoY de la venta de piezas de motores civiles, en USD",
+         green_text: "≥8–10%", amber_text: "3–8%", red_text: "<3%",
+         frequency: Trimestral, source: Safran,
+         observations: [{period: Q3 2026, date: "2026-09-30", value: 17.0}]}
+      - {key: services_growth, name: Services / RPFH growth, unit: "%", green_threshold: 8, red_threshold: 3,
+         how_to_measure: "Crecimiento YoY de servicios de motores civiles (sobre todo contratos LEAP por hora de vuelo), en USD",
+         green_text: "≥8–10%", amber_text: "3–8%", red_text: "<3% estructural",
+         frequency: Trimestral, source: Safran,
+         observations: [{period: Q3 2026, date: "2026-09-30", value: 19.0}]}
+
+  - key: margin
+    name: Propulsion margin
+    description: "H4 — ¿Propulsion conserva sus economics con el ramp del LEAP? KPI esencial número 2."
+    kpis:
+      - {key: propulsion_margin, name: Propulsion margin, unit: "%", green_threshold: 22, red_threshold: 19,
+         how_to_measure: "Resultado operativo recurrente / ingresos de Propulsion (semestral)",
+         green_text: "≥22%", amber_text: "19–22%", red_text: "<19% sostenido",
+         baseline: "2025: 23,0% (€3,60bn de EBIT recurrente sobre €15,67bn)", frequency: Semestral, source: Safran,
+         is_kill_switch: true, kill_rule: "8.2: Propulsion permanentemente por debajo de ~19%",
+         observations: [{period: FY2025, date: "2025-12-31", value: 23.0}]}
+
+  - key: roic
+    name: ROIC
+    description: "H5 — ¿El crecimiento crea valor o requiere demasiado capital? KPI esencial número 3. Estimación normalizada, no reportada."
+    kpis:
+      - {key: roic, name: ROIC, unit: "%", green_threshold: 15, red_threshold: 10,
+         how_to_measure: "ROIC normalizado (anual); depende del tratamiento de anticipos de clientes, JV y capital empleado",
+         green_text: ">15%", amber_text: "10–15%", red_text: "<10%",
+         baseline: "~14–15% en 2021 → ~32% en 2025 (estimación)", frequency: Anual, source: Estimación propia,
+         is_kill_switch: true, kill_rule: "8.2: ROIC estructuralmente <10%",
+         observations: [{period: FY2025, date: "2025-12-31", value: 32.0}]}
+
+  - key: fcf_share
+    name: FCF/share growth
+    description: "H6 — ¿El accionista se está enriqueciendo? KPI esencial número 4: no basta con que crezca el FCF total."
+    kpis:
+      - {key: fcf_per_share_growth, name: FCF/share growth, unit: "%", green_threshold: 8, red_threshold: 4,
+         how_to_measure: "CAGR del FCF por acción a 3 años (autocompletado)",
+         green_text: "≥8% a largo plazo", amber_text: "4–8%", red_text: "<4% estructural",
+         baseline: "€3,94 (2021) → €9,41 (2025): ~24% CAGR; 2026E ~€11,6", frequency: Anual, source: Safran,
+         auto_metric: fcf_per_share_cagr_3y,
+         is_kill_switch: true, kill_rule: "8.2: FCF/share estancado, sobre todo si a la vez sube el capex"}
+
+  - key: balance
+    name: Net cash / debt
+    description: "¿Balance resistente? La caja neta reduce mucho el riesgo financiero."
+    kpis:
+      - {key: net_cash, name: Caja neta, unit: " M€", green_threshold: 0,
+         how_to_measure: "Caja neta (M€, semestral)",
+         green_text: "Caja neta", amber_text: "Deuda moderada", red_text: "Deuda problemática",
+         frequency: Semestral, source: Safran,
+         observations: [{period: FY2025, date: "2025-12-31", value: 1740},
+                        {period: H1 2026, date: "2026-06-30", value: 1670}]}
+
+  - key: working_capital
+    name: Inventory / working capital
+    description: "¿Hay tensión financiera? El inventario se ha duplicado desde 2021: parte lo explica el crecimiento. Semáforo manual."
+    kpis:
+      - {key: inventory, name: Inventory / WC, kind: qualitative,
+         how_to_measure: "Inventario frente al crecimiento de ingresos, rotación/DSO y anticipos de clientes",
+         green_text: "Normalización", amber_text: "Aumento", red_text: "Deterioro persistente",
+         baseline: "Inventario ~€5,1bn (2021) → ~€10,3bn (2025) → ~€11,5bn (LTM)", frequency: Semestral, source: Safran,
+         observations: [{period: H1 2026, date: "2026-06-30", status: amber,
+                         note: "~€11,5bn LTM: sigue subiendo, aunque el inventario/DSO ha mejorado y los anticipos ayudan."}]}
+
+  - key: competitive
+    name: Competitive position
+    description: "H1/H7 — ¿Mantiene CFM/LEAP su ventaja? Se mide por programas ganados, cuota y nuevas arquitecturas. Semáforo manual."
+    kpis:
+      - {key: competitive_position, name: Competitive position, kind: qualitative,
+         how_to_measure: "Programas nuevos ganados o perdidos, cuota frente a Pratt & Whitney, GE y Rolls-Royce, avance de arquitecturas alternativas",
+         green_text: "Liderazgo", amber_text: "Señales de pérdida", red_text: "Pérdida estructural",
+         frequency: Trimestral, source: Safran,
+         is_kill_switch: true, kill_rule: "8.2: pérdida estructural de competitividad de CFM/LEAP, sobre todo en nuevos programas",
+         observations: [{period: Q3 2026, date: "2026-09-30", status: green,
+                         note: "Más de 10.000 LEAP entregados y red de talleres en expansión; sin pérdida de programas."}]}
